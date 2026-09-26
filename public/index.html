@@ -240,7 +240,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.4.0</span>
+      <span class="tag">Backyard Brawl · prototype 0.4.1</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Your mates, one backyard, three minutes. Grab whatever is lying on the lawn and chuck it at them before they chuck it at you.</p>
     </div>
@@ -269,6 +269,14 @@ body.touch #cds{display:none}
           <input type="radio" name="diff" id="dEasy" value="easy"><label for="dEasy">Easy</label>
           <input type="radio" name="diff" id="dFair" value="fair" checked><label for="dFair">Fair dinkum</label>
           <input type="radio" name="diff" id="dSpicy" value="spicy"><label for="dSpicy">Spicy</label>
+        </div></fieldset>
+        <fieldset class="seg"><legend>Game mode</legend><div class="opts">
+          <input type="radio" name="pmode" id="pmFfa" value="ffa" checked><label for="pmFfa">Free for all</label>
+          <input type="radio" name="pmode" id="pmTeams" value="teams"><label for="pmTeams">Teams (2 v 2)</label>
+        </div></fieldset>
+        <fieldset class="seg" id="pffWrap" hidden><legend>Friendly fire</legend><div class="opts">
+          <input type="radio" name="pff" id="pffOff" value="0" checked><label for="pffOff">Off</label>
+          <input type="radio" name="pff" id="pffOn" value="1"><label for="pffOn">On</label>
         </div></fieldset>
         <button class="btn" id="play" type="button">Practice vs 3 bots</button>
       </div>
@@ -782,7 +790,7 @@ let stats={},hostRows=[],leaderId=null,scoreDirty=true,resultsRows=null;
 /* ---- teams ---- */
 let gameMode='ffa',friendlyFire=false,teamsManual=false;const teamOf=new Map();
 const TEAMS={r:{name:'Red',color:0xe8443a,css:'#e8443a'},b:{name:'Blue',color:0x2f7fe0,css:'#2f7fe0'},w:{name:'Wildcard',color:0xf2c230,css:'#e0a800'}};
-function teamsOn(){return mode==='mp'&&gameMode==='teams';}
+function teamsOn(){return (mode==='mp'||mode==='solo')&&gameMode==='teams';}
 function teamOfId(id){return teamsOn()?teamOf.get(id)||null:null;}
 function sameTeam(a,b){if(!teamsOn()||!a||!b||a===b)return false;const ta=teamOf.get(a);return !!ta&&ta!=='w'&&ta===teamOf.get(b);}
 // host: give everyone a team. Even numbers split Red/Blue; an odd one out becomes the Wildcard.
@@ -1430,6 +1438,7 @@ function pickColor(){const used=new Set();try{for(const p of net.yard?net.yard.p
   return PALETTE.find(c=>!used.has(c))||pick(PALETTE);}
 async function hostYard(){
   if(!mpReady())return;ac();$('#hostBtn').disabled=true;setMpNote('Opening your yard…');
+  gameMode=radio('ymode')==='teams'?'teams':'ffa';friendlyFire=radio('yff')==='1';teamsManual=false;teamOf.clear();net.lastTm=null;
   const a='abcdefghjkmnpqrstuvwxyz';let code='yard-';for(let i=0;i<4;i++)code+=a[Math.floor(Math.random()*a.length)];
   try{net.yard=await net.room.join(code);}catch(e){setMpNote('Couldn’t open a yard ('+(e&&e.code||'error')+'). Try again in a moment.',true);updateMpButtons();return;}
   net.code=code;net.isHost=true;myId=newId();net.hostId=myId;enterMp();
@@ -1437,6 +1446,7 @@ async function hostYard(){
 async function joinYard(raw){
   if(!mpReady())return;ac();let code=String(raw||'').trim().toLowerCase().replace(/\s+/g,'');if(code&&!code.startsWith('yard-'))code='yard-'+code;
   if(!/^yard-[a-z0-9]{3,8}$/.test(code)){setMpNote('That code doesn’t look right. It should look like yard-kbzq.',true);return;}
+  gameMode='ffa';friendlyFire=false;teamOf.clear();net.lastTm=null;
   $('#joinBtn').disabled=true;setMpNote('Joining '+code.toUpperCase()+'…');
   try{net.yard=await net.room.join(code);}catch(e){setMpNote('Couldn’t join that yard ('+(e&&e.code||'error')+').',true);updateMpButtons();return;}
   net.code=code;net.isHost=false;net.hostId=null;myId=newId();enterMp();
@@ -1699,6 +1709,7 @@ function startSolo(){
   ac();mode='solo';isAuth=true;myId='me';clearWorld();roundLen=+radio('len');difficulty=radio('diff');
   me=createChar('me',myName,PALETTE[0],'me',CHAR_SPAWNS[0]);myColor=PALETTE[0];
   ['Shazza','Davo','Kev'].forEach((n,i)=>createChar('b'+i,n,PALETTE[i+1],'bot',CHAR_SPAWNS[i+1]));
+  gameMode=radio('pmode')==='teams'?'teams':'ffa';friendlyFire=radio('pff')==='1';teamsManual=false;teamOf.clear();if(gameMode==='teams')balanceTeams(true);
   hintStage=hintStage>=3?3:0;hintHideT=0;hintEl.style.opacity=0;
   authStartRound();requestLock();canvas.focus();refreshOverlays();
 }
@@ -1709,6 +1720,7 @@ function resume(fromLock){if(state!=='paused')return;if(!fromLock&&!fallbackAim&
   state=pause.prev||'play';last=performance.now();refreshOverlays();}
 function goMenu(){if(document.pointerLockElement)document.exitPointerLock();resultsOpen=false;panelOpen=false;setupAttract();refreshOverlays();renderYards();}
 $('#play').addEventListener('click',startSolo);
+document.querySelectorAll('input[name=pmode]').forEach(r=>r.addEventListener('change',()=>{const t=radio('pmode')==='teams';$('#pffWrap').hidden=!t;$('#play').textContent=t?'Practice: you + a bot vs 2 bots':'Practice vs 3 bots';}));
 $('#hostBtn').addEventListener('click',hostYard);
 $('#joinForm').addEventListener('submit',e=>{e.preventDefault();joinYard($('#codeIn').value);});
 $('#again').addEventListener('click',()=>{if(mode==='solo')startSolo();else if(mode==='mp'&&net.isHost){roundLen=+radio('ylen');difficulty=radio('ydiff');botCount=+radio('ybots');authStartRound();requestLock();}});
