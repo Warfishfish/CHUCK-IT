@@ -235,7 +235,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.3.0</span>
+      <span class="tag">Backyard Brawl · prototype 0.3.1</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Your mates, one backyard, three minutes. Grab whatever is lying on the lawn and chuck it at them before they chuck it at you.</p>
     </div>
@@ -281,7 +281,7 @@ body.touch #cds{display:none}
         <span class="chip">Wine +26</span>
         <span class="chip">Rum shot +34</span>
       </div>
-      <p class="foot" style="margin-top:8px">Walk up to the bar by the back fence and press R. Drinking fills your drunk meter, which drops again as you sober up. You're slower and can't throw while you drink, and a hit makes you spill it.</p>
+      <p class="foot" style="margin-top:8px">Walk up to the bar by the back fence and press R. Drinking fills your drunk meter, which drops again as you sober up. Once you're tipsy the yard starts to wobble, your view sways and you drift off course when you walk, and it gets worse the more you drink. You're slower and can't throw while you drink, and a hit makes you spill it.</p>
     </section>
 
     <section>
@@ -1392,6 +1392,7 @@ function playerInput(){
   if(mode==='mp'&&panelOpen&&!fallbackAim&&!touchMode){mx=0;my=0;}
   const s=Math.sin(me.yaw),c=Math.cos(me.yaw);
   me.wish.set(c*mx-s*my,-s*mx-c*my);if(me.wish.length()>1)me.wish.normalize();
+  const da=drunkAmt(me.drunk);if(da>0&&(mx||my)){const th=da*(Math.sin(elapsed*.5)*.5+Math.sin(elapsed*1.37+1)*.2),cs=Math.cos(th),sn=Math.sin(th),wx=me.wish.x,wz=me.wish.y;me.wish.set(wx*cs-wz*sn,wx*sn+wz*cs);}
 }
 
 /* ================= TRAJECTORY PREVIEW ================= */
@@ -1542,12 +1543,37 @@ function selectCode(){const r=document.createRange();r.selectNodeContents($('#ya
 $('#sound').addEventListener('change',e=>{soundOn=e.target.checked;if(soundOn)ac();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&mode==='solo')pause();});
 
+/* ================= DRUNK EFFECTS ================= */
+// 0 when under "Tipsy" (15), easing up to 1 by 85 on the meter
+function drunkAmt(d){const x=clamp((d-15)/70,0,1);return x*x*(3-2*x);}
+const drunkFX=(function(){
+  const size=new THREE.Vector2();renderer.getDrawingBufferSize(size);
+  const rt=new THREE.WebGLRenderTarget(size.x,size.y,{samples:4});
+  const m=new THREE.ShaderMaterial({uniforms:{tD:{value:rt.texture},uT:{value:0},uA:{value:0}},depthTest:false,depthWrite:false,
+    vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
+    fragmentShader:`uniform sampler2D tD;uniform float uT,uA;varying vec2 vUv;
+      void main(){vec2 uv=vUv;
+        uv.x+=sin(uv.y*9.0+uT*1.9)*.007*uA+sin(uv.y*23.0-uT*1.3)*.002*uA;
+        uv.y+=sin(uv.x*7.0+uT*1.5)*.006*uA;
+        vec2 off=vec2(.016*sin(uT*.8)+.006,.005*cos(uT*1.1))*uA;
+        vec4 c=texture2D(tD,uv);vec4 g=texture2D(tD,clamp(uv+off,.001,.999));
+        c=mix(c,g,.42*uA);
+        float d=distance(vUv,vec2(.5));c.rgb*=1.-.38*uA*smoothstep(.3,.78,d);
+        c.rgb=mix(c.rgb,c.rgb*vec3(1.06,1.,.88),.6*uA);
+        gl_FragColor=c;}`});
+  const q=new THREE.Mesh(new THREE.PlaneGeometry(2,2),m);q.frustumCulled=false;
+  const fs=new THREE.Scene();fs.add(q);const fc=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+  window.addEventListener('resize',()=>{renderer.getDrawingBufferSize(size);rt.setSize(size.x,size.y);});
+  return {render(a,t){m.uniforms.uA.value=a;m.uniforms.uT.value=t;renderer.setRenderTarget(rt);renderer.render(scene,camera);renderer.setRenderTarget(null);renderer.render(fs,fc);}};
+})();
+function renderFrame(){const a=me&&mode!=='menu'?drunkAmt(me.drunk):0;if(a>.01)drunkFX.render(a,elapsed);else renderer.render(scene,camera);}
+
 /* ================= LOOP ================= */
 let last=performance.now();
 function frame(now){
   requestAnimationFrame(frame);
   const dt=Math.min(.05,(now-last)/1000);last=now;
-  if(state==='paused'){renderer.render(scene,camera);return;}
+  if(state==='paused'){renderFrame();return;}
   elapsed+=dt;
   if(state==='countdown'){countdown-=dt;const n=Math.ceil(countdown);if(n!==lastBeep&&n>0&&n<=3){lastBeep=n;banner(String(n),.9);SFX.beep();}
     if(isAuth&&countdown<=0){state='play';banner('CHUCK IT!',1);SFX.go();renderYardPanel();}}
@@ -1563,7 +1589,9 @@ function frame(now){
     const sx=shake>0?rand(-1,1)*shake:0,sy=shake>0?rand(-1,1)*shake:0;const bob=me.grounded?Math.sin(me.walk*2)*.035:0;
     camera.position.set(me.pos.x+sx*.3,me.pos.y+1.55-(me.inPool?.45:0)+bob+sy*.3,me.pos.z);
     const dr=me.dodgeT>0?(me.dodgeDir.dot(new V3(Math.cos(me.yaw),0,-Math.sin(me.yaw)))>0?-.12:.12):0;
-    camera.rotation.set(me.pitch+sy*.2,me.yaw+sx*.2,camRoll+dr);
+    const da=drunkAmt(me.drunk),et=elapsed;
+    const swY=da*(Math.sin(et*.63)*.06+Math.sin(et*1.71)*.018),swP=da*(Math.sin(et*.52+1.3)*.035+Math.sin(et*1.37)*.012),swR=da*Math.sin(et*.44+.5)*.09;
+    camera.rotation.set(me.pitch+sy*.2+swP,me.yaw+sx*.2+swY,camRoll+dr+swR);
     const tf=me.sprinting?81:74;if(Math.abs(camera.fov-tf)>.05){camera.fov+=(tf-camera.fov)*(1-Math.exp(-8*dt));camera.updateProjectionMatrix();}
   }else{const a=elapsed*.05;camera.position.set(Math.sin(a)*40,17,Math.cos(a)*40);camera.lookAt(0,1,0);}
   camera.updateMatrixWorld();
@@ -1577,7 +1605,7 @@ function frame(now){
   if(mode!=='menu')updateHud(dt);
   if(net.yard&&me){net.sendAcc+=dt;if(net.sendAcc>=.05){net.sendAcc=0;pushPresence();}
     if(net.isHost&&net.room){net.advAcc-=dt;if(net.advAcc<=0){net.advAcc=2;net.room.presence({hosting:{code:net.code,n:myName,p:[...chars.values()].filter(c=>!c.isBot).length,st:state}}).catch(()=>{});}}}
-  renderer.render(scene,camera);
+  renderFrame();
 }
 setupAttract();refreshOverlays();
 requestAnimationFrame(frame);
