@@ -235,7 +235,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.3.1</span>
+      <span class="tag">Backyard Brawl · prototype 0.3.2</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Your mates, one backyard, three minutes. Grab whatever is lying on the lawn and chuck it at them before they chuck it at you.</p>
     </div>
@@ -281,7 +281,7 @@ body.touch #cds{display:none}
         <span class="chip">Wine +26</span>
         <span class="chip">Rum shot +34</span>
       </div>
-      <p class="foot" style="margin-top:8px">Walk up to the bar by the back fence and press R. Drinking fills your drunk meter, which drops again as you sober up. Once you're tipsy the yard starts to wobble, your view sways and you drift off course when you walk, and it gets worse the more you drink. You're slower and can't throw while you drink, and a hit makes you spill it.</p>
+      <p class="foot" style="margin-top:8px">Walk up to the bar by the back fence and press R. Drinking fills your drunk meter, which drops again as you sober up. Once you're tipsy the yard starts to wobble, your view sways and you drift off course when you walk. Everyone else can see it too: drunk players sway, stagger and flail. It all gets worse the more you drink. You're slower and can't throw while you drink, and a hit makes you spill it.</p>
     </section>
 
     <section>
@@ -700,7 +700,7 @@ function nameTag(name,color){const c=document.createElement('canvas');c.width=25
 function createChar(id,name,color,kind,sp){
   const ch={id,name,color,kind,isBot:false,pos:new V3(sp[0],0,sp[1]),vel:new V3(),yaw:0,pitch:0,face:0,selId:null,charging:false,charge:0,
     stun:0,dodgeT:0,dodgeCd:0,dodgeDir:new V3(),catchT:0,catchCd:0,grounded:true,jumpBuf:0,coyote:0,sprinting:false,boostT:0,boostCd:0,drunk:0,drinkT:0,drinkDur:1,drinkType:null,
-    tilt:0,tiltV:0,tiltAxis:new V3(1,0,0),spinV:0,spinA:0,inPool:false,slip:false,wish:new THREE.Vector2(),walk:0,wasInPool:false,
+    tilt:0,tiltV:0,tiltAxis:new V3(1,0,0),phase:Math.random()*6.28,spinV:0,spinA:0,inPool:false,slip:false,wish:new THREE.Vector2(),walk:0,wasInPool:false,
     netP:new V3(sp[0],0,sp[1]),netV:new V3(),netT:performance.now(),netFace:0};
   const g=new THREE.Group(),body=new THREE.Group();g.add(body);
   const cM=mat(color),cL=mat(new THREE.Color(color).lerp(new THREE.Color(0xffffff),.35).getHex()),wh=mat(0xffffff),bk=mat(0x111111);
@@ -1063,16 +1063,24 @@ function separate(){const list=[...chars.values()];for(let i=0;i<list.length;i++
   const aL=a.kind!=='proxy',bL=b.kind!=='proxy';if(!aL&&!bL)continue;
   const dx=b.pos.x-a.pos.x,dz=b.pos.z-a.pos.z,d=Math.hypot(dx,dz);
   if(d<.9&&d>1e-4&&Math.abs(a.pos.y-b.pos.y)<1.5){const p=(.9-d)/(aL&&bL?2:1),nx=dx/d,nz=dz/d;if(aL){a.pos.x-=nx*p;a.pos.z-=nz*p;}if(bL){b.pos.x+=nx*p;b.pos.z+=nz*p;}}}}
-const UP=new V3(0,1,0),la=new V3();
+const UP=new V3(0,1,0),la=new V3(),dq=new THREE.Quaternion(),de=new THREE.Euler(0,0,0,'YXZ');
 function syncCharMesh(ch,dt){
   ch.tiltV+=(-ch.tilt*55-ch.tiltV*7)*dt;ch.tilt=clamp(ch.tilt+ch.tiltV*dt,-1.45,1.45);
   ch.spinV*=Math.exp(-3*dt);ch.spinA+=ch.spinV*dt;
   const sp=Math.hypot(ch.vel.x,ch.vel.z);if(ch.grounded&&sp>.5)ch.walk+=sp*dt*2.4;
   ch.mesh.position.set(ch.pos.x,ch.pos.y-(ch.inPool?.45:0),ch.pos.z);
-  const ry=ch.face+ch.spinA;ch.mesh.rotation.y=ry;
+  // drunk body language, visible to everyone (drunk level comes over the network for other players)
+  const da=drunkAmt(ch.drunk||0),t=elapsed,ph=ch.phase,moving=ch.grounded&&sp>.8;
+  let ry=ch.face+ch.spinA;
+  if(da>0){ry+=da*(Math.sin(t*.9+ph)*.28+(moving?Math.sin(ch.walk*.5)*.18:0));
+    const lurch=moving?Math.sin(ch.walk*.5)*.32*da:Math.sin(t*.7+ph)*.1*da;
+    ch.mesh.position.x+=Math.cos(ry)*lurch;ch.mesh.position.z-=Math.sin(ry)*lurch;}
+  ch.mesh.rotation.y=ry;
   la.copy(ch.tiltAxis).applyAxisAngle(UP,-ry);if(la.lengthSq()>1e-6)la.normalize();ch.body.quaternion.setFromAxisAngle(la,ch.tilt);
-  ch.body.position.y=ch.grounded?Math.abs(Math.sin(ch.walk))*.07:0;
-  const wind=ch.charging?ch.charge:0;ch.hand.position.set(-.47,.88+wind*.75,.05-wind*.35);
+  if(da>0){const roll=da*(Math.sin(t*1.1+ph)*.23+Math.sin(t*2.7+ph*2)*.06)+(moving?Math.sin(ch.walk)*.2*da:0),pitch=da*Math.sin(t*.8+ph*1.7)*.13;
+    ch.body.quaternion.multiply(dq.setFromEuler(de.set(pitch,0,roll)));}
+  ch.body.position.y=ch.grounded?Math.abs(Math.sin(ch.walk))*(.07+.05*da):0;
+  const wind=ch.charging?ch.charge:0;ch.hand.position.set(-.47-da*.12*Math.abs(Math.sin(t*2.3+ph)),.88+wind*.75+da*Math.sin(t*3.1+ph)*.22,.05-wind*.35+da*Math.sin(t*1.9+ph)*.12);
   ch.stars.visible=ch.stun>.15;if(ch.stars.visible)ch.stars.rotation.y+=dt*6;
   ch.crown.visible=leaderId===ch.id;
 }
