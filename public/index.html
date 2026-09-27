@@ -153,8 +153,10 @@ td.score{font-weight:800;font-size:16px}
 #tLook{right:0;width:55%}
 #stick{position:absolute;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;border:3px solid rgba(255,255,255,.6);background:rgba(0,0,0,.15);display:none}
 #stick i{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(255,255,255,.75)}
-.tbtns{position:absolute;right:16px;bottom:120px;display:grid;grid-template-columns:repeat(2,70px);gap:10px;pointer-events:auto}
-.tbtns button{width:70px;height:70px;border-radius:50%;border:3px solid var(--ink);background:rgba(255,255,255,.85);font:800 13px 'Figtree',sans-serif;color:var(--ink);touch-action:none}
+.tbtns{position:absolute;right:12px;bottom:112px;display:grid;grid-template-columns:repeat(3,60px);gap:8px;pointer-events:auto}
+.tbtns button{width:60px;height:60px;border-radius:50%;border:3px solid var(--ink);background:rgba(255,255,255,.85);font:800 12px 'Figtree',sans-serif;color:var(--ink);touch-action:none}
+.tbtns #tBoost{background:#bdeee7}.tbtns #tEmote{background:#ffd9ec}
+@media (max-height:420px){.tbtns{bottom:100px;grid-template-columns:repeat(4,52px);gap:6px}.tbtns button{width:52px;height:52px;font-size:11px}}
 .tbtns #tThrow{background:var(--sun)}
 body.touch #slots{bottom:max(16px,env(safe-area-inset-bottom,0px))}
 body.touch #cds{display:none}
@@ -232,18 +234,21 @@ body.touch #cds{display:none}
   <div id="tLook"></div>
   <button id="tMenu" type="button" hidden>Yard menu</button>
   <div class="tbtns">
+    <button id="tJump" type="button">Jump</button>
+    <button id="tBoost" type="button">Boost</button>
+    <button id="tDodge" type="button">Dodge</button>
     <button id="tCatch" type="button">Catch</button>
     <button id="tThrow" type="button">Chuck</button>
     <button id="tSwap" type="button">Swap</button>
+    <button id="tEmote" type="button">Emote</button>
     <button id="tDrink" type="button" hidden>Drink</button>
-    <button id="tDodge" type="button">Dodge</button>
   </div>
 </div>
 
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.7.0</span>
+      <span class="tag">Backyard Brawl · prototype 0.8.0</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Your mates, one backyard, three minutes. Grab whatever is lying on the lawn and chuck it at them before they chuck it at you.</p>
     </div>
@@ -319,6 +324,7 @@ body.touch #cds{display:none}
         <span class="chip gold">+50 hit the leader ♛</span>
         <span class="chip gold">🔥 3 hit streak = ×1.5, 5+ = ×2</span>
         <span class="chip gold">🍺 +25 hit while tipsy, +50 while drunk</span>
+        <span class="chip good">+50 knock someone into the pool or onto the tramp</span>
       </div>
     </section>
 
@@ -333,6 +339,7 @@ body.touch #cds{display:none}
         <span><kbd>C</kbd></span><span>Dodge (brief dive, dodges a hit)</span>
         <span><kbd>R</kbd></span><span>Drink at the bar, grab from the chest, nick meat off the BBQ table, or sit down for smoko. Hold R next to a fallen mate to help them up</span>
         <span><kbd>E</kbd> <kbd>Wheel</kbd></span><span>Swap held item (carry two)</span>
+        <span><kbd>T</kbd> <kbd>G</kbd> <kbd>B</kbd></span><span>Taunt, dance, laugh</span>
         <span><kbd>Esc</kbd></span><span>Pause, or open the yard menu online</span>
       </div>
     </section>
@@ -678,6 +685,8 @@ const SFX={
   timber:at=>{tone({f:95,f2:70,t:.8,type:'sawtooth',v:.07},at);tone({f:120,f2:45,t:.3,v:.5,delay:1.75},at);noise({t:.25,v:.25,f:260,type:'lowpass',delay:1.75},at);},
   pop:at=>tone({f:700,f2:1400,t:.08,type:'triangle',v:.12},at),
   alarm:()=>{tone({f:880,f2:660,t:.22,type:'square',v:.06});tone({f:880,f2:660,t:.22,type:'square',v:.06,delay:.26});},
+  laugh:at=>{for(let i=0;i<6;i++)tone({f:520-i*25,f2:430-i*25,t:.09,type:'triangle',v:.1,delay:i*.13},at);},
+  jig:at=>{[523,659,784,659,523,784].forEach((f,i)=>tone({f,t:.12,type:'square',v:.05,delay:i*.14},at));},
   whoa:at=>{tone({f:420,f2:180,t:.45,type:'triangle',v:.1},at);},
   splat:at=>{noise({t:.16,v:.45,f:900,type:'lowpass'},at);tone({f:130,f2:60,t:.14,v:.3},at);noise({t:.1,v:.2,f:3000,type:'highpass',delay:.03},at);},
   clang:at=>{tone({f:1250,f2:1180,t:.35,type:'square',v:.07},at);tone({f:1870,f2:1800,t:.25,type:'square',v:.05},at);tone({f:180,f2:90,t:.12,v:.3},at);},
@@ -837,6 +846,29 @@ function smokoTick(ch,dt){if(!(ch.smokoSeat>=0))return;ch.smokoT+=dt;
   const [x,z]=seatPos(Math.min(ch.smokoSeat,smokoN-1),smokoN);ch.pos.x=x;ch.pos.z=z;ch.vel.x=0;ch.vel.z=0;ch.wish.set(0,0);
   ch.drunk=Math.min(100,ch.drunk+SMOKO.sip*dt);ch.sipT-=dt;if(ch.sipT<=0){ch.sipT=4;if(ch.kind==='me')SFX.glug(ch.pos);}
   if(ch.kind==='me'){if(ch.smokoT>=SMOKO.maxT)standUp("Smoko's over! Back to it.");else if(!canAct()||ch.stun>0)standUp();}}
+/* ---- knocked into the pool / onto the tramp: bonus for whoever hit them ---- */
+const ENV_PTS=50,ENV_NAMES={pool:'SPLASHDOWN!',tramp:'INTO ORBIT!'};
+function envCheck(ch,kind){if(!(ch.kind==='me'||(isAuth&&ch.kind==='bot'))||!ch.lastHitBy||elapsed-ch.lastHitT>2)return;
+  if(isAuth)authEnv(ch.lastHitBy,ch.id,kind);else{sendEv('env',kind,ch.lastHitBy);ch.lastHitBy=null;}}
+function authEnv(tid,vid,kind){const v=chars.get(vid);if(!v||!chars.has(tid)||tid===vid||v.lastHitBy!==tid||elapsed-v.lastHitT>3.5||sameTeam(tid,vid)||!ENV_NAMES[kind])return;
+  v.lastHitBy=null;const scoring=state==='play';let pts=0;if(scoring&&stats[tid]){pts=ENV_PTS;stats[tid].score+=pts;scoreDirty=true;}fx('env',kind,vid,tid,pts);}
+/* ---- emotes ---- */
+const EMOTES={taunt:["Is that all ya got?","Ya throw like me nan!","Too slow, mate!","Couldn't hit a barn door!","Yeah nah, missed!","Come at me!","Easy as!","Oi! Over here, ya galah!","Stone the crows, weak!"],
+  laugh:["HAHAHAHA!","Ha! Get wrecked!","HAHA, look at ya!","Hehehe. Classic."],
+  dance:["Oi oi oi!","Look at these moves!","Bust a move!"]};
+function drawBubble(canvas,tex,text){const x=canvas.getContext('2d');x.clearRect(0,0,512,128);x.font='900 34px "Arial Black",Arial,sans-serif';const w=Math.min(500,x.measureText(text).width+40);
+  x.fillStyle='#fff';x.strokeStyle='#172418';x.lineWidth=5;x.beginPath();if(x.roundRect)x.roundRect(256-w/2,8,w,82,20);else x.rect(256-w/2,8,w,82);x.fill();x.stroke();
+  x.beginPath();x.moveTo(236,88);x.lineTo(256,120);x.lineTo(270,88);x.closePath();x.fill();x.stroke();x.fillStyle='#fff';x.fillRect(238,82,30,8);
+  x.fillStyle='#172418';x.textAlign='center';x.textBaseline='middle';x.fillText(text,256,50,480);tex.needsUpdate=true;}
+function charBubble(ch,text){if(!ch.bubble){const c=document.createElement('canvas');c.width=512;c.height=128;const t=new THREE.CanvasTexture(c);
+    ch.bubble=new THREE.Sprite(new THREE.SpriteMaterial({map:t,depthWrite:false,transparent:true}));ch.bubble.scale.set(3,.75,1);ch.bubble.position.y=3;ch.bubble.userData={c,t};ch.mesh.add(ch.bubble);}
+  drawBubble(ch.bubble.userData.c,ch.bubble.userData.t,text);ch.bubble.visible=true;ch.bubbleT=2.6;}
+function startEmote(ch,k,i){const list=EMOTES[k];if(!list)return;const text=list[clamp(i,0,list.length-1)];
+  ch.emote={k,t:0,dur:k==='dance'?2.4:k==='laugh'?1.7:1.4};
+  if(ch.kind==='me'&&me)floater(text,camera.position.clone().add(fwd(me).multiplyScalar(2.4)).setY(camera.position.y+.5),'small');else charBubble(ch,text);
+  (k==='laugh'?SFX.laugh:k==='dance'?SFX.jig:SFX.babble)(ch.pos);}
+function tryEmote(k){if(!me||mode==='menu'||!EMOTES[k]||elapsed-(tryEmote.t||-9)<2||me.stun>0||me.fallT>0)return;tryEmote.t=elapsed;
+  const i=Math.floor(Math.random()*EMOTES[k].length);if(isAuth)fx('emote',myId,k,i);else{startEmote(me,k,i);sendEv('em',k,i);}}
 function fallCheck(ch,dt){ch.fallImmune=Math.max(0,ch.fallImmune-dt);
   if(ch.fallT>0){ch.fallT=Math.max(0,ch.fallT-dt);ch.fallAge+=dt;ch.stun=Math.max(ch.stun,ch.fallT);
     if(ch.fallT<=0){ch.fallImmune=25;ch.stun=0;if(ch.kind==='me'&&me)floater('Back on your feet!',camera.position.clone().add(fwd(me).multiplyScalar(2)).setY(camera.position.y+.3),'small');}return;}
@@ -1204,6 +1236,7 @@ function playFx(a){
   const k=a[0];
   if(k==='hit'){const vid=a[1],tid=a[2],type=TYPES[a[3]]||'teddy',d=ITEM_DEFS[type];const kx=num(a[4],0),kz=num(a[5],1);const line=d.lines[a[6]|0]||d.lines[0];
     const bounty=!!a[7],pos=new V3(num(a[8],0),num(a[9],1),num(a[10],0)),scoring=!!a[11];const streak=num(a[12],0),gain=num(a[13],0)||100;const victim=chars.get(vid);
+    if(victim&&tid&&tid!==vid){victim.lastHitBy=tid;victim.lastHitT=elapsed;}
     if(type==='teddy')burst(pos,[0xa86b3c,0xe2b98a,0xffffff],14,4,.06,.4);else if(type==='gnome')burst(pos,[0xd63a2f,0x2d5fa8,0xf2c9a0,0x6b4a2a],14,5,.09);
     SFX[d.sfx](pos);SFX.bonk(pos);
     if(victim&&victim.kind!=='me'){floater(line,victim.pos.clone().setY(victim.pos.y+2.1),'big');if(victim.kind==='proxy')applyTumble(victim,new V3(kx,0,kz),d.knock);}
@@ -1217,7 +1250,7 @@ function playFx(a){
     if(vid===myId&&me&&scoring)floater('−50',camera.position.clone().add(fwd(me).multiplyScalar(2)),'bad');
     if(tid)feed(`${nm(tid)} → ${nm(vid)} <em>${esc(line)}</em>${bounty?' ♛':''}${streak>=3?' <b>×'+(streak>=5?2:1.5)+'</b>':''}`);
   }else if(k==='slap'){const aid=a[1],vid=a[2],anim=clamp(a[3]|0,1,3),kd=new V3(num(a[4],0),0,num(a[5],1)),scoring=!!a[6],streak=num(a[7],0),gain=num(a[8],0),bounty=!!a[9];
-    const at=chars.get(aid),vc=chars.get(vid);if(at)at.swingT=.28;
+    const at=chars.get(aid),vc=chars.get(vid);if(at)at.swingT=.28;if(vc){vc.lastHitBy=aid;vc.lastHitT=elapsed;}
     if(vc){vc.slapA=anim;vc.slapT=0;const hp=vc.pos.clone().setY(vc.pos.y+1.3);
       SFX.slap(hp);SFX[['heli','cartwheel','timber'][anim-1]](hp);burst(hp,[0xa44de0,0xe2b8ff,0xffffff,0xff5fa8],24,5,.07);
       if(vc.kind==='me'||(isAuth&&vc.kind==='bot'))applyKnock(vc,ITEM_DEFS.dildo,kd,anim);
@@ -1230,7 +1263,7 @@ function playFx(a){
       if(aid===myId&&me)shake=Math.max(shake,.05);
       feed(`${nm(aid)} slapped ${nm(vid)} <em>${label}</em>${bounty?' ♛':''}`);}
   }else if(k==='mslap'){const aid=a[1],vid=a[2],type=TYPES[a[3]]==='fish'?'fish':'steak',kd=new V3(num(a[4],0),0,num(a[5],1)),scoring=!!a[6],gain=num(a[7],0),tk=!!a[8];
-    const at=chars.get(aid),vc=chars.get(vid);if(at)at.swingT=.28;
+    const at=chars.get(aid),vc=chars.get(vid);if(at)at.swingT=.28;if(vc){vc.lastHitBy=aid;vc.lastHitT=elapsed;}
     if(vc){const hp=vc.pos.clone().setY(vc.pos.y+1.3);SFX.splat(hp);burst(hp,type==='fish'?[0xc9d6de,0x8aa4b4,0xffffff,0x6fa8c8]:[0xc4455a,0xf2d2c8,0x8a1f2c],20,4,.06);
       vc.dizzyT=MEAT_STUN;
       if(vc.kind==='me'||(isAuth&&vc.kind==='bot')){applyKnock(vc,ITEM_DEFS[type],kd);vc.stun=Math.max(vc.stun,MEAT_STUN);vc.drinkT=0;vc.drinkType=null;if(vc.kind==='me')showHint('<b>Stunned!</b> Seeing stars for a few seconds.',MEAT_STUN);}
@@ -1248,6 +1281,12 @@ function playFx(a){
       if(t.kind==='me'&&me)floater('Back on your feet!',camera.position.clone().add(fwd(me).multiplyScalar(2)).setY(camera.position.y+.3),'catch');else floater('Up you get!',t.pos.clone().setY(t.pos.y+2.2),'catch');
       if(a[2]===myId&&pts)floater('+'+pts+' good mate',t.pos.clone().setY(t.pos.y+2.8),'small');
       feed(`${nm(a[2])} helped ${nm(a[1])} up`);}
+  }else if(k==='env'){const kind=a[1],vc=chars.get(a[2]),tid=a[3],pts=num(a[4],0);if(vc){vc.lastHitBy=null;const lbl=ENV_NAMES[kind]||'NICE!';
+      if(kind==='pool'){burst(vc.pos.clone().setY(.3),[0x9ee3ff,0xffffff,0x5ac8f0],30,5,.08);SFX.splash(vc.pos);}else SFX.boing(vc.pos);
+      if(vc.kind==='me'&&me)floater(lbl,camera.position.clone().add(fwd(me).multiplyScalar(2.2)).setY(camera.position.y+.4),'big');else floater(lbl,vc.pos.clone().setY(vc.pos.y+2.4),'big');
+      if(tid===myId&&pts)floater('+'+pts+' '+(kind==='pool'?'pool shot':'tramp shot'),vc.pos.clone().setY(vc.pos.y+3),'small');
+      feed(`${nm(tid)} sent ${nm(a[2])} ${kind==='pool'?'into the pool':'onto the tramp'} <em>${lbl}</em>`);}
+  }else if(k==='emote'){const c=chars.get(a[1]),list=EMOTES[a[2]];if(c&&list&&!(c===me&&me.emote&&me.emote.t<.8))startEmote(c,a[2],num(a[3],0)|0);
   }else if(k==='npcsay'){npcBubble(String(a[1]||'').slice(0,40));SFX.babble(NPC.pos);
   }else if(k==='npcswing'){NPC.swingT=.35;SFX.whoosh(NPC.pos);
   }else if(k==='sw'){const c=chars.get(a[1]);if(c&&c.kind!=='me'){c.swingT=.28;SFX.whoosh(c.pos);}
@@ -1359,7 +1398,10 @@ const drinkVM={};
     mesh(new THREE.CylinderGeometry(.04,.015,.06,12),mat(0x8a1d3a),0,.01,0,wine);mesh(new THREE.CylinderGeometry(.04,.04,.008,12),mat(0xdfe8ea),0,-.105,0,wine);
   const rum=new THREE.Group();mesh(new THREE.CylinderGeometry(.035,.028,.07,12),mat(0xe6c07a,{transparent:true,opacity:.9}),0,0,0,rum);
   Object.assign(drinkVM,{beer,wine,rum});for(const k in drinkVM){const m=drinkVM[k];m.visible=false;m.traverse(o=>{o.castShadow=false;});camera.add(m);}})();
-function syncDrinkVM(){for(const k in drinkVM)drinkVM[k].visible=false;if(!me||me.drinkT<=0||!me.drinkType)return;
+function syncDrinkVM(){for(const k in drinkVM)drinkVM[k].visible=false;
+  if(me&&me.smokoSeat>=0&&!(me.drinkT>0)){const m=drinkVM.beer,s=Math.pow(Math.max(0,Math.sin(elapsed*1.5+me.phase)),6);m.visible=true;
+    m.position.set(.2-.12*s,-.32+.21*s,-.5+.12*s);m.rotation.set(.15+1.15*s,0,-.25);return;}
+  if(!me||me.drinkT<=0||!me.drinkType)return;
   const m=drinkVM[me.drinkType];m.visible=true;const p=1-me.drinkT/me.drinkDur,up=Math.min(1,p*4),tip=Math.sin(Math.min(1,p*1.15)*Math.PI);
   m.position.set(.12-up*.1,-.32+up*.2,-.5+up*.12);m.rotation.set(up*.35+tip*.9,0,-.2);}
 function syncItemMeshes(){
@@ -1368,7 +1410,7 @@ function syncItemMeshes(){
   for(const it of items.values()){
     if(it.state==='held'){it.ring.visible=false;const h=chars.get(it.holder);
       if(h&&h.kind==='me'){if(it.mesh.parent!==camera){camera.add(it.mesh);it.mesh.scale.setScalar(.8);}
-        it.mesh.visible=it===mySel&&!(me.drinkT>0);
+        it.mesh.visible=it===mySel&&!(me.drinkT>0)&&!(me.smokoSeat>=0);
         if(it===mySel){const c=me.charging?me.charge:0,sw=Math.sin(me.walk)*.02;it.mesh.position.set(.3+c*.08+sw,-.3+c*.12+Math.abs(sw),-.62+c*.2);it.mesh.rotation.set(.15-c*.6,.3,c*.3);
           if(me.swingT>0){const p=1-me.swingT/.28,a=Math.sin(Math.PI*p);it.mesh.position.set(.42-.8*p,-.2+.06*a,-.55-.2*a);it.mesh.rotation.set(-.9+.3*a,.2,-1.3+2.2*p);}}}
       else if(h){if(it.mesh.parent!==h.hand){h.hand.add(it.mesh);it.mesh.position.set(0,.14,.06);it.mesh.scale.setScalar(.85);it.mesh.rotation.set(0,0,0);}
@@ -1419,7 +1461,7 @@ function floorAt(ch){let floor=0;for(const c of colliders){if(ch.pos.x>c.x0-.1&&
 function updateChar(ch,dt){
   ch.stun=Math.max(0,ch.stun-dt);ch.downT=Math.max(0,ch.downT-dt);ch.dodgeT=Math.max(0,ch.dodgeT-dt);ch.dodgeCd=Math.max(0,ch.dodgeCd-dt);ch.catchT=Math.max(0,ch.catchT-dt);ch.catchCd=Math.max(0,ch.catchCd-dt);
   ch.inPool=inPoolRect(ch.pos)&&ch.pos.y<.1;
-  if(ch.inPool&&!ch.wasInPool){SFX.splash(ch.pos);burst(ch.pos.clone().setY(.2),[0x9ee3ff,0xffffff],12,3,.07);}ch.wasInPool=ch.inPool;
+  if(ch.inPool&&!ch.wasInPool){SFX.splash(ch.pos);burst(ch.pos.clone().setY(.2),[0x9ee3ff,0xffffff],12,3,.07);envCheck(ch,'pool');}ch.wasInPool=ch.inPool;
   ch.slip=ch.pos.y<.1&&[...puddles.values()].some(p=>Math.hypot(ch.pos.x-p.x,ch.pos.z-p.z)<p.r*p.grow);
   const frozen=state==='countdown';
   // speed boost (Shift): short burst, then a cooldown before it can be used again
@@ -1444,7 +1486,7 @@ function updateChar(ch,dt){
       if(m===l)ch.pos.x=c.x0-R;else if(m===r)ch.pos.x=c.x1+R;else if(m===b)ch.pos.z=c.z0-R;else ch.pos.z=c.z1+R;}}
   ch.pos.x=clamp(ch.pos.x,-W+.45,W-.45);ch.pos.z=clamp(ch.pos.z,-D+.45,D-.45);
   const floor=floorAt(ch);const tdx=ch.pos.x-TRAMP.x,tdz=ch.pos.z-TRAMP.z;
-  if(tdx*tdx+tdz*tdz<TRAMP.r*TRAMP.r&&ch.pos.y<=TRAMP.h+.02&&ch.vel.y<=0){ch.pos.y=TRAMP.h;ch.vel.y=11.5;ch.grounded=false;SFX.boing(ch.pos);if(ch.kind==='me')shake=Math.max(shake,.03);}
+  if(tdx*tdx+tdz*tdz<TRAMP.r*TRAMP.r&&ch.pos.y<=TRAMP.h+.02&&ch.vel.y<=0){ch.pos.y=TRAMP.h;ch.vel.y=11.5;ch.grounded=false;SFX.boing(ch.pos);envCheck(ch,'tramp');if(ch.kind==='me')shake=Math.max(shake,.03);}
   else if(ch.pos.y<=floor){if(ch.kind==='me'){if(ch.vel.y<-10)shake=Math.max(shake,.05);if(!ch.grounded&&fallV<-4)SFX.land(ch.pos);}ch.pos.y=floor;ch.vel.y=0;ch.grounded=true;}
   else ch.grounded=false;
   // pickups
@@ -1496,6 +1538,12 @@ function syncCharMesh(ch,dt){
   if(fl>0&&!P){ch.body.quaternion.setFromEuler(de.set(Math.PI/2*fl,0,Math.sin(elapsed*1.6+ch.phase)*.06*fl));ch.body.position.y=.34*fl;}
   if(ch.dizzyT>0){ch.dizzyT=Math.max(0,ch.dizzyT-dt);if(!P&&!(ch.downT>0)){const w=Math.min(1,ch.dizzyT)*.24;ch.body.quaternion.multiply(dq.setFromEuler(de.set(Math.sin(elapsed*7)*w,0,Math.cos(elapsed*7)*w)));}}
   const seated=ch.smokoSeat>=0&&!P&&!(fl>0);ch.smokoCan.visible=seated;
+  if(ch.bubbleT>0){ch.bubbleT-=dt;if(ch.bubbleT<=0)ch.bubble.visible=false;}
+  if(ch.emote){const e=ch.emote;e.t+=dt;if(e.t>e.dur||P||fl>0||ch.stun>.5)ch.emote=null;
+    else if(!seated){const t=e.t;
+      if(e.k==='taunt'){ch.hand.position.set(-.47,1.25+.35*Math.abs(Math.sin(t*10)),.12);ch.body.quaternion.multiply(dq.setFromEuler(de.set(-.14,0,0)));}
+      else if(e.k==='laugh'){ch.hand.position.set(-.18,1.02,.62);ch.body.quaternion.multiply(dq.setFromEuler(de.set(-.22+Math.sin(t*24)*.1,0,Math.sin(t*12)*.06)));}
+      else{ch.body.position.y+=Math.abs(Math.sin(t*9))*.16;ch.body.quaternion.multiply(dq.setFromEuler(de.set(0,t*5.5,Math.sin(t*9)*.22)));ch.hand.position.set(-.5,1.2+.3*Math.sin(t*9),.1);}}}
   if(seated){ch.body.position.y=-.3;ch.body.quaternion.setFromEuler(de.set(-.2,0,0));const sp2=Math.pow(Math.max(0,Math.sin(elapsed*1.5+ch.phase)),6);ch.hand.position.set(-.34,.9+.5*sp2,.28);ch.smokoCan.rotation.x=-sp2*1.2;}
   ch.stars.visible=ch.stun>.15||ch.dizzyT>0;if(ch.stars.visible)ch.stars.rotation.y+=dt*6;
   ch.crown.visible=leaderId===ch.id;
@@ -1626,6 +1674,8 @@ function handleEvent(fromId,e){
     else if(k==='hit'){const f=flights.get(num(e[4],-1))||(it&&it.flight);if(!f||f.itemId!==e[1])return;const kd=new V3(num(e[2],0),0,num(e[3],1));if(kd.lengthSq()<1e-4)kd.set(0,0,1);kd.normalize();authHit(fromId,it&&it.flight===f?it:null,kd,f);}
     else if(k==='cat'){const f=flights.get(num(e[2],-1))||(it&&it.flight);if(!f||!it)return;authCatch(fromId,it,f);}
     else if(k==='cg')authChestGrab(fromId);
+    else if(k==='env'){if(typeof e[2]==='string')authEnv(e[2],fromId,e[1]);}
+    else if(k==='em'){if(elapsed-(ch.lastEm||-9)>1.5&&EMOTES[e[1]]){ch.lastEm=elapsed;fx('emote',fromId,e[1],clamp(e[2]|0,0,EMOTES[e[1]].length-1));}}
     else if(k==='hu'){if(typeof e[1]==='string')authHelpUp(fromId,e[1]);}
     else if(k==='mg')authMeatGrab(fromId,e[1]);
     else if(k==='sl'){if(typeof e[1]==='string')authSlap(fromId,e[1],items.get(e[2]));}
@@ -1779,6 +1829,9 @@ window.addEventListener('keydown',e=>{if(typing(e))return;keys[e.code]=true;
     if((e.code==='ShiftLeft'||e.code==='ShiftRight')&&!e.repeat)tryBoost(me);
     if(e.code==='KeyR'&&!e.repeat)interact();
     if(e.code==='KeyE'&&!e.repeat)swap(1);
+    if(e.code==='KeyT'&&!e.repeat)tryEmote('taunt');
+    if(e.code==='KeyG'&&!e.repeat)tryEmote('dance');
+    if(e.code==='KeyB'&&!e.repeat)tryEmote('laugh');
     if(e.code==='KeyQ'&&!e.repeat)tryCatch(me);
     if(e.code==='KeyF'&&!e.repeat)startCharge();
     if(e.code==='Digit1'||e.code==='Digit2'){const h=heldOf(myId);const it=h[e.code==='Digit1'?0:1];if(it){me.selId=it.id;updateSlots();}}
@@ -1822,10 +1875,13 @@ function look(dx,dy){me.yaw-=dx*sens;me.pitch=clamp(me.pitch-dy*sens,-1.45,1.45)
   $('#tDodge').addEventListener('pointerdown',e=>{e.preventDefault();if(canAct())doDodge(me);});
   $('#tCatch').addEventListener('pointerdown',e=>{e.preventDefault();if(canAct())tryCatch(me);});
   $('#tSwap').addEventListener('pointerdown',e=>{e.preventDefault();swap(1);});
+  $('#tJump').addEventListener('pointerdown',e=>{e.preventDefault();if(!canAct())return;if(me.smokoSeat>=0)standUp();else tryJump(me);});
+  $('#tBoost').addEventListener('pointerdown',e=>{e.preventDefault();if(canAct())tryBoost(me);});
+  $('#tEmote').addEventListener('pointerdown',e=>{e.preventDefault();tryEmote(pick(['taunt','laugh','dance']));});
   $('#tDrink').addEventListener('pointerdown',e=>{e.preventDefault();touchHold=true;interact();});
   ['pointerup','pointercancel','pointerleave'].forEach(ev=>$('#tDrink').addEventListener(ev,()=>{touchHold=false;}));
   $('#tMenu').addEventListener('click',()=>{panelOpen=true;refreshOverlays();renderYardPanel();});
-  $('#keys').innerHTML='<span><kbd>Left thumb</kbd></span><span>Move</span><span><kbd>Right thumb</kbd></span><span>Aim</span><span><kbd>Chuck</kbd></span><span>Hold to wind up, let go to throw</span><span><kbd>Catch</kbd> <kbd>Dodge</kbd></span><span>Time them just before a hit</span>';
+  $('#keys').innerHTML='<span><kbd>Jump</kbd> <kbd>Boost</kbd></span><span>Hop, or a quick burst of speed</span><span><kbd>Emote</kbd></span><span>A random taunt, dance or laugh</span><span><kbd>Left thumb</kbd></span><span>Move</span><span><kbd>Right thumb</kbd></span><span>Aim</span><span><kbd>Chuck</kbd></span><span>Hold to wind up, let go to throw</span><span><kbd>Catch</kbd> <kbd>Dodge</kbd></span><span>Time them just before a hit</span>';
   $('#cds').remove();
 })();
 function playerInput(){
