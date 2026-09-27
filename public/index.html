@@ -240,7 +240,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.5.0</span>
+      <span class="tag">Backyard Brawl · prototype 0.6.0</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Your mates, one backyard, three minutes. Grab whatever is lying on the lawn and chuck it at them before they chuck it at you.</p>
     </div>
@@ -294,7 +294,7 @@ body.touch #cds{display:none}
         <span class="chip">Wine +26</span>
         <span class="chip">Rum shot +34</span>
       </div>
-      <p class="foot" style="margin-top:8px">Walk up to the bar by the back fence and press R. Drinking fills your drunk meter, which drops again as you sober up. Once you're tipsy the yard starts to wobble, your view sways and you drift off course when you walk. Everyone else can see it too: drunk players sway, stagger and flail. It all gets worse the more you drink. You're slower and can't throw while you drink, and a hit makes you spill it.</p>
+      <p class="foot" style="margin-top:8px">Walk up to the bar by the back fence and press R. Drinking fills your drunk meter, which drops again as you sober up. Once you're tipsy the yard starts to wobble, your view sways and you drift off course when you walk. Everyone else can see it too: drunk players sway, stagger and flail. It all gets worse the more you drink. Get properly drunk and you'll stack it now and then: you're down for 20 seconds unless a mate holds R next to you to help you up (+25 for them). You're slower and can't throw while you drink, and a hit makes you spill it.</p>
     </section>
 
     <section>
@@ -322,7 +322,7 @@ body.touch #cds{display:none}
         <span><kbd>Hold click</kbd></span><span>Wind up, release to chuck</span>
         <span><kbd>Right click</kbd> <kbd>Q</kbd></span><span>Catch, timed just before impact</span>
         <span><kbd>C</kbd></span><span>Dodge (brief dive, dodges a hit)</span>
-        <span><kbd>R</kbd></span><span>Drink at the bar, grab from the chest, or nick meat off the BBQ table</span>
+        <span><kbd>R</kbd></span><span>Drink at the bar, grab from the chest, or nick meat off the BBQ table. Hold R next to a fallen mate to help them up</span>
         <span><kbd>E</kbd> <kbd>Wheel</kbd></span><span>Swap held item (carry two)</span>
         <span><kbd>Esc</kbd></span><span>Pause, or open the yard menu online</span>
       </div>
@@ -368,6 +368,11 @@ body.touch #cds{display:none}
         <input type="radio" name="ydiff" id="ydEasy" value="easy"><label for="ydEasy">Easy</label>
         <input type="radio" name="ydiff" id="ydFair" value="fair" checked><label for="ydFair">Fair dinkum</label>
         <input type="radio" name="ydiff" id="ydSpicy" value="spicy"><label for="ydSpicy">Spicy</label>
+      </div></fieldset>
+      <fieldset class="seg"><legend>Stacked it: back up after</legend><div class="opts">
+        <input type="radio" name="yfall" id="yf10" value="10"><label for="yf10">10 s</label>
+        <input type="radio" name="yfall" id="yf20" value="20" checked><label for="yf20">20 s</label>
+        <input type="radio" name="yfall" id="yf30" value="30"><label for="yf30">30 s</label>
       </div></fieldset>
       <button class="btn primary" id="startMp" type="button">Start round</button>
     </div>
@@ -663,6 +668,7 @@ const SFX={
   cartwheel:at=>{tone({f:260,f2:1300,t:.45,type:'sine',v:.12},at);tone({f:1300,f2:300,t:.5,type:'sine',v:.1,delay:.45},at);tone({f:140,f2:620,t:.3,v:.2,delay:1.0},at);},
   timber:at=>{tone({f:95,f2:70,t:.8,type:'sawtooth',v:.07},at);tone({f:120,f2:45,t:.3,v:.5,delay:1.75},at);noise({t:.25,v:.25,f:260,type:'lowpass',delay:1.75},at);},
   pop:at=>tone({f:700,f2:1400,t:.08,type:'triangle',v:.12},at),
+  whoa:at=>{tone({f:420,f2:180,t:.45,type:'triangle',v:.1},at);},
   splat:at=>{noise({t:.16,v:.45,f:900,type:'lowpass'},at);tone({f:130,f2:60,t:.14,v:.3},at);noise({t:.1,v:.2,f:3000,type:'highpass',delay:.03},at);},
   clang:at=>{tone({f:1250,f2:1180,t:.35,type:'square',v:.07},at);tone({f:1870,f2:1800,t:.25,type:'square',v:.05},at);tone({f:180,f2:90,t:.12,v:.3},at);},
   babble:at=>{for(let i=0;i<7;i++)tone({f:rand(140,300),f2:rand(120,260),t:.08,type:'sawtooth',v:.07,delay:i*.09+rand(0,.03)},at);},
@@ -771,11 +777,38 @@ function slapCam(ch){const t=ch.slapT,g=clamp((DOWN_TIME-t)/.45,0,1),TAU=Math.PI
   else if(ch.slapA===2){if(t<1){pitch=TAU*(1-Math.pow(1-t,2));lift=1.5*Math.sin(Math.PI*t);}else lie=g;}
   else{if(t<.9){roll=.06*Math.sin(t*46);}else if(t<1.9){const v=t-.9;roll=(Math.PI/2)*v*v;lift=-1.15*Math.sin(roll);}else{roll=Math.PI/2*g;lift=-1.15*g;}}
   return{lift,yaw,pitch,roll,lie};}
+/* ---- stacking it when drunk, and helping mates back up ---- */
+const HELP_TIME=1.5,HELP_PTS=25;
+function fallCheck(ch,dt){ch.fallImmune=Math.max(0,ch.fallImmune-dt);
+  if(ch.fallT>0){ch.fallT=Math.max(0,ch.fallT-dt);ch.fallAge+=dt;ch.stun=Math.max(ch.stun,ch.fallT);
+    if(ch.fallT<=0){ch.fallImmune=8;ch.stun=0;if(ch.kind==='me'&&me)floater('Back on your feet!',camera.position.clone().add(fwd(me).multiplyScalar(2)).setY(camera.position.y+.3),'small');}return;}
+  if(ch.kind!=='me'||!canAct()||ch.downT>0||ch.slapA||!ch.grounded||ch.fallImmune>0||ch.inPool)return;
+  const da=drunkAmt(ch.drunk);if(da<.25)return;
+  const moving=ch.wish.lengthSq()>.04;if(Math.random()<Math.pow(da,1.5)*(moving?.1:.035)*dt)startFall(ch);}
+function startFall(ch){ch.fallT=fallDur;ch.fallAge=0;ch.stun=Math.max(ch.stun,fallDur);ch.charging=false;ch.charge=0;ch.drinkT=0;ch.drinkType=null;ch.vel.x*=.3;ch.vel.z*=.3;
+  SFX.thud(ch.pos);SFX.whoa(ch.pos);
+  if(ch.kind==='me'&&me){shake=Math.max(shake,.15);floater('STACKED IT!',camera.position.clone().add(fwd(me).multiplyScalar(2.2)).setY(camera.position.y+.4),'big');}}
+function canHelp(h,t){return !!h&&!!t&&h!==t&&t.fallT>0&&(!teamsOn()||sameTeam(h.id,t.id));}
+function helpTarget(){if(!me||!canAct()||me.stun>0)return null;let best=null,bd=1.9;
+  for(const o of chars.values()){if(!canHelp(me,o))continue;const d=Math.hypot(o.pos.x-me.pos.x,o.pos.z-me.pos.z);if(d<bd){bd=d;best=o;}}return best;}
+function helpTick(dt){const t=helpTarget();me.helpCd=Math.max(0,(me.helpCd||0)-dt);
+  if(t&&(keys.KeyR||touchHold)&&me.helpCd<=0){me.helpT+=dt;if(me.helpT>=HELP_TIME){me.helpT=0;me.helpCd=1;if(isAuth)authHelpUp(myId,t.id);else sendEv('hu',t.id);}}else me.helpT=0;return t;}
+function authHelpUp(hid,tid){const h=chars.get(hid),t=chars.get(tid);if(!canHelp(h,t)||Math.hypot(h.pos.x-t.pos.x,h.pos.z-t.pos.z)>2.8)return;
+  let pts=0;if(state==='play'&&stats[hid]){pts=HELP_PTS;stats[hid].score+=pts;scoreDirty=true;}fx('up',tid,hid,pts);}
+// bots (in Teams) walk over to a fallen teammate and pull them up
+function botHelp(ch,dt){if(!teamsOn())return false;let t=null,bd=22;
+  for(const o of chars.values()){if(!canHelp(ch,o))continue;const d=Math.hypot(o.pos.x-ch.pos.x,o.pos.z-ch.pos.z);if(d<bd){bd=d;t=o;}}
+  if(!t){ch.ai.helpT=0;return false;}
+  ch.charging=false;ch.ai.windup=0;ch.face=Math.atan2(t.pos.x-ch.pos.x,t.pos.z-ch.pos.z);
+  if(bd>1.3){ch.wish.set((t.pos.x-ch.pos.x)/bd,(t.pos.z-ch.pos.z)/bd);ch.ai.helpT=0;}
+  else{ch.ai.helpT=(ch.ai.helpT||0)+dt;if(ch.ai.helpT>=HELP_TIME){ch.ai.helpT=0;authHelpUp(ch.id,t.id);}}
+  return true;}
 function chestNear(ch){return !!ch&&ch.pos.y<.5&&Math.hypot(ch.pos.x-CHEST.x,ch.pos.z-CHEST.z)<2;}
 function authChestGrab(id){const ch=chars.get(id);if(!ch||chestStock<=0||heldOf(id).length>=2||Math.hypot(ch.pos.x-CHEST.x,ch.pos.z-CHEST.z)>3)return;
   chestStock--;if(chestStock<CHEST.max&&chestT<=0)chestT=CHEST.refill;
   const it=makeItem(nextItemId++,'dildo');it.uses=SLAP_USES;it.pos.set(ch.pos.x,ch.pos.y+1,ch.pos.z);authGive(id,it);if(id===myId)SFX.pickup();}
 function interact(){if(!me||!canAct()||me.stun>0)return;
+  if(helpTarget())return; // holding R helps them up (see helpTick)
   const ms=meatSpot(me);if(ms){if(heldOf(myId).length>=2){showHint('Your hands are full. Chuck something first.',2);return;}
     if(elapsed-(interact.lastMeat||-9)<.8)return;interact.lastMeat=elapsed;if(isAuth)authMeatGrab(myId,ms);else sendEv('mg',ms);return;}
   if(chestNear(me)){if(chestStock<=0){showHint('The chest is empty. It restocks every '+CHEST.refill+' seconds.',2);return;}
@@ -823,7 +856,7 @@ const items=new Map();let nextItemId=1;const ghosts=new Set();
 const flights=new Map();let nextFlight=1;const LATE_HIT=1.8; // seconds a remote hit report may arrive after the throw lands
 let stats={},hostRows=[],leaderId=null,scoreDirty=true,resultsRows=null;
 /* ---- teams ---- */
-let gameMode='ffa',friendlyFire=false,teamsManual=false;const teamOf=new Map();
+let gameMode='ffa',friendlyFire=false,teamsManual=false,fallDur=20,touchHold=false;const teamOf=new Map();
 const TEAMS={r:{name:'Red',color:0xe8443a,css:'#e8443a'},b:{name:'Blue',color:0x2f7fe0,css:'#2f7fe0'},w:{name:'Wildcard',color:0xf2c230,css:'#e0a800'}};
 function teamsOn(){return (mode==='mp'||mode==='solo')&&gameMode==='teams';}
 function teamOfId(id){return teamsOn()?teamOf.get(id)||null:null;}
@@ -855,7 +888,7 @@ function nameTag(name,color,teamCss){const c=document.createElement('canvas');c.
   const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthWrite:false}));s.scale.set(2.2,.55,1);s.position.y=2.3;return s;}
 function createChar(id,name,color,kind,sp){
   const ch={id,name,color,kind,isBot:false,pos:new V3(sp[0],0,sp[1]),vel:new V3(),yaw:0,pitch:0,face:0,selId:null,charging:false,charge:0,
-    stun:0,dodgeT:0,dodgeCd:0,dodgeDir:new V3(),catchT:0,catchCd:0,grounded:true,jumpBuf:0,coyote:0,sprinting:false,boostT:0,boostCd:0,drunk:0,drinkT:0,drinkDur:1,drinkType:null,downT:0,slapA:0,slapT:0,swingT:0,lastSwing:-9,lastSlap:-9,
+    stun:0,dodgeT:0,dodgeCd:0,dodgeDir:new V3(),catchT:0,catchCd:0,grounded:true,jumpBuf:0,coyote:0,sprinting:false,boostT:0,boostCd:0,drunk:0,drinkT:0,drinkDur:1,drinkType:null,downT:0,fallT:0,fallAge:0,fallImmune:0,rise:0,helpT:0,slapA:0,slapT:0,swingT:0,lastSwing:-9,lastSlap:-9,
     tilt:0,tiltV:0,tiltAxis:new V3(1,0,0),phase:Math.random()*6.28,spinV:0,spinA:0,inPool:false,slip:false,wish:new THREE.Vector2(),walk:0,wasInPool:false,
     netP:new V3(sp[0],0,sp[1]),netV:new V3(),netT:performance.now(),netFace:0};
   const g=new THREE.Group(),body=new THREE.Group();g.add(body);
@@ -1147,6 +1180,11 @@ function playFx(a){
       if(vc.kind==='me'||(isAuth&&vc.kind==='bot')){applyKnock(vc,SPATULA,kd);vc.stun=Math.max(vc.stun,1.6);vc.drinkT=0;vc.drinkType=null;}
       if(vc.kind==='me'&&me)floater("SPATULA'D!",camera.position.clone().add(fwd(me).multiplyScalar(2.2)).setY(camera.position.y+.4),'big');else floater("SPATULA'D!",vc.pos.clone().setY(vc.pos.y+2.4),'big');
       feed(`<b style="color:#ff9f1c">Dazza</b> spatula'd ${nm(vid)}`);}
+  }else if(k==='up'){const t=chars.get(a[1]),pts=num(a[3],0);
+    if(t){if(t.kind==='me'||(isAuth&&t.kind==='bot')){t.fallT=0;t.stun=0;t.fallImmune=8;}else t.fallT=0;SFX.catch(t.pos);
+      if(t.kind==='me'&&me)floater('Back on your feet!',camera.position.clone().add(fwd(me).multiplyScalar(2)).setY(camera.position.y+.3),'catch');else floater('Up you get!',t.pos.clone().setY(t.pos.y+2.2),'catch');
+      if(a[2]===myId&&pts)floater('+'+pts+' good mate',t.pos.clone().setY(t.pos.y+2.8),'small');
+      feed(`${nm(a[2])} helped ${nm(a[1])} up`);}
   }else if(k==='npcsay'){npcBubble(String(a[1]||'').slice(0,40));SFX.babble(NPC.pos);
   }else if(k==='npcswing'){NPC.swingT=.35;SFX.whoosh(NPC.pos);
   }else if(k==='sw'){const c=chars.get(a[1]);if(c&&c.kind!=='me'){c.swingT=.28;SFX.whoosh(c.pos);}
@@ -1324,7 +1362,7 @@ function updateChar(ch,dt){
   if(ch.boostT>0){ch.boostT=Math.max(0,ch.boostT-dt);if(ch.boostT<=0)ch.boostCd=BOOST_CD;}
   else ch.boostCd=Math.max(0,ch.boostCd-dt);
   ch.sprinting=ch.boostT>0&&!ch.inPool&&ch.stun<=0&&!frozen;
-  if(ch.kind!=='proxy')updateDrink(ch,dt);
+  if(ch.kind!=='proxy'){updateDrink(ch,dt);fallCheck(ch,dt);}
   const maxSp=6.2*(ch.inPool?.5:1)*(ch.charging?.72:1)*(ch.sprinting?BOOST_MULT:1)*(ch.drinkT>0?.55:1);
   let tx=ch.wish.x*maxSp,tz=ch.wish.y*maxSp;if(ch.stun>0||frozen){tx=0;tz=0;}
   if(ch.dodgeT>0){ch.vel.x=ch.dodgeDir.x*14.5;ch.vel.z=ch.dodgeDir.z*14.5;}
@@ -1358,7 +1396,7 @@ function updateProxy(ch,dt){
   ch.pos.lerp(tmpV,1-Math.exp(-16*dt));ch.vel.copy(ch.netV);
   ch.grounded=Math.abs(ch.netV.y)<.6;ch.inPool=inPoolRect(ch.pos)&&ch.pos.y<.1;
   ch.face=angLerp(ch.face,ch.netFace,1-Math.exp(-14*dt));
-  ch.stun=Math.max(0,ch.stun-dt);ch.downT=Math.max(0,ch.downT-dt);
+  ch.stun=Math.max(0,ch.stun-dt);ch.downT=Math.max(0,ch.downT-dt);ch.fallT=Math.max(0,ch.fallT-dt);
 }
 function separate(){const list=[...chars.values()];for(let i=0;i<list.length;i++)for(let j=i+1;j<list.length;j++){const a=list[i],b=list[j];
   const aL=a.kind!=='proxy',bL=b.kind!=='proxy';if(!aL&&!bL)continue;
@@ -1388,6 +1426,10 @@ function syncCharMesh(ch,dt){
   else{ch.body.scale.set(1,1,1);const dn=ch.downT>0?Math.min(1,(DOWN_TIME-ch.downT)/.22,ch.downT/.45):0;
     if(dn>0){ch.body.quaternion.setFromEuler(de.set(-Math.PI/2*dn,0,0));ch.body.position.y=.36*dn;}}
   if(ch.swingT>0){ch.swingT=Math.max(0,ch.swingT-dt);const p=1-ch.swingT/.28;ch.hand.position.set(-.47+.95*p,1.15-.3*p,.1+.5*Math.sin(Math.PI*p));}
+  let fl=0;if(ch.fallT>0){if(ch.kind==='proxy')ch.fallAge+=dt;fl=Math.min(1,ch.fallAge/.3);ch.rise=.45;
+    ch.zzT=(ch.zzT||0)-dt;if(ch.zzT<=0&&ch.kind!=='me'&&ch.fallAge>1){ch.zzT=1.4;floater('Zzz',ch.pos.clone().setY(ch.pos.y+.9),'small');}}
+  else if(ch.rise>0){ch.rise=Math.max(0,ch.rise-dt);fl=ch.rise/.45;}
+  if(fl>0&&!P){ch.body.quaternion.setFromEuler(de.set(Math.PI/2*fl,0,Math.sin(elapsed*1.6+ch.phase)*.06*fl));ch.body.position.y=.34*fl;}
   if(ch.dizzyT>0){ch.dizzyT=Math.max(0,ch.dizzyT-dt);if(!P&&!(ch.downT>0)){const w=Math.min(1,ch.dizzyT)*.24;ch.body.quaternion.multiply(dq.setFromEuler(de.set(Math.sin(elapsed*7)*w,0,Math.cos(elapsed*7)*w)));}}
   ch.stars.visible=ch.stun>.15||ch.dizzyT>0;if(ch.stars.visible)ch.stars.rotation.y+=dt*6;
   ch.crown.visible=leaderId===ch.id;
@@ -1419,6 +1461,7 @@ function aiUpdate(ch,dt){
   const ai=ch.ai,df=DIFF[difficulty];ch.wish.set(0,0);
   if(state==='countdown')return;
   if(ch.stun>0){ai.windup=0;ch.charging=false;return;}
+  if(botHelp(ch,dt))return;
   ai.retarget-=dt;ai.throwCd-=dt;ai.flip-=dt;ai.stuckT-=dt;ai.wander-=dt;
   if(ai.flip<=0){ai.orbit*=-1;ai.flip=rand(1.4,3.4);}
   for(const it of items.values()){if(it.state!=='flying'||!it.live||it.thrower===ch.id||ai.seen.has(it))continue;
@@ -1459,11 +1502,11 @@ function buildWorld(){
   const it=[];for(const i of items.values()){const f=i.state==='flying';it.push([i.id,TYPES.indexOf(i.type),STATES.indexOf(i.state),r2(i.pos.x),r2(i.pos.y),r2(i.pos.z),f?r2(i.vel.x):0,f?r2(i.vel.y):0,f?r2(i.vel.z):0,i.holder||0,i.thrower||0,i.live?1:0,i.flight&&i.flight.active?i.flight.id:0,i.uses||0]);}
   const b=[];for(const c of chars.values())if(c.kind==='bot')b.push([c.id,c.name,c.color,r2(c.pos.x),r2(c.pos.y),r2(c.pos.z),r2(c.face),c.stun>0?1:0,c.charging?r2(c.charge):0,(selItem(c)||{}).id||0,r2(c.vel.x),r2(c.vel.y),r2(c.vel.z),r1(c.downT)]);
   const pd=[];for(const p of puddles.values())pd.push([p.id,r2(p.x),r2(p.z),r2(p.r),r1(p.life)]);
-  return{gm:gameMode==='teams'?1:0,ff:friendlyFire?1:0,tm:gameMode==='teams'?[...teamOf].filter(([id])=>chars.has(id)):0,cs:chestStock,cp:CHEST.spot,np:[r2(NPC.pos.x),r2(NPC.pos.z),r2(NPC.face),NPC_STATES.indexOf(NPC.state)],st:state,tl:r1(roundLeft),cd:r1(countdown),len:roundLen,it,b,sc:boardRows(),ld:leaderId||0,pd,res:(state==='results'&&resultsRows)?resultsRows:0};
+  return{fd:fallDur,gm:gameMode==='teams'?1:0,ff:friendlyFire?1:0,tm:gameMode==='teams'?[...teamOf].filter(([id])=>chars.has(id)):0,cs:chestStock,cp:CHEST.spot,np:[r2(NPC.pos.x),r2(NPC.pos.z),r2(NPC.face),NPC_STATES.indexOf(NPC.state)],st:state,tl:r1(roundLeft),cd:r1(countdown),len:roundLen,it,b,sc:boardRows(),ld:leaderId||0,pd,res:(state==='results'&&resultsRows)?resultsRows:0};
 }
 function buildPresence(){
   const p={id:myId,n:myName,c:myColor,ev:net.out};
-  if(me){p.p=[r2(me.pos.x),r2(me.pos.y),r2(me.pos.z)];p.v=[r2(me.vel.x),r2(me.vel.y),r2(me.vel.z)];p.f=r2(me.face);p.s=me.stun>0?1:0;p.ch=me.charging?r2(me.charge):0;p.sel=(selItem(me)||{}).id||0;p.dk=Math.round(me.drunk);if(me.downT>0)p.dn=r1(me.downT);}
+  if(me){p.p=[r2(me.pos.x),r2(me.pos.y),r2(me.pos.z)];p.v=[r2(me.vel.x),r2(me.vel.y),r2(me.vel.z)];p.f=r2(me.face);p.s=me.stun>0?1:0;p.ch=me.charging?r2(me.charge):0;p.sel=(selItem(me)||{}).id||0;p.dk=Math.round(me.drunk);if(me.downT>0)p.dn=r1(me.downT);if(me.fallT>0)p.fl=r1(me.fallT);}
   if(net.isHost)p.w=buildWorld();
   return p;
 }
@@ -1500,7 +1543,7 @@ function updateRemotePlayer(id,pr){
   if(color===myColor&&id<myId){const nc=PALETTE.find(c=>c!==color&&![...chars.values()].some(o=>o.color===c));if(nc!==undefined){myColor=nc;if(me)me.color=nc;if(isAuth&&stats[myId]){stats[myId].color=nc;scoreDirty=true;}}}
   ch.netP.set(clamp(num(pr.p[0],0),-W,W),clamp(num(pr.p[1],0),0,20),clamp(num(pr.p[2],0),-D,D));
   if(Array.isArray(pr.v))ch.netV.set(clamp(num(pr.v[0],0),-20,20),clamp(num(pr.v[1],0),-30,30),clamp(num(pr.v[2],0),-20,20));
-  ch.netT=performance.now();ch.netFace=num(pr.f,0);ch.stun=pr.s?Math.max(ch.stun,.3):0;ch.charging=num(pr.ch,0)>0;ch.charge=clamp(num(pr.ch,0),0,1);ch.selId=pr.sel||null;ch.drunk=clamp(num(pr.dk,0),0,100);ch.downT=clamp(num(pr.dn,0),0,DOWN_TIME);
+  ch.netT=performance.now();ch.netFace=num(pr.f,0);ch.stun=pr.s?Math.max(ch.stun,.3):0;ch.charging=num(pr.ch,0)>0;ch.charge=clamp(num(pr.ch,0),0,1);ch.selId=pr.sel||null;ch.drunk=clamp(num(pr.dk,0),0,100);ch.downT=clamp(num(pr.dn,0),0,DOWN_TIME);{const nf=clamp(num(pr.fl,0),0,60);if(nf>0&&!(ch.fallT>0)){ch.fallAge=0;floater('STACKED IT!',ch.pos.clone().setY(ch.pos.y+2.4),'big');SFX.thud(ch.pos);}ch.fallT=nf;}
 }
 /* host: a guest's action */
 function handleEvent(fromId,e){
@@ -1515,6 +1558,7 @@ function handleEvent(fromId,e){
     else if(k==='hit'){const f=flights.get(num(e[4],-1))||(it&&it.flight);if(!f||f.itemId!==e[1])return;const kd=new V3(num(e[2],0),0,num(e[3],1));if(kd.lengthSq()<1e-4)kd.set(0,0,1);kd.normalize();authHit(fromId,it&&it.flight===f?it:null,kd,f);}
     else if(k==='cat'){const f=flights.get(num(e[2],-1))||(it&&it.flight);if(!f||!it)return;authCatch(fromId,it,f);}
     else if(k==='cg')authChestGrab(fromId);
+    else if(k==='hu'){if(typeof e[1]==='string')authHelpUp(fromId,e[1]);}
     else if(k==='mg')authMeatGrab(fromId,e[1]);
     else if(k==='sl'){if(typeof e[1]==='string')authSlap(fromId,e[1],items.get(e[2]));}
     else if(k==='sw'){if(elapsed-(ch.lastSw||-9)>.4){ch.lastSw=elapsed;fx('sw',fromId);}}
@@ -1551,6 +1595,7 @@ function applyWorld(w){
   // scores
   if(Array.isArray(w.sc)){const s=JSON.stringify(w.sc);if(s!==net.lastSc){net.lastSc=s;hostRows=w.sc.filter(r=>Array.isArray(r)).map(r=>[String(r[0]),cleanName(r[1]),clamp(num(r[2],0xffffff)|0,0,0xffffff),num(r[3],0),num(r[4],0),num(r[5],0),num(r[6],0),num(r[7],0)]);scoreDirty=true;}}
   const ld=typeof w.ld==='string'?w.ld:null;if(ld!==leaderId){leaderId=ld;scoreDirty=true;}
+  fallDur=clamp(num(w.fd,20),5,60);
   chestStock=clamp(num(w.cs,chestStock)|0,0,CHEST.max);if(typeof w.cp==='number'&&w.cp!==CHEST.spot)moveChest(w.cp);
   if(Array.isArray(w.np)){NPC.netP.set(clamp(num(w.np[0],-6),-W,W),0,clamp(num(w.np[1],-19.3),-D,D));NPC.netFace=num(w.np[2],0);NPC.state=NPC_STATES[w.np[3]]||'cook';if(first)NPC.pos.copy(NPC.netP);}
   {const gm=w.gm?'teams':'ffa',ff=!!w.ff,tj=JSON.stringify(w.tm||0);if(gm!==gameMode||ff!==friendlyFire||tj!==net.lastTm){gameMode=gm;friendlyFire=ff;net.lastTm=tj;teamOf.clear();
@@ -1596,7 +1641,7 @@ function pickColor(){const used=new Set();try{for(const p of net.yard?net.yard.p
   return PALETTE.find(c=>!used.has(c))||pick(PALETTE);}
 async function hostYard(){
   if(!mpReady())return;ac();$('#hostBtn').disabled=true;setMpNote('Opening your yard…');
-  gameMode=radio('ymode')==='teams'?'teams':'ffa';friendlyFire=radio('yff')==='1';teamsManual=false;teamOf.clear();net.lastTm=null;
+  gameMode=radio('ymode')==='teams'?'teams':'ffa';friendlyFire=radio('yff')==='1';teamsManual=false;teamOf.clear();net.lastTm=null;fallDur=+radio('yfall')||20;
   const a='abcdefghjkmnpqrstuvwxyz';let code='yard-';for(let i=0;i<4;i++)code+=a[Math.floor(Math.random()*a.length)];
   try{net.yard=await net.room.join(code);}catch(e){setMpNote('Couldn’t open a yard ('+(e&&e.code||'error')+'). Try again in a moment.',true);updateMpButtons();return;}
   net.code=code;net.isHost=true;myId=newId();net.hostId=myId;enterMp();
@@ -1709,7 +1754,8 @@ function look(dx,dy){me.yaw-=dx*sens;me.pitch=clamp(me.pitch-dy*sens,-1.45,1.45)
   $('#tDodge').addEventListener('pointerdown',e=>{e.preventDefault();if(canAct())doDodge(me);});
   $('#tCatch').addEventListener('pointerdown',e=>{e.preventDefault();if(canAct())tryCatch(me);});
   $('#tSwap').addEventListener('pointerdown',e=>{e.preventDefault();swap(1);});
-  $('#tDrink').addEventListener('pointerdown',e=>{e.preventDefault();interact();});
+  $('#tDrink').addEventListener('pointerdown',e=>{e.preventDefault();touchHold=true;interact();});
+  ['pointerup','pointercancel','pointerleave'].forEach(ev=>$('#tDrink').addEventListener(ev,()=>{touchHold=false;}));
   $('#tMenu').addEventListener('click',()=>{panelOpen=true;refreshOverlays();renderYardPanel();});
   $('#keys').innerHTML='<span><kbd>Left thumb</kbd></span><span>Move</span><span><kbd>Right thumb</kbd></span><span>Aim</span><span><kbd>Chuck</kbd></span><span>Hold to wind up, let go to throw</span><span><kbd>Catch</kbd> <kbd>Dodge</kbd></span><span>Time them just before a hit</span>';
   $('#cds').remove();
@@ -1770,10 +1816,15 @@ function updateHud(dt){
     bar.style.width=lvl.toFixed(1)+'%';bar.style.background=`hsl(${Math.round(110-lvl*1.1)},75%,52%)`;
     const spot=canAct()&&me.drinkT<=0&&me.stun<=0?barSpot(me):null,bp=$('#barPrompt'),atChest=canAct()&&me.stun<=0&&chestNear(me);
     const ms=canAct()&&me.stun<=0?meatSpot(me):null;
-    if(ms){const nm2=ms==='steak'?'a raw steak':'a raw fish';const html=touchMode?`Tap <b>Grab</b> to nick ${nm2}`:`<kbd>R</kbd>Nick ${nm2} (Dazza won't like it)`;if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
+    const ht=helpTick(dt);
+    if(me.fallT>0){const alone=teamsOn()&&(teamOf.get(myId)==='w'||![...chars.values()].some(o=>o!==me&&sameTeam(myId,o.id)));
+      const html=`<b>Stacked it!</b> Up in ${Math.ceil(me.fallT)}s${alone?'':teamsOn()?' (or a teammate can help you up)':' (or a mate can help you up)'}`;if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
+    else if(ht){const who=esc(ht.kind==='me'?'yourself':ht.name),pc=Math.round(me.helpT/HELP_TIME*100);
+      const html=me.helpT>0?`Helping ${who} up… ${pc}%`:(touchMode?`Hold <b>Help</b> to get ${who} up (+${HELP_PTS})`:`<kbd>R</kbd>Hold to help ${who} up (+${HELP_PTS})`);if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
+    else if(ms){const nm2=ms==='steak'?'a raw steak':'a raw fish';const html=touchMode?`Tap <b>Grab</b> to nick ${nm2}`:`<kbd>R</kbd>Nick ${nm2} (Dazza won't like it)`;if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
     else if(atChest){const html=chestStock>0?(touchMode?`Tap <b>Grab</b> for a purple dildo (${chestStock} left)`:`<kbd>R</kbd>Grab a purple dildo (${chestStock} left)`):'Chest is empty, restocking…';if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
     else if(spot){const html=touchMode?`Tap <b>Drink</b> for ${DRINKS[spot].full}`:`<kbd>R</kbd>Drink ${DRINKS[spot].full}`;if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}else bp.classList.remove('on');
-    const td=$('#tDrink');if(td){td.hidden=!(spot||atChest||ms);td.textContent=(atChest||ms)?'Grab':'Drink';}}
+    const td=$('#tDrink');if(td){td.hidden=!(spot||atChest||ms||ht);td.textContent=ht?'Help':(atChest||ms)?'Grab':'Drink';}}
   vignette=Math.max(0,vignette-dt*2.2);$('#vignette').style.opacity=vignette;
   $('#pooltint').style.opacity=me&&me.inPool?1:0;
   if(bannerT>0){bannerT-=dt;if(bannerT<=0)bannerEl.classList.remove('on');}
@@ -1871,7 +1922,7 @@ function startSolo(){
   ac();mode='solo';isAuth=true;myId='me';clearWorld();roundLen=+radio('len');difficulty=radio('diff');
   me=createChar('me',myName,PALETTE[0],'me',CHAR_SPAWNS[0]);myColor=PALETTE[0];
   ['Shazza','Davo','Kev'].forEach((n,i)=>createChar('b'+i,n,PALETTE[i+1],'bot',CHAR_SPAWNS[i+1]));
-  gameMode=radio('pmode')==='teams'?'teams':'ffa';friendlyFire=radio('pff')==='1';teamsManual=false;teamOf.clear();if(gameMode==='teams')balanceTeams(true);
+  gameMode=radio('pmode')==='teams'?'teams':'ffa';friendlyFire=radio('pff')==='1';fallDur=20;teamsManual=false;teamOf.clear();if(gameMode==='teams')balanceTeams(true);
   hintStage=hintStage>=3?3:0;hintHideT=0;hintEl.style.opacity=0;
   authStartRound();requestLock();canvas.focus();refreshOverlays();
 }
@@ -1893,6 +1944,7 @@ $('#startMp').addEventListener('click',()=>{if(!net.isHost)return;roundLen=+radi
 document.querySelectorAll('input[name=ybots]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost&&state!=='play'&&state!=='countdown'){botCount=+radio('ybots');teamsManual=false;syncBots();renderYardPanel();}}));
 document.querySelectorAll('input[name=ydiff]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost)difficulty=radio('ydiff');}));
 document.querySelectorAll('input[name=ymode]').forEach(r=>r.addEventListener('change',()=>{if(!net.isHost||state==='play'||state==='countdown')return;gameMode=radio('ymode');teamsManual=false;if(gameMode==='teams')balanceTeams(false);scoreDirty=true;renderYardPanel();}));
+document.querySelectorAll('input[name=yfall]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost)fallDur=+radio('yfall');}));
 document.querySelectorAll('input[name=yff]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost)friendlyFire=radio('yff')==='1';renderYardPanel();}));
 $('#shuffleTeams').addEventListener('click',()=>{if(net.isHost&&state!=='play'&&state!=='countdown'){teamsManual=false;balanceTeams(true);renderYardPanel();}});
 $('#yardPlayers').addEventListener('click',e=>{const li=e.target.closest('li[data-id]');if(!li||!net.isHost||gameMode!=='teams'||state==='play'||state==='countdown')return;
@@ -1940,7 +1992,7 @@ function frame(now){
   if(state==='countdown'){countdown-=dt;const n=Math.ceil(countdown);if(n!==lastBeep&&n>0&&n<=3){lastBeep=n;banner(String(n),.9);SFX.beep();}
     if(isAuth&&countdown<=0){state='play';banner('CHUCK IT!',1);SFX.go();renderYardPanel();}}
   if(state==='play'){roundLeft-=dt;const s=Math.ceil(roundLeft);if(roundLeft<=10&&s!==beepS&&s>0){beepS=s;SFX.beep();}if(isAuth&&roundLeft<=0){roundLeft=0;authEndRound();}}
-  if(state!==frame.lastState){if(state==='countdown'&&me){me.drunk=0;me.drinkT=0;me.drinkType=null;
+  if(state!==frame.lastState){if(state==='countdown'&&me){me.drunk=0;me.drinkT=0;me.drinkType=null;me.fallT=0;me.fallImmune=0;me.rise=0;
       const t=teamOfId(myId);if(t)showHint(t==='w'?'You\'re the <b>Wildcard</b>. Everyone is fair game, and everyone is after you.':`You're on the <b style="color:${TEAMS[t].css}">${TEAMS[t].name}</b> team. Get the other lot${friendlyFire?'. Friendly fire is on, so watch your aim':''}.`,5);}
     frame.lastState=state;}
   if(me)playerInput();
@@ -1952,12 +2004,13 @@ function frame(now){
     camRollV+=(-camRoll*40-camRollV*6)*dt;camRoll+=camRollV*dt;shake=Math.max(0,shake-dt*.5);
     const sx=shake>0?rand(-1,1)*shake:0,sy=shake>0?rand(-1,1)*shake:0;const bob=me.grounded?Math.sin(me.walk*2)*.035:0;
     const SC=me.slapA?slapCam(me):null;
+    const FF=me.fallT>0?Math.min(1,me.fallAge/.3):me.rise/.45;
     const mdn=SC?SC.lie:me.downT>0?Math.min(1,(DOWN_TIME-me.downT)/.22,me.downT/.45):0;
-    camera.position.set(me.pos.x+sx*.3,me.pos.y+1.55-(me.inPool?.45:0)+bob+sy*.3-mdn*1.2+(SC?SC.lift:0),me.pos.z);
+    camera.position.set(me.pos.x+sx*.3,me.pos.y+1.55-(me.inPool?.45:0)+bob+sy*.3-mdn*1.2+(SC?SC.lift:0)-FF*1.25,me.pos.z);
     const dr=me.dodgeT>0?(me.dodgeDir.dot(new V3(Math.cos(me.yaw),0,-Math.sin(me.yaw)))>0?-.12:.12):0;
     const da=drunkAmt(me.drunk),et=elapsed;
     const swY=da*(Math.sin(et*.63)*.06+Math.sin(et*1.71)*.018),swP=da*(Math.sin(et*.52+1.3)*.035+Math.sin(et*1.37)*.012),swR=da*(Math.sin(et*.8+.5)*.21+Math.sin(et*1.9)*.03);
-    camera.rotation.set(me.pitch+sy*.2+swP+mdn*(1.1-me.pitch)+(SC?SC.pitch:0),me.yaw+sx*.2+swY+(SC?SC.yaw:0),camRoll+dr+swR+mdn*.25+(SC?SC.roll:0)+(me.dizzyT>0?Math.sin(et*5)*.09*Math.min(1,me.dizzyT):0));
+    camera.rotation.set(me.pitch+sy*.2+swP+mdn*(1.1-me.pitch)+(SC?SC.pitch:0),me.yaw+sx*.2+swY+(SC?SC.yaw:0),camRoll+dr+swR+mdn*.25+(SC?SC.roll:0)+(me.dizzyT>0?Math.sin(et*5)*.09*Math.min(1,me.dizzyT):0)+FF*1.15);
     const tf=me.sprinting?81:74;if(Math.abs(camera.fov-tf)>.05){camera.fov+=(tf-camera.fov)*(1-Math.exp(-8*dt));camera.updateProjectionMatrix();}
   }else{const a=elapsed*.05;camera.position.set(Math.sin(a)*40,17,Math.cos(a)*40);camera.lookAt(0,1,0);}
   camera.updateMatrixWorld();
