@@ -93,6 +93,17 @@
 - ⬜ Marcus's custom sounds for Dazza and other effects
 - ⬜ Phone buttons for Grab and Ready
 
+## 6. Engine and Steam ⬜ (later)
+> Finish the gameplay here in the browser first (quick to change), then decide on the engine.
+
+- ⬜ Keep building and tuning gameplay in the browser version until it feels right
+- ⬜ Then compare engines:
+  - ⬜ **Godot 4:** free engine, lighter, similar cartoony look with better lighting
+  - ⬜ **Unreal Engine 5:** best looks and real ragdoll physics; a full rebuild using this game as the blueprint
+  - ⬜ Option: wrap the current browser version as a desktop app for Steam (keeps today's graphics)
+- ⬜ Build a small test scene (yard, one character, a floppy dildo) in the chosen engine before committing
+- ⬜ Only use Steam-safe sounds and assets (CC0, CC-BY, Pixabay, ZapSplat; no NC or ND), and keep a licence list
+
 ## Ideas parked
 - ⬜ Weather or time of day
 - ⬜ Sabotage items
