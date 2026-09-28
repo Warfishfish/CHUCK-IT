@@ -260,7 +260,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.12.0</span>
+      <span class="tag">Backyard Brawl · prototype 0.12.1</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Your mates, one backyard, three minutes. Grab whatever is lying on the lawn and chuck it at them before they chuck it at you.</p>
     </div>
@@ -1242,7 +1242,10 @@ function updateWobble(dt){if(dt<=0)return;
     wx=clamp(wx,-30,30);wz=clamp(wz,-30,30);
     const G=.5;W.vx-=(wx-W.wx)*G;W.vz-=(wz-W.wz)*G;W.wx=wx;W.wz=wz;W.prx=m.rotation.x;W.prz=m.rotation.z;
     const held=it.state==='held',h=held?chars.get(it.holder):null;
-    if(h){const sp=Math.hypot(h.vel.x,h.vel.z);W.vx+=Math.cos(h.walk*2)*Math.min(1,sp/5)*dt*9;W.vz+=Math.sin(h.walk)*Math.min(1,sp/5)*dt*5;}
+    if(h){const sp=Math.hypot(h.vel.x,h.vel.z);W.vx+=Math.cos(h.walk*2)*Math.min(1,sp/5)*dt*9;W.vz+=Math.sin(h.walk)*Math.min(1,sp/5)*dt*5;
+      // every footstep while running gives it a little flop, side to side
+      const step=Math.floor(h.walk/Math.PI);if(W.step!==step){const f=h.grounded&&sp>1.5?Math.min(1.3,sp/6)*(h.sprinting?1.3:1):0;
+        if(f>0&&W.step!=null){W.vx-=1.4*f;W.vz+=(step%2?1:-1)*.8*f;}W.step=step;}}
     if(it.state==='flying'){W.vx+=Math.sin(elapsed*19+it.id)*dt*30;W.vz+=Math.cos(elapsed*15)*dt*18;}
     const K=it.type==='noodle'?110:150,C=it.type==='noodle'?2.6:3,n=3,hd=dt/n;
     for(let k=0;k<n;k++){W.vx+=(-K*W.x-C*W.vx)*hd;W.vz+=(-K*W.z-C*W.vz)*hd;W.x+=W.vx*hd;W.z+=W.vz*hd;}
