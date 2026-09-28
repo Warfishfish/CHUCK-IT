@@ -258,7 +258,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.12.9</span>
+      <span class="tag">Backyard Brawl · prototype 0.12.10</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Your mates, one backyard, three minutes. Grab whatever is lying on the lawn and chuck it at them before they chuck it at you.</p>
     </div>
@@ -336,7 +336,7 @@ body.touch #cds{display:none}
           <span><kbd>Shift</kbd></span><span>Speed boost</span>
           <span><kbd>Right click</kbd></span><span>Catch</span>
           <span><kbd>R</kbd></span><span>Drink, grab, smoko, help up (hold)</span>
-          <span><kbd>E</kbd></span><span>Swap item</span>
+          <span><kbd>Q</kbd></span><span>Swap item</span>
           <span><kbd>T</kbd> <kbd>G</kbd> <kbd>B</kbd></span><span>Taunt, dance, laugh</span>
           <span><kbd>Esc</kbd></span><span>Menu</span>
         </div>
@@ -2090,11 +2090,10 @@ window.addEventListener('keydown',e=>{if(typing(e))return;keys[e.code]=true;
     if(e.code==='Space'&&!e.repeat){if(me.smokoSeat>=0)standUp();else tryJump(me);}
     if((e.code==='ShiftLeft'||e.code==='ShiftRight')&&!e.repeat)tryBoost(me);
     if(e.code==='KeyR'&&!e.repeat)interact();
-    if(e.code==='KeyE'&&!e.repeat)swap(1);
+    if((e.code==='KeyQ'||e.code==='KeyE')&&!e.repeat)swap(1);
     if(e.code==='KeyT'&&!e.repeat)tryEmote('taunt');
     if(e.code==='KeyG'&&!e.repeat)tryEmote('dance');
     if(e.code==='KeyB'&&!e.repeat)tryEmote('laugh');
-    if(e.code==='KeyQ'&&!e.repeat)tryCatch(me);
     if(e.code==='KeyF'&&!e.repeat)startCharge();
     if(e.code==='Digit1'||e.code==='Digit2'){const h=heldOf(myId);const it=h[e.code==='Digit1'?0:1];if(it){me.selId=it.id;updateSlots();}}
   }
