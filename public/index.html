@@ -260,7 +260,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.12.11</span>
+      <span class="tag">Backyard Brawl · prototype 0.12.12</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Your mates, one backyard, three minutes. Grab whatever is lying on the lawn and chuck it at them before they chuck it at you.</p>
     </div>
@@ -1255,7 +1255,7 @@ function npcUpdate(dt){ // host only
   if(NPC.state==='chase'&&tgt){goal=tgt.pos;speed=NPC.berserk?8.6:7.2;stop=1.2;}
   else if(NPC.state==='angry'&&tgt){if(tgt.pos.distanceTo(NPC.home)<5){goal=tgt.pos;speed=3.4;stop=1.2;}else goal=npcHomeRoute(),speed=3.4;}
   else if(NPC.state==='return'){goal=npcHomeRoute();speed=4;if(Math.hypot(NPC.pos.x-NPC.home.x,NPC.pos.z-NPC.home.z)<.25){NPC.state='cook';NPC.pos.copy(NPC.home);}}
-  else{NPC.chatT-=dt;if(NPC.chatT<=0){NPC.chatT=rand(40,65);if(state!=='countdown')npcSay('chat');}}
+  else{NPC.chatT-=dt;if(NPC.chatT<=0){NPC.chatT=rand(25,35);if(state!=='countdown')npcSay('chat');}}
   if(goal){const dx=goal.x-NPC.pos.x,dz=goal.z-NPC.pos.z,d=Math.hypot(dx,dz);
     if(d>stop+.05){const st=Math.min(speed*dt,d-stop);NPC.pos.x+=dx/d*st;NPC.pos.z+=dz/d*st;NPC.walk+=st*2.4;}
     if(d>.05)NPC.face=Math.atan2(dx,dz);}
@@ -1640,7 +1640,7 @@ function startDrink(ch){if(!ch||ch.drinkT>0||ch.stun>0||ch.smokoSeat>=0||!canAct
 function updateDrink(ch,dt){
   if(ch.drinkT>0){if(ch.stun>0){ch.drinkT=0;ch.drinkType=null;return;}
     ch.drinkT-=dt;if(ch.drinkT<=0){const d=DRINKS[ch.drinkType],before=drunkTier(ch.drunk);ch.drunk=Math.min(100,ch.drunk+d.amt);ch.drinkT=0;ch.drinkType=null;
-      if(ch.kind==='me'){SFX.ahh();const after=drunkTier(ch.drunk);if(after!==before)floater(after+'!',camera.position.clone().add(fwd(ch).multiplyScalar(2)).setY(camera.position.y+.3),'big');}}}
+      if(ch.kind==='me'){SFX.ahh();const after=drunkTier(ch.drunk);floater(after!==before?after+'!':'+'+d.amt+' drunk',camera.position.clone().add(fwd(ch).multiplyScalar(2)).setY(camera.position.y+.3),after!==before?'big':'small');}}}
   else if(ch.drunk>0&&!(ch.smokoSeat>=0))ch.drunk=Math.max(0,ch.drunk-SOBER_RATE*dt);
 }
 const DOWN_TIME=3.5;
