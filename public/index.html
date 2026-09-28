@@ -233,7 +233,6 @@ body.touch #cds{display:none}
   <div id="cds">
     <div class="cd"><kbd>Space</kbd>Jump</div>
     <div class="cd"><kbd>Shift</kbd>Boost<span class="fill" id="cdSprint"></span></div>
-    <div class="cd"><kbd>C</kbd>Dodge<span class="fill" id="cdDodge"></span></div>
     <div class="cd"><kbd>Right click</kbd>Catch<span class="fill" id="cdCatch"></span></div>
   </div>
   <div id="slots"><div class="slot" id="slot0"></div><div class="slot" id="slot1"></div></div>
@@ -248,7 +247,6 @@ body.touch #cds{display:none}
   <div class="tbtns">
     <button id="tJump" type="button">Jump</button>
     <button id="tBoost" type="button">Boost</button>
-    <button id="tDodge" type="button">Dodge</button>
     <button id="tCatch" type="button">Catch</button>
     <button id="tThrow" type="button">Chuck</button>
     <button id="tSwap" type="button">Swap</button>
@@ -260,7 +258,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.12.4</span>
+      <span class="tag">Backyard Brawl · prototype 0.12.5</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Your mates, one backyard, three minutes. Grab whatever is lying on the lawn and chuck it at them before they chuck it at you.</p>
     </div>
@@ -330,7 +328,6 @@ body.touch #cds{display:none}
           <span><kbd>Hold click</kbd></span><span>Wind up, let go to chuck</span>
           <span><kbd>Space</kbd></span><span>Jump</span>
           <span><kbd>Shift</kbd></span><span>Speed boost</span>
-          <span><kbd>C</kbd></span><span>Dodge</span>
           <span><kbd>Right click</kbd></span><span>Catch</span>
           <span><kbd>R</kbd></span><span>Drink, grab, smoko, help up (hold)</span>
           <span><kbd>E</kbd></span><span>Swap item</span>
@@ -1600,11 +1597,6 @@ function spawner(dt){
 }
 
 /* ================= CHARACTER PHYSICS ================= */
-function doDodge(ch,dir){
-  if(ch.dodgeCd>0||ch.stun>0||ch.smokoSeat>=0)return;
-  if(!dir){dir=new V3(ch.wish.x,0,ch.wish.y);if(dir.lengthSq()<.01){const f=fwd(ch);dir.set(-f.z,0,f.x);}}
-  ch.dodgeDir.copy(dir).setY(0).normalize();ch.dodgeT=.2;ch.dodgeCd=1.1;SFX.dodge(ch.pos);
-}
 function tryCatch(ch){if(ch.catchCd>0||ch.stun>0||ch.smokoSeat>=0)return;ch.catchT=.32;ch.catchCd=.9;
   if(ch.kind==='me'){const r=$('#catchring');r.classList.add('on');setTimeout(()=>r.classList.remove('on'),320);}}
 const DRINKS={beer:{name:'VP',full:'a cold VP',amt:18,t:1.4},wine:{name:'Wine',full:'a glass of wine',amt:26,t:1.2},rum:{name:'Rum shot',full:'a rum shot',amt:34,t:.6}};
@@ -1803,7 +1795,7 @@ function aiUpdate(ch,dt){
     const vh=Math.hypot(it.vel.x,it.vel.z);if(vh<1)continue;const closing=(it.vel.x*rx+it.vel.z*rz)/(dist||1);if(closing<vh*.85)continue;
     if(dist/closing>.5)continue;ai.seen.add(it);
     if(Math.random()<df.react){if(ch.catchCd<=0&&Math.random()<df.catchP/df.react){ch.face=Math.atan2(-rx,-rz);tryCatch(ch);}
-      else{const s=Math.random()<.5?-1:1;doDodge(ch,new V3(-it.vel.z*s,0,it.vel.x*s));}}
+      else{const s=Math.random()<.5?-1:1,l=Math.hypot(it.vel.x,it.vel.z)||1;if(ch.grounded&&Math.random()<.4)tryJump(ch);else{ai.sideT=.45;ai.sideDir=new THREE.Vector2(-it.vel.z/l*s,it.vel.x/l*s);}}}
     else if(Math.random()<df.juke){if(ch.grounded&&Math.random()<.45)tryJump(ch);
       else{const s=Math.random()<.5?-1:1,l=Math.hypot(it.vel.x,it.vel.z)||1;ai.sideT=.42;ai.sideDir=new THREE.Vector2(-it.vel.z/l*s,it.vel.x/l*s);}}}
   let goal=null,faceTo=null;const near=nearestFreeItem(ch);const nHeld=heldOf(ch.id).length;
@@ -2066,7 +2058,6 @@ window.addEventListener('keydown',e=>{if(typing(e))return;keys[e.code]=true;
   if((e.code==='Space'||e.code.startsWith('Arrow'))&&mode!=='menu')e.preventDefault();
   if(canAct()){
     if(e.code==='Space'&&!e.repeat){if(me.smokoSeat>=0)standUp();else tryJump(me);}
-    if(e.code==='KeyC'&&!e.repeat)doDodge(me);
     if((e.code==='ShiftLeft'||e.code==='ShiftRight')&&!e.repeat)tryBoost(me);
     if(e.code==='KeyR'&&!e.repeat)interact();
     if(e.code==='KeyE'&&!e.repeat)swap(1);
@@ -2113,7 +2104,6 @@ function look(dx,dy){me.yaw-=dx*sens;me.pitch=clamp(me.pitch-dy*sens,-1.45,1.45)
   const endLook=e=>{if(e.pointerId===lId)lId=null;};$('#tLook').addEventListener('pointerup',endLook);$('#tLook').addEventListener('pointercancel',endLook);
   const tt=$('#tThrow');tt.addEventListener('pointerdown',e=>{e.preventDefault();tt.setPointerCapture(e.pointerId);startCharge();});
   tt.addEventListener('pointerup',()=>releaseCharge());tt.addEventListener('pointercancel',()=>releaseCharge());
-  $('#tDodge').addEventListener('pointerdown',e=>{e.preventDefault();if(canAct())doDodge(me);});
   $('#tCatch').addEventListener('pointerdown',e=>{e.preventDefault();if(canAct())tryCatch(me);});
   $('#tSwap').addEventListener('pointerdown',e=>{e.preventDefault();swap(1);});
   $('#tJump').addEventListener('pointerdown',e=>{e.preventDefault();if(!canAct())return;if(me.smokoSeat>=0)standUp();else tryJump(me);});
@@ -2122,7 +2112,7 @@ function look(dx,dy){me.yaw-=dx*sens;me.pitch=clamp(me.pitch-dy*sens,-1.45,1.45)
   $('#tDrink').addEventListener('pointerdown',e=>{e.preventDefault();touchHold=true;interact();});
   ['pointerup','pointercancel','pointerleave'].forEach(ev=>$('#tDrink').addEventListener(ev,()=>{touchHold=false;}));
   $('#tMenu').addEventListener('click',()=>{panelOpen=true;refreshOverlays();renderYardPanel();});
-  $('#keys').innerHTML='<span><kbd>Jump</kbd> <kbd>Boost</kbd></span><span>Hop, or a quick burst of speed</span><span><kbd>Emote</kbd></span><span>A random taunt, dance or laugh</span><span><kbd>Left thumb</kbd></span><span>Move</span><span><kbd>Right thumb</kbd></span><span>Aim</span><span><kbd>Chuck</kbd></span><span>Hold to wind up, let go to throw</span><span><kbd>Catch</kbd> <kbd>Dodge</kbd></span><span>Time them just before a hit</span>';
+  $('#keys').innerHTML='<span><kbd>Jump</kbd> <kbd>Boost</kbd></span><span>Hop, or a quick burst of speed</span><span><kbd>Emote</kbd></span><span>A random taunt, dance or laugh</span><span><kbd>Left thumb</kbd></span><span>Move</span><span><kbd>Right thumb</kbd></span><span>Aim</span><span><kbd>Chuck</kbd></span><span>Hold to wind up, let go to throw</span><span><kbd>Catch</kbd></span><span>Time it just before a hit</span>';
   $('#cds').remove();
 })();
 function playerInput(){
@@ -2176,7 +2166,7 @@ function updateHud(dt){
   const warm=mode==='mp'&&(state==='warmup'||state==='results');
   clockEl.textContent=warm?'Warm-up':state==='countdown'?fmt(roundLen):fmt(roundLeft);clockEl.classList.toggle('warm',warm);clockEl.classList.toggle('low',state==='play'&&roundLeft<=10);
   chargeEl.style.opacity=me&&me.charging?1:0;if(me){chargeEl.firstElementChild.style.width=(me.charge*100)+'%';chargeEl.classList.toggle('full',me.charge>=1);}
-  if(me&&!touchMode){const dd=$('#cdDodge'),cc=$('#cdCatch');if(dd){dd.style.width=(100-me.dodgeCd/1.1*100)+'%';cc.style.width=(100-me.catchCd/.9*100)+'%';}
+  if(me&&!touchMode){const cc=$('#cdCatch');if(cc)cc.style.width=(100-me.catchCd/.9*100)+'%';
     const sp=$('#cdSprint');if(sp){const r=me.boostT>0?me.boostT/BOOST_TIME:1-me.boostCd/BOOST_CD;sp.style.width=(r*100)+'%';sp.style.background=me.boostT>0?'var(--teal)':me.boostCd>0?'var(--tomato)':'';}}
   updateSlots();
   if(me){const lvl=me.drunk,lb=$('#drunk .dk-lbl'),bar=$('#drunk .dk-bar i');const tier=drunkTier(lvl);if(lb.textContent!==tier)lb.textContent=tier;
@@ -2202,7 +2192,7 @@ function updateHud(dt){
   if(canAct()&&hintHideT<=0){
     if(hintStage===0)showHint('Walk over anything <b>glowing</b> on the lawn to pick it up.',1);
     else if(hintStage===1)showHint(touchMode?'Hold <b>Chuck</b> to wind up, let go to throw.':'Hold <b>left click</b> to wind up, let go to chuck it.',1);
-    else if(hintStage===2){showHint(touchMode?'<b>Dodge</b> to dive clear. <b>Catch</b> just before a hit to steal it.':'<b>Shift</b> for a speed boost, <b>Space</b> to jump, <b>C</b> to dive clear. <b>Right click</b> just before a hit to catch it.',7);hintStage=3;}
+    else if(hintStage===2){showHint(touchMode?'<b>Catch</b> just before a hit to steal it.':'<b>Shift</b> for a speed boost, <b>Space</b> to jump. <b>Right click</b> just before a hit to catch it.',7);hintStage=3;}
   }
   if(hintHideT>0){hintHideT-=dt;if(hintHideT<=0)hintEl.style.opacity=0;}
 }
