@@ -258,7 +258,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.12.8</span>
+      <span class="tag">Backyard Brawl · prototype 0.12.7</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Your mates, one backyard, three minutes. Grab whatever is lying on the lawn and chuck it at them before they chuck it at you.</p>
     </div>
@@ -1226,20 +1226,6 @@ function npcBubble(text){const b=NPC.bubble,c=b.userData.c,x=c.getContext('2d');
   x.beginPath();x.moveTo(236,88);x.lineTo(256,120);x.lineTo(270,88);x.closePath();x.fill();x.stroke();x.fillStyle='#fff';x.fillRect(238,82,30,8);
   x.fillStyle='#172418';x.textAlign='center';x.textBaseline='middle';x.fillText(text,256,50,480);b.userData.t.needsUpdate=true;b.visible=true;NPC.bubbleT=2.8;}
 function npcSay(kind){fx('npcsay',pick(NPC_LINES[kind]));}
-// TEST: Dazza speaks his lines out loud with the computer's own Aussie text-to-speech voice (Lee/Karen on a Mac).
-// Nothing is shipped with the game; each player's computer does the talking. Swap for real recordings later.
-const DAZZA_VOICE={v:null,tried:false};
-function dazzaPickVoice(){const vs=(window.speechSynthesis&&speechSynthesis.getVoices())||[];if(!vs.length)return null;
-  const au=vs.filter(v=>/en[-_]AU/i.test(v.lang));
-  return au.find(v=>/lee|male|james/i.test(v.name))||au[0]||vs.find(v=>/en[-_]GB/i.test(v.lang)&&/daniel|male|arthur/i.test(v.name))||vs.find(v=>/^en/i.test(v.lang))||null;}
-if(window.speechSynthesis)try{speechSynthesis.onvoiceschanged=()=>{DAZZA_VOICE.v=dazzaPickVoice();};}catch(e){}
-function dazzaSpeak(text){try{if(!window.speechSynthesis||mode==='menu')return;
-  let t=String(text).replace(/\*[^*]*\*/g,'').replace(/\b([A-Z]{2,})\b/g,w=>w[0]+w.slice(1).toLowerCase()).replace(/\bOi\b/gi,'Oy').replace(/'ERE/i,"here").trim();
-  if(!t)return;if(!DAZZA_VOICE.v)DAZZA_VOICE.v=dazzaPickVoice();
-  const u=new SpeechSynthesisUtterance(t);if(DAZZA_VOICE.v){u.voice=DAZZA_VOICE.v;u.lang=DAZZA_VOICE.v.lang;}else u.lang='en-AU';
-  const loud=/!/.test(text)&&text===text.toUpperCase();u.pitch=loud?.65:.8;u.rate=loud?1.25:1.08;
-  const lp=me?me.pos:camera.position,d=Math.hypot(lp.x-NPC.pos.x,lp.z-NPC.pos.z);u.volume=clamp(1.15-d/28,.15,1);
-  speechSynthesis.cancel();speechSynthesis.speak(u);}catch(e){}}
 const NPC_SLAPS=['KNOCKED OUT COLD!','BERSERK!','FLIPPED THE BARBIE!'],NPC_SLAP_PTS=[75,25,50];
 function authSlapNpc(attId,it){const a=chars.get(attId);if(!FEAT.bbq||!a||!it||it.holder!==attId||!it.def.melee||NPC.state==='ko'||a.smokoSeat>=0)return;
   if(elapsed-a.lastSlap<.45||Math.hypot(a.pos.x-NPC.pos.x,a.pos.z-NPC.pos.z)>3.6)return;a.lastSlap=elapsed;
@@ -1486,11 +1472,11 @@ function playFx(a){
   }else if(k==='emote'){const c=chars.get(a[1]),list=EMOTES[a[2]];if(c&&list&&!(c===me&&me.emote&&me.emote.t<.8))startEmote(c,a[2],num(a[3],0)|0);
   }else if(k==='nslap'){const aid=a[1],o=clamp(a[2]|0,1,3),type=TYPES[a[3]]||'steak',pts=num(a[4],0),at=chars.get(aid);if(at)at.swingT=.28;
     const hp=NPC.pos.clone().setY(1.6);SFX.splat(hp);burst(hp,type==='fish'?[0xc9d6de,0x8aa4b4,0xffffff]:type==='dildo'?[0xa44de0,0xe2b8ff,0xffffff]:[0xc4455a,0xf2d2c8,0x8a1f2c],24,5,.07);
-    const lbl=NPC_SLAPS[o-1];floater(lbl,NPC.pos.clone().setY(3.5),'big');if(typeof a[5]==='string'){npcBubble(a[5].slice(0,40));dazzaSpeak(a[5].slice(0,60));}else SFX.babble(NPC.pos);
+    const lbl=NPC_SLAPS[o-1];floater(lbl,NPC.pos.clone().setY(3.5),'big');if(typeof a[5]==='string')npcBubble(a[5].slice(0,40));SFX.babble(NPC.pos);
     if(o===1){NPC.koAge=0;SFX.thud(NPC.pos);}if(o===3){for(const f of grillFood)f.flip=.4;burst(new V3(-6,1.3,-18),[0x6e2a1a,0x9b4a2a,0x444444],30,6,.08);SFX.clonk(new V3(-6,1,-18));}
     if(aid===myId&&pts)floater('+'+pts+' chef slap',NPC.pos.clone().setY(4.1),'small');
     feed(`${nm(aid)} slapped <b style="color:#ff9f1c">Dazza</b> <em>${lbl}</em>`);
-  }else if(k==='npcsay'){npcBubble(String(a[1]||'').slice(0,40));dazzaSpeak(String(a[1]||'').slice(0,60));
+  }else if(k==='npcsay'){npcBubble(String(a[1]||'').slice(0,40));SFX.babble(NPC.pos);
   }else if(k==='npcswing'){NPC.swingT=.35;SFX.whoosh(NPC.pos);
   }else if(k==='sw'){const c=chars.get(a[1]);if(c&&c.kind!=='me'){c.swingT=.28;SFX.whoosh(c.pos);}
   }else if(k==='poof'){const p=new V3(num(a[1],0),num(a[2],0),num(a[3],0));burst(p,[0xa44de0,0xe2b8ff,0xffffff],18,3,.06);SFX.pop(p);
