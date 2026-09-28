@@ -260,7 +260,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.11.1</span>
+      <span class="tag">Backyard Brawl · prototype 0.12.0</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Your mates, one backyard, three minutes. Grab whatever is lying on the lawn and chuck it at them before they chuck it at you.</p>
     </div>
@@ -1022,9 +1022,9 @@ const PALETTE=[0xffd23f,0xff7a59,0x19b3a6,0x8c6ade,0x4cc9f0,0xf25c9a,0x7bd148,0x
 const BOT_NAMES=['Shazza','Davo','Kev','Bazza','Trish','Robbo'];
 const CHAR_SPAWNS=[[0,19.5],[-24,-19.5],[27,-9],[24,16.5],[-27,15],[12,-19.5],[-9,-10.5],[30,0],[-18,-6],[18,4],[-6,14],[6,-8]];
 const DIFF={
-  easy:{err:2.2,react:.18,catchP:.05,cd:1.7,lead:.3,spd:.85,bias:.8},
-  fair:{err:1.3,react:.42,catchP:.14,cd:1.15,lead:.75,spd:.93,bias:1},
-  spicy:{err:.6,react:.7,catchP:.28,cd:.8,lead:1,spd:1,bias:1.25}
+  easy:{err:2.2,react:.18,catchP:.05,cd:1.7,lead:.3,spd:.85,bias:.8,juke:.22},
+  fair:{err:1.3,react:.42,catchP:.14,cd:1.15,lead:.75,spd:.93,bias:1,juke:.38},
+  spicy:{err:.6,react:.7,catchP:.28,cd:.8,lead:1,spd:1,bias:1.25,juke:.5}
 };
 
 /* ================= STATE ================= */
@@ -1092,7 +1092,7 @@ function createChar(id,name,color,kind,sp){
   mesh(new THREE.SphereGeometry(.3,18,14),cL,0,1.5,0,body);
   [-1,1].forEach(s=>{mesh(new THREE.SphereGeometry(.085,10,8),wh,s*.11,1.56,.24,body);mesh(new THREE.SphereGeometry(.042,8,6),bk,s*.11,1.56,.315,body);
     mesh(new THREE.SphereGeometry(.13,10,8),mat(new THREE.Color(color).multiplyScalar(.6).getHex()),s*.16,.09,.04,body).scale.set(1,.6,1.4);});
-  mesh(new THREE.SphereGeometry(.1,10,8),cL,.47,.88,.05,body);
+  const handL=mesh(new THREE.SphereGeometry(.1,10,8),cL,.47,.88,.05,body);
   const hand=new THREE.Group();hand.position.set(-.47,.88,.05);body.add(hand);mesh(new THREE.SphereGeometry(.1,10,8),cL,0,0,0,hand);
   const crown=new THREE.Group();crown.position.y=1.86;body.add(crown);
   mesh(new THREE.CylinderGeometry(.2,.22,.13,10,1,true),mat(0xffcf33,{side:THREE.DoubleSide,emissive:0x443300}),0,0,0,crown);
@@ -1104,7 +1104,7 @@ function createChar(id,name,color,kind,sp){
   const tag=nameTag(name,color);g.add(tag);
   const smokoCan=MAKERS.stubby();smokoCan.position.set(0,.12,.08);smokoCan.visible=false;hand.add(smokoCan);
   const sash=mesh(new THREE.TorusGeometry(.375,.055,8,26),mat(0xffffff),0,.92,0,body);sash.rotation.set(Math.PI/2,.45,0);sash.visible=false;
-  Object.assign(ch,{mesh:g,body,hand,crown,stars,tag,sash,smokoCan,sink:0});
+  Object.assign(ch,{mesh:g,body,hand,handL,crown,stars,tag,sash,smokoCan,sink:0});
   scene.add(g);
   if(kind==='me')g.visible=false;
   if(kind==='bot'){ch.isBot=true;ch.ai={target:null,retarget:0,orbit:1,flip:rand(1,3),windup:0,throwCd:rand(1,2),range:rand(8,13),seen:new WeakSet(),claim:null,stuckT:1,lastPos:ch.pos.clone(),wander:0,wanderDir:new THREE.Vector2()};}
@@ -1606,15 +1606,26 @@ function updateDrink(ch,dt){
   else if(ch.drunk>0&&!(ch.smokoSeat>=0))ch.drunk=Math.max(0,ch.drunk-SOBER_RATE*dt);
 }
 const DOWN_TIME=3.5;
-const JUMP_V=7.5,BOOST_MULT=1.7,BOOST_TIME=1.6,BOOST_CD=5;
+const TRAMP_MAX=5,JUMP_V=7.5,BOOST_MULT=1.7,BOOST_TIME=1.6,BOOST_CD=5;
 function tryBoost(ch){if(ch.smokoSeat>=0||ch.boostT>0||ch.boostCd>0||ch.stun>0||state==='countdown')return;ch.boostT=BOOST_TIME;SFX.dodge(ch.pos);}
 function tryJump(ch){if(ch.stun>0)return;ch.jumpBuf=.14;}
 function floorAt(ch){let floor=0;for(const c of colliders){if(ch.pos.x>c.x0-.1&&ch.pos.x<c.x1+.1&&ch.pos.z>c.z0-.1&&ch.pos.z<c.z1+.1&&(ch.pos.y>=c.h-.35||ch.prevY>=c.h-.05))floor=Math.max(floor,c.h);}return floor;}
+// VP puddles: run onto one and you skate across it, arms flailing, spinning, barely able to steer
+const SLIDE_T=1.1;
+function slideCheck(ch,dt){ch.slideT=Math.max(0,(ch.slideT||0)-dt);
+  const sp=Math.hypot(ch.vel.x,ch.vel.z);
+  if(ch.slip&&!ch.wasSlip&&ch.grounded&&sp>2.4&&ch.slideT<=0&&!(ch.smokoSeat>=0)&&!(ch.downT>0)){
+    ch.slideT=SLIDE_T;ch.spinV=(Math.random()<.5?-1:1)*rand(7,11);
+    if(ch.kind!=='proxy'){const b=Math.min(11,sp*1.35)/sp;ch.vel.x*=b;ch.vel.z*=b;ch.charging=false;ch.charge=0;}
+    SFX.whoa(ch.pos);SFX.squeak(ch.pos);burst(ch.pos.clone().setY(.15),[0x1e7d3a,0xf2c230,0xffffff],10,3,.05);
+    if(ch.kind==='me'&&me){shake=Math.max(shake,.06);floater(pick(['WHOOOA!','SLIPPERY!','Aaaargh!']),camera.position.clone().add(fwd(me).multiplyScalar(2.2)).setY(camera.position.y+.35),'big');}}
+  ch.wasSlip=ch.slip;}
 function updateChar(ch,dt){
   ch.stun=Math.max(0,ch.stun-dt);ch.downT=Math.max(0,ch.downT-dt);ch.dodgeT=Math.max(0,ch.dodgeT-dt);ch.dodgeCd=Math.max(0,ch.dodgeCd-dt);ch.catchT=Math.max(0,ch.catchT-dt);ch.catchCd=Math.max(0,ch.catchCd-dt);
   ch.inPool=inPoolRect(ch.pos)&&ch.pos.y<.1;
   if(ch.inPool&&!ch.wasInPool){SFX.splash(ch.pos);burst(ch.pos.clone().setY(WATER_Y+.15),[0x9ee3ff,0xffffff],12,3,.07);envCheck(ch,'pool');}ch.wasInPool=ch.inPool;
   ch.slip=ch.pos.y<.1&&[...puddles.values()].some(p=>Math.hypot(ch.pos.x-p.x,ch.pos.z-p.z)<p.r*p.grow);
+  slideCheck(ch,dt);
   const frozen=state==='countdown';
   // speed boost (Shift): short burst, then a cooldown before it can be used again
   if(ch.boostT>0){ch.boostT=Math.max(0,ch.boostT-dt);if(ch.boostT<=0)ch.boostCd=BOOST_CD;}
@@ -1624,7 +1635,7 @@ function updateChar(ch,dt){
   const maxSp=6.2*(ch.inPool?.5:1)*(ch.charging?.72:1)*(ch.sprinting?BOOST_MULT:1)*(ch.drinkT>0?.55:1);
   let tx=ch.wish.x*maxSp,tz=ch.wish.y*maxSp;if(ch.stun>0||frozen){tx=0;tz=0;}
   if(ch.dodgeT>0){ch.vel.x=ch.dodgeDir.x*14.5;ch.vel.z=ch.dodgeDir.z*14.5;}
-  else{const grip=!ch.grounded?(ch.stun>0?2.2:6):ch.stun>0?3.2:ch.slip?1.1:12;const k=1-Math.exp(-grip*dt);ch.vel.x+=(tx-ch.vel.x)*k;ch.vel.z+=(tz-ch.vel.z)*k;}
+  else{const grip=!ch.grounded?(ch.stun>0?2.2:6):ch.stun>0?3.2:ch.slideT>0?.3:ch.slip?1.1:12;const k=1-Math.exp(-grip*dt);ch.vel.x+=(tx-ch.vel.x)*k;ch.vel.z+=(tz-ch.vel.z)*k;}
   // jump (Space): small buffer + coyote time so it never feels like it ate the press
   ch.coyote=ch.grounded?.1:Math.max(0,ch.coyote-dt);ch.jumpBuf=Math.max(0,ch.jumpBuf-dt);
   if(ch.jumpBuf>0&&ch.coyote>0&&ch.stun<=0&&!frozen){ch.vel.y=ch.inPool?5.5:JUMP_V;ch.grounded=false;ch.coyote=0;ch.jumpBuf=0;if(ch.kind==='me')SFX.jump(ch.pos);}
@@ -1638,8 +1649,12 @@ function updateChar(ch,dt){
       if(m===l)ch.pos.x=c.x0-R;else if(m===r)ch.pos.x=c.x1+R;else if(m===b)ch.pos.z=c.z0-R;else ch.pos.z=c.z1+R;}}
   ch.pos.x=clamp(ch.pos.x,-W+.45,W-.45);ch.pos.z=clamp(ch.pos.z,-D+.45,D-.45);
   const floor=floorAt(ch);const tdx=ch.pos.x-TRAMP.x,tdz=ch.pos.z-TRAMP.z;
-  if(tdx*tdx+tdz*tdz<TRAMP.r*TRAMP.r&&ch.pos.y<=TRAMP.h+.02&&ch.vel.y<=0){ch.pos.y=TRAMP.h;ch.vel.y=11.5;ch.grounded=false;SFX.boing(ch.pos);envCheck(ch,'tramp');if(ch.kind==='me')shake=Math.max(shake,.03);}
-  else if(ch.pos.y<=floor){if(ch.kind==='me'){if(ch.vel.y<-10)shake=Math.max(shake,.05);if(!ch.grounded&&fallV<-4)SFX.land(ch.pos);}ch.pos.y=floor;ch.vel.y=0;ch.grounded=true;}
+  if(tdx*tdx+tdz*tdz<TRAMP.r*TRAMP.r&&ch.pos.y<=TRAMP.h+.02&&ch.vel.y<=0){
+    // every bounce in a row without touching the grass goes higher, up to a cap
+    const n=ch.trampChain?Math.min(TRAMP_MAX,(ch.trampN||0)+1):0;ch.trampN=n;ch.trampChain=true;
+    ch.pos.y=TRAMP.h;ch.vel.y=11.5*(1+.2*n);ch.grounded=false;SFX.boing(ch.pos);envCheck(ch,'tramp');
+    if(ch.kind==='me'){shake=Math.max(shake,.03+.015*n);if(n>0)floater(n>=TRAMP_MAX?'MAX HEIGHT!':'BOING x'+(n+1)+'!',camera.position.clone().add(fwd(me).multiplyScalar(2.2)).setY(camera.position.y+.3),n>=TRAMP_MAX?'big':'small');}}
+  else if(ch.pos.y<=floor){ch.trampChain=false;ch.trampN=0;if(ch.kind==='me'){if(ch.vel.y<-10)shake=Math.max(shake,.05);if(!ch.grounded&&fallV<-4)SFX.land(ch.pos);}ch.pos.y=floor;ch.vel.y=0;ch.grounded=true;}
   else ch.grounded=false;
   // pickups
   if(ch.stun<=0&&state!=='countdown'){let n=heldOf(ch.id).length;if(n<2)for(const it of items.values()){if(it.state!=='ground'||it.restT<.2)continue;if(ch.kind==='bot'&&it.def.melee)continue;
@@ -1655,6 +1670,7 @@ function updateProxy(ch,dt){
   ch.grounded=Math.abs(ch.netV.y)<.6;ch.inPool=inPoolRect(ch.pos)&&ch.pos.y<.1;
   ch.face=angLerp(ch.face,ch.netFace,1-Math.exp(-14*dt));
   ch.stun=Math.max(0,ch.stun-dt);ch.downT=Math.max(0,ch.downT-dt);ch.fallT=Math.max(0,ch.fallT-dt);
+  ch.slip=ch.pos.y<.1&&[...puddles.values()].some(p=>Math.hypot(ch.pos.x-p.x,ch.pos.z-p.z)<p.r*p.grow);slideCheck(ch,dt);
 }
 function separate(){const list=[...chars.values()];for(let i=0;i<list.length;i++)for(let j=i+1;j<list.length;j++){const a=list[i],b=list[j];
   const aL=a.kind!=='proxy',bL=b.kind!=='proxy';if(!aL&&!bL)continue;
@@ -1688,6 +1704,10 @@ function syncCharMesh(ch,dt){
   ch.itemPitch=0;let swinging=false;
   if(ch.swA!=null&&ch.swA<SWING_VIS&&!P&&!(ch.downT>0)){ch.swA+=dt;const k=swingKey(ch.swA);swinging=true;ch.hand.position.set(k[1],k[2],k[3]);ch.itemPitch=k[4];
     ch.body.quaternion.multiply(dq.setFromEuler(de.set(Math.max(0,k[4])*.08,k[5],0)));}
+  if(ch.slideT>0&&!P&&!(ch.downT>0)){const u=Math.min(1,ch.slideT*3);
+    ch.hand.position.set(-.62+Math.sin(t*23)*.14,1.2+Math.sin(t*19)*.38,.05+Math.cos(t*17)*.25);ch.handL.position.set(.62+Math.sin(t*21+1)*.14,1.2+Math.sin(t*18+2)*.38,.05+Math.cos(t*16)*.25);
+    ch.body.quaternion.multiply(dq.setFromEuler(de.set(-.4*u,0,Math.sin(t*13)*.32*u)));}
+  else ch.handL.position.set(.47,.88,.05);
   let fl=0;if(ch.fallT>0){if(ch.kind==='proxy')ch.fallAge+=dt;fl=Math.min(1,ch.fallAge/.3);ch.rise=.45;
     ch.zzT=(ch.zzT||0)-dt;if(ch.zzT<=0&&ch.kind!=='me'&&ch.fallAge>1){ch.zzT=1.4;floater('Zzz',ch.pos.clone().setY(ch.pos.y+.9),'small');}}
   else if(ch.rise>0){ch.rise=Math.max(0,ch.rise-dt);fl=ch.rise/.45;}
@@ -1716,7 +1736,7 @@ function ballistic(from,to,speed,g){const dx=to.x-from.x,dz=to.z-from.z,dy=to.y-
   const v2=speed*speed,disc=v2*v2-g*(g*h*h+2*dy*v2);if(disc<0)return null;const ang=Math.atan((v2-Math.sqrt(disc))/(g*h));
   const c=Math.cos(ang),s=Math.sin(ang);return{v:new V3(dx/h*c*speed,s*speed,dz/h*c*speed),t:h/(speed*c)};}
 function pickTarget(ch){const df=DIFF[difficulty];let best=null,bs=-1;for(const o of chars.values()){if(o===ch||sameTeam(ch.id,o.id)||o.smokoSeat>=0)continue;const d=o.pos.distanceTo(ch.pos);
-  let s=1/(d+3)*(o.id===leaderId?1.7:1)*(!o.isBot?df.bias:1)*rand(.6,1.4);if(o.stun>0)s*=.7;if(s>bs){bs=s;best=o;}}
+  let s=1/(d+3)*(o.id===leaderId?2.8:1)*(!o.isBot?df.bias:1)*rand(.6,1.4);if(o.stun>0)s*=.7;if(ch.ai.meleeOnly&&o.downT>.3)s*=.05;if(s>bs){bs=s;best=o;}}
   ch.ai.target=best;ch.ai.retarget=rand(3,6);ch.ai.range=rand(7,13);}
 function botThrow(ch,t){const it=selItem(ch);if(!it)return;const d=it.def,df=DIFF[difficulty];
   const from=new V3();ch.hand.getWorldPosition(from);
@@ -1724,12 +1744,41 @@ function botThrow(ch,t){const it=selItem(ch);if(!it)return;const d=it.def,df=DIF
   let sol=ballistic(from,aim,speed,g);
   if(sol){aim.x+=t.vel.x*sol.t*df.lead;aim.z+=t.vel.z*sol.t*df.lead;sol=ballistic(from,aim,speed,g)||sol;}
   let v;if(sol)v=sol.v;else{const dir=aim.clone().sub(from).setY(0).normalize();v=new V3(dir.x*speed*.707,speed*.707,dir.z*speed*.707);}
-  const e=df.err;v.x+=rand(-1,1)*e;v.z+=rand(-1,1)*e;v.y+=rand(-.5,.5)*e;
+  const e=df.err*(1+drunkAmt(ch.drunk||0)*1.6);v.x+=rand(-1,1)*e;v.z+=rand(-1,1)*e;v.y+=rand(-.5,.5)*e;
   ch.face=Math.atan2(t.pos.x-ch.pos.x,t.pos.z-ch.pos.z);ch.charging=false;ch.charge=0;
   authThrow(ch.id,it,from,v);ch.ai.throwCd=rand(.8,1.9)*df.cd;}
+function seatFree(i){for(const c of chars.values())if(c.smokoSeat===i)return false;return true;}
+function botPickErrand(ch){if(state==='countdown'||ch.smokoSeat>=0)return null;const held=heldOf(ch.id),sel=selItem(ch),opts=[];
+  const hasMelee=held.some(i=>i.def.melee&&!i.def.throwable);
+  if(FEAT.bar&&(ch.drunk||0)<55)opts.push(['bar',3]);
+  if(FEAT.smoko){let f=0;for(let i=0;i<smokoN;i++)if(seatFree(i))f++;if(f>1)opts.push(['smoko',1.6]);}
+  if(FEAT.chest&&chestStock>0&&held.length<2&&!hasMelee)opts.push(['chest',2.4]);
+  if(FEAT.bbq&&held.length<2&&!hasMelee&&NPC.state!=='chase')opts.push(['meat',1.8]);
+  if(Math.random()<.35||!opts.length)return null; // most of the time, just keep chucking
+  let r=Math.random()*opts.reduce((a,o)=>a+o[1],0);let k=opts[0][0];for(const o of opts){r-=o[1];if(r<=0){k=o[0];break;}}
+  const e={k,t:14,ph:0};
+  if(k==='bar')e.x=BAR.x+pick([-1.3,0,1.3]),e.z=BAR.z+1.25;
+  else if(k==='smoko'){const fr=[];for(let i=0;i<smokoN;i++)if(seatFree(i))fr.push(i);e.seat=pick(fr);[e.x,e.z]=seatPos(e.seat,smokoN);e.sit=rand(5,9);}
+  else if(k==='chest')e.x=CHEST.x,e.z=CHEST.z;
+  else{const sd=Math.random()<.5?-1:1;e.x=MEAT.x+sd*(MEAT.w/2+.9);e.z=MEAT.z;}
+  return e;}
+// returns true = busy on the spot, a V3 = walk there, null = errand over
+function botErrand(ch,dt){const e=ch.ai.errand;e.t-=dt;
+  if(state==='countdown'||ch.stun>0){if(ch.smokoSeat>=0)ch.smokoSeat=-1;return null;}
+  const d=Math.hypot(e.x-ch.pos.x,e.z-ch.pos.z),goal=new V3(e.x,0,e.z);
+  if(e.k==='bar'){if(e.ph===0){if(e.t<=0)return null;if(d>.45||!barSpot(ch))return goal;startDrink(ch);if(!(ch.drinkT>0))return null;e.ph=1;ch.face=Math.PI;return true;}
+    if(ch.drinkT>0)return true;if(e.ph===1&&(ch.drunk||0)<45&&Math.random()<.4){e.ph=0;e.t=4;return true;}return null;}
+  if(e.k==='smoko'){if(e.ph===0){if(e.t<=0||!seatFree(e.seat)||e.seat>=smokoN)return null;if(d>.7)return goal;
+      ch.smokoSeat=e.seat;ch.smokoT=0;ch.sipT=1.5;ch.charging=false;ch.charge=0;ch.drinkT=0;ch.ai.windup=0;ch.face=Math.atan2(SMOKO.x-ch.pos.x,SMOKO.z-ch.pos.z);e.ph=1;return true;}
+    ch.face=Math.atan2(SMOKO.x-ch.pos.x,SMOKO.z-ch.pos.z);
+    if(ch.smokoT<e.sit)return true;
+    ch.smokoSeat=-1;const dx=ch.pos.x-SMOKO.x,dz=ch.pos.z-SMOKO.z,l=Math.hypot(dx,dz)||1;ch.pos.x+=dx/l*.6;ch.pos.z+=dz/l*.6;return null;}
+  if(e.t<=0)return null;
+  if(e.k==='chest'){if(chestStock<=0)return null;if(d>1.7)return goal;authChestGrab(ch.id);return null;}
+  const ms=meatSpot(ch);if(!ms)return goal;authMeatGrab(ch.id,ms);return null;}
 function aiUpdate(ch,dt){
   const ai=ch.ai,df=DIFF[difficulty];ch.wish.set(0,0);
-  if(state==='countdown')return;
+  if(state==='countdown'){if(ch.smokoSeat>=0)ch.smokoSeat=-1;ai.errand=null;return;}
   if(ch.stun>0){ai.windup=0;ch.charging=false;return;}
   if(botHelp(ch,dt))return;
   ai.retarget-=dt;ai.throwCd-=dt;ai.flip-=dt;ai.stuckT-=dt;ai.wander-=dt;
@@ -1739,9 +1788,24 @@ function aiUpdate(ch,dt){
     const vh=Math.hypot(it.vel.x,it.vel.z);if(vh<1)continue;const closing=(it.vel.x*rx+it.vel.z*rz)/(dist||1);if(closing<vh*.85)continue;
     if(dist/closing>.5)continue;ai.seen.add(it);
     if(Math.random()<df.react){if(ch.catchCd<=0&&Math.random()<df.catchP/df.react){ch.face=Math.atan2(-rx,-rz);tryCatch(ch);}
-      else{const s=Math.random()<.5?-1:1;doDodge(ch,new V3(-it.vel.z*s,0,it.vel.x*s));}}}
+      else{const s=Math.random()<.5?-1:1;doDodge(ch,new V3(-it.vel.z*s,0,it.vel.x*s));}}
+    else if(Math.random()<df.juke){if(ch.grounded&&Math.random()<.45)tryJump(ch);
+      else{const s=Math.random()<.5?-1:1,l=Math.hypot(it.vel.x,it.vel.z)||1;ai.sideT=.42;ai.sideDir=new THREE.Vector2(-it.vel.z/l*s,it.vel.x/l*s);}}}
   let goal=null,faceTo=null;const near=nearestFreeItem(ch);const nHeld=heldOf(ch.id).length;
-  if(nHeld===0){if(near){goal=near.pos;near.claimedBy=ch;ai.claim=near;}else goal=new V3(rand(-3,3),0,rand(-3,3));}
+  // little errands: a drink at the bar, a sit at smoko, a dildo from the chest, meat off Dazza's table
+  if(ai.errCd==null)ai.errCd=rand(6,16);ai.errCd-=dt;
+  if(!ai.errand&&ai.errCd<=0){ai.errCd=rand(14,26);ai.errand=botPickErrand(ch);}
+  if(ai.errand){const r=botErrand(ch,dt);if(r===true){ch.wish.set(0,0);return;}if(r)goal=r;else ai.errand=null;}
+  const mel=selItem(ch);ai.meleeOnly=!!(mel&&mel.def.melee&&!mel.def.throwable);
+  if(goal){}
+  else if(ai.meleeOnly){ // up close and slap them
+    if(!ai.target||ai.retarget<=0||!chars.has(ai.target.id)||(mel.def.melee==='down'&&ai.target.downT>.3))pickTarget(ch);
+    const t=ai.target;if(t){faceTo=t.pos;const d=Math.hypot(t.pos.x-ch.pos.x,t.pos.z-ch.pos.z)||1;
+      if(d>1.6)goal=t.pos;
+      if(d<2.1&&elapsed-ch.lastSwing>.9){ch.lastSwing=elapsed;ch.face=Math.atan2(t.pos.x-ch.pos.x,t.pos.z-ch.pos.z);
+        if(t.smokoSeat>=0||t.downT>.3&&mel.def.melee==='down')fx('sw',ch.id);else authSlap(ch.id,t.id,mel);}}
+    else goal=new V3(rand(-3,3),0,rand(-3,3));}
+  else if(nHeld===0){if(near){goal=near.pos;near.claimedBy=ch;ai.claim=near;}else goal=new V3(rand(-3,3),0,rand(-3,3));}
   else{
     if(!ai.target||ai.retarget<=0||!chars.has(ai.target.id))pickTarget(ch);
     const t=ai.target;
@@ -1755,6 +1819,7 @@ function aiUpdate(ch,dt){
   }
   if(goal){const gx=goal.x-ch.pos.x,gz=goal.z-ch.pos.z,gl=Math.hypot(gx,gz)||1;ch.wish.set(gx/gl,gz/gl);if(!faceTo)faceTo=goal;}
   if(ai.windup>0)ch.wish.multiplyScalar(.5);
+  if(ai.sideT>0){ai.sideT-=dt;ch.wish.copy(ai.sideDir);}
   if(ai.wander>0)ch.wish.copy(ai.wanderDir);
   if(ch.wish.lengthSq()>.01){const base=Math.atan2(ch.wish.y,ch.wish.x),m=ch.wish.length();
     for(const off of [0,.8,-.8,1.6,-1.6,2.4,-2.4]){const a=base+off;if(!blocked(ch.pos.x+Math.cos(a)*1.1,ch.pos.z+Math.sin(a)*1.1,ch.pos.y)){ch.wish.set(Math.cos(a)*m,Math.sin(a)*m);break;}}}
@@ -1770,7 +1835,7 @@ function sendEv(...a){if(!net.yard)return;net.out.push([++net.seq,...a]);if(net.
 function boardRows(){if(isAuth)return Object.entries(stats).map(([id,s])=>[id,s.name,s.color,s.score,s.hits,s.taken,s.catches,s.throws]);return hostRows;}
 function buildWorld(){
   const it=[];for(const i of items.values()){const f=i.state==='flying';it.push([i.id,TYPES.indexOf(i.type),STATES.indexOf(i.state),r2(i.pos.x),r2(i.pos.y),r2(i.pos.z),f?r2(i.vel.x):0,f?r2(i.vel.y):0,f?r2(i.vel.z):0,i.holder||0,i.thrower||0,i.live?1:0,i.flight&&i.flight.active?i.flight.id:0,i.uses||0]);}
-  const b=[];for(const c of chars.values())if(c.kind==='bot')b.push([c.id,c.name,c.color,r2(c.pos.x),r2(c.pos.y),r2(c.pos.z),r2(c.face),c.stun>0?1:0,c.charging?r2(c.charge):0,(selItem(c)||{}).id||0,r2(c.vel.x),r2(c.vel.y),r2(c.vel.z),r1(c.downT)]);
+  const b=[];for(const c of chars.values())if(c.kind==='bot')b.push([c.id,c.name,c.color,r2(c.pos.x),r2(c.pos.y),r2(c.pos.z),r2(c.face),c.stun>0?1:0,c.charging?r2(c.charge):0,(selItem(c)||{}).id||0,r2(c.vel.x),r2(c.vel.y),r2(c.vel.z),r1(c.downT),c.smokoSeat>=0?c.smokoSeat:-1,Math.round(c.drunk||0)]);
   const pd=[];for(const p of puddles.values())pd.push([p.id,r2(p.x),r2(p.z),r2(p.r),r1(p.life)]);
   return{fe:featMask(),mt:[matchLen,matchNo,[...matchWins],roundWinner||0,matchOver?1:0],fd:fallDur,gm:gameMode==='teams'?1:0,ff:friendlyFire?1:0,tm:gameMode==='teams'?[...teamOf].filter(([id])=>chars.has(id)):0,cs:chestStock,cp:CHEST.spot,np:[r2(NPC.pos.x),r2(NPC.pos.z),r2(NPC.face),NPC_STATES.indexOf(NPC.state)],st:state,tl:r1(roundLeft),cd:r1(countdown),len:roundLen,it,b,sc:boardRows(),ld:leaderId||0,pd,res:(state==='results'&&resultsRows)?resultsRows:0};
 }
@@ -1865,7 +1930,7 @@ function applyWorld(w){
   if(Array.isArray(w.b))for(const b of w.b){if(!Array.isArray(b)||typeof b[0]!=='string')continue;const id=b[0].slice(0,8);botSeen.add(id);
     let ch=chars.get(id);if(!ch){ch=createChar(id,cleanName(b[1]),clamp(num(b[2],0xffffff)|0,0,0xffffff),'proxy',[num(b[3],0),num(b[5],0)]);ch.isBot=true;}
     ch.netP.set(num(b[3],0),num(b[4],0),num(b[5],0));ch.netFace=num(b[6],0);ch.stun=b[7]?Math.max(ch.stun,.3):0;ch.charging=num(b[8],0)>0;ch.charge=num(b[8],0);
-    ch.selId=b[9]||null;ch.netV.set(num(b[10],0),num(b[11],0),num(b[12],0));ch.downT=clamp(num(b[13],0),0,DOWN_TIME);ch.netT=performance.now();}
+    ch.selId=b[9]||null;ch.netV.set(num(b[10],0),num(b[11],0),num(b[12],0));ch.downT=clamp(num(b[13],0),0,DOWN_TIME);ch.smokoSeat=b[14]>=0?b[14]|0:-1;ch.drunk=clamp(num(b[15],0),0,100);ch.netT=performance.now();}
   for(const ch of [...chars.values()])if(ch.isBot&&ch.kind==='proxy'&&!botSeen.has(ch.id))removeChar(ch);
   // scores
   if(Array.isArray(w.sc)){const s=JSON.stringify(w.sc);if(s!==net.lastSc){net.lastSc=s;hostRows=w.sc.filter(r=>Array.isArray(r)).map(r=>[String(r[0]),cleanName(r[1]),clamp(num(r[2],0xffffff)|0,0,0xffffff),num(r[3],0),num(r[4],0),num(r[5],0),num(r[6],0),num(r[7],0)]);scoreDirty=true;}}
