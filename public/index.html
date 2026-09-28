@@ -258,7 +258,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.12.7</span>
+      <span class="tag">Backyard Brawl · prototype 0.12.9</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Your mates, one backyard, three minutes. Grab whatever is lying on the lawn and chuck it at them before they chuck it at you.</p>
     </div>
@@ -757,15 +757,15 @@ const SFX={
   timber:at=>{tone({f:95,f2:70,t:.8,type:'sawtooth',v:.07},at);tone({f:120,f2:45,t:.3,v:.5,delay:1.75},at);noise({t:.25,v:.25,f:260,type:'lowpass',delay:1.75},at);},
   pop:at=>tone({f:700,f2:1400,t:.08,type:'triangle',v:.12},at),
   alarm:()=>{tone({f:880,f2:660,t:.22,type:'square',v:.06});tone({f:880,f2:660,t:.22,type:'square',v:.06,delay:.26});},
-  laugh:at=>{for(let i=0;i<6;i++)tone({f:520-i*25,f2:430-i*25,t:.09,type:'triangle',v:.1,delay:i*.13},at);},
+  laugh:()=>{}, /* voice-like sound removed; add real recordings here later */
   jig:at=>{[523,659,784,659,523,784].forEach((f,i)=>tone({f,t:.12,type:'square',v:.05,delay:i*.14},at));},
-  whoa:at=>{tone({f:420,f2:180,t:.45,type:'triangle',v:.1},at);},
+  whoa:()=>{}, /* voice-like sound removed; add real recordings here later */
   splat:at=>{noise({t:.16,v:.45,f:900,type:'lowpass'},at);tone({f:130,f2:60,t:.14,v:.3},at);noise({t:.1,v:.2,f:3000,type:'highpass',delay:.03},at);},
   clang:at=>{tone({f:1250,f2:1180,t:.35,type:'square',v:.07},at);tone({f:1870,f2:1800,t:.25,type:'square',v:.05},at);tone({f:180,f2:90,t:.12,v:.3},at);},
-  babble:at=>{for(let i=0;i<7;i++)tone({f:rand(140,300),f2:rand(120,260),t:.08,type:'sawtooth',v:.07,delay:i*.09+rand(0,.03)},at);},
+  babble:()=>{}, /* voice-like sound removed; add real recordings here later */
   sizzle:at=>noise({t:.5,v:.035,f:5200,type:'highpass'},at),
   glug:at=>{for(let i=0;i<3;i++)tone({f:190+Math.random()*40,f2:110,t:.14,v:.16,delay:i*.26},at);},
-  ahh:()=>{tone({f:520,f2:360,t:.35,type:'triangle',v:.07});},
+  ahh:()=>{}, /* voice-like sound removed; add real recordings here later */
   whiff:at=>noise({t:.12,v:.08,f:3000},at)
 };
 
