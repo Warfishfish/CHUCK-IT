@@ -260,7 +260,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.11.0</span>
+      <span class="tag">Backyard Brawl · prototype 0.11.1</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Your mates, one backyard, three minutes. Grab whatever is lying on the lawn and chuck it at them before they chuck it at you.</p>
     </div>
@@ -1079,17 +1079,6 @@ function nameTag(name,color,teamCss){const c=document.createElement('canvas');c.
   x.fillStyle=hex(color);x.beginPath();x.arc(128-w/2+18,32,7,0,Math.PI*2);x.fill();
   x.fillStyle='#fff';x.textBaseline='middle';x.fillText(name,128-w/2+30,33);
   const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthWrite:false}));s.scale.set(2.2,.55,1);s.position.y=2.3;return s;}
-const RIG_GEO={torso:new THREE.CapsuleGeometry(.34,.42,6,14),belly:new THREE.SphereGeometry(.25,14,10),shorts:new THREE.CylinderGeometry(.35,.33,.24,14),
-  thigh:new THREE.CapsuleGeometry(.09,.13,4,8),shin:new THREE.CapsuleGeometry(.075,.12,4,8),foot:new THREE.SphereGeometry(.1,10,8),sole:new THREE.BoxGeometry(.17,.025,.32),
-  arm:new THREE.CylinderGeometry(.07,.065,1,8),shoulder:new THREE.SphereGeometry(.1,10,8),hand:new THREE.SphereGeometry(.1,10,8),head:new THREE.SphereGeometry(.3,18,14),
-  eye:new THREE.SphereGeometry(.085,10,8),pupil:new THREE.SphereGeometry(.042,8,6),brow:new THREE.BoxGeometry(.12,.028,.03),nose:new THREE.SphereGeometry(.05,8,6),
-  mouth:new THREE.TorusGeometry(.06,.014,5,12,Math.PI),mouthO:new THREE.SphereGeometry(.07,10,8),cap:new THREE.SphereGeometry(.31,16,8,0,Math.PI*2,0,Math.PI/2),
-  brim:new THREE.CylinderGeometry(.16,.16,.05,12),bucket:new THREE.CylinderGeometry(.24,.3,.2,14),bucketBrim:new THREE.CylinderGeometry(.42,.42,.03,18),
-  tuft:new THREE.ConeGeometry(.05,.18,6),band:new THREE.TorusGeometry(.3,.035,6,20)};
-const UPV=new THREE.Vector3(0,1,0),limbV=new THREE.Vector3();
-function limb(m,a,b){limbV.subVectors(b,a);const L=Math.max(.05,limbV.length());m.position.copy(a).addScaledVector(limbV,.5);m.quaternion.setFromUnitVectors(UPV,limbV.divideScalar(L));m.scale.set(1,L,1);}
-const SHR=new THREE.Vector3(-.33,1.2,0),SHL=new THREE.Vector3(.33,1.2,0);
-// the third-person slap everyone sees: wind up over the shoulder, then a big chop across the front
 const SWK=[[0,-.47,.88,.05,0,0],[.13,-.36,1.98,-.32,-1.15,-.5],[.29,.1,1.0,.68,2.05,.55],[.54,-.47,.88,.05,0,0]],SWING_VIS=.54;
 function swingKey(u){for(let i=0;i<SWK.length-1;i++){const a=SWK[i],b=SWK[i+1];if(u<=b[0]){let f=(u-a[0])/(b[0]-a[0]);f=f*f*(3-2*f);return a.map((v,j)=>v+(b[j]-v)*f);}}return SWK[SWK.length-1];}
 function createChar(id,name,color,kind,sp){
@@ -1098,53 +1087,24 @@ function createChar(id,name,color,kind,sp){
     tilt:0,tiltV:0,tiltAxis:new V3(1,0,0),phase:Math.random()*6.28,spinV:0,spinA:0,inPool:false,slip:false,wish:new THREE.Vector2(),walk:0,wasInPool:false,
     netP:new V3(sp[0],0,sp[1]),netV:new V3(),netT:performance.now(),netFace:0};
   const g=new THREE.Group(),body=new THREE.Group();g.add(body);
-  const cM=mat(color),cL=mat(new THREE.Color(color).lerp(new THREE.Color(0xffffff),.35).getHex()),cD=mat(new THREE.Color(color).multiplyScalar(.55).getHex()),wh=mat(0xffffff),bk=mat(0x111111);
-  let hh=7;for(const c of String(name)+String(id))hh=(hh*31+c.charCodeAt(0))>>>0;
-  const R=RIG_GEO;
-  // torso with a belly, boardies
-  const torso=mesh(R.torso,cM,0,.95,0,body);
-  mesh(R.belly,cL,0,-.07,.15,torso).scale.set(1,1.1,.62);
-  mesh(R.shorts,cD,0,.55,0,body);
-  // legs: hip -> knee -> foot in thongs
-  const thong=mat([0x2a6fd1,0xe8452c,0x1b1b1b,0xffc02e][hh%4]);const legs=[];
-  [-1,1].forEach(s=>{const hip=new THREE.Group();hip.position.set(s*.15,.5,0);body.add(hip);
-    mesh(R.thigh,cD,0,-.11,0,hip);
-    const knee=new THREE.Group();knee.position.y=-.24;hip.add(knee);mesh(R.shin,cL,0,-.09,0,knee);
-    const foot=new THREE.Group();foot.position.y=-.2;knee.add(foot);
-    mesh(R.foot,cL,0,-.005,.05,foot).scale.set(.85,.5,1.4);mesh(R.sole,thong,0,-.05,.05,foot);
-    legs.push({hip,knee,s});});
-  // arms are stretched between the shoulders and the hands every frame
-  const armR=mesh(R.arm,cM,0,0,0,body),armL=mesh(R.arm,cM,0,0,0,body);
-  [-1,1].forEach(s=>mesh(R.shoulder,cM,s*.33,1.2,0,body));
-  const hand=new THREE.Group();hand.position.set(-.47,.88,.05);body.add(hand);mesh(R.hand,cL,0,0,0,hand);
-  const hand2=new THREE.Group();hand2.position.set(.47,.88,.05);body.add(hand2);mesh(R.hand,cL,0,0,0,hand2);
-  // head: blinking eyes, brows, nose, a mouth that opens
-  const head=new THREE.Group();head.position.set(0,1.62,0);body.add(head);
-  mesh(R.head,cL,0,0,0,head);
-  const eyes=[],pupils=[],brows=[];
-  [-1,1].forEach(s=>{const e=new THREE.Group();e.position.set(s*.11,.05,.235);head.add(e);mesh(R.eye,wh,0,0,0,e);pupils.push(mesh(R.pupil,bk,0,0,.075,e));eyes.push(e);
-    const b=mesh(R.brow,bk,s*.11,.17,.27,head);b.rotation.z=-s*.12;brows.push(b);});
-  mesh(R.nose,mat(new THREE.Color(color).lerp(new THREE.Color(0xffc9a8),.45).getHex()),0,-.02,.29,head);
-  const mouth=mesh(R.mouth,bk,0,-.12,.255,head);mouth.rotation.z=Math.PI;
-  const mouthO=mesh(R.mouthO,mat(0x5a1020),0,-.13,.25,head);mouthO.scale.set(1,.5,.5);mouthO.visible=false;
-  // a hat so players read differently at a glance
-  const hat=new THREE.Group();head.add(hat);const hc=mat([0xffffff,0x1b1b1b,0xf2c230,0x2e8b57,0xd63a2f][(hh>>3)%5]);
-  const ht=(hh>>6)%4;
-  if(ht===1){mesh(R.cap,hc,0,.1,0,hat);const br=mesh(R.brim,hc,0,.13,-.28,hat);br.scale.set(1,.2,1.4);} // backwards cap
-  else if(ht===2){mesh(R.bucket,hc,0,.2,0,hat);mesh(R.bucketBrim,hc,0,.12,0,hat);} // bucket hat
-  else if(ht===3){for(let k=0;k<3;k++){const t=mesh(R.tuft,cD,(k-1)*.07,.3,-.02,hat);t.rotation.z=(1-k)*.35;}} // hair tuft
-  else{mesh(R.band,hc,0,.12,0,hat).rotation.x=Math.PI/2;} // sweatband
-  const crown=new THREE.Group();crown.position.y=1.95;body.add(crown);
+  const cM=mat(color),cL=mat(new THREE.Color(color).lerp(new THREE.Color(0xffffff),.35).getHex()),wh=mat(0xffffff),bk=mat(0x111111);
+  mesh(new THREE.CapsuleGeometry(.36,.55,6,14),cM,0,.78,0,body);
+  mesh(new THREE.SphereGeometry(.3,18,14),cL,0,1.5,0,body);
+  [-1,1].forEach(s=>{mesh(new THREE.SphereGeometry(.085,10,8),wh,s*.11,1.56,.24,body);mesh(new THREE.SphereGeometry(.042,8,6),bk,s*.11,1.56,.315,body);
+    mesh(new THREE.SphereGeometry(.13,10,8),mat(new THREE.Color(color).multiplyScalar(.6).getHex()),s*.16,.09,.04,body).scale.set(1,.6,1.4);});
+  mesh(new THREE.SphereGeometry(.1,10,8),cL,.47,.88,.05,body);
+  const hand=new THREE.Group();hand.position.set(-.47,.88,.05);body.add(hand);mesh(new THREE.SphereGeometry(.1,10,8),cL,0,0,0,hand);
+  const crown=new THREE.Group();crown.position.y=1.86;body.add(crown);
   mesh(new THREE.CylinderGeometry(.2,.22,.13,10,1,true),mat(0xffcf33,{side:THREE.DoubleSide,emissive:0x443300}),0,0,0,crown);
   for(let k=0;k<5;k++){const a=k/5*Math.PI*2;mesh(new THREE.ConeGeometry(.05,.14,6),mat(0xffcf33),Math.cos(a)*.2,.13,Math.sin(a)*.2,crown);}
   crown.visible=false;
-  const stars=new THREE.Group();stars.position.y=2.1;body.add(stars);
+  const stars=new THREE.Group();stars.position.y=1.95;body.add(stars);
   for(let k=0;k<3;k++){const a=k/3*Math.PI*2;mesh(new THREE.OctahedronGeometry(.07),mat(0xffe066,{emissive:0x886600}),Math.cos(a)*.3,0,Math.sin(a)*.3,stars);}
   stars.visible=false;
   const tag=nameTag(name,color);g.add(tag);
   const smokoCan=MAKERS.stubby();smokoCan.position.set(0,.12,.08);smokoCan.visible=false;hand.add(smokoCan);
-  const sash=mesh(new THREE.TorusGeometry(.36,.05,8,26),mat(0xffffff),0,1.0,0,body);sash.rotation.set(Math.PI/2,.45,0);sash.visible=false;
-  Object.assign(ch,{mesh:g,body,hand,crown,stars,tag,sash,smokoCan,hand2,armR,armL,legs,head,eyes,pupils,brows,mouth,mouthO,hat,torso,blinkT:rand(1,4),blinkA:0,sq:0,wAmp:0,wasG:true,sink:0});
+  const sash=mesh(new THREE.TorusGeometry(.375,.055,8,26),mat(0xffffff),0,.92,0,body);sash.rotation.set(Math.PI/2,.45,0);sash.visible=false;
+  Object.assign(ch,{mesh:g,body,hand,crown,stars,tag,sash,smokoCan,sink:0});
   scene.add(g);
   if(kind==='me')g.visible=false;
   if(kind==='bot'){ch.isBot=true;ch.ai={target:null,retarget:0,orbit:1,flip:rand(1,3),windup:0,throwCd:rand(1,2),range:rand(8,13),seen:new WeakSet(),claim:null,stuckT:1,lastPos:ch.pos.clone(),wander:0,wanderDir:new THREE.Vector2()};}
@@ -1701,48 +1661,6 @@ function separate(){const list=[...chars.values()];for(let i=0;i<list.length;i++
   const dx=b.pos.x-a.pos.x,dz=b.pos.z-a.pos.z,d=Math.hypot(dx,dz);
   if(d<.9&&d>1e-4&&Math.abs(a.pos.y-b.pos.y)<1.5){const p=(.9-d)/(aL&&bL?2:1),nx=dx/d,nz=dz/d;if(aL){a.pos.x-=nx*p;a.pos.z-=nz*p;}if(bL){b.pos.x+=nx*p;b.pos.z+=nz*p;}}}}
 const UP=new V3(0,1,0),la=new V3(),dq=new THREE.Quaternion(),de=new THREE.Euler(0,0,0,'YXZ');
-// legs, second arm, stretchy arms, face, squash & stretch, run lean, breathing
-function animRig(ch,dt,o){if(!ch.legs||(ch.kind==='me'&&!ch.mesh.visible))return;const t=elapsed,ph=ch.phase,e=ch.emote,down=o.P||ch.downT>0||o.fl>0;
-  ch.wAmp+=((o.moving?clamp(o.sp/6,0,1.3):0)-ch.wAmp)*(1-Math.exp(-10*dt));const A=ch.wAmp,w=ch.walk;
-  // landing squash
-  if(ch.grounded&&!ch.wasG)ch.sq=1;ch.wasG=ch.grounded;ch.sq*=Math.exp(-9*dt);
-  if(!o.P){const st=ch.grounded?0:clamp(Math.abs(ch.vel.y)*.012,0,.1),q=ch.sq*Math.cos((1-ch.sq)*9);
-    ch.body.scale.set(1+.14*q-st*.5,1-.2*q+st,1+.14*q-st*.5);}
-  // lean into a run
-  if(!down&&!o.seated&&ch.grounded)ch.body.quaternion.multiply(dq.setFromEuler(de.set(clamp(o.sp/6,0,1.5)*.1,0,Math.sin(w)*.04*A)));
-  ch.torso.scale.set(1,1+.03*Math.sin(t*2.2+ph),1);
-  // legs
-  for(const L of ch.legs){const p=w+(L.s>0?Math.PI:0);let th,kn;
-    if(o.seated){th=-1.45;kn=1.45;}
-    else if(o.P){th=Math.sin(t*14+L.s)*.7;kn=.4+.4*Math.sin(t*11+L.s);}
-    else if(down){th=-.25-L.s*.05;kn=.25;}
-    else if(ch.inPool){th=Math.sin(t*5+(L.s>0?Math.PI:0))*.4;kn=.3;}
-    else if(!ch.grounded){th=L.s>0?-.7:.35;kn=L.s>0?1.1:.4;}
-    else{th=Math.sin(p)*.75*A;kn=A*(.15+.85*Math.max(0,Math.sin(p+1.3)));}
-    L.hip.rotation.x=th;L.hip.rotation.z=o.P?L.s*.3:(ch.grounded?0:L.s*.1);L.knee.rotation.x=kn;}
-  // off hand
-  const h2=ch.hand2.position;
-  if(o.P||down)h2.set(.6+.1*Math.sin(t*12),1.15+.3*Math.sin(t*10+1),.1);
-  else if(o.seated)h2.set(.3,.62,.38);
-  else if(e&&e.k==='taunt')h2.set(.36,.72,-.08);
-  else if(e&&e.k==='laugh')h2.set(.2,.85,.4);
-  else if(e)h2.set(.5,1.2-.3*Math.sin(e.t*9),.1);
-  else if(o.swinging)h2.set(.5,1.15,-.25);
-  else if(ch.inPool)h2.set(.55,.92+.06*Math.sin(t*6),.2+.25*Math.cos(t*6));
-  else if(!ch.grounded)h2.set(.58,1.35,.05);
-  else{const dr=o.da>0?o.da*Math.sin(t*2.6+ph)*.25:0;h2.set(.47+dr*.3,.88+.05*A*Math.abs(Math.sin(w))+dr,.05-Math.sin(w)*.3*A);}
-  if(!o.swinging&&!ch.charging&&!o.seated&&!down&&!e&&ch.grounded&&!ch.inPool)ch.hand.position.z+=Math.sin(w)*.2*A;
-  limb(ch.armR,SHR,ch.hand.position);limb(ch.armL,SHL,ch.hand2.position);
-  // face
-  ch.blinkT-=dt;if(ch.blinkT<=0){ch.blinkT=rand(2,5);ch.blinkA=.13;}if(ch.blinkA>0)ch.blinkA-=dt;
-  const ko=ch.downT>0&&!o.P||o.fl>0&&!o.P,dizzy=ch.stun>.15||ch.dizzyT>0;
-  const ey=ko?.12:ch.blinkA>0?.15:1;for(const E of ch.eyes)E.scale.y=ey;
-  ch.pupils.forEach((pp,i)=>{if(dizzy){pp.position.x=Math.cos(t*10+i*3)*.025;pp.position.y=Math.sin(t*10+i*3)*.025;}else{pp.position.x=0;pp.position.y=0;}});
-  const angry=ch.charging||o.swinging,shock=o.P||dizzy;
-  ch.brows.forEach((b,i)=>{const s=i?1:-1;b.rotation.z=angry?s*.4:shock?-s*.3:-s*.12;b.position.y=angry?.14:shock?.21:.17;});
-  const open=o.P||o.fl>0||dizzy||(e&&(e.k==='laugh'||e.k==='taunt'))||(!ch.grounded&&ch.vel.y>2)||o.swinging;
-  ch.mouth.visible=!open;ch.mouthO.visible=!!open;if(open)ch.mouthO.scale.y=e&&e.k==='laugh'?.6+.4*Math.abs(Math.sin(t*24)):.7;
-  ch.head.rotation.set(o.seated?.15:-clamp(o.sp/6,0,1.5)*.06,0,Math.sin(w)*.07*A+(o.da>0?Math.sin(t*1.3+ph)*.2*o.da:0));}
 function syncCharMesh(ch,dt){
   ch.tiltV+=(-ch.tilt*55-ch.tiltV*7)*dt;ch.tilt=clamp(ch.tilt+ch.tiltV*dt,-1.45,1.45);
   ch.spinV*=Math.exp(-3*dt);ch.spinA+=ch.spinV*dt;
@@ -1783,9 +1701,8 @@ function syncCharMesh(ch,dt){
       else if(e.k==='laugh'){ch.hand.position.set(-.18,1.02,.62);ch.body.quaternion.multiply(dq.setFromEuler(de.set(-.22+Math.sin(t*24)*.1,0,Math.sin(t*12)*.06)));}
       else{ch.body.position.y+=Math.abs(Math.sin(t*9))*.16;ch.body.quaternion.multiply(dq.setFromEuler(de.set(0,t*5.5,Math.sin(t*9)*.22)));ch.hand.position.set(-.5,1.2+.3*Math.sin(t*9),.1);}}}
   if(seated){ch.body.position.y=-.3;ch.body.quaternion.setFromEuler(de.set(-.2,0,0));const sp2=Math.pow(Math.max(0,Math.sin(elapsed*1.5+ch.phase)),6);ch.hand.position.set(-.34,.9+.5*sp2,.28);ch.smokoCan.rotation.x=-sp2*1.2;}
-  animRig(ch,dt,{P,fl,seated,swinging,da,sp,moving});
   ch.stars.visible=ch.stun>.15||ch.dizzyT>0;if(ch.stars.visible)ch.stars.rotation.y+=dt*6;
-  ch.crown.visible=leaderId===ch.id;ch.hat.visible=!ch.crown.visible;
+  ch.crown.visible=leaderId===ch.id;
   const tm=teamOfId(ch.id);if(ch.teamShown!==tm){ch.teamShown=tm;ch.sash.visible=!!tm;if(tm)ch.sash.material=mat(TEAMS[tm].color);ch.teamCss=tm?TEAMS[tm].css:null;
     ch.mesh.remove(ch.tag);ch.tag.material.map.dispose();ch.tag=nameTag(ch.name,ch.color,ch.teamCss);ch.mesh.add(ch.tag);}
 }
