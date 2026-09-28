@@ -47,6 +47,11 @@ h2{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.14em;c
 .ammo-row svg{width:30px;height:30px;display:block}
 .ammo-row b{display:block;font-size:13px}
 .ammo-row small{display:block;color:var(--muted);font-size:11.5px;line-height:1.25}
+.feat{display:flex;flex-wrap:wrap;gap:6px}
+.feat label{display:inline-flex;align-items:center;gap:6px;border:2px solid var(--ink);border-radius:999px;padding:5px 11px 5px 8px;font-size:13px;font-weight:700;background:#fff;cursor:pointer;-webkit-user-select:none;user-select:none}
+.seg .feat label{flex:0 0 auto;white-space:nowrap;border-left:2px solid var(--ink);padding:6px 12px;font-size:13px}
+.feat label:has(input:focus-visible){outline:3px solid var(--esky);outline-offset:2px}
+.feat label:has(input:checked){background:var(--sun)}.feat label:has(input:disabled){opacity:.6;cursor:not-allowed}.feat input{accent-color:#172418;margin:0}
 .howto{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px;font-size:14px;line-height:1.35}.howto kbd{font-size:11px}
 .more{margin-top:10px}.more summary{cursor:pointer;font-weight:800;font-size:13px;color:var(--muted);padding:4px 0}.more[open] summary{margin-bottom:8px}
 .more .keys{margin-bottom:10px;font-size:13px}.more .rules{margin-bottom:10px}
@@ -255,7 +260,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.9.1</span>
+      <span class="tag">Backyard Brawl · prototype 0.10.0</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Your mates, one backyard, three minutes. Grab whatever is lying on the lawn and chuck it at them before they chuck it at you.</p>
     </div>
@@ -297,6 +302,13 @@ body.touch #cds{display:none}
         <fieldset class="seg" id="pffWrap" hidden><legend>Friendly fire</legend><div class="opts">
           <input type="radio" name="pff" id="pffOff" value="0" checked><label for="pffOff">Off</label>
           <input type="radio" name="pff" id="pffOn" value="1"><label for="pffOn">On</label>
+        </div></fieldset>
+        <fieldset class="seg"><legend>What's in the yard</legend><div class="feat" id="pFeat">
+          <label><input type="checkbox" data-f="bar" checked>🍺 Bar</label>
+          <label><input type="checkbox" data-f="bbq" checked>🔥 BBQ &amp; Dazza</label>
+          <label><input type="checkbox" data-f="chest" checked>🍆 Dildo chest</label>
+          <label><input type="checkbox" data-f="smoko" checked>🪑 Smoko</label>
+          <label><input type="checkbox" data-f="falls" checked>🥴 Stacking it</label>
         </div></fieldset>
         <button class="btn" id="play" type="button">Practice vs 3 bots</button>
       </div>
@@ -370,6 +382,13 @@ body.touch #cds{display:none}
         </div></fieldset>
         <button class="btn small" id="shuffleTeams" type="button">Shuffle teams</button>
       </div>
+      <fieldset class="seg"><legend>What's in the yard</legend><div class="feat" id="yFeat">
+          <label><input type="checkbox" data-f="bar" checked>🍺 Bar</label>
+          <label><input type="checkbox" data-f="bbq" checked>🔥 BBQ &amp; Dazza</label>
+          <label><input type="checkbox" data-f="chest" checked>🍆 Dildo chest</label>
+          <label><input type="checkbox" data-f="smoko" checked>🪑 Smoko</label>
+          <label><input type="checkbox" data-f="falls" checked>🥴 Stacking it</label>
+        </div></fieldset>
       <fieldset class="seg"><legend>Round length</legend><div class="opts">
         <input type="radio" name="ylen" id="ylen60" value="60"><label for="ylen60">1 min</label>
         <input type="radio" name="ylen" id="ylen180" value="180" checked><label for="ylen180">3 min</label>
@@ -503,6 +522,19 @@ const MEAT={x:-8.7,z:-18.2,w:1.5,d:.8,h:.8};const SPATULA={knock:7,speed:1,charg
 const CHEST={x:-29,z:-21,max:3,refill:12,spot:0};
 const CHEST_SPOTS=[[-29,-21,.5],[29,-21.5,-.5],[27.5,21.8,2.6],[-29,21.8,-2.6],[-31,9,1.57],[31,-9,-1.57],[13,-21.8,0],[-13,22,3.14],[31,6,-1.57]];let chestStock=2,chestT=CHEST.refill,chestLid=null,chestToys=[];
 const colliders=[];
+/* ---- map features the host can switch on/off: everything built for a feature is tagged so it can be hidden, colliders included ---- */
+const FEAT={bar:true,bbq:true,chest:true,smoko:true,falls:true},FEAT_KEYS=['bar','bbq','chest','smoko','falls'];
+const FEAT_NAMES={bar:'Bar',bbq:'BBQ & Dazza',chest:'Dildo chest',smoko:'Smoko',falls:'Stacking it'};
+const featObjs={bar:[],bbq:[],chest:[],smoko:[]},featCols={bar:[],bbq:[],chest:[],smoko:[]},featAt={};
+function featMark(k,end){if(!end){featAt[k]=[scene.children.length,colliders.length];return;}const [o,c]=featAt[k];
+  for(let i=o;i<scene.children.length;i++)featObjs[k].push(scene.children[i]);for(let i=c;i<colliders.length;i++)featCols[k].push(colliders[i]);}
+function featMask(){return FEAT_KEYS.reduce((m,k,i)=>m|(FEAT[k]?1<<i:0),0);}
+function applyFeatures(){for(const k in featObjs){const on=FEAT[k];for(const o of featObjs[k])o.visible=on;
+    for(const c of featCols[k]){const i=colliders.indexOf(c);if(on&&i<0)colliders.push(c);else if(!on&&i>=0)colliders.splice(i,1);}}
+  if(!FEAT.smoko&&me&&me.smokoSeat>=0)me.smokoSeat=-1;
+  if(!FEAT.bbq){for(const p of smoke)scene.remove(p.m);smoke.length=0;}}
+function setFeatMask(m){let ch=false;FEAT_KEYS.forEach((k,i)=>{const v=!!(m&(1<<i));if(FEAT[k]!==v){FEAT[k]=v;ch=true;}});if(ch)applyFeatures();return ch;}
+function readFeatUI(sel){setFeatMask(FEAT_KEYS.reduce((a,k,i)=>{const el=document.querySelector(`${sel} input[data-f=${k}]`);return a|(!el||el.checked?1<<i:0);},0));}
 function col(cx,cz,w,d,h){colliders.push({x0:cx-w/2,x1:cx+w/2,z0:cz-d/2,z1:cz+d/2,h});}
 const inPoolRect=p=>p.x>POOL.x0&&p.x<POOL.x1&&p.z>POOL.z0&&p.z<POOL.z1;
 let hoistHead,poolTex,clouds=[];
@@ -591,12 +623,14 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   mesh(new THREE.BoxGeometry(2,.08,1),mat(0xc79a61),6,.76,-16.5);
   [[-.9,-.4],[.9,-.4],[-.9,.4],[.9,.4]].forEach(([a,b])=>mesh(new THREE.BoxGeometry(.07,.72,.07),mat(0x8f6a3e),6+a,.36,-16.5+b));
   col(6,-16.5,2,1,.8);
+  featMark('bbq');
   // BBQ
   mesh(new THREE.BoxGeometry(1.2,.7,.6),mat(0x3a3f45),-6,.35,-18);
   mesh(new THREE.BoxGeometry(1.6,.28,.8),mat(0x1f2226),-6,.84,-18);
   mesh(new THREE.BoxGeometry(1.5,.24,.72),mat(0xb33a2c),-6,1.1,-18);
   mesh(new THREE.CylinderGeometry(.16,.16,.55,12),mat(0xd9dfe0),-7.05,.28,-18);
   col(-6,-18,1.7,.8,1.25);
+  featMark('bbq',1);
   // wheelie bins
   [[31.1,0xd63a2f],[31.95,0xf2c230]].forEach(([x,c])=>{mesh(new THREE.BoxGeometry(.72,1,.76),mat(0x2e6b3a),x,.5,19.5);mesh(new THREE.BoxGeometry(.76,.07,.82),mat(c),x,1.04,19.5);});
   col(31.5,19.5,1.7,.85,1.1);
@@ -629,6 +663,7 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   for(let k=0;k<7;k++){const c=mesh(new THREE.IcosahedronGeometry(.28,0),new THREE.MeshLambertMaterial({color:0x4f9a3c,flatShading:true}),-10.2+k*.72,.82,20+rand(-.12,.12));c.scale.y=.8;}
   col(-8,20,5,.9,.95);
 
+  featMark('bar');
   // --- the bar, against the back fence ---
   const barWood=mat(0x7a4a2a),barTop=mat(0xc79a61);
   mesh(new THREE.BoxGeometry(BAR.w,BAR.h-.08,BAR.d),barWood,BAR.x,(BAR.h-.08)/2,BAR.z);
@@ -643,6 +678,7 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   // three little drink tags along the front so you know which end is which
   [['VP',-1.2],['WINE',0],['RUM',1.2]].forEach(([t,x])=>{const tag=new THREE.Mesh(new THREE.PlaneGeometry(.62,.2),new THREE.MeshBasicMaterial({map:textTex(128,40,(c,w,h)=>{c.fillStyle='#f4f9ef';c.fillRect(0,0,w,h);c.fillStyle='#172418';c.font='900 24px "Arial Black",Arial,sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText(t,w/2,h/2+1);})}));
     tag.position.set(BAR.x+x,BAR.h-.2,BAR.z+BAR.d/2+.03);scene.add(tag);});
+  featMark('bar',1);
 })();
 
 const SPAWNS=[[-9,4.5],[6,9],[12,-3],[-15,-6],[19.5,19.5],[-19.5,20.25],[0,-10.5],[27,-3],[-27,6],[7.5,19.5],[-13.5,-19.5],[16.5,-21],[-3,-1.5],[3,15],[-25,-17.5],[-9,12.75],[21,-7.5],
@@ -749,7 +785,7 @@ const MAKERS={
   chestLid=pivot;
   for(let k=0;k<CHEST.max;k++){const t=MAKERS.dildo();t.scale.setScalar(.7);t.position.set(-.35+k*.35,.45,0);t.rotation.set(-.6,0,(k-1)*.35);g.add(t);chestToys.push(t);}
   const glow=new THREE.PointLight(0xc070ff,0,3.2);glow.position.set(0,.9,0);g.add(glow);chestLid.userData.glow=glow;
-  col(CHEST.x,CHEST.z,1.45,1.1,.8);CHEST.col=colliders[colliders.length-1];CHEST.g=g;})();
+  col(CHEST.x,CHEST.z,1.45,1.1,.8);CHEST.col=colliders[colliders.length-1];CHEST.g=g;featObjs.chest.push(g);featCols.chest.push(CHEST.col);})();
 function moveChest(i){i=clamp(i|0,0,CHEST_SPOTS.length-1);const[x,z,r]=CHEST_SPOTS[i];CHEST.spot=i;CHEST.x=x;CHEST.z=z;CHEST.g.position.set(x,0,z);CHEST.g.rotation.y=r;
   const sn=Math.abs(Math.sin(r)),cs=Math.abs(Math.cos(r)),w=1.45*cs+1.1*sn,d=1.45*sn+1.1*cs;Object.assign(CHEST.col,{x0:x-w/2,x1:x+w/2,z0:z-d/2,z1:z+d/2});}
 
@@ -763,7 +799,7 @@ function trySlap(){const it=selItem(me);if(!it||!it.def.melee||!canAct()||me.stu
   let best=null,bd=9;for(const c of chars.values()){if(c===me||c.downT>.3||c.smokoSeat>=0||(!friendlyFire&&sameTeam(myId,c.id)))continue;const d=new V3(c.pos.x-me.pos.x,0,c.pos.z-me.pos.z),L=d.length();
     if(L>2.6||Math.abs(c.pos.y-me.pos.y)>1.6)continue;if(L>.01&&f.dot(d.divideScalar(L))<.4)continue;if(L<bd){bd=L;best=c;}}
   {const d=new V3(NPC.pos.x-me.pos.x,0,NPC.pos.z-me.pos.z),L=d.length();
-    if(NPC.state!=='ko'&&L<2.6&&(L<.01||f.dot(d.divideScalar(L))>=.4)&&(!best||L<bd)){if(isAuth)authSlapNpc(myId,it);else sendEv('sn',it.id);return;}}
+    if(FEAT.bbq&&NPC.state!=='ko'&&L<2.6&&(L<.01||f.dot(d.divideScalar(L))>=.4)&&(!best||L<bd)){if(isAuth)authSlapNpc(myId,it);else sendEv('sn',it.id);return;}}
   if(best){if(isAuth)authSlap(myId,best.id,it);else sendEv('sl',best.id,it.id);}
   else{if(isAuth)fx('sw',myId);else sendEv('sw');}}
 // host: validate, score, pick the outcome so every screen plays the same one
@@ -826,14 +862,14 @@ const SMOKO={x:-24,z:-3,maxT:20,sip:2.2};let smokoN=0,smokoChairs=[],smokoGroup=
 function smokoRing(n){return 1.9+n*.2;}
 function smokoZoneR(){return smokoRing(Math.max(2,smokoN))+1.3;}
 function seatPos(i,n){const R=smokoRing(n),a=i/n*Math.PI*2+.4;return [SMOKO.x+Math.cos(a)*R,SMOKO.z+Math.sin(a)*R];}
-function inSmoko(ch){return !!ch&&ch.pos.y<.5&&Math.hypot(ch.pos.x-SMOKO.x,ch.pos.z-SMOKO.z)<smokoZoneR();}
+function inSmoko(ch){return FEAT.smoko&&!!ch&&ch.pos.y<.5&&Math.hypot(ch.pos.x-SMOKO.x,ch.pos.z-SMOKO.z)<smokoZoneR();}
 function seatTaken(i){for(const c of chars.values())if(c!==me&&c.smokoSeat===i)return true;return false;}
 function makeChair(){const g=new THREE.Group(),fr=mat(0x2a2a2a),fab=mat(0x1f6fd1);
   mesh(new THREE.BoxGeometry(.52,.05,.46),fab,0,.44,0,g);const bk=mesh(new THREE.BoxGeometry(.52,.52,.05),fab,0,.72,-.24,g);bk.rotation.x=-.18;
   [[-.24,-.2],[.24,-.2],[-.24,.2],[.24,.2]].forEach(([x,z])=>mesh(new THREE.CylinderGeometry(.018,.018,.44,6),fr,x,.22,z,g));
   [-.28,.28].forEach(x=>mesh(new THREE.BoxGeometry(.05,.04,.42),fr,x,.62,0,g));
   mesh(new THREE.CylinderGeometry(.04,.04,.03,10),mat(0xd63a2f),.28,.645,.12,g);return g;}
-(function buildSmoko(){smokoGroup=new THREE.Group();scene.add(smokoGroup);
+(function buildSmoko(){featMark('smoko');smokoGroup=new THREE.Group();scene.add(smokoGroup);
   const tex=canvasTex(128,128,(x,w,h)=>{x.fillStyle='#b9b2a4';x.fillRect(0,0,w,h);for(let r=0;r<4;r++)for(let c=0;c<4;c++){x.fillStyle=`hsl(35,${8+Math.random()*8}%,${62+Math.random()*10}%)`;x.fillRect(c*32+2,r*32+2,28,28);}},3,3);
   smokoPad=new THREE.Mesh(new THREE.CircleGeometry(1,40),new THREE.MeshLambertMaterial({map:tex,polygonOffset:true,polygonOffsetFactor:-1}));smokoPad.rotation.x=-Math.PI/2;smokoPad.position.set(SMOKO.x,.012,SMOKO.z);smokoPad.receiveShadow=true;scene.add(smokoPad);
   mesh(new THREE.CylinderGeometry(.04,.04,2.6,8),mat(0xd9dfe0),SMOKO.x,1.3,SMOKO.z);
@@ -842,7 +878,7 @@ function makeChair(){const g=new THREE.Group(),fr=mat(0x2a2a2a),fab=mat(0x1f6fd1
   const e=new THREE.Group();e.position.set(SMOKO.x+.35,0,SMOKO.z);scene.add(e);mesh(new THREE.BoxGeometry(.7,.42,.45),mat(0x1f6fd1),0,.21,0,e);mesh(new THREE.BoxGeometry(.74,.1,.49),mat(0xf4f6f2),0,.47,0,e);
   mesh(new THREE.CylinderGeometry(.09,.07,.04,12),mat(0x8a8f94),SMOKO.x+.35,.54,SMOKO.z);
   const sg=new THREE.Mesh(new THREE.PlaneGeometry(1.1,.36),new THREE.MeshBasicMaterial({side:THREE.DoubleSide,map:textTex(256,84,(c,w,h)=>{c.fillStyle='#172418';c.fillRect(0,0,w,h);c.fillStyle='#ffd23f';c.font='900 52px "Arial Black",Arial,sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText('SMOKO',w/2,h/2+3);})}));
-  sg.position.set(SMOKO.x,1.95,SMOKO.z+.05);scene.add(sg);const sg2=sg.clone();sg2.rotation.y=Math.PI/2;sg2.position.set(SMOKO.x+.05,1.95,SMOKO.z);scene.add(sg2);})();
+  sg.position.set(SMOKO.x,1.95,SMOKO.z+.05);scene.add(sg);const sg2=sg.clone();sg2.rotation.y=Math.PI/2;sg2.position.set(SMOKO.x+.05,1.95,SMOKO.z);scene.add(sg2);featMark('smoko',1);})();
 function syncSmoko(){const n=clamp(chars.size,2,16);if(n===smokoN)return;smokoN=n;
   for(const c of smokoChairs)smokoGroup.remove(c);smokoChairs=[];
   for(let i=0;i<n;i++){const c=makeChair(),[x,z]=seatPos(i,n);c.position.set(x,0,z);c.rotation.y=Math.atan2(SMOKO.x-x,SMOKO.z-z);smokoGroup.add(c);smokoChairs.push(c);}
@@ -884,7 +920,7 @@ function tryEmote(k){if(!me||mode==='menu'||!EMOTES[k]||elapsed-(tryEmote.t||-9)
 function fallCheck(ch,dt){ch.fallImmune=Math.max(0,ch.fallImmune-dt);
   if(ch.fallT>0){ch.fallT=Math.max(0,ch.fallT-dt);ch.fallAge+=dt;ch.stun=Math.max(ch.stun,ch.fallT);
     if(ch.fallT<=0){ch.fallImmune=25;ch.stun=0;if(ch.kind==='me'&&me)floater('Back on your feet!',camera.position.clone().add(fwd(me).multiplyScalar(2)).setY(camera.position.y+.3),'small');}return;}
-  if(ch.kind!=='me'||!canAct()||ch.downT>0||ch.slapA||!ch.grounded||ch.fallImmune>0||ch.inPool)return;
+  if(!FEAT.falls||ch.kind!=='me'||!canAct()||ch.downT>0||ch.slapA||!ch.grounded||ch.fallImmune>0||ch.inPool)return;
   const da=drunkAmt(ch.drunk);if(da<.35)return;
   const moving=ch.wish.lengthSq()>.04;if(Math.random()<Math.pow(da,1.5)*(moving?.028:.008)*dt)startFall(ch);}
 function startFall(ch){ch.fallT=fallDur;ch.fallAge=0;ch.stun=Math.max(ch.stun,fallDur);ch.charging=false;ch.charge=0;ch.drinkT=0;ch.drinkType=null;ch.vel.x*=.3;ch.vel.z*=.3;
@@ -905,8 +941,8 @@ function botHelp(ch,dt){if(!teamsOn())return false;let t=null,bd=22;
   if(bd>1.3){ch.wish.set((t.pos.x-ch.pos.x)/bd,(t.pos.z-ch.pos.z)/bd);ch.ai.helpT=0;}
   else{ch.ai.helpT=(ch.ai.helpT||0)+dt;if(ch.ai.helpT>=HELP_TIME){ch.ai.helpT=0;authHelpUp(ch.id,t.id);}}
   return true;}
-function chestNear(ch){return !!ch&&ch.pos.y<.5&&Math.hypot(ch.pos.x-CHEST.x,ch.pos.z-CHEST.z)<2;}
-function authChestGrab(id){const ch=chars.get(id);if(!ch||chestStock<=0||heldOf(id).length>=2||Math.hypot(ch.pos.x-CHEST.x,ch.pos.z-CHEST.z)>3)return;
+function chestNear(ch){return FEAT.chest&&!!ch&&ch.pos.y<.5&&Math.hypot(ch.pos.x-CHEST.x,ch.pos.z-CHEST.z)<2;}
+function authChestGrab(id){const ch=chars.get(id);if(!FEAT.chest||!ch||chestStock<=0||heldOf(id).length>=2||Math.hypot(ch.pos.x-CHEST.x,ch.pos.z-CHEST.z)>3)return;
   chestStock--;if(chestStock<CHEST.max&&chestT<=0)chestT=CHEST.refill;
   const it=makeItem(nextItemId++,'dildo');it.uses=SLAP_USES;it.pos.set(ch.pos.x,ch.pos.y+1,ch.pos.z);authGive(id,it);if(id===myId)SFX.pickup();}
 function interact(){if(!me||!canAct()||me.stun>0)return;
@@ -919,7 +955,7 @@ function interact(){if(!me||!canAct()||me.stun>0)return;
     if(heldOf(myId).length>=2){showHint('Your hands are full. Chuck something first.',2);return;}
     if(isAuth)authChestGrab(myId);else sendEv('cg');return;}
   startDrink(me);}
-(function barDrinks(){const topY=BAR.h;
+(function barDrinks(){featMark('bar');const topY=BAR.h;
   // drinks on top: VP stubbies on the left, wine in the middle, rum on the right
   for(let k=0;k<4;k++){const st=MAKERS.stubby();st.position.set(BAR.x-1.55+k*.22,topY+.1,BAR.z+(k%2?.12:-.1));scene.add(st);}
   const bottle=(x,glassC,labelC,h)=>{const bg=new THREE.Group();bg.position.set(x,topY,BAR.z-.15);scene.add(bg);
@@ -933,7 +969,7 @@ function interact(){if(!me||!canAct()||me.stun>0)return;
   wineGlass(.08);wineGlass(.3);
   bottle(1.1,0x9a5a1a,0x2a2a2a,.26);
   [[1.4,.12],[1.55,-.05],[1.35,-.12]].forEach(([x,z])=>mesh(new THREE.CylinderGeometry(.03,.025,.06,10),mat(0xe6c07a,{transparent:true,opacity:.9}),BAR.x+x,topY+.03,BAR.z+z));
-})();
+featMark('bar',1);})();
 const ringGeo=new THREE.RingGeometry(.34,.44,28);
 const V3=THREE.Vector3;
 const r2=v=>Math.round(v*100)/100, r1=v=>Math.round(v*10)/10;
@@ -1043,7 +1079,7 @@ function streakMult(n){return n>=5?2:n>=3?1.5:1;}
 /* ================= ITEMS ================= */
 /* ---- the BBQ: food, smoke, prep table, and Dazza ---- */
 const grillFood=[],smoke=[];
-(function buildBBQ(){const top=1.23;
+(function buildBBQ(){featMark('bbq');const top=1.23;
   for(let k=0;k<2;k++){const st=MAKERS.steak();st.children.forEach(c=>c.material=mat(0x6e2a1a));st.position.set(-6.35+k*.42,top,-18.05);scene.add(st);grillFood.push({m:st,flip:0,base:top});}
   for(let k=0;k<4;k++){const sg=mesh(new THREE.CapsuleGeometry(.04,.24,4,8),mat(0x9b4a2a),-5.55+k*.11,top+.02,-17.95);sg.rotation.x=Math.PI/2;grillFood.push({m:sg,flip:0,base:top+.02,snag:true});}
   // prep table with raw steaks and a plate of fish
@@ -1056,7 +1092,7 @@ const grillFood=[],smoke=[];
   col(MEAT.x,MEAT.z,MEAT.w,MEAT.d,MEAT.h);
   // little sign
   const sign=new THREE.Mesh(new THREE.PlaneGeometry(1.1,.26),new THREE.MeshBasicMaterial({map:textTex(256,60,(c,w,h)=>{c.fillStyle='#f4f9ef';c.fillRect(0,0,w,h);c.fillStyle='#b33a2c';c.font='900 30px "Arial Black",Arial,sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText('HANDS OFF',w/2,h/2+2);})}));
-  sign.position.set(MEAT.x,MEAT.h-.18,MEAT.z+MEAT.d/2+.01);scene.add(sign);})();
+  sign.position.set(MEAT.x,MEAT.h-.18,MEAT.z+MEAT.d/2+.01);scene.add(sign);featMark('bbq',1);})();
 function updateBBQ(dt){
   for(const f of grillFood){if(f.flip>0){f.flip=Math.max(0,f.flip-dt);const p=1-f.flip/.4;f.m.position.y=f.base+Math.sin(Math.PI*p)*.3;if(f.snag)f.m.rotation.z=p*Math.PI;else f.m.rotation.x=p*Math.PI;}
     else{f.m.position.y=f.base+Math.abs(Math.sin(elapsed*9+f.base*40))*.006;if(Math.random()<dt*.12)f.flip=.4;}}
@@ -1065,9 +1101,9 @@ function updateBBQ(dt){
   for(let i=smoke.length-1;i>=0;i--){const p=smoke[i];p.life-=dt;p.m.position.y+=dt*.8;p.m.position.x+=dt*.25;p.m.scale.setScalar(1+(2.2-p.life)*1.2);p.m.material.opacity=.45*Math.max(0,p.life/2.2);
     if(p.life<=0){scene.remove(p.m);p.m.material.dispose();smoke.splice(i,1);}}
   if(me&&Math.random()<dt*.5&&me.pos.distanceTo(NPC.home)<9)SFX.sizzle(new V3(-6,1.2,-18));}
-function meatSpot(ch){if(!ch||ch.pos.y>.5)return null;const dx=ch.pos.x-MEAT.x,dz=ch.pos.z-MEAT.z;
+function meatSpot(ch){if(!FEAT.bbq||!ch||ch.pos.y>.5)return null;const dx=ch.pos.x-MEAT.x,dz=ch.pos.z-MEAT.z;
   const ex=Math.max(0,Math.abs(dx)-MEAT.w/2),ez=Math.max(0,Math.abs(dz)-MEAT.d/2);if(Math.hypot(ex,ez)>1.3)return null;return dx<0?'steak':'fish';}
-function authMeatGrab(id,kind){const ch=chars.get(id);if(!ch||(kind!=='steak'&&kind!=='fish')||heldOf(id).length>=2||Math.hypot(ch.pos.x-MEAT.x,ch.pos.z-MEAT.z)>3.2||elapsed-(ch.lastMeat||-9)<.8)return;
+function authMeatGrab(id,kind){const ch=chars.get(id);if(!FEAT.bbq||!ch||(kind!=='steak'&&kind!=='fish')||heldOf(id).length>=2||Math.hypot(ch.pos.x-MEAT.x,ch.pos.z-MEAT.z)>3.2||elapsed-(ch.lastMeat||-9)<.8)return;
   ch.lastMeat=elapsed;const it=makeItem(nextItemId++,kind);it.uses=SLAP_USES;it.pos.set(ch.pos.x,ch.pos.y+1,ch.pos.z);authGive(id,it);if(id===myId)SFX.pickup();npcAngry(id);}
 
 /* ---- Dazza, the BBQ cook. The host runs his brain; everyone animates him. ---- */
@@ -1105,7 +1141,7 @@ const NPC_LINES={angry:["OI! Hrmblgrr MY SNAGS!","Wha- BLURGH! Put it DOWN!","Ya
   const bc=document.createElement('canvas');bc.width=512;bc.height=128;const bt=new THREE.CanvasTexture(bc);
   const bubble=new THREE.Sprite(new THREE.SpriteMaterial({map:bt,depthWrite:false,transparent:true}));bubble.scale.set(3.4,.85,1);bubble.position.y=3.05;bubble.visible=false;g.add(bubble);
   bubble.userData={c:bc,t:bt};
-  g.position.copy(NPC.pos);scene.add(g);Object.assign(NPC,{mesh:g,body,arm,bubble});})();
+  g.position.copy(NPC.pos);scene.add(g);Object.assign(NPC,{mesh:g,body,arm,bubble});featObjs.bbq.push(g);})();
 function npcBubble(text){const b=NPC.bubble,c=b.userData.c,x=c.getContext('2d');x.clearRect(0,0,512,128);
   x.font='900 34px "Arial Black",Arial,sans-serif';const w=Math.min(500,x.measureText(text).width+40);
   x.fillStyle='#fff';x.strokeStyle='#172418';x.lineWidth=5;x.beginPath();if(x.roundRect)x.roundRect(256-w/2,8,w,82,20);else x.rect(256-w/2,8,w,82);x.fill();x.stroke();
@@ -1113,7 +1149,7 @@ function npcBubble(text){const b=NPC.bubble,c=b.userData.c,x=c.getContext('2d');
   x.fillStyle='#172418';x.textAlign='center';x.textBaseline='middle';x.fillText(text,256,50,480);b.userData.t.needsUpdate=true;b.visible=true;NPC.bubbleT=2.8;}
 function npcSay(kind){fx('npcsay',pick(NPC_LINES[kind]));}
 const NPC_SLAPS=['KNOCKED OUT COLD!','BERSERK!','FLIPPED THE BARBIE!'],NPC_SLAP_PTS=[75,25,50];
-function authSlapNpc(attId,it){const a=chars.get(attId);if(!a||!it||it.holder!==attId||!it.def.melee||NPC.state==='ko'||a.smokoSeat>=0)return;
+function authSlapNpc(attId,it){const a=chars.get(attId);if(!FEAT.bbq||!a||!it||it.holder!==attId||!it.def.melee||NPC.state==='ko'||a.smokoSeat>=0)return;
   if(elapsed-a.lastSlap<.45||Math.hypot(a.pos.x-NPC.pos.x,a.pos.z-NPC.pos.z)>3.6)return;a.lastSlap=elapsed;
   const o=1+Math.floor(Math.random()*3),scoring=state==='play';let pts=0;if(scoring&&stats[attId]){pts=NPC_SLAP_PTS[o-1];stats[attId].score+=pts;scoreDirty=true;}
   NPC.pending=null;
@@ -1123,7 +1159,7 @@ function authSlapNpc(attId,it){const a=chars.get(attId);if(!a||!it||it.holder!==
     NPC.state='angry';NPC.target=attId;NPC.stateT=3.5;}
   it.uses=(it.uses||SLAP_USES)-1;fx('nslap',attId,o,TYPES.indexOf(it.type),pts,pick(NPC_LINES[['ko','berserk','flip'][o-1]]));
   if(it.uses<=0){fx('poof',r2(a.pos.x),r2(a.pos.y+1.3),r2(a.pos.z));removeItem(it);}}
-function npcAngry(id){if(NPC.state==='ko')return;const n=(NPC.anger.get(id)||0)+1;NPC.anger.set(id,n);NPC.target=id;
+function npcAngry(id){if(!FEAT.bbq||NPC.state==='ko')return;const n=(NPC.anger.get(id)||0)+1;NPC.anger.set(id,n);NPC.target=id;
   if(n>=2.5){NPC.state='chase';NPC.stateT=12;npcSay('rage');}else if(NPC.state!=='chase'){NPC.state='angry';NPC.stateT=3.5;npcSay('angry');}}
 // his spot is behind the grill: if he's out front, walk round the open right-hand side first
 function npcHomeRoute(){const p=NPC.pos;if(p.z<-18.75)return NPC.home;if(p.x>-4.6)return new V3(-4.3,0,-19.3);return new V3(-4.3,0,Math.max(p.z,-17.1));}
@@ -1504,7 +1540,7 @@ function tryCatch(ch){if(ch.catchCd>0||ch.stun>0||ch.smokoSeat>=0)return;ch.catc
 const DRINKS={beer:{name:'VP',full:'a cold VP',amt:18,t:1.4},wine:{name:'Wine',full:'a glass of wine',amt:26,t:1.2},rum:{name:'Rum shot',full:'a rum shot',amt:34,t:.6}};
 const SOBER_RATE=1.6; // drunk points lost per second
 function drunkTier(d){return d<15?'Sober':d<40?'Tipsy':d<70?'Drunk':d<90?'Maggot':'Absolutely maggoted';}
-function barSpot(ch){if(!ch||ch.pos.y>.4)return null;const dx=ch.pos.x-BAR.x,dz=ch.pos.z-BAR.z;
+function barSpot(ch){if(!FEAT.bar||!ch||ch.pos.y>.4)return null;const dx=ch.pos.x-BAR.x,dz=ch.pos.z-BAR.z;
   if(Math.abs(dx)>BAR.w/2+.8||dz<0||dz>BAR.d/2+1.6)return null;return dx<-.6?'beer':dx>.6?'rum':'wine';}
 function startDrink(ch){if(!ch||ch.drinkT>0||ch.stun>0||ch.smokoSeat>=0||!canAct())return;const t=barSpot(ch);if(!t)return;
   ch.charging=false;ch.charge=0;ch.drinkType=t;ch.drinkDur=DRINKS[t].t;ch.drinkT=ch.drinkDur;if(ch.kind==='me')SFX.glug(ch.pos);}
@@ -1677,7 +1713,7 @@ function buildWorld(){
   const it=[];for(const i of items.values()){const f=i.state==='flying';it.push([i.id,TYPES.indexOf(i.type),STATES.indexOf(i.state),r2(i.pos.x),r2(i.pos.y),r2(i.pos.z),f?r2(i.vel.x):0,f?r2(i.vel.y):0,f?r2(i.vel.z):0,i.holder||0,i.thrower||0,i.live?1:0,i.flight&&i.flight.active?i.flight.id:0,i.uses||0]);}
   const b=[];for(const c of chars.values())if(c.kind==='bot')b.push([c.id,c.name,c.color,r2(c.pos.x),r2(c.pos.y),r2(c.pos.z),r2(c.face),c.stun>0?1:0,c.charging?r2(c.charge):0,(selItem(c)||{}).id||0,r2(c.vel.x),r2(c.vel.y),r2(c.vel.z),r1(c.downT)]);
   const pd=[];for(const p of puddles.values())pd.push([p.id,r2(p.x),r2(p.z),r2(p.r),r1(p.life)]);
-  return{mt:[matchLen,matchNo,[...matchWins],roundWinner||0,matchOver?1:0],fd:fallDur,gm:gameMode==='teams'?1:0,ff:friendlyFire?1:0,tm:gameMode==='teams'?[...teamOf].filter(([id])=>chars.has(id)):0,cs:chestStock,cp:CHEST.spot,np:[r2(NPC.pos.x),r2(NPC.pos.z),r2(NPC.face),NPC_STATES.indexOf(NPC.state)],st:state,tl:r1(roundLeft),cd:r1(countdown),len:roundLen,it,b,sc:boardRows(),ld:leaderId||0,pd,res:(state==='results'&&resultsRows)?resultsRows:0};
+  return{fe:featMask(),mt:[matchLen,matchNo,[...matchWins],roundWinner||0,matchOver?1:0],fd:fallDur,gm:gameMode==='teams'?1:0,ff:friendlyFire?1:0,tm:gameMode==='teams'?[...teamOf].filter(([id])=>chars.has(id)):0,cs:chestStock,cp:CHEST.spot,np:[r2(NPC.pos.x),r2(NPC.pos.z),r2(NPC.face),NPC_STATES.indexOf(NPC.state)],st:state,tl:r1(roundLeft),cd:r1(countdown),len:roundLen,it,b,sc:boardRows(),ld:leaderId||0,pd,res:(state==='results'&&resultsRows)?resultsRows:0};
 }
 function buildPresence(){
   const p={id:myId,n:myName,c:myColor,ev:net.out};
@@ -1776,6 +1812,7 @@ function applyWorld(w){
   if(Array.isArray(w.sc)){const s=JSON.stringify(w.sc);if(s!==net.lastSc){net.lastSc=s;hostRows=w.sc.filter(r=>Array.isArray(r)).map(r=>[String(r[0]),cleanName(r[1]),clamp(num(r[2],0xffffff)|0,0,0xffffff),num(r[3],0),num(r[4],0),num(r[5],0),num(r[6],0),num(r[7],0)]);scoreDirty=true;}}
   const ld=typeof w.ld==='string'?w.ld:null;if(ld!==leaderId){leaderId=ld;scoreDirty=true;}
   fallDur=clamp(num(w.fd,20),5,60);
+  if(typeof w.fe==='number'&&setFeatMask(w.fe))renderYardPanel();
   if(Array.isArray(w.mt)){matchLen=clamp(num(w.mt[0],1)|0,1,9);matchNo=num(w.mt[1],0)|0;matchWins.clear();if(Array.isArray(w.mt[2]))for(const e of w.mt[2])if(Array.isArray(e)&&typeof e[0]==='string')matchWins.set(e[0],num(e[1],0)|0);
     roundWinner=typeof w.mt[3]==='string'?w.mt[3]:null;matchOver=!!w.mt[4];}
   chestStock=clamp(num(w.cs,chestStock)|0,0,CHEST.max);if(typeof w.cp==='number'&&w.cp!==CHEST.spot)moveChest(w.cp);
@@ -1823,7 +1860,7 @@ function pickColor(){const used=new Set();try{for(const p of net.yard?net.yard.p
   return PALETTE.find(c=>!used.has(c))||pick(PALETTE);}
 async function hostYard(){
   if(!mpReady())return;ac();$('#hostBtn').disabled=true;setMpNote('Opening your yard…');
-  gameMode=radio('ymode')==='teams'?'teams':'ffa';friendlyFire=radio('yff')==='1';teamsManual=false;teamOf.clear();net.lastTm=null;fallDur=+radio('yfall')||20;matchLen=+radio('yrounds')||1;matchOver=true;matchNo=0;
+  gameMode=radio('ymode')==='teams'?'teams':'ffa';friendlyFire=radio('yff')==='1';teamsManual=false;teamOf.clear();net.lastTm=null;fallDur=+radio('yfall')||20;matchLen=+radio('yrounds')||1;matchOver=true;matchNo=0;readFeatUI('#yFeat');
   const a='abcdefghjkmnpqrstuvwxyz';let code='yard-';for(let i=0;i<4;i++)code+=a[Math.floor(Math.random()*a.length)];
   try{net.yard=await net.room.join(code);}catch(e){setMpNote('Couldn’t open a yard ('+(e&&e.code||'error')+'). Try again in a moment.',true);updateMpButtons();return;}
   net.code=code;net.isHost=true;myId=newId();net.hostId=myId;enterMp();
@@ -2063,6 +2100,8 @@ function renderYardPanel(){
   else if(state==='warmup'||state==='results')msg.textContent=net.isHost?`Warm-up. Mates can join with the code any time${humans.length<2?' (nobody else is here yet)':''}. Keep this tab open and in front: your browser runs the yard.`:`Warm-up. Throws don’t score until ${hostName} starts the round.`;
   else msg.textContent='Round in progress. Get back out there.';
   $('#hostCtl').hidden=!net.isHost;
+  {const off=FEAT_KEYS.filter(k=>!FEAT[k]).map(k=>FEAT_NAMES[k]);if(off.length&&!net.isHost)msg.textContent+=` Switched off this game: ${off.join(', ')}.`;}
+  if(net.isHost)document.querySelectorAll('#yFeat input').forEach(i=>i.disabled=busy);
   if(net.isHost){$('#teamOpts').hidden=!tOn;document.querySelectorAll('input[name=ymode],input[name=yff]').forEach(i=>i.disabled=busy);$('#shuffleTeams').disabled=busy;
     if(tOn&&!busy)msg.textContent+=' Teams: click a player to move them, or shuffle.';}
   else if(tOn&&!busy)msg.textContent+=` Teams are on${friendlyFire?', with friendly fire':''}.`;
@@ -2127,7 +2166,7 @@ function startSolo(){
   ac();mode='solo';isAuth=true;myId='me';clearWorld();roundLen=+radio('len');difficulty=radio('diff');
   me=createChar('me',myName,PALETTE[0],'me',CHAR_SPAWNS[0]);myColor=PALETTE[0];
   ['Shazza','Davo','Kev'].forEach((n,i)=>createChar('b'+i,n,PALETTE[i+1],'bot',CHAR_SPAWNS[i+1]));
-  gameMode=radio('pmode')==='teams'?'teams':'ffa';friendlyFire=radio('pff')==='1';fallDur=20;matchLen=+radio('prounds')||1;matchOver=true;matchNo=0;teamsManual=false;teamOf.clear();if(gameMode==='teams')balanceTeams(true);
+  gameMode=radio('pmode')==='teams'?'teams':'ffa';friendlyFire=radio('pff')==='1';fallDur=20;readFeatUI('#pFeat');matchLen=+radio('prounds')||1;matchOver=true;matchNo=0;teamsManual=false;teamOf.clear();if(gameMode==='teams')balanceTeams(true);
   hintStage=hintStage>=3?3:0;hintHideT=0;hintEl.style.opacity=0;
   authStartRound();requestLock();canvas.focus();refreshOverlays();
 }
@@ -2136,7 +2175,7 @@ function pause(){if(mode!=='solo'||(state!=='play'&&state!=='countdown'))return;
   if(me){me.charging=false;me.charge=0;}for(const k in keys)keys[k]=false;refreshOverlays();}
 function resume(fromLock){if(state!=='paused')return;if(!fromLock&&!fallbackAim&&!touchMode&&!locked){requestLock();return;}
   state=pause.prev||'play';last=performance.now();refreshOverlays();}
-function goMenu(){matchOver=true;matchNo=0;matchWins.clear();if(document.pointerLockElement)document.exitPointerLock();resultsOpen=false;panelOpen=false;setupAttract();refreshOverlays();renderYards();}
+function goMenu(){setFeatMask(31);matchOver=true;matchNo=0;matchWins.clear();if(document.pointerLockElement)document.exitPointerLock();resultsOpen=false;panelOpen=false;setupAttract();refreshOverlays();renderYards();}
 $('#play').addEventListener('click',startSolo);
 document.querySelectorAll('input[name=pmode]').forEach(r=>r.addEventListener('change',()=>{const t=radio('pmode')==='teams';$('#pffWrap').hidden=!t;$('#play').textContent=t?'Practice: you + a bot vs 2 bots':'Practice vs 3 bots';}));
 $('#hostBtn').addEventListener('click',hostYard);
@@ -2149,6 +2188,7 @@ $('#startMp').addEventListener('click',()=>{if(!net.isHost)return;if(matchOver||
 document.querySelectorAll('input[name=ybots]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost&&state!=='play'&&state!=='countdown'){botCount=+radio('ybots');teamsManual=false;syncBots();renderYardPanel();}}));
 document.querySelectorAll('input[name=ydiff]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost)difficulty=radio('ydiff');}));
 document.querySelectorAll('input[name=ymode]').forEach(r=>r.addEventListener('change',()=>{if(!net.isHost||state==='play'||state==='countdown')return;gameMode=radio('ymode');teamsManual=false;if(gameMode==='teams')balanceTeams(false);scoreDirty=true;renderYardPanel();}));
+document.querySelectorAll('#yFeat input').forEach(c=>c.addEventListener('change',()=>{if(net.isHost&&state!=='play'&&state!=='countdown'){readFeatUI('#yFeat');renderYardPanel();}}));
 document.querySelectorAll('input[name=yrounds]').forEach(r=>r.addEventListener('change',()=>renderYardPanel()));
 document.querySelectorAll('input[name=yfall]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost)fallDur=+radio('yfall');}));
 document.querySelectorAll('input[name=yff]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost)friendlyFire=radio('yff')==='1';renderYardPanel();}));
@@ -2223,7 +2263,7 @@ function frame(now){
   }else{const a=elapsed*.05;camera.position.set(Math.sin(a)*40,17,Math.cos(a)*40);camera.lookAt(0,1,0);}
   camera.updateMatrixWorld();
   updateItems(dt);if(isAuth){spawner(dt);for(const f of flights.values()){if(f.active){const it=items.get(f.itemId);if(!it||it.flight!==f||!it.live){f.active=false;f.endT=elapsed;}}else if(elapsed-f.endT>6)flights.delete(f.id);}}
-  updateParts(dt);updatePuddles(dt);syncChest(dt);syncSmoko();updateWobble(dt);if(isAuth&&mode!=='menu')npcUpdate(dt);syncNpc(dt);updateBBQ(dt);
+  updateParts(dt);updatePuddles(dt);syncChest(dt);syncSmoko();updateWobble(dt);if(FEAT.bbq){if(isAuth&&mode!=='menu')npcUpdate(dt);syncNpc(dt);updateBBQ(dt);}
   for(const ch of chars.values())syncCharMesh(ch,dt);
   syncItemMeshes();updateTrajectory();
   hoistHead.rotation.y+=dt*.12;poolTex.offset.x+=dt*.02;poolTex.offset.y+=dt*.013;
