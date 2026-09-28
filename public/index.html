@@ -42,11 +42,14 @@ h2{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.14em;c
 .seg label:first-of-type{border-left:0}
 .seg input:checked+label{background:var(--sun)}
 .seg input:focus-visible+label{outline:3px solid var(--esky);outline-offset:-5px}
-.ammo{display:flex;flex-direction:column;gap:8px}
-.ammo-row{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;background:#fff;border:2px solid var(--ink);border-radius:12px;padding:8px 12px 8px 8px}
-.ammo-row svg{width:44px;height:44px;display:block}
-.ammo-row b{display:block;font-size:15px}
-.ammo-row small{display:block;color:var(--muted);font-size:12.5px;line-height:1.3}
+.ammo{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px}
+.ammo-row{display:grid;grid-template-columns:30px 1fr;gap:8px;align-items:center;background:#fff;border:2px solid var(--ink);border-radius:10px;padding:5px 8px 5px 5px}
+.ammo-row svg{width:30px;height:30px;display:block}
+.ammo-row b{display:block;font-size:13px}
+.ammo-row small{display:block;color:var(--muted);font-size:11.5px;line-height:1.25}
+.howto{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px;font-size:14px;line-height:1.35}.howto kbd{font-size:11px}
+.more{margin-top:10px}.more summary{cursor:pointer;font-weight:800;font-size:13px;color:var(--muted);padding:4px 0}.more[open] summary{margin-bottom:8px}
+.more .keys{margin-bottom:10px;font-size:13px}.more .rules{margin-bottom:10px}
 .bars{display:grid;grid-template-columns:auto 52px;gap:3px 7px;align-items:center;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
 .bar{height:7px;border-radius:4px;background:var(--paper2);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--ink);border-radius:4px}
@@ -252,7 +255,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.9.0</span>
+      <span class="tag">Backyard Brawl · prototype 0.9.1</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Your mates, one backyard, three minutes. Grab whatever is lying on the lawn and chuck it at them before they chuck it at you.</p>
     </div>
@@ -300,61 +303,44 @@ body.touch #cds{display:none}
     </section>
 
     <section>
-      <h2>What's on the lawn</h2>
-      <div class="ammo" id="ammo"></div>
-    </section>
-
-    <section>
-      <h2>The bar</h2>
-      <div class="rules">
-        <span class="chip">VP +18</span>
-        <span class="chip">Wine +26</span>
-        <span class="chip">Rum shot +34</span>
-      </div>
-      <p class="foot" style="margin-top:8px">Walk up to the bar by the back fence and press R. Drinking fills your drunk meter, which drops again as you sober up. Once you're tipsy the yard starts to wobble, your view sways and you drift off course when you walk. Everyone else can see it too: drunk players sway, stagger and flail. It all gets worse the more you drink. Get properly drunk and you'll stack it now and then: you're down for 20 seconds unless a mate holds R next to you to help you up (+25 for them). You're slower and can't throw while you drink, and a hit makes you spill it.</p>
-    </section>
-
-    <section>
-      <h2>Smoko</h2>
-      <p class="foot" style="margin:0">The paved circle with the umbrella on the left of the yard has a chair for everyone. Walk in and press R to sit down: nobody can hit you while you're on smoko, but you're drinking the whole time and you get kicked back out after 20 seconds. R or Space gets you up early.</p>
-    </section>
-
-    <section>
-      <h2>The BBQ</h2>
-      <p class="foot" style="margin:0">Dazza is cooking by the back fence. Nick a raw steak or fish off his table (R) and slap someone with it: they're stunned for 3 seconds and you get +50. Dazza yells and swings his spatula at thieves, and if you keep stealing he'll chase you round the yard. You can slap Dazza too: he might get knocked out cold (free meat for 8 seconds), go berserk after you, or flip the whole barbie.</p>
-    </section>
-
-    <section>
-      <h2>Scoring</h2>
-      <div class="rules">
-        <span class="chip good">+100 land a hit</span>
-        <span class="chip bad">−50 get hit</span>
-        <span class="chip good">+50 catch one</span>
-        <span class="chip gold">+50 hit the leader ♛</span>
-        <span class="chip gold">🔥 3 hit streak = ×1.5, 5+ = ×2</span>
-        <span class="chip gold">🍺 +25 hit while tipsy, +50 while drunk</span>
-        <span class="chip good">+50 knock someone into the pool or onto the tramp</span>
-      </div>
-    </section>
-
-    <section>
-      <h2>Controls</h2>
-      <div class="keys" id="keys">
-        <span><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></span><span>Move · mouse to aim</span>
-        <span><kbd>Shift</kbd></span><span>Speed boost (tap for a short burst, then it recharges)</span>
-        <span><kbd>Space</kbd></span><span>Jump</span>
-        <span><kbd>Hold click</kbd></span><span>Wind up, release to chuck</span>
-        <span><kbd>Right click</kbd> <kbd>Q</kbd></span><span>Catch, timed just before impact</span>
-        <span><kbd>C</kbd></span><span>Dodge (brief dive, dodges a hit)</span>
-        <span><kbd>R</kbd></span><span>Drink at the bar, grab from the chest, nick meat off the BBQ table, or sit down for smoko. Hold R next to a fallen mate to help them up</span>
-        <span><kbd>E</kbd> <kbd>Wheel</kbd></span><span>Swap held item (carry two)</span>
-        <span><kbd>T</kbd> <kbd>G</kbd> <kbd>B</kbd></span><span>Taunt, dance, laugh</span>
-        <span><kbd>Esc</kbd></span><span>Pause, or open the yard menu online</span>
-      </div>
+      <h2>How to play</h2>
+      <ul class="howto">
+        <li>Grab stuff off the lawn and chuck it at your mates. <b>+100</b> a hit, <b>−50</b> if you cop one.</li>
+        <li><kbd>R</kbd> does everything else: drink at the bar, raid the chest or the BBQ, sit on smoko, help a mate up.</li>
+        <li>Drunk = wobbly, but hits score extra. Don't stack it.</li>
+        <li>Dildos, steaks and fish are for slapping. Get up close and click.</li>
+        <li>Smoko keeps you safe for 20 seconds, but you're drinking the whole time.</li>
+      </ul>
+      <details class="more">
+        <summary>Controls, points &amp; items</summary>
+        <div class="keys" id="keys">
+          <span><kbd>WASD</kbd></span><span>Move, mouse to aim</span>
+          <span><kbd>Hold click</kbd></span><span>Wind up, let go to chuck</span>
+          <span><kbd>Space</kbd></span><span>Jump</span>
+          <span><kbd>Shift</kbd></span><span>Speed boost</span>
+          <span><kbd>C</kbd></span><span>Dodge</span>
+          <span><kbd>Right click</kbd></span><span>Catch</span>
+          <span><kbd>R</kbd></span><span>Drink, grab, smoko, help up (hold)</span>
+          <span><kbd>E</kbd></span><span>Swap item</span>
+          <span><kbd>T</kbd> <kbd>G</kbd> <kbd>B</kbd></span><span>Taunt, dance, laugh</span>
+          <span><kbd>Esc</kbd></span><span>Menu</span>
+        </div>
+        <div class="rules">
+          <span class="chip good">+100 hit</span>
+          <span class="chip bad">−50 get hit</span>
+          <span class="chip good">+50 catch</span>
+          <span class="chip gold">+50 hit the leader</span>
+          <span class="chip gold">🔥 streaks ×1.5 / ×2</span>
+          <span class="chip gold">🍺 +25 / +50 drunk</span>
+          <span class="chip good">+50 pool or tramp</span>
+          <span class="chip good">+50 meat slap</span>
+          <span class="chip good">+25 help a mate up</span>
+        </div>
+        <div class="ammo" id="ammo"></div>
+      </details>
     </section>
 
     <label class="sound"><input type="checkbox" id="sound" checked> Sound effects</label>
-    <p class="foot">Walk over anything glowing to pick it up. The trampoline launches you, the pool slows you down, and spilt beer is slippery.</p>
   </div>
 </div>
 
@@ -455,17 +441,17 @@ if(typeof THREE==='undefined'){document.body.insertAdjacentHTML('beforeend','<p 
 
 /* ================= ITEM DEFINITIONS ================= */
 const ITEM_DEFS={
-  teddy:{name:'Teddy Bear',blurb:'Light and quick. Bounces off walls for sneaky trick shots.',speed:24,knock:6,charge:.55,r:.24,bounce:.5,grav:1,weight:45,sfx:'squeak',
+  teddy:{name:'Teddy Bear',blurb:'Bounces off walls',speed:24,knock:6,charge:.55,r:.24,bounce:.5,grav:1,weight:45,sfx:'squeak',
     lines:["Teddy'd!","Cuddle attack!","Beary rude!"],stats:[.85,.35,.3]},
-  stubby:{name:'VP Can',blurb:'Fastest throw. Bursts on impact and leaves a slippery puddle.',speed:27,knock:8,charge:.7,r:.14,bounce:0,grav:1,weight:35,sfx:'smash',smash:true,
+  stubby:{name:'VP Can',blurb:'Fastest, leaves a slippery puddle',speed:27,knock:8,charge:.7,r:.14,bounce:0,grav:1,weight:35,sfx:'smash',smash:true,
     lines:["Cheers, mate!","Wasted a good VP!","Canned!"],stats:[1,.55,.45]},
-  dildo:{name:'Purple Dildo',short:'Dildo',melee:'down',blurb:'Only from the chest, which hides somewhere different every game. Get up close and click to slap someone with it. Three slaps each, and every slap knocks them flat in one of three ridiculous ways.',speed:23,knock:9,charge:.75,r:.2,bounce:.6,grav:1,weight:0,sfx:'boing',knockdown:true,
+  dildo:{name:'Purple Dildo',short:'Dildo',melee:'down',blurb:'From the chest. Slap: knocks them flat',speed:23,knock:9,charge:.75,r:.2,bounce:.6,grav:1,weight:0,sfx:'boing',knockdown:true,
     lines:["DONGED!","Knocked flat!","Right in the dignity!"],stats:[.8,1,.7]},
-  steak:{name:'Raw Steak',short:'Steak',melee:'stun',blurb:'Nicked off the BBQ table. Slap someone with it to stun them for 3 seconds (+50). Dazza will not be happy.',speed:20,knock:3,charge:.6,r:.18,bounce:.1,grav:1,weight:0,sfx:'thud',
+  steak:{name:'Raw Steak',short:'Steak',melee:'stun',blurb:'From the BBQ. Slap: 3s stun',speed:20,knock:3,charge:.6,r:.18,bounce:.1,grav:1,weight:0,sfx:'thud',
     lines:["STEAKED!","Well done!","Rare form!"],stats:[.5,.3,.3]},
-  fish:{name:'Raw Fish',short:'Fish',melee:'stun',blurb:'From the plate on the BBQ table. A proper fish slap stuns for 3 seconds (+50). Smells terrible.',speed:20,knock:3,charge:.6,r:.18,bounce:.2,grav:1,weight:0,sfx:'thud',
+  fish:{name:'Raw Fish',short:'Fish',melee:'stun',blurb:'From the BBQ. Slap: 3s stun',speed:20,knock:3,charge:.6,r:.18,bounce:.2,grav:1,weight:0,sfx:'thud',
     lines:["FISH SLAPPED!","Oh, cod!","Holy mackerel!"],stats:[.5,.3,.3]},
-  gnome:{name:'Garden Gnome',blurb:'Slow wind-up, heavy arc, sends people flying.',speed:19,knock:15,charge:1.0,r:.28,bounce:.25,grav:1.15,weight:20,sfx:'clonk',
+  gnome:{name:'Garden Gnome',blurb:'Slow, sends them flying',speed:19,knock:15,charge:1.0,r:.28,bounce:.25,grav:1.15,weight:20,sfx:'clonk',
     lines:["GNOMED!","No place like gnome!","Gnome sweet gnome!"],stats:[.55,1,.9]}
 };
 const ICONS={
@@ -479,7 +465,7 @@ const ICONS={
 (function fillMenu(){
   const lbl=['Speed','Knock','Wind-up'];
   $('#ammo').innerHTML=Object.keys(ITEM_DEFS).map(k=>{const d=ITEM_DEFS[k];
-    return `<div class="ammo-row">${ICONS[k]}<div><b>${d.name}</b><small>${d.blurb}</small></div><div class="bars">${d.stats.map((v,i)=>`<span>${lbl[i]}</span><span class="bar"><i style="width:${Math.round(v*100)}%"></i></span>`).join('')}</div></div>`;}).join('');
+    return `<div class="ammo-row">${ICONS[k]}<div><b>${d.name}</b><small>${d.blurb}</small></div></div>`;}).join('');
 })();
 
 /* ================= RENDERER / SCENE ================= */
