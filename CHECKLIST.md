@@ -14,6 +14,7 @@
 
 **Chucking and slapping**
 - ✅ Teddy, VP can, gnome, and floating pool noodles
+- ✅ Power throw: let go near the end of the wind-up bar (90% or more, the bar turns red past a little white mark) and a hit knocks the person over for 2 seconds. Players only, bots don't power-throw. Doesn't work on someone in their 1 second stun grace
 - ✅ Dildo chest (PG15+ only, random spot): 4 variants (Mini/Classic/Jumbo/rare Golden Wonder), each worth different points and a different knockdown length. Slaps knock people flat with Helicopter / Cartwheel / Timber
 - ✅ Dildo critical hit: ~15% chance on any dildo slap to flatten them for a full 5s with a much bigger flying knockback — "💥 CRITICAL!", no stun stacking on top
 - ✅ Steak, fish, noodle slaps stun (steak and fish stun for 2s). Stuns never stack: hitting someone who's already stunned shoves them but doesn't start or extend a stun (a dildo can still floor someone who's stunned but standing)
@@ -41,8 +42,14 @@
 - ✅ In Drunk mode you have a 10% chance of stacking it every 2 seconds you're walking (only real players fall over, not bots)
 - ✅ After a stun ends you can't be stunned again for 1 second (you can still be shoved, and a dildo can still floor you)
 
+**Bots**
+- ✅ Bots move more like people: they turn smoothly instead of snapping, ease in and out of speed, slow down as they arrive, walk slightly wobbly lines, go round obstacles on one side instead of twitching, and give other people a bit of room
+- ✅ Each bot has its own habits (reaction time, wobble, how often it stops for a look around), kept all game. They glance at things thrown their way, pause for a beat after being hit or changing their mind, and drunk bots sway like drunk players
+- ✅ Dodges and hops are still instant, so bots are no easier to hit
+
 **Setup screen**
 - ✅ Tabs: Solo / With mates / How to play, with one big Play button
+- ✅ With mates has its own ⚙️ Game options (who's playing, bots, bot skill, round length, rounds, friendly fire for Teams, what's in the yard including Naughty Corner and Drunk mode, stacked-it time). The yard opens with them, and the host can still change them in the yard before each round
 - ✅ Family / PG15+ switch (default Family): PG15+ unlocks the dildo chest and any future adult content, synced to everyone in the yard
 
 **Scoring and matches**

@@ -147,7 +147,8 @@ td.score{font-weight:800;font-size:16px}
 #catchring.on{opacity:1;transform:scale(1);transition:transform .12s}
 #charge{position:absolute;left:50%;top:calc(50% + 30px);width:110px;height:9px;margin-left:-55px;border-radius:5px;background:rgba(0,0,0,.4);overflow:hidden;opacity:0}
 #charge span{display:block;height:100%;width:0;background:var(--sun)}
-#charge.full span{background:var(--tomato)}
+#charge.full span,#charge.power span{background:var(--tomato)}
+#charge::after{content:'';position:absolute;left:90%;top:0;bottom:0;width:2px;background:rgba(255,255,255,.75)}
 #charge.over span{animation:overblink .16s steps(2) infinite}
 @keyframes overblink{50%{opacity:.15}}
 #slots{position:absolute;right:16px;bottom:max(16px,env(safe-area-inset-bottom,0px));display:flex;gap:8px}
@@ -276,7 +277,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.19.1</span>
+      <span class="tag">Backyard Brawl · prototype 0.20.0</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -359,6 +360,54 @@ body.touch #cds{display:none}
         <input type="radio" name="hheist" id="hh3" value="3"><label for="hh3">3</label>
         <input type="radio" name="hheist" id="hh4" value="4"><label for="hh4">4</label>
       </div></fieldset>
+      <details class="more" id="mOpts">
+        <summary>⚙️ Game options (when you host)</summary>
+        <div class="setup">
+          <fieldset class="seg who"><legend>👨‍👩‍👧 Who's playing?</legend><div class="opts">
+            <input type="radio" name="mcontent" id="mcFam" value="family" checked><label for="mcFam">🧒 Family</label>
+            <input type="radio" name="mcontent" id="mcAdult" value="adult"><label for="mcAdult">😈 PG15+</label>
+          </div><p class="note" id="mcNote"></p></fieldset>
+          <fieldset class="seg"><legend>🤖 Bots filling in</legend><div class="opts">
+            <input type="radio" name="mbots" id="mb0" value="0" checked><label for="mb0">None</label>
+            <input type="radio" name="mbots" id="mb1" value="1"><label for="mb1">1</label>
+            <input type="radio" name="mbots" id="mb2" value="2"><label for="mb2">2</label>
+            <input type="radio" name="mbots" id="mb3" value="3"><label for="mb3">3</label>
+          </div></fieldset>
+          <fieldset class="seg"><legend>🎯 Bot skill</legend><div class="opts">
+            <input type="radio" name="mdiff" id="mdEasy" value="easy"><label for="mdEasy">Easy</label>
+            <input type="radio" name="mdiff" id="mdFair" value="fair" checked><label for="mdFair">Fair dinkum</label>
+            <input type="radio" name="mdiff" id="mdSpicy" value="spicy"><label for="mdSpicy">Spicy</label>
+          </div></fieldset>
+          <fieldset class="seg"><legend>⏱ Round length</legend><div class="opts">
+            <input type="radio" name="mlen" id="mlen60" value="60"><label for="mlen60">1 min</label>
+            <input type="radio" name="mlen" id="mlen180" value="180" checked><label for="mlen180">3 min</label>
+          </div></fieldset>
+          <fieldset class="seg"><legend>🏆 Rounds</legend><div class="opts">
+            <input type="radio" name="mrounds" id="mr1" value="1" checked><label for="mr1">Single</label>
+            <input type="radio" name="mrounds" id="mr3" value="3"><label for="mr3">Best of 3</label>
+            <input type="radio" name="mrounds" id="mr5" value="5"><label for="mr5">Best of 5</label>
+          </div></fieldset>
+          <fieldset class="seg" id="mffWrap" hidden><legend>💥 Friendly fire</legend><div class="opts">
+            <input type="radio" name="mff" id="mffOff" value="0" checked><label for="mffOff">Off</label>
+            <input type="radio" name="mff" id="mffOn" value="1"><label for="mffOn">On</label>
+          </div></fieldset>
+          <fieldset class="seg"><legend>🏡 What's in the yard</legend><div class="feat" id="mFeat">
+            <label><input type="checkbox" data-f="bar" checked>🍺 Bar</label>
+            <label><input type="checkbox" data-f="bbq" checked>🔥 BBQ &amp; Dazza</label>
+            <label class="adultonly"><input type="checkbox" data-f="chest" checked>🍆 Dildo chest</label>
+            <label><input type="checkbox" data-f="smoko" checked>🪑 Smoko</label>
+            <label><input type="checkbox" data-f="naughty">😈 Smoko is the Naughty Corner</label>
+            <label><input type="checkbox" data-f="falls" checked>🥴 Stacking it</label>
+            <label><input type="checkbox" data-f="drunkall">🍻 Drunk mode (everyone's hammered all game)</label>
+          </div></fieldset>
+          <fieldset class="seg"><legend>🥴 Stacked it: back up after</legend><div class="opts">
+            <input type="radio" name="mfall" id="mf10" value="10"><label for="mf10">10 s</label>
+            <input type="radio" name="mfall" id="mf20" value="20" checked><label for="mf20">20 s</label>
+            <input type="radio" name="mfall" id="mf30" value="30"><label for="mf30">30 s</label>
+          </div></fieldset>
+          <p class="note">You can still change all of these in the yard before each round.</p>
+        </div>
+      </details>
       <button class="btn primary" id="hostBtn" type="button" disabled>Host a yard</button>
       <ul class="yards" id="yards"></ul>
       <form class="join" id="joinForm">
@@ -380,7 +429,7 @@ body.touch #cds{display:none}
         <summary>Controls, points &amp; items</summary>
         <div class="keys" id="keys">
           <span><kbd>WASD</kbd></span><span>Move, mouse to aim</span>
-          <span><kbd>Hold click</kbd></span><span>Wind up, let go to chuck</span>
+          <span><kbd>Hold click</kbd></span><span>Wind up, let go to chuck (let go near the end of the bar and a hit knocks them over)</span>
           <span><kbd>Space</kbd></span><span>Jump</span>
           <span><kbd>Shift</kbd></span><span>Speed boost</span>
           <span><kbd>Right click</kbd></span><span>Catch</span>
@@ -1238,6 +1287,7 @@ let roundLen=180,difficulty='fair',botCount=0;
 let roundLeft=0,countdown=0,lastBeep=0,elapsed=0,beepS=0;
 const chars=new Map();let me=null;
 const items=new Map();let nextItemId=1;const ghosts=new Set();
+const POWER_CHG=.9,POWER_DOWN=2; // charge needed for a knock-over throw, and how long they stay down
 const flights=new Map();let nextFlight=1;const LATE_HIT=1.8,LONG_MIN=8,LONG_MAX=25,LONG_PTS=100,OVERHOLD=1.5; // seconds a remote hit report may arrive after the throw lands
 let stats={},hostRows=[],leaderId=null,scoreDirty=true,resultsRows=null;
 /* ---- matches: best of N rounds. Keys are 'r'/'b' for teams, 'p:<id>' for players ---- */
@@ -1437,7 +1487,9 @@ function createChar(id,name,color,kind,sp){
   Object.assign(ch,{mesh:g,body,hand,handL,crown,stars,tag,sash,smokoCan,sink:0});
   scene.add(g);
   if(kind==='me')g.visible=false;
-  if(kind==='bot'){ch.isBot=true;ch.ai={target:null,retarget:0,orbit:1,flip:rand(1,3),windup:0,throwCd:rand(1,2),range:rand(8,13),seen:new WeakSet(),claim:null,stuckT:1,lastPos:ch.pos.clone(),wander:0,wanderDir:new THREE.Vector2()};}
+  if(kind==='bot'){ch.isBot=true;ch.ai={target:null,retarget:0,orbit:1,flip:rand(1,3),windup:0,throwCd:rand(1,2),range:rand(8,13),seen:new WeakSet(),claim:null,stuckT:1,lastPos:ch.pos.clone(),wander:0,wanderDir:new THREE.Vector2(),
+    pers:{react:rand(.14,.32),wob:rand(.1,.26),pause:rand(.02,.055),turn:rand(5.5,8),look:rand(6,10)}, // each bot keeps its own little habits all game
+    mv:new THREE.Vector2(),orbitS:1,idleGoal:null,idleT:0,avoidSide:Math.random()<.5?-1:1,hesT:0,pauseT:0,lookYaw:0,glanceT:0,glanceAt:null,wasStun:false,lastGoal:null};}
   chars.set(id,ch);return ch;
 }
 function setCharName(ch,name){if(ch.name===name)return;ch.name=name;ch.mesh.remove(ch.tag);ch.tag.material.map.dispose();ch.tag=nameTag(name,ch.color,ch.teamCss);ch.mesh.add(ch.tag);}
@@ -1683,7 +1735,7 @@ function authThrow(id,it,pos,vel,chg){
   const c=chg!=null&&isFinite(chg)?clamp(chg,0,1):clamp((vel.length()/it.def.speed-.42)/.58,0,1);
   const f={id:nextFlight++,itemId:it.id,thrower:id,type:it.type,scored:false,active:true,endT:0,c,sx:pos.x,sz:pos.z};flights.set(f.id,f);it.flight=f;
   if(stats[id])stats[id].throws++;
-  fx('throw',id,r2(pos.x),r2(pos.y),r2(pos.z));
+  fx('throw',id,r2(pos.x),r2(pos.y),r2(pos.z),it.id,chg!=null&&isFinite(chg)&&chg>=POWER_CHG?1:0); // only players' throws pass a charge, so bots never power-throw
 }
 function authHit(victimId,it,kdir,f){
   f=f||(it&&it.flight);if(!f||f.scored||f.thrower===victimId)return;
@@ -1900,7 +1952,7 @@ function playFx(a){
   else if(k==='clonk'){const p=new V3(num(a[1],0),num(a[2],0),num(a[3],0));SFX.clonk(p);burst(p,[0x7a5a3a,0x5b8a3c],8,3,.07);if(me&&me.pos.distanceTo(p)<5)shake=Math.max(shake,.06);}
   else if(k==='thud'){SFX.thud(new V3(num(a[1],0),num(a[2],0),num(a[3],0)));}
   else if(k==='boing'){SFX.boing(new V3(num(a[1],0),num(a[2],0),num(a[3],0)));}
-  else if(k==='throw'){if(a[1]!==myId)SFX.throw(new V3(num(a[2],0),num(a[3],0),num(a[4],0)));}
+  else if(k==='throw'){if(a[1]!==myId)SFX.throw(new V3(num(a[2],0),num(a[3],0),num(a[4],0)));{const ti=items.get(a[5]);if(ti)ti.power=!!a[6];}}
   else if(k==='whiff'){SFX.whiff(new V3(num(a[1],0),num(a[2],0),num(a[3],0)));}
   else if(k==='over'){}
   else if(k==='rs'){if(!isAuth&&me&&Array.isArray(a[1])){const m=a[1].find(e=>Array.isArray(e)&&e[0]===myId);if(m)teleport(me,num(m[1],0),num(m[2],0));}}
@@ -1919,7 +1971,9 @@ function onLocalHit(ch,it){
   if(ch.catchT>0&&ch.stun<=0){const to=new V3(it.pos.x-ch.pos.x,0,it.pos.z-ch.pos.z).normalize();if(fwd(ch).dot(to)>.1){
     if(isAuth)authCatch(ch.id,it);else{it.ignoreMe=true;sendEv('cat',it.id,it.flightId||0);}return;}}
   const kdir=new V3(it.vel.x,0,it.vel.z);if(kdir.lengthSq()<1e-4)kdir.set(0,0,1);kdir.normalize();
-  applyKnock(ch,it.def,kdir);
+  if(it.power&&!(ch.stunGrace>0)&&!(ch.downT>0)&&!(ch.fallT>0)){applyKnock(ch,Object.assign({},it.def,{knockdown:true}),kdir,0,POWER_DOWN);it.power=false;
+    if(ch.kind==='me'&&me)floater('KNOCKED OVER!',camera.position.clone().add(fwd(me).multiplyScalar(2.2)).setY(camera.position.y+.4),'big');}
+  else applyKnock(ch,it.def,kdir);
   if(isAuth)authHit(ch.id,it,kdir);else{it.ignoreMe=true;sendEv('hit',it.id,r2(kdir.x),r2(kdir.z),it.flightId||0);}
 }
 
@@ -2250,15 +2304,18 @@ function botErrand(ch,dt){const e=ch.ai.errand;e.t-=dt;
   const ms=meatSpot(ch);if(!ms)return goal;authMeatGrab(ch.id,ms);return null;}
 function aiUpdate(ch,dt){
   const ai=ch.ai,df=DIFF[difficulty];ch.wish.set(0,0);
-  if(state==='countdown'){if(ch.smokoSeat>=0)ch.smokoSeat=-1;ai.errand=null;return;}
-  if(ch.stun>0){ai.windup=0;ch.charging=false;return;}
-  if(botHelp(ch,dt))return;
-  ai.retarget-=dt;ai.throwCd-=dt;ai.flip-=dt;ai.stuckT-=dt;ai.wander-=dt;
-  if(ai.flip<=0){ai.orbit*=-1;ai.flip=rand(1.4,3.4);}
+  if(!ai.mv){ai.mv=new THREE.Vector2();ai.pers={react:.22,wob:.18,pause:.035,turn:6.5,look:8};ai.orbitS=ai.orbit;ai.avoidSide=1;ai.hesT=ai.pauseT=ai.glanceT=ai.idleT=0;}
+  if(state==='countdown'){if(ch.smokoSeat>=0)ch.smokoSeat=-1;ai.errand=null;ai.mv.set(0,0);return;}
+  if(ch.stun>0){ai.windup=0;ch.charging=false;ai.wasStun=true;ai.mv.multiplyScalar(.5);return;}
+  if(ai.wasStun){ai.wasStun=false;ai.hesT=ai.pers.react+rand(.05,.2);} // shake it off for a moment after being hit
+  if(botHelp(ch,dt)){ai.mv.copy(ch.wish);return;}
+  ai.retarget-=dt;ai.throwCd-=dt;ai.flip-=dt;ai.stuckT-=dt;ai.wander-=dt;ai.hesT-=dt;ai.pauseT-=dt;ai.glanceT-=dt;ai.idleT-=dt;
+  if(ai.flip<=0){ai.orbit*=-1;ai.flip=rand(1.8,4.2);}
+  ai.orbitS+=(ai.orbit-ai.orbitS)*(1-Math.exp(-2.2*dt)); // swing round to the other side gradually, not a 180 on the spot
   for(const it of items.values()){if(it.state!=='flying'||!it.live||it.thrower===ch.id||ai.seen.has(it))continue;
     const rx=ch.pos.x-it.pos.x,rz=ch.pos.z-it.pos.z,dist=Math.hypot(rx,rz);if(dist>9)continue;
     const vh=Math.hypot(it.vel.x,it.vel.z);if(vh<1)continue;const closing=(it.vel.x*rx+it.vel.z*rz)/(dist||1);if(closing<vh*.85)continue;
-    if(dist/closing>.5)continue;ai.seen.add(it);
+    if(dist/closing>.5)continue;ai.seen.add(it);ai.glanceT=.35;ai.glanceAt=it.pos.clone();
     if(Math.random()<df.react){if(ch.catchCd<=0&&Math.random()<df.catchP/df.react){ch.face=Math.atan2(-rx,-rz);tryCatch(ch);}
       else if(Math.random()<.55){const s=Math.random()<.5?-1:1,l=Math.hypot(it.vel.x,it.vel.z)||1;if(ch.grounded&&Math.random()<.55)botHop(ch);else{ai.sideT=.45;ai.sideDir=new THREE.Vector2(-it.vel.z/l*s,it.vel.x/l*s);}}}
     else if(Math.random()<df.juke){if(ch.grounded&&Math.random()<.55)botHop(ch);
@@ -2269,7 +2326,7 @@ function aiUpdate(ch,dt){
   // little errands: a drink at the bar, a sit at smoko, a dildo from the chest, meat off Dazza's table
   if(ai.errCd==null)ai.errCd=rand(6,16);ai.errCd-=dt;
   if(!ai.errand&&ai.errCd<=0&&gameMode!=='heist'){ai.errCd=rand(14,26);ai.errand=botPickErrand(ch);}
-  if(ai.errand){const r=botErrand(ch,dt);if(r===true){ch.wish.set(0,0);return;}if(r)goal=r;else ai.errand=null;}
+  if(ai.errand){const r=botErrand(ch,dt);if(r===true){ch.wish.set(0,0);ai.mv.set(0,0);return;}if(r)goal=r;else ai.errand=null;}
   const mel=selItem(ch);ai.meleeOnly=!!(mel&&mel.def.melee&&!mel.def.throwable);
   if(goal||carryingTeddy){}
   else if(ai.meleeOnly){ // up close and slap them
@@ -2278,30 +2335,74 @@ function aiUpdate(ch,dt){
       if(d>1.6)goal=t.pos;
       if(d<2.1&&elapsed-ch.lastSwing>.9){ch.lastSwing=elapsed;ch.face=Math.atan2(t.pos.x-ch.pos.x,t.pos.z-ch.pos.z);
         if(t.smokoSeat>=0||t.downT>.3&&mel.def.melee==='down')fx('sw',ch.id);else authSlap(ch.id,t.id,mel);}}
-    else goal=new V3(rand(-3,3),0,rand(-3,3));}
-  else if(nHeld===0){if(near){goal=near.pos;near.claimedBy=ch;ai.claim=near;}else goal=new V3(rand(-3,3),0,rand(-3,3));}
+    else goal=botIdleGoal(ch);}
+  else if(nHeld===0){if(near){goal=near.pos;near.claimedBy=ch;ai.claim=near;}else goal=botIdleGoal(ch);}
   else{
     if(!ai.target||ai.retarget<=0||!chars.has(ai.target.id))pickTarget(ch);
     const t=ai.target;
     if(t){const tx=t.pos.x-ch.pos.x,tz=t.pos.z-ch.pos.z,dist=Math.hypot(tx,tz)||1;faceTo=t.pos;
       if(nHeld<2&&near&&Math.hypot(near.pos.x-ch.pos.x,near.pos.z-ch.pos.z)<4.5&&ai.windup<=0){goal=near.pos;near.claimedBy=ch;ai.claim=near;}
       else{const nx=tx/dist,nz=tz/dist;let mx=0,mz=0;if(dist>ai.range+2.5){mx=nx;mz=nz;}else if(dist<ai.range-3){mx=-nx;mz=-nz;}
-        mx+=-nz*ai.orbit*.75;mz+=nx*ai.orbit*.75;ch.wish.set(mx,mz);if(ch.wish.length()>1)ch.wish.normalize();}
+        mx+=-nz*ai.orbitS*.75;mz+=nx*ai.orbitS*.75;ch.wish.set(mx,mz);if(ch.wish.length()>1)ch.wish.normalize();}
       if(ai.windup>0){ai.windup-=dt;ch.charging=true;if(ai.windup<=0)botThrow(ch,t);}
       else if(ai.throwCd<=0&&dist<21&&los(ch.pos,t.pos)&&selItem(ch)){ai.windup=selItem(ch).def.charge*rand(.55,1);ch.charge=0;}
     }
   }
   if(hg){goal=hg;faceTo=faceTo||hg;}
-  if(goal){const gx=goal.x-ch.pos.x,gz=goal.z-ch.pos.z,gl=Math.hypot(gx,gz)||1;ch.wish.set(gx/gl,gz/gl);if(!faceTo)faceTo=goal;}
+  let arrive=99;
+  if(goal){const gx=goal.x-ch.pos.x,gz=goal.z-ch.pos.z,gl=Math.hypot(gx,gz)||1;arrive=gl;ch.wish.set(gx/gl,gz/gl);if(!faceTo)faceTo=goal;
+    if(ai.lastGoal&&Math.hypot(goal.x-ai.lastGoal.x,goal.z-ai.lastGoal.z)>5)ai.hesT=Math.max(ai.hesT,ai.pers.react*.6); // changed its mind: a beat before heading off
+    (ai.lastGoal=ai.lastGoal||new V3()).set(goal.x,0,goal.z);}
+  // now and then stop for a second to have a look around
+  if(ai.pauseT<=0&&ai.windup<=0&&!carryingTeddy&&!ai.errand&&!hg&&Math.random()<ai.pers.pause*dt){ai.pauseT=rand(.3,.75);ai.lookYaw=rand(-1.1,1.1);}
   if(ai.windup>0)ch.wish.multiplyScalar(.5);
+  const urgent=ai.sideT>0;
   if(ai.sideT>0){ai.sideT-=dt;ch.wish.copy(ai.sideDir);}
   if(ai.wander>0)ch.wish.copy(ai.wanderDir);
-  if(ch.wish.lengthSq()>.01){const base=Math.atan2(ch.wish.y,ch.wish.x),m=ch.wish.length();
-    for(const off of [0,.8,-.8,1.6,-1.6,2.4,-2.4]){const a=base+off;if(!blocked(ch.pos.x+Math.cos(a)*1.1,ch.pos.z+Math.sin(a)*1.1,ch.pos.y)){ch.wish.set(Math.cos(a)*m,Math.sin(a)*m);break;}}}
+  botSteer(ch,dt,arrive,urgent,goal);
   if(ai.stuckT<=0){if(ch.pos.distanceTo(ai.lastPos)<.4&&ch.wish.lengthSq()>.25){ai.wander=.9;const a=rand(0,Math.PI*2);ai.wanderDir.set(Math.cos(a),Math.sin(a));}ai.lastPos.copy(ch.pos);ai.stuckT=1.2;}
   let desired;if(faceTo)desired=Math.atan2(faceTo.x-ch.pos.x,faceTo.z-ch.pos.z);else if(ch.wish.lengthSq()>.01)desired=Math.atan2(ch.wish.x,ch.wish.y);
-  if(desired!==undefined)ch.face=angLerp(ch.face,desired,1-Math.exp(-10*dt));
+  if(ai.glanceT>0&&ai.glanceAt&&ai.windup<=0&&!ch.charging)desired=Math.atan2(ai.glanceAt.x-ch.pos.x,ai.glanceAt.z-ch.pos.z);
+  else if(ai.pauseT>0&&desired!==undefined&&ai.windup<=0)desired+=ai.lookYaw*Math.sin(Math.min(1,(ai.pauseT)/.75)*Math.PI);
+  if(desired!==undefined)ch.face=angLerp(ch.face,desired,1-Math.exp(-ai.pers.look*dt));
 }
+// a spot to amble towards when there's nothing better to do; kept until reached or bored of it
+function botIdleGoal(ch){const ai=ch.ai;
+  if(!ai.idleGoal||ai.idleT<=0||Math.hypot(ai.idleGoal.x-ch.pos.x,ai.idleGoal.z-ch.pos.z)<1.3){
+    for(let i=0;i<8;i++){const x=rand(-7,7),z=rand(-6,6);if(!blocked(x,z,0)){ai.idleGoal=new V3(x,0,z);break;}}
+    if(!ai.idleGoal)ai.idleGoal=new V3(rand(-3,3),0,rand(-3,3));ai.idleT=rand(2.5,4.5);}
+  return ai.idleGoal;}
+/* Turns the bot's raw "go that way" into something that looks like a person walking:
+   limited turn speed, easing in and out, a personal wobble, drunk sway, slowing near the spot,
+   stepping round mates, and sticking to one side when going round obstacles. Dodges stay instant. */
+function botSteer(ch,dt,arrive,urgent,goal){const ai=ch.ai,P=ai.pers;
+  let wx=ch.wish.x,wz=ch.wish.y,m=Math.min(1,Math.hypot(wx,wz));
+  if(m>.01&&!urgent){
+    // give other people a bit of room (but not whoever we're heading for)
+    for(const o of chars.values()){if(o===ch||o===ai.target||carriedBy.get(o.id)===ch.id||carriedBy.get(ch.id)===o.id||o.smokoSeat>=0)continue;
+      if(goal&&Math.hypot(o.pos.x-goal.x,o.pos.z-goal.z)<.8)continue;
+      const dx=ch.pos.x-o.pos.x,dz=ch.pos.z-o.pos.z,d=Math.hypot(dx,dz);if(d<1.5&&d>.01){const k=(1.5-d)/1.5*.7;wx+=dx/d*k;wz+=dz/d*k;}}
+    let a=Math.atan2(wz,wx);const t=elapsed,near=Math.min(1,arrive/2),da=drunkAmt(ch.drunk||0);
+    a+=P.wob*(Math.sin(t*.9+ch.phase)*.6+Math.sin(t*2.3+ch.phase*1.7)*.25)*near;
+    if(da>0)a+=da*(Math.sin(t*.5+ch.phase)*.5+Math.sin(t*1.37+1+ch.phase)*.22)*near;
+    if(arrive<1.4)m*=Math.max(.45,arrive/1.4);
+    if(ai.hesT>0)m*=.35;if(ai.pauseT>0)m*=.1;
+    wx=Math.cos(a);wz=Math.sin(a);}
+  else if(m>.01){wx/=m;wz/=m;}
+  // obstacles: look ahead and keep going round the same side, so they don't twitch along walls
+  let ta=null;
+  if(m>.01){const base=Math.atan2(wz,wx),sd=ai.avoidSide;
+    for(const off of [0,.45*sd,.9*sd,1.35*sd,1.8*sd,-.45*sd,-.9*sd,-1.35*sd,-1.8*sd,2.5*sd,-2.5*sd]){const b=base+off;
+      if(!blocked(ch.pos.x+Math.cos(b)*1.1,ch.pos.z+Math.sin(b)*1.1,ch.pos.y)&&!blocked(ch.pos.x+Math.cos(b)*.55,ch.pos.z+Math.sin(b)*.55,ch.pos.y)){ta=b;if(off*sd<0)ai.avoidSide=-sd;break;}}
+    if(ta===null)ta=base;}
+  const cur=ai.mv,tx=ta===null?0:Math.cos(ta)*m,tz=ta===null?0:Math.sin(ta)*m;
+  if(urgent){cur.set(tx,tz);ch.wish.copy(cur);return;}
+  const cm=cur.length();let ca=cm>.02?Math.atan2(cur.y,cur.x):(ta===null?0:ta),d=0;
+  if(ta!==null){d=ta-ca;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;
+    const turn=P.turn*(arrive<2.2?2.4:1)*(cm<.3?3:1);ca+=clamp(d,-turn*dt,turn*dt);}
+  const tm=ta===null?0:m*Math.max(.4,.55+.45*Math.cos(Math.min(Math.abs(d),Math.PI))); // ease off through sharp turns
+  const nm=cm+(tm-cm)*(1-Math.exp(-(tm>cm?4.5:8)*dt));
+  cur.set(Math.cos(ca)*nm,Math.sin(ca)*nm);ch.wish.copy(cur);}
 
 /* ================= NETWORK (room capability) ================= */
 const net={room:null,yard:null,code:'',isHost:false,hostId:null,seq:0,out:[],seen:new Map(),idByPeer:new Map(),sendAcc:0,advAcc:0,gotWorld:false,joinTimer:0,unsub:[],lastSc:'',lastPd:'',connected:false,roomDead:false};
@@ -2477,8 +2578,14 @@ function renderYards(){
 }
 function pickColor(){const used=new Set();try{for(const p of net.yard?net.yard.peers():[])if(!p.sameTab&&p.presence&&typeof p.presence.c==='number')used.add(p.presence.c);}catch(e){}
   return PALETTE.find(c=>!used.has(c))||pick(PALETTE);}
+// copy the With mates options into the yard's host panel, so the yard opens with them
+function copyHostOpts(){
+  for(const [m,y] of [['mcontent','ycontent'],['mbots','ybots'],['mdiff','ydiff'],['mlen','ylen'],['mrounds','yrounds'],['mff','yff'],['mfall','yfall']]){
+    const el=document.querySelector(`input[name=${y}][value="${radio(m)}"]`);if(el)el.checked=true;}
+  document.querySelectorAll('#mFeat input[data-f]').forEach(c=>{const y=document.querySelector(`#yFeat input[data-f=${c.dataset.f}]`);if(y)y.checked=c.checked;});
+  $('#ycNote').textContent=CONTENT_NOTE[radio('ycontent')]||'';$('#yardCard').classList.toggle('pg',radio('ycontent')==='adult');}
 async function hostYard(){
-  if(!mpReady())return;ac();$('#hostBtn').disabled=true;setMpNote('Opening your yard…');
+  if(!mpReady())return;ac();copyHostOpts();$('#hostBtn').disabled=true;setMpNote('Opening your yard…');
   const hm=radio('hmode')||'ffa';{const r=$('#'+({ffa:'ymFfa',teams:'ymTeams',heist:'ymHeist'})[hm]);if(r)r.checked=true;}
   gameMode=hm==='heist'?'heist':hm==='teams'?'teams':'ffa';friendlyFire=hm!=='heist'&&radio('yff')==='1';
   if(hm==='heist'){heistTeams=clamp(+radio('hheist')||2,2,4);$('#ymHeist').checked=true;const yr=$('#yh'+heistTeams);if(yr)yr.checked=true;}teamsManual=false;teamOf.clear();net.lastTm=null;fallDur=+radio('yfall')||20;matchLen=+radio('yrounds')||1;matchOver=true;matchNo=0;readFeatUI('#yFeat','ycontent');
@@ -2660,7 +2767,7 @@ function updateHud(dt){
   updateHeistBar();
   const warm=mode==='mp'&&(state==='warmup'||state==='results');
   clockEl.textContent=warm?'Warm-up':state==='countdown'?fmt(roundLen):fmt(roundLeft);clockEl.classList.toggle('warm',warm);clockEl.classList.toggle('low',state==='play'&&roundLeft<=10);
-  chargeEl.style.opacity=me&&me.charging?1:0;if(me){chargeEl.firstElementChild.style.width=(me.charge*100)+'%';chargeEl.classList.toggle('full',me.charge>=1);chargeEl.classList.toggle('over',(me.overT||0)>OVERHOLD*.35);}
+  chargeEl.style.opacity=me&&me.charging?1:0;if(me){chargeEl.firstElementChild.style.width=(me.charge*100)+'%';chargeEl.classList.toggle('full',me.charge>=1);chargeEl.classList.toggle('power',me.charge>=POWER_CHG&&me.charge<1);chargeEl.classList.toggle('over',(me.overT||0)>OVERHOLD*.35);}
   if(me&&!touchMode){const cc=$('#cdCatch');if(cc)cc.style.width=(100-me.catchCd/.9*100)+'%';
     const sp=$('#cdSprint');if(sp){const r=me.boostT>0?me.boostT/BOOST_TIME:1-me.boostCd/BOOST_CD;sp.style.width=(r*100)+'%';sp.style.background=me.boostT>0?'var(--teal)':me.boostCd>0?'var(--tomato)':'';}}
   updateSlots();
@@ -2817,12 +2924,12 @@ function resume(fromLock){if(state!=='paused')return;if(!fromLock&&!fallbackAim&
 function goMenu(){setFeatMask(31);matchOver=true;matchNo=0;matchWins.clear();if(document.pointerLockElement)document.exitPointerLock();resultsOpen=false;panelOpen=false;setupAttract();refreshOverlays();renderYards();}
 $('#play').addEventListener('click',startSolo);
 const CONTENT_NOTE={family:'Cartoon chucking for everyone. Safe for little ones.',adult:'Adds cheeky stuff, like the dildo chest. Not for little kids.'};
-function menuUpdate(){const pm=radio('pmode'),t=pm==='teams',h=pm==='heist',n=+radio('pbots');$('#pffWrap').hidden=!t;$('#pHeistWrap').hidden=!h;$('#hHeistWrap').hidden=radio('hmode')!=='heist';
+function menuUpdate(){const pm=radio('pmode'),t=pm==='teams',h=pm==='heist',n=+radio('pbots');$('#pffWrap').hidden=!t;$('#pHeistWrap').hidden=!h;$('#hHeistWrap').hidden=radio('hmode')!=='heist';$('#mffWrap').hidden=radio('hmode')!=='teams';$('#mcNote').textContent=CONTENT_NOTE[radio('mcontent')]||'';
   const pn=$('#pmNote');pn.hidden=!h;pn.textContent=h?'Each team guards a walled base full of teddies. Sneak into an enemy base, grab a teddy and run it back to yours to bank it. Most banked when the clock runs out wins.':'';
   $('#play').textContent=h?(n===0?'▶ Play Teddy Heist (no bots)':`▶ Play Teddy Heist vs ${n} bot${n>1?'s':''}`):t?'▶ Play: you + a bot vs 2 bots':n===0?'▶ Play with no bots':`▶ Play vs ${n} bot${n>1?'s':''}`;
   $('#pcNote').textContent=CONTENT_NOTE[radio('pcontent')]||'';$('#ycNote').textContent=CONTENT_NOTE[radio('ycontent')]||'';
-  document.querySelector('#menu .card').classList.toggle('pg',radio('pcontent')==='adult');}
-document.querySelectorAll('input[name=pmode],input[name=pbots],input[name=pcontent],input[name=hmode]').forEach(r=>r.addEventListener('change',menuUpdate));
+  document.querySelector('#menu .card').classList.toggle('pg',radio('pcontent')==='adult'||radio('mcontent')==='adult');}
+document.querySelectorAll('input[name=pmode],input[name=pbots],input[name=pcontent],input[name=hmode],input[name=mcontent]').forEach(r=>r.addEventListener('change',menuUpdate));
 (function tabs(){const bs=[...document.querySelectorAll('#menu .tabs button')],ps=[...document.querySelectorAll('#menu [data-panel]')];
   function show(n){bs.forEach(b=>{const on=b.dataset.tab===n;b.classList.toggle('on',on);b.setAttribute('aria-selected',on);});ps.forEach(p=>p.hidden=p.dataset.panel!==n);}
   bs.forEach(b=>b.addEventListener('click',()=>show(b.dataset.tab)));show('solo');menuUpdate();})();
