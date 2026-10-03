@@ -276,7 +276,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.15.0</span>
+      <span class="tag">Backyard Brawl · prototype 0.15.1</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -1231,12 +1231,16 @@ function buildHeistWall(cx,cz,w,d,color,h){h=h||HEIST_WALL_H;heistProps.push(mes
   col(cx,cz,w,d,h);heistColsSet.push(colliders[colliders.length-1]);}
 // true when (x,z) is at least r clear of every heist wall/block
 function heistClear(x,z,r){for(const c of heistColsSet)if(x>c.x0-r&&x<c.x1+r&&z>c.z0-r&&z<c.z1+r)return false;return true;}
-// the yard stops being a plain rectangle: each corner is cut off with a stepped block, skipping any step that would swallow existing furniture
-function buildHeistCorners(){const L=5.4,n=3,st=L/n;
-  for(const sx of [-1,1])for(const sz of [-1,1])for(let k=0;k<n;k++){
-    const w=L-k*st,cx=sx*(W-w/2),cz=sz*(D-k*st-st/2);
-    const hit=colliders.some(c=>!heistColsSet.includes(c)&&cx-w/2<c.x1&&cx+w/2>c.x0&&cz-st/2<c.z1&&cz+st/2>c.z0);
-    if(!hit)buildHeistWall(cx,cz,w,st,k%2?0x6d7178:0x80848b,2.5);}}
+// the Heist yard is an oval, not a rectangle: everything outside an ellipse is filled with thin stone steps (so the corners curve away),
+// plus a half-round bay pushed into the middle of each side. Axes are chosen so every base (2, 3 or 4 teams) sits inside with room to walk round it.
+const HEIST_ARENA={A:40,B:29,step:1,bay:{r:6,depth:3.6}};
+function buildHeistArena(){const {A,B,step,bay}=HEIST_ARENA;let n=0;
+  const put=(cx,cz,w,d)=>{buildHeistWall(cx,cz,w,d,(n++%2)?0x6d7178:0x80848b,2.6);};
+  for(let zc=-D+step/2;zc<D;zc+=step){
+    const e=Math.abs(zc)>=B?0:A*Math.sqrt(1-(zc/B)*(zc/B));            // oval edge at this z
+    const w=W-Math.min(W,e);if(w>.35){put(-W+w/2,zc,w,step);put(W-w/2,zc,w,step);}   // fill outside the oval, both sides
+    if(Math.abs(zc)<bay.r){const dep=bay.depth*Math.sqrt(1-(zc/bay.r)*(zc/bay.r));  // half-round bay in the middle of each side wall
+      if(dep>.5){put(-W+dep/2,zc,dep,step);put(W-dep/2,zc,dep,step);}}}}
 // each team spawns inside its own base rather than at random yard spots
 const HEIST_SPAWN_OFF=[[0,2.1],[0,-2.1],[2.1,0],[-2.1,0]];let heistSpawnN={};
 function heistSpawnFor(ch){if(gameMode!=='heist')return null;const t=teamOf.get(ch.id),b=t&&heistBases[t];if(!b)return null;
@@ -1259,7 +1263,7 @@ function buildHeistBases(n){clearHeistProps();heistTeams=clamp(n|0,2,4);
     heistProps.push(mesh(new THREE.CylinderGeometry(.13,.13,7.5,8),mat(0xf2f2f2),b.x,3.75,b.z));
     const fl=mesh(new THREE.PlaneGeometry(2.6,1.5),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}),b.x+1.3,6.6,b.z);fl.castShadow=false;heistProps.push(fl);
     heistProps.push(mesh(new THREE.SphereGeometry(.28,10,8),mat(0xffffff),b.x,7.6,b.z));});
-  buildHeistCorners();buildHeistCenterpiece();}
+  buildHeistArena();buildHeistCenterpiece();}
 // how many teddies sit in each base: 2 to start, plus 1 more for every couple of players sharing that team, capped at 4 so a big lobby never turns into clutter
 function heistTeddyCount(){return clamp(2+Math.floor((chars.size/heistTeams)/2),2,4);}
 const HEIST_TEDDY_OFFSETS=[[-1.3,-1.3],[1.3,-1.3],[-1.3,1.3],[1.3,1.3]];
