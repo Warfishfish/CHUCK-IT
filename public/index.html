@@ -120,6 +120,9 @@ td.score{font-weight:800;font-size:16px}
 #drunk .dk-lbl::before{content:'🍺 '}
 #drunk .dk-bar{width:120px;height:8px;border-radius:4px;background:rgba(255,255,255,.18);overflow:hidden}
 #drunk .dk-bar i{display:block;height:100%;width:0;background:#7bd148;transition:width .25s}
+#heistBar{position:absolute;left:50%;top:calc(max(14px,env(safe-area-inset-top,0px)) + 102px);transform:translateX(-50%);background:var(--hud);border-radius:999px;padding:5px 12px;display:flex;gap:11px;font-size:13px;font-weight:800;white-space:nowrap;color:#fff}
+#heistBar span{display:inline-flex;align-items:center;gap:5px}
+#heistBar i{width:10px;height:10px;border-radius:50%;display:inline-block}
 #alert{position:absolute;left:50%;top:calc(max(14px,env(safe-area-inset-top,0px)) + 98px);transform:translateX(-50%) scale(.9);max-width:min(620px,calc(100% - 32px));background:var(--tomato);color:#fff;border:3px solid var(--ink);border-radius:14px;box-shadow:4px 4px 0 var(--ink);padding:8px 14px;font:800 15px 'Figtree',sans-serif;text-align:center;letter-spacing:.02em;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none}
 #alert.on{opacity:1;transform:translateX(-50%) scale(1)}#alert.gloat{background:var(--ink)}#alert small{display:block;font-weight:600;font-size:12px;opacity:.9;letter-spacing:0}
 #barPrompt{position:absolute;left:50%;bottom:170px;transform:translateX(-50%);background:var(--hud);padding:9px 14px;border-radius:11px;font-size:15px;font-weight:700;opacity:0;transition:opacity .2s;white-space:nowrap}
@@ -238,6 +241,7 @@ body.touch #cds{display:none}
   <ol id="board" class="shadowed"></ol>
   <div id="clock" class="display">3:00</div>
   <div id="drunk" aria-label="Drunk meter"><span class="dk-lbl">Sober</span><span class="dk-bar"><i></i></span></div>
+  <div id="heistBar" class="shadowed" hidden></div>
   <div id="barPrompt"></div>
   <div id="alert" role="status" aria-live="polite"></div>
   <div id="roundTag" hidden></div>
@@ -272,7 +276,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.13.2</span>
+      <span class="tag">Backyard Brawl · prototype 0.14.0</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -317,10 +321,16 @@ body.touch #cds{display:none}
           <fieldset class="seg"><legend>👥 Game mode</legend><div class="opts">
             <input type="radio" name="pmode" id="pmFfa" value="ffa" checked><label for="pmFfa">Free for all</label>
             <input type="radio" name="pmode" id="pmTeams" value="teams"><label for="pmTeams">Teams (2 v 2)</label>
+            <input type="radio" name="pmode" id="pmHeist" value="heist"><label for="pmHeist">🧸 Teddy Heist</label>
           </div></fieldset>
           <fieldset class="seg" id="pffWrap" hidden><legend>💥 Friendly fire</legend><div class="opts">
             <input type="radio" name="pff" id="pffOff" value="0" checked><label for="pffOff">Off</label>
             <input type="radio" name="pff" id="pffOn" value="1"><label for="pffOn">On</label>
+          </div></fieldset>
+          <fieldset class="seg" id="pHeistWrap" hidden><legend>🧸 Heist teams</legend><div class="opts">
+            <input type="radio" name="pheist" id="ph2" value="2" checked><label for="ph2">2</label>
+            <input type="radio" name="pheist" id="ph3" value="3"><label for="ph3">3</label>
+            <input type="radio" name="pheist" id="ph4" value="4"><label for="ph4">4</label>
           </div></fieldset>
           <fieldset class="seg"><legend>🏡 What's in the yard</legend><div class="feat" id="pFeat">
             <label><input type="checkbox" data-f="bar" checked>🍺 Bar</label>
@@ -408,8 +418,14 @@ body.touch #cds{display:none}
       <fieldset class="seg"><legend>Game mode</legend><div class="opts">
         <input type="radio" name="ymode" id="ymFfa" value="ffa" checked><label for="ymFfa">Free for all</label>
         <input type="radio" name="ymode" id="ymTeams" value="teams"><label for="ymTeams">Teams</label>
+        <input type="radio" name="ymode" id="ymHeist" value="heist"><label for="ymHeist">🧸 Teddy Heist</label>
       </div></fieldset>
       <div class="team-opts" id="teamOpts" hidden>
+        <fieldset class="seg" id="yHeistCountWrap" hidden><legend>Heist teams</legend><div class="opts">
+          <input type="radio" name="yheist" id="yh2" value="2" checked><label for="yh2">2</label>
+          <input type="radio" name="yheist" id="yh3" value="3"><label for="yh3">3</label>
+          <input type="radio" name="yheist" id="yh4" value="4"><label for="yh4">4</label>
+        </div></fieldset>
         <fieldset class="seg"><legend>Friendly fire</legend><div class="opts">
           <input type="radio" name="yff" id="yffOff" value="0" checked><label for="yffOff">Off</label>
           <input type="radio" name="yff" id="yffOn" value="1"><label for="yffOn">On</label>
@@ -901,7 +917,12 @@ const MAKERS={
     mesh(new THREE.SphereGeometry(.1,12,10),mat(0xf2c9a0),0,.07,0,g);
     const beard=mesh(new THREE.ConeGeometry(.11,.2,10),mat(0xffffff),0,-.02,.05,g);beard.rotation.x=Math.PI;
     mesh(new THREE.SphereGeometry(.035,8,6),mat(0xe8847a),0,.07,.1,g);
-    mesh(new THREE.ConeGeometry(.12,.3,12),mat(0xd63a2f),0,.28,0,g);return g;}
+    mesh(new THREE.ConeGeometry(.12,.3,12),mat(0xd63a2f),0,.28,0,g);return g;},
+  // not part of the regular gnome: only ever attached to the rare Bum-Out Gnome, round the back where you have to go looking for it
+  bumCrack(){const g=new THREE.Group(),dk=mat(0x1c3f73),ck=mat(0x6c93c9);
+    mesh(new THREE.BoxGeometry(.016,.15,.01),dk,0,-.12,-.168,g);
+    [-1,1].forEach(sd=>mesh(new THREE.SphereGeometry(.055,8,6),ck,sd*.045,-.12,-.145,g).scale.set(1,1.3,.6));
+    return g;}
 };
 MAKERS.snag=MAKERS.steak;
 (function buildChest(){const g=new THREE.Group();g.position.set(CHEST.x,0,CHEST.z);g.rotation.y=.5;scene.add(g);
@@ -1002,7 +1023,7 @@ function fallAlert(ch){if(mode==='menu'||!me||ch===me)return;const help=canHelp(
   const line=pick(help?FALL_HELP:FALL_GLOAT).replace('{N}',esc(ch.name.toUpperCase()));
   showAlert(line+`<small>${d}m away${help?` · hold R next to them (+${HELP_PTS})`:''}</small>`,help?'':'gloat',5);SFX.alarm();}
 /* ---- smoko: sit down, nobody can touch you, but you have to drink ---- */
-const SMOKO={x:-24,z:-3,maxT:20,sip:2.2};let smokoN=0,smokoChairs=[],smokoGroup=null,smokoPad=null;
+const SMOKO={x:-24,z:-3,maxT:20,sip:4};let smokoN=0,smokoChairs=[],smokoGroup=null,smokoPad=null; // sip rate nearly doubled: smoko is meant to sneak up on you
 function smokoRing(n){return 1.9+n*.2;}
 function smokoZoneR(){return smokoRing(Math.max(2,smokoN))+1.3;}
 function seatPos(i,n){const R=smokoRing(n),a=i/n*Math.PI*2+.4;return [SMOKO.x+Math.cos(a)*R,SMOKO.z+Math.sin(a)*R];}
@@ -1148,7 +1169,11 @@ let stats={},hostRows=[],leaderId=null,scoreDirty=true,resultsRows=null;
 /* ---- matches: best of N rounds. Keys are 'r'/'b' for teams, 'p:<id>' for players ---- */
 let matchLen=1,matchNo=0,matchOver=true,roundWinner=null;const matchWins=new Map();
 function matchNeed(){return Math.floor(matchLen/2)+1;}
-function roundWinnerKey(rows){rows=(rows||[]).slice().sort((a,b)=>b[3]-a[3]);if(!rows.length)return null;
+function roundWinnerKey(rows){
+  if(gameMode==='heist'){const keys=heistKeysArr();let best=null,bv=-1,tie=false;
+    for(const k of keys){const v=heistBanked[k]||0;if(v>bv){bv=v;best=k;tie=false;}else if(v===bv)tie=true;}
+    return(bv<=0||tie)?null:best;}
+  rows=(rows||[]).slice().sort((a,b)=>b[3]-a[3]);if(!rows.length)return null;
   if(teamsOn()){const tot={r:0,b:0};let wc=null;rows.forEach(r=>{const t=teamOf.get(r[0]);if(t==='w')wc=r;else if(t)tot[t]+=r[3];});
     if(wc&&wc[3]>Math.max(tot.r,tot.b))return 'p:'+wc[0];return tot.r===tot.b?null:tot.r>tot.b?'r':'b';}
   if(rows[1]&&rows[1][3]===rows[0][3])return null;return 'p:'+rows[0][0];}
@@ -1160,8 +1185,8 @@ function matchLeader(){let best=null,bv=-1,tie=false;for(const [k,v] of matchWin
 function matchStandings(){return [...matchWins].sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${esc(keyName(k,'You'))} ${v}`).join(' · ')||'No rounds won yet';}
 /* ---- teams ---- */
 let gameMode='ffa',friendlyFire=false,teamsManual=false,fallDur=20,touchHold=false;const teamOf=new Map();
-const TEAMS={r:{name:'Red',color:0xe8443a,css:'#e8443a'},b:{name:'Blue',color:0x2f7fe0,css:'#2f7fe0'},w:{name:'Wildcard',color:0xf2c230,css:'#e0a800'}};
-function teamsOn(){return (mode==='mp'||mode==='solo')&&gameMode==='teams';}
+const TEAMS={r:{name:'Red',color:0xe8443a,css:'#e8443a'},b:{name:'Blue',color:0x2f7fe0,css:'#2f7fe0'},g:{name:'Green',color:0x2e9e4f,css:'#2e9e4f'},y:{name:'Yellow',color:0xf2b705,css:'#f2b705'},w:{name:'Wildcard',color:0xf2c230,css:'#e0a800'}};
+function teamsOn(){return (mode==='mp'||mode==='solo')&&(gameMode==='teams'||gameMode==='heist');}
 function teamOfId(id){return teamsOn()?teamOf.get(id)||null:null;}
 function sameTeam(a,b){if(!teamsOn()||!a||!b||a===b)return false;const ta=teamOf.get(a);return !!ta&&ta!=='w'&&ta===teamOf.get(b);}
 // host: give everyone a team. Even numbers split Red/Blue; an odd one out becomes the Wildcard.
@@ -1176,6 +1201,52 @@ function balanceTeams(reshuffle,assignOnly){
       else{const big=count('r')>=count('b')?'r':'b';const pickId=[...teamOf].filter(([,v])=>v===big).map(([k])=>k).pop();if(pickId)teamOf.set(pickId,'w');}}}
   for(const id of order)teamOf.set(id,count('r')<=count('b')?'r':'b');
   if(JSON.stringify([...teamOf])!==before)scoreDirty=true;}
+/* ---- Teddy Heist: steal the other team(s)' teddies out of their walled base, bank them in yours ---- */
+const HEIST_TEAM_KEYS=['r','b','g','y'];
+let heistTeams=2,heistBanked={},heistBases={},heistProps=[],heistColsSet=[];
+const HEIST_HALF=3,HEIST_WALL_H=1.7,HEIST_BASE_R=4.3,HEIST_BANK_PTS=150;
+const HEIST_LAYOUT={
+  2:[{x:-20,z:0,open:'xPos'},{x:20,z:0,open:'xNeg'}],
+  3:[{x:-21,z:-10,open:'xPos'},{x:21,z:-10,open:'xNeg'},{x:0,z:16,open:'zNeg'}],
+  4:[{x:-21,z:-10,open:'xPos'},{x:21,z:-10,open:'xNeg'},{x:-20,z:18,open:'xPos'},{x:21,z:18,open:'xNeg'}]
+};
+function heistKeysArr(){return HEIST_TEAM_KEYS.slice(0,heistTeams);}
+function clearHeistProps(){for(const o of heistProps)if(o.parent)o.parent.remove(o);heistProps.length=0;
+  for(const c of heistColsSet){const i=colliders.indexOf(c);if(i>=0)colliders.splice(i,1);}heistColsSet.length=0;heistBases={};heistBanked={};}
+function buildHeistWall(cx,cz,w,d,color){heistProps.push(mesh(new THREE.BoxGeometry(w,HEIST_WALL_H,d),mat(color),cx,HEIST_WALL_H/2,cz));
+  col(cx,cz,w,d,HEIST_WALL_H);heistColsSet.push(colliders[colliders.length-1]);}
+function buildHeistCenterpiece(){const c=0x8a5a36; // a crate cross dead in the middle of the yard, so no base-to-base run is ever a straight line
+  buildHeistWall(0,0,4.4,1.3,c);buildHeistWall(0,0,1.3,4.4,c);
+  buildHeistWall(4.8,2.8,1.6,1.6,0x9a6a40);buildHeistWall(-4.6,-3,1.6,1.6,0x9a6a40);}
+function buildHeistBases(n){clearHeistProps();heistTeams=clamp(n|0,2,4);
+  const keys=heistKeysArr(),layout=HEIST_LAYOUT[heistTeams]||HEIST_LAYOUT[2],H=HEIST_HALF,th=.35;
+  layout.forEach((b,i)=>{const key=keys[i];if(!key)return;const color=TEAMS[key].color;
+    heistBanked[key]=0;heistBases[key]={x:b.x,z:b.z};
+    if(b.open!=='zNeg')buildHeistWall(b.x,b.z-H,2*H,th,color);
+    if(b.open!=='zPos')buildHeistWall(b.x,b.z+H,2*H,th,color);
+    if(b.open!=='xNeg')buildHeistWall(b.x-H,b.z,th,2*H,color);
+    if(b.open!=='xPos')buildHeistWall(b.x+H,b.z,th,2*H,color);
+    heistProps.push(mesh(new THREE.CylinderGeometry(.18,.18,2.4,10),mat(color),b.x,1.2,b.z));
+    heistProps.push(mesh(new THREE.ConeGeometry(.3,.5,6),mat(0xffffff),b.x,2.6,b.z));});
+  buildHeistCenterpiece();}
+// how many teddies sit in each base: 2 to start, plus 1 more for every couple of players sharing that team, capped at 4 so a big lobby never turns into clutter
+function heistTeddyCount(){return clamp(2+Math.floor((chars.size/heistTeams)/2),2,4);}
+const HEIST_TEDDY_OFFSETS=[[-1.3,-1.3],[1.3,-1.3],[-1.3,1.3],[1.3,1.3]];
+function attachHeistFlag(it,key){const c=(TEAMS[key]||TEAMS.r).color,g=new THREE.Group();
+  mesh(new THREE.CylinderGeometry(.015,.015,.32,6),mat(0x3b2a1a),0,.16,0,g);
+  const flag=mesh(new THREE.ConeGeometry(.09,.14,4),mat(c),.05,.28,0,g);flag.rotation.z=Math.PI/2;
+  g.position.y=.22;it.mesh.add(g);it.heistFlag=g;}
+function heistSpawnTeddies(){const n=heistTeddyCount();
+  for(const key of heistKeysArr()){const base=heistBases[key];if(!base)continue;
+    for(let i=0;i<n;i++){const off=HEIST_TEDDY_OFFSETS[i]||[rand(-1.4,1.4),rand(-1.4,1.4)];
+      const it=spawnItem('teddy',base.x+off[0],base.z+off[1],true);it.heistTeam=key;attachHeistFlag(it,key);}}}
+// host: spread anyone not yet on a heist team across the fewest-populated one; reshuffle=true wipes everyone and redeals
+function assignHeistTeams(reshuffle){const keys=heistKeysArr();
+  if(reshuffle||[...teamOf.values()].some(v=>!keys.includes(v)))teamOf.clear();
+  const ids=[...chars.values()].map(c=>c.id).filter(id=>!teamOf.has(id));if(reshuffle)ids.sort(()=>Math.random()-.5);
+  const count=k=>[...teamOf.values()].filter(v=>v===k).length;
+  for(const id of ids){let best=keys[0],bv=count(best);for(const k of keys){const v=count(k);if(v<bv){bv=v;best=k;}}teamOf.set(id,best);}
+  scoreDirty=true;}
 let spawnT=0,hintStage=0,panelOpen=false,resultsOpen=false;
 try{myName=cleanName(localStorage.getItem('chuckit.name')||'');}catch(e){}
 if(myName==='Mate')myName='Mate '+Math.floor(rand(10,99));
@@ -1321,7 +1392,7 @@ function authSlapNpc(attId,it){const a=chars.get(attId);if(!FEAT.bbq||!a||!it||i
   const o=1+Math.floor(Math.random()*3),scoring=state==='play';let pts=0;if(scoring&&stats[attId]){pts=NPC_SLAP_PTS[o-1];stats[attId].score+=pts;scoreDirty=true;}
   if(o===1){NPC.state='ko';NPC.stateT=8;NPC.target=null;NPC.anger.clear();
     if(FEAT.adult&&bumOutLeft>0&&Math.random()<.4){bumOutLeft--;const g=spawnItem('gnome',NPC.pos.x+rand(-1,1),NPC.pos.z+rand(-1,1),true);g.bumOut=true;g.vel.set(rand(-2,2),rand(4,6),rand(-2,2));
-      g.mesh.add(new THREE.PointLight(0xff5fa8,1.6,2.4));fx('bumout',r2(g.pos.x),r2(g.pos.z));}}
+      addBumOutCrack(g.mesh);fx('bumout',r2(g.pos.x),r2(g.pos.z));}}
   else if(o===2){NPC.state='chase';NPC.target=attId;NPC.stateT=chaseDur();NPC.berserk=true;NPC.swingCd=1.2;NPC.angerLevel=Math.min(ANGER_MAX,NPC.angerLevel+1);} // a head start to leg it
   else{for(let k=0;k<5;k++){const m=spawnItem(Math.random()<.5?'steak':'fish',-6,-18,false);const an=rand(-.3,Math.PI+.3);m.pos.set(-6+rand(-.3,.3),1.4,-18);m.vel.set(Math.cos(an)*rand(3,7),rand(5,8),Math.sin(an)*rand(3,7)+2);m.state='flying';m.live=false;}
     NPC.state='angry';NPC.target=attId;NPC.stateT=3.5;NPC.angerLevel=Math.min(ANGER_MAX,NPC.angerLevel+1);}
@@ -1405,12 +1476,13 @@ function makeItem(id,type,variant){
   const dv=type==='dildo'?(variant||'dildo'):null,def=ITEM_DEFS[type],m=type==='dildo'?MAKERS.dildo(dv):MAKERS[type](id);scene.add(m);
   const ring=new THREE.Mesh(ringGeo,new THREE.MeshBasicMaterial({color:0xffd23f,transparent:true,opacity:.75,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.visible=false;scene.add(ring);
   const it={id,type,def,variant:dv,mesh:m,ring,pos:new V3(),vel:new V3(),renderOff:new V3(),state:'ground',live:false,holder:null,thrower:null,flyT:0,restT:0,groundY:0,
-    ignore:new Set(),ignoreMe:false,pickT:0,reqT:-9,pendingThrow:false,pendT:0,ghost:null,claimedBy:null,
+    ignore:new Set(),ignoreMe:false,pickT:0,reqT:-9,pendingThrow:false,pendT:0,ghost:null,claimedBy:null,heistTeam:null,
     spinAxis:new V3(rand(-1,1),rand(-1,1),rand(-1,1)).normalize()};
   items.set(id,it);return it;
 }
 function spawnItem(type,x,z,drop){const it=makeItem(nextItemId++,type);it.pos.set(x,drop?rand(7,10):it.def.r+.02,z);it.state='flying';it.live=false;return it;}
 function removeItem(it){if(it.mesh.parent)it.mesh.parent.remove(it.mesh);scene.remove(it.ring);it.ring.material.dispose();it.state='gone';items.delete(it.id);if(it.ghost)removeGhost(it.ghost);}
+function addBumOutCrack(gnomeMesh){gnomeMesh.add(MAKERS.bumCrack());}
 function orientRest(it){const s=(it.id*9301+49297)%233280/233280;it.mesh.rotation.set(0,s*Math.PI*2,(it.type==='stubby'||it.type==='dildo'||it.type==='noodle')?Math.PI/2:0);if(it.type==='fish')it.mesh.rotation.x=Math.PI/2;}
 function restItem(it,h,c){
   if(h>1.3&&c){const cx=(c.x0+c.x1)/2,cz=(c.z0+c.z1)/2;const dx=it.pos.x-cx,dz=it.pos.z-cz,l=Math.hypot(dx,dz)||1;it.vel.set(dx/l*4,2.5,dz/l*4);return;}
@@ -1419,7 +1491,19 @@ function restItem(it,h,c){
 }
 /* authority-only item actions */
 function authGive(id,it){it.state='held';it.holder=id;it.pickT=elapsed;it.thrower=null;it.live=false;it.claimedBy=null;it.vel.set(0,0,0);const ch=chars.get(id);if(ch&&ch.kind!=='proxy')ch.selId=it.id;}
-function authPickup(ch,it){authGive(ch.id,it);if(ch.kind==='me'){SFX.pickup();if(hintStage===0)hintStage=1;}if(ch.ai)ch.ai.claim=null;}
+function authPickup(ch,it){
+  if(gameMode==='heist'&&it.heistTeam!=null&&teamOf.get(ch.id)===it.heistTeam){heistReturnTeddy(it);return;}
+  authGive(ch.id,it);if(ch.kind==='me'){SFX.pickup();if(hintStage===0)hintStage=1;}if(ch.ai)ch.ai.claim=null;}
+function heistReturnTeddy(it){const base=heistBases[it.heistTeam];if(!base)return;
+  it.holder=null;it.state='flying';it.live=false;it.thrower=null;it.flyT=0;
+  it.pos.set(base.x+rand(-1.2,1.2),2.2,base.z+rand(-1.2,1.2));it.vel.set(rand(-1,1),2.5,rand(-1,1));
+  fx('heistreturn',it.heistTeam);}
+function authHeistBank(id,it){const ch=chars.get(id);if(!ch||!it||it.holder!==id||it.heistTeam==null)return;
+  const myT=teamOf.get(id);if(!myT||it.heistTeam===myT)return;
+  const base=heistBases[myT];if(!base||Math.hypot(ch.pos.x-base.x,ch.pos.z-base.z)>=HEIST_BASE_R)return;
+  removeItem(it);heistBanked[myT]=(heistBanked[myT]||0)+1;
+  const scoring=state==='play';let pts=0;if(scoring&&stats[id]){pts=HEIST_BANK_PTS;stats[id].score+=pts;scoreDirty=true;}
+  fx('heistbank',id,myT,heistBanked[myT],pts);}
 function authDrop(id,it){const ch=chars.get(id);const p=ch?ch.pos:it.pos;it.state='flying';it.holder=null;it.thrower=null;it.live=false;it.flyT=0;
   it.pos.set(p.x+rand(-.5,.5),(ch?ch.pos.y:0)+.8,p.z+rand(-.5,.5));it.vel.set(rand(-1,1),2,rand(-1,1));}
 function authThrow(id,it,pos,vel,chg){
@@ -1508,6 +1592,7 @@ function applyKnock(ch,def,kdir,anim,downOverride,knockMul){
   if(def.knockdown&&!ch.slapA){ch.slapA=anim||2;ch.slapT=0;}
   if(def.knockdown){const dt2=downOverride!=null?downOverride:DOWN_TIME;ch.downT=dt2;ch.stun=Math.max(ch.stun,dt2);ch.drinkT=0;ch.drinkType=null;if(ch.kind==='me')showHint('<b>Knocked flat!</b> Back on your feet in a few seconds.',dt2);}
   if(ch.kind==='me'){vignette=1;shake=Math.max(shake,.12+def.knock*.012);camRollV+=(Math.random()<.5?-1:1)*def.knock*.08;SFX.hurt();}
+  if(gameMode==='heist')for(const it of heldOf(ch.id))if(it.heistTeam!=null){if(isAuth)authDrop(ch.id,it);else if(ch.kind==='me')sendEv('dp',it.id);}
 }
 
 /* fx: authority creates a shared moment; everyone plays it */
@@ -1592,6 +1677,12 @@ function playFx(a){
     feed(`${nm(id)} scoffed a dodgy snag\u2026`);}
   }else if(k==='bumout'){const p=new V3(num(a[1],0),.3,num(a[2],0));SFX.boing(p);SFX.pickup(p);burst(p,[0xff5fa8,0xffd23f,0xffffff],28,6,.09);
     floater('\ud83c\udf51 Dazza dropped something shiny\u2026',p.clone().setY(1.6),'big');feed('A glowing gnome rolled out from behind the BBQ\u2026');
+  }else if(k==='heistbank'){const id=a[1],key=a[2],count=a[3]|0,pts=a[4]|0;heistBanked[key]=count;
+    const ch=chars.get(id);const p=ch?ch.pos.clone().setY(ch.pos.y+2.6):new V3();const tcol=(TEAMS[key]||TEAMS.r).color;
+    SFX.pickup();burst(p,[tcol,0xffffff,0xffd23f],22,5,.08);
+    floater('🧸 BANKED!'+(pts?'  +'+pts:''),p,'big');
+    feed(`${nm(id)} banked a ${(TEAMS[key]||{name:''}).name} teddy! (${count})`);
+  }else if(k==='heistreturn'){const key=a[1];feed(`A stray ${(TEAMS[key]||{name:''}).name} teddy scurried back to base`);
   }else if(k==='npcsay'){npcBubble(String(a[1]||'').slice(0,40));SFX.babble(NPC.pos);
   }else if(k==='npcswing'){NPC.swingT=.35;SFX.whoosh(NPC.pos);
   }else if(k==='sw'){const c=chars.get(a[1]);if(c&&c.kind!=='me'){c.swingT=.28;SFX.whoosh(c.pos);}
@@ -1817,6 +1908,10 @@ function updateChar(ch,dt){
     if(Math.hypot(it.pos.x-ch.pos.x,it.pos.z-ch.pos.z)<1.1&&Math.abs(it.pos.y-(ch.pos.y+.4))<1.4){
       if(isAuth){authPickup(ch,it);n++;}else if(ch.kind==='me'&&elapsed-it.reqT>.6){it.reqT=elapsed;sendEv('pk',it.id);n++;}
       if(n>=2)break;}}}
+  if(gameMode==='heist'&&ch.stun<=0&&ch.downT<=0){const myT=teamOf.get(ch.id),base=myT&&heistBases[myT];
+    if(base)for(const it of heldOf(ch.id)){
+      if(it.heistTeam!=null&&it.heistTeam!==myT&&Math.hypot(ch.pos.x-base.x,ch.pos.z-base.z)<HEIST_BASE_R){
+        if(isAuth)authHeistBank(ch.id,it);else if(ch.kind==='me'&&elapsed-it.reqT>.6){it.reqT=elapsed;sendEv('bk',it.id);}}}}
   const s=selItem(ch);if(ch.charging&&s)ch.charge=Math.min(1,ch.charge+dt/s.def.charge);
   if(ch.kind==='me'){if(ch.charging&&ch.charge>=1){ch.overT=(ch.overT||0)+dt;if(ch.overT>OVERHOLD)overholdDrop();}else ch.overT=0;}
 }
@@ -1994,10 +2089,10 @@ function newId(){const a='abcdefghjkmnpqrstuvwxyz23456789';let s='p';for(let i=0
 function sendEv(...a){if(!net.yard)return;net.out.push([++net.seq,...a]);if(net.out.length>14)net.out.shift();}
 function boardRows(){if(isAuth)return Object.entries(stats).map(([id,s])=>[id,s.name,s.color,s.score,s.hits,s.taken,s.catches,s.throws]);return hostRows;}
 function buildWorld(){
-  const it=[];for(const i of items.values()){const f=i.state==='flying';it.push([i.id,TYPES.indexOf(i.type),STATES.indexOf(i.state),r2(i.pos.x),r2(i.pos.y),r2(i.pos.z),f?r2(i.vel.x):0,f?r2(i.vel.y):0,f?r2(i.vel.z):0,i.holder||0,i.thrower||0,i.live?1:0,i.flight&&i.flight.active?i.flight.id:0,i.uses||0,i.variant?DILDO_VKEYS.indexOf(i.variant):0,i.bumOut?1:0]);}
+  const it=[];for(const i of items.values()){const f=i.state==='flying';it.push([i.id,TYPES.indexOf(i.type),STATES.indexOf(i.state),r2(i.pos.x),r2(i.pos.y),r2(i.pos.z),f?r2(i.vel.x):0,f?r2(i.vel.y):0,f?r2(i.vel.z):0,i.holder||0,i.thrower||0,i.live?1:0,i.flight&&i.flight.active?i.flight.id:0,i.uses||0,i.variant?DILDO_VKEYS.indexOf(i.variant):0,i.bumOut?1:0,i.heistTeam?HEIST_TEAM_KEYS.indexOf(i.heistTeam)+1:0]);}
   const b=[];for(const c of chars.values())if(c.kind==='bot')b.push([c.id,c.name,c.color,r2(c.pos.x),r2(c.pos.y),r2(c.pos.z),r2(c.face),c.stun>0?1:0,c.charging?r2(c.charge):0,(selItem(c)||{}).id||0,r2(c.vel.x),r2(c.vel.y),r2(c.vel.z),r1(c.downT),c.smokoSeat>=0?c.smokoSeat:-1,Math.round(c.drunk||0)]);
   const pd=[];for(const p of puddles.values())pd.push([p.id,r2(p.x),r2(p.z),r2(p.r),r1(p.life)]);
-  return{fe:featMask(),mt:[matchLen,matchNo,[...matchWins],roundWinner||0,matchOver?1:0],fd:fallDur,gm:gameMode==='teams'?1:0,ff:friendlyFire?1:0,tm:gameMode==='teams'?[...teamOf].filter(([id])=>chars.has(id)):0,cs:chestStock,cp:CHEST.spot,np:[r2(NPC.pos.x),r2(NPC.pos.z),r2(NPC.face),NPC_STATES.indexOf(NPC.state)],st:state,tl:r1(roundLeft),cd:r1(countdown),len:roundLen,it,b,sc:boardRows(),ld:leaderId||0,pd,res:(state==='results'&&resultsRows)?resultsRows:0};
+  return{fe:featMask(),mt:[matchLen,matchNo,[...matchWins],roundWinner||0,matchOver?1:0],fd:fallDur,gm:gameMode==='heist'?2:gameMode==='teams'?1:0,ht:gameMode==='heist'?heistTeams:0,hb:gameMode==='heist'?heistKeysArr().map(k=>heistBanked[k]||0):0,ff:friendlyFire?1:0,tm:(gameMode==='teams'||gameMode==='heist')?[...teamOf].filter(([id])=>chars.has(id)):0,cs:chestStock,cp:CHEST.spot,np:[r2(NPC.pos.x),r2(NPC.pos.z),r2(NPC.face),NPC_STATES.indexOf(NPC.state)],st:state,tl:r1(roundLeft),cd:r1(countdown),len:roundLen,it,b,sc:boardRows(),ld:leaderId||0,pd,res:(state==='results'&&resultsRows)?resultsRows:0};
 }
 function buildPresence(){
   const p={id:myId,n:myName,c:myColor,ev:net.out};
@@ -2047,7 +2142,8 @@ function handleEvent(fromId,e){
   const k=e[0];
   if(net.isHost){
     const ch=chars.get(fromId);if(!ch)return;const it=items.get(e[1]);
-    if(k==='pk'){if(it&&it.state==='ground'&&it.restT>.15&&!(it.blockId===fromId&&elapsed<it.blockT)&&heldOf(fromId).length<2&&Math.hypot(it.pos.x-ch.pos.x,it.pos.z-ch.pos.z)<3)authGive(fromId,it);}
+    if(k==='pk'){if(it&&it.state==='ground'&&it.restT>.15&&!(it.blockId===fromId&&elapsed<it.blockT)&&heldOf(fromId).length<2&&Math.hypot(it.pos.x-ch.pos.x,it.pos.z-ch.pos.z)<3)authPickup(ch,it);}
+    else if(k==='bk'){authHeistBank(fromId,it);}
     else if(k==='th'){if(!it||it.holder!==fromId)return;
       let p=new V3(num(e[2],ch.pos.x),num(e[3],ch.pos.y+1.4),num(e[4],ch.pos.z));if(p.distanceTo(ch.pos)>5)p=ch.pos.clone().setY(ch.pos.y+1.4);
       const v=new V3(num(e[5],0),num(e[6],0),num(e[7],0));const mx=it.def.speed*1.35;if(v.length()>mx)v.setLength(mx);
@@ -2078,7 +2174,8 @@ function applyWorld(w){
   const seen=new Set();
   if(Array.isArray(w.it))for(const a of w.it){if(!Array.isArray(a))continue;const id=a[0];const type=TYPES[a[1]];const s=STATES[a[2]];if(typeof id!=='number'||!type||!s)continue;
     seen.add(id);let it=items.get(id);if(!it){it=makeItem(id,type,type==='dildo'?(DILDO_VKEYS[a[14]|0]||'dildo'):null);it.state='?';
-      if(type==='gnome'&&a[15]){it.bumOut=true;it.mesh.add(new THREE.PointLight(0xff5fa8,1.6,2.4));}}
+      if(type==='gnome'&&a[15])addBumOutCrack(it.mesh);
+      if(a[16]){it.heistTeam=HEIST_TEAM_KEYS[a[16]-1]||null;if(it.heistTeam)attachHeistFlag(it,it.heistTeam);}}
     const prev=it.state,prevHolder=it.holder;const np=new V3(num(a[3],0),num(a[4],0),num(a[5],0));
     if(s==='flying'){if(prev==='flying')it.renderOff.add(it.pos).sub(np);else{it.renderOff.set(0,0,0);it.flyT=0;}it.pos.copy(np);it.vel.set(num(a[6],0),num(a[7],0),num(a[8],0));}
     else{it.pos.copy(np);it.vel.set(0,0,0);it.renderOff.set(0,0,0);}
@@ -2105,8 +2202,15 @@ function applyWorld(w){
     roundWinner=typeof w.mt[3]==='string'?w.mt[3]:null;matchOver=!!w.mt[4];}
   chestStock=clamp(num(w.cs,chestStock)|0,0,CHEST.max);if(typeof w.cp==='number'&&w.cp!==CHEST.spot)moveChest(w.cp);
   if(Array.isArray(w.np)){NPC.netP.set(clamp(num(w.np[0],-6),-W,W),0,clamp(num(w.np[1],-19.3),-D,D));NPC.netFace=num(w.np[2],0);NPC.state=NPC_STATES[w.np[3]]||'cook';if(first)NPC.pos.copy(NPC.netP);}
-  {const gm=w.gm?'teams':'ffa',ff=!!w.ff,tj=JSON.stringify(w.tm||0);if(gm!==gameMode||ff!==friendlyFire||tj!==net.lastTm){gameMode=gm;friendlyFire=ff;net.lastTm=tj;teamOf.clear();
-    if(Array.isArray(w.tm))for(const e of w.tm)if(Array.isArray(e)&&typeof e[0]==='string'&&TEAMS[e[1]])teamOf.set(e[0],e[1]);scoreDirty=true;renderYardPanel();}}
+  {const gmN=num(w.gm,0)|0,gm=gmN===2?'heist':gmN===1?'teams':'ffa',ff=!!w.ff,tj=JSON.stringify(w.tm||0),ht=clamp(num(w.ht,2)|0,2,4);
+    const heistChanged=gm==='heist'&&(gameMode!=='heist'||ht!==heistTeams);
+    if(gm!==gameMode||ff!==friendlyFire||tj!==net.lastTm||heistChanged){
+      const leavingHeist=gameMode==='heist'&&gm!=='heist';
+      gameMode=gm;friendlyFire=ff;net.lastTm=tj;teamOf.clear();
+      if(Array.isArray(w.tm))for(const e of w.tm)if(Array.isArray(e)&&typeof e[0]==='string'&&TEAMS[e[1]])teamOf.set(e[0],e[1]);
+      scoreDirty=true;renderYardPanel();
+      if(gm==='heist')buildHeistBases(ht);else if(leavingHeist)clearHeistProps();}
+    if(gameMode==='heist'&&Array.isArray(w.hb)){heistKeysArr().forEach((k,i)=>{heistBanked[k]=num(w.hb[i],0)|0;});}}
   // puddles
   if(Array.isArray(w.pd)){const ps=new Set();for(const a of w.pd){if(!Array.isArray(a))continue;const id=a[0];ps.add(id);let p=puddles.get(id);if(!p)p=makePuddle(id,num(a[1],0),num(a[2],0),num(a[3],1.2),num(a[4],10));p.life=num(a[4],p.life);}
     for(const p of [...puddles.values()])if(!ps.has(p.id))removePuddle(p);}
@@ -2308,7 +2412,7 @@ function updateSlots(){const h=me?heldOf(myId):[];const sel=me?selItem(me):null;
 function renderBoard(){const rows=boardRows().slice().sort((a,b)=>b[3]-a[3]);
   const row=r=>`<li class="${r[0]===myId?'me':''}"><span class="dot" style="background:${hex(r[2])}"></span><span>${r[0]===myId?'You':esc(r[1])}${leaderId===r[0]?'<span class="crown">♛</span>':''}</span><span>${r[3]}</span></li>`;
   if(!teamsOn()){boardEl.innerHTML=rows.map(row).join('');return;}
-  let html='';for(const t of ['r','b','w']){const grp=rows.filter(r=>teamOf.get(r[0])===t);if(!grp.length)continue;const tot=grp.reduce((n,r)=>n+r[3],0);
+  let html='';for(const t of Object.keys(TEAMS)){const grp=rows.filter(r=>teamOf.get(r[0])===t);if(!grp.length)continue;const tot=grp.reduce((n,r)=>n+r[3],0);
     html+=`<li class="team" style="--tc:${TEAMS[t].css}"><span></span><span>${TEAMS[t].name}${t==='w'?'':' team'}${teamOf.get(myId)===t?' (you)':''}</span><span>${t==='w'?'':tot}</span></li>`+grp.map(row).join('');}
   html+=rows.filter(r=>!teamOf.get(r[0])).map(row).join('');boardEl.innerHTML=html;}
 function computeLeader(){const s=boardRows().sort((a,b)=>b[3]-a[3]);const nl=(s[0]&&s[0][3]>0&&(!s[1]||s[0][3]>s[1][3]))?s[0][0]:null;if(nl!==leaderId){leaderId=nl;scoreDirty=true;}}
@@ -2317,8 +2421,13 @@ function showHint(html,t){hintEl.innerHTML=html;hintEl.style.opacity=1;hintHideT
 let bannerT=0;
 function banner(text,t){bannerEl.textContent=text;bannerEl.classList.add('on');bannerT=t||1;}
 function fmt(s){s=Math.max(0,Math.ceil(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+let heistBarSig='';
+function updateHeistBar(){const el=$('#heistBar');if(!el)return;if(gameMode!=='heist'){el.hidden=true;return;}
+  const keys=heistKeysArr(),sig=keys.map(k=>heistBanked[k]||0).join(',');if(sig===heistBarSig&&!el.hidden)return;heistBarSig=sig;
+  el.hidden=false;el.innerHTML=keys.map(k=>`<span><i style="background:${TEAMS[k].css}"></i>${heistBanked[k]||0}</span>`).join('');}
 function updateHud(dt){
   if(scoreDirty){renderBoard();scoreDirty=false;if(mode==='mp')renderYardPanel();}
+  updateHeistBar();
   const warm=mode==='mp'&&(state==='warmup'||state==='results');
   clockEl.textContent=warm?'Warm-up':state==='countdown'?fmt(roundLen):fmt(roundLeft);clockEl.classList.toggle('warm',warm);clockEl.classList.toggle('low',state==='play'&&roundLeft<=10);
   chargeEl.style.opacity=me&&me.charging?1:0;if(me){chargeEl.firstElementChild.style.width=(me.charge*100)+'%';chargeEl.classList.toggle('full',me.charge>=1);chargeEl.classList.toggle('over',(me.overT||0)>OVERHOLD*.35);}
@@ -2371,13 +2480,13 @@ function refreshOverlays(){
 function renderYardPanel(){
   if(mode!=='mp')return;
   const humans=[...chars.values()].filter(c=>!c.isBot),bots=[...chars.values()].filter(c=>c.isBot);
-  const busy=state==='play'||state==='countdown',tOn=gameMode==='teams';
-  if(net.isHost&&tOn)balanceTeams(false,busy||teamsManual);
+  const busy=state==='play'||state==='countdown',tOn=gameMode==='teams'||gameMode==='heist';
+  if(net.isHost&&tOn){if(gameMode==='heist')assignHeistTeams(false);else balanceTeams(false,busy||teamsManual);}
   const ul=$('#yardPlayers');ul.innerHTML='';
   const add=(c,tag)=>{const li=document.createElement('li');li.dataset.id=c.id;const tm=tOn?teamOf.get(c.id):null;if(tm)li.style.borderLeft='8px solid '+TEAMS[tm].css;if(tOn&&net.isHost&&!busy){li.classList.add('pickable');li.title='Click to move to another team';}const d=document.createElement('span');d.className='dot';d.style.background=hex(c.color);
     const n=document.createElement('span');n.className='nm';n.textContent=c.kind==='me'?c.name+' (you)':c.name;li.append(d,n);if(tag){const em=document.createElement('em');em.textContent=tag;li.append(em);}ul.appendChild(li);};
   const everyone=humans.sort((a,b)=>(a.id===net.hostId?-1:0)-(b.id===net.hostId?-1:0)).map(c=>[c,c.id===net.hostId?'host':'']).concat(bots.map(c=>[c,'bot']));
-  if(tOn){for(const t of ['r','b','w']){const grp=everyone.filter(([c])=>teamOf.get(c.id)===t);if(!grp.length)continue;const h=document.createElement('li');h.className='team-head';h.style.color=TEAMS[t].css;
+  if(tOn){for(const t of Object.keys(TEAMS)){const grp=everyone.filter(([c])=>teamOf.get(c.id)===t);if(!grp.length)continue;const h=document.createElement('li');h.className='team-head';h.style.color=TEAMS[t].css;
       h.textContent=t==='w'?'Wildcard · free for all':TEAMS[t].name+' team';ul.appendChild(h);grp.forEach(([c,tg])=>add(c,tg));}
     everyone.filter(([c])=>!teamOf.get(c.id)).forEach(([c,tg])=>add(c,tg));}
   else everyone.forEach(([c,tg])=>add(c,tg));
@@ -2390,7 +2499,8 @@ function renderYardPanel(){
   {const off=FEAT_KEYS.filter(k=>k!=='adult'&&!FEAT[k]&&(FEAT.adult||!ADULT_FEATS.includes(k))).map(k=>FEAT_NAMES[k]);if(!net.isHost){msg.textContent+=FEAT.adult?' This yard is PG15+.':' This yard is Family friendly.';if(off.length)msg.textContent+=` Switched off this game: ${off.join(', ')}.`;}}
   $('#yardCard').classList.toggle('pg',FEAT.adult);
   if(net.isHost)document.querySelectorAll('#yFeat input,input[name=ycontent]').forEach(i=>i.disabled=busy);
-  if(net.isHost){$('#teamOpts').hidden=!tOn;document.querySelectorAll('input[name=ymode],input[name=yff]').forEach(i=>i.disabled=busy);$('#shuffleTeams').disabled=busy;
+  if(net.isHost){$('#teamOpts').hidden=!tOn;$('#yHeistCountWrap').hidden=gameMode!=='heist';
+    document.querySelectorAll('input[name=ymode],input[name=yff],input[name=yheist]').forEach(i=>i.disabled=busy);$('#shuffleTeams').disabled=busy;
     if(tOn&&!busy)msg.textContent+=' Teams: click a player to move them, or shuffle.';}
   else if(tOn&&!busy)msg.textContent+=` Teams are on${friendlyFire?', with friendly fire':''}.`;
   const sb=$('#startMp');sb.disabled=state==='countdown'||state==='play';
@@ -2401,7 +2511,10 @@ function showResults(rows){
   rows=(rows||[]).slice().sort((a,b)=>b[3]-a[3]);const top=rows[0];if(!top)return;const tie=rows[1]&&rows[1][3]===top[3];const mine=rows.findIndex(r=>r[0]===myId);
   $('#winTitle').textContent=tie?'Dead heat!':top[0]===myId?'You own the yard!':top[1]+' wins';
   $('#winLine').textContent=tie?'Nobody takes the esky home this time.':top[0]===myId?`Top score of ${top[3]}. Your mates are going to want a rematch.`:(mine>=0?`${top[1]} finished on ${top[3]}. You finished #${mine+1} on ${rows[mine][3]}.`:`${top[1]} finished on ${top[3]}.`);
-  if(teamsOn()){const tot={r:0,b:0,w:0};rows.forEach(r=>{const t=teamOf.get(r[0]);if(t)tot[t]+=r[3];});const myT=teamOf.get(myId),win=tot.r===tot.b?null:tot.r>tot.b?'r':'b';
+  if(gameMode==='heist'){const keys=heistKeysArr(),win=roundWinnerKey(rows),myT=teamOf.get(myId);
+    $('#winTitle').textContent=!win?'Dead heat!':win===myT?'Your team wins!':(TEAMS[win]?TEAMS[win].name+' team wins':'Dead heat!');
+    $('#winLine').textContent=`Teddies banked — ${keys.map(k=>`${TEAMS[k].name} ${heistBanked[k]||0}`).join(', ')}.`;}
+  else if(teamsOn()){const tot={r:0,b:0,w:0};rows.forEach(r=>{const t=teamOf.get(r[0]);if(t)tot[t]+=r[3];});const myT=teamOf.get(myId),win=tot.r===tot.b?null:tot.r>tot.b?'r':'b';
     $('#winTitle').textContent=!win?'Dead heat!':win===myT?'Your team wins!':TEAMS[win].name+' team wins';
     const wc=rows.find(r=>teamOf.get(r[0])==='w');
     $('#winLine').textContent=`Red ${tot.r}, Blue ${tot.b}.`+(wc?` Wildcard ${wc[0]===myId?'you':wc[1]} finished on ${wc[3]}${wc[3]>Math.max(tot.r,tot.b)?', beating both teams on their own!':'.'}`:'');}
@@ -2416,7 +2529,7 @@ function showResults(rows){
   $('#resBody').innerHTML=rows.map((r,i)=>`<tr class="${r[0]===myId?'me':''}"><td>${i+1}</td><td><span class="dot" style="background:${hex(r[2])}"></span>${r[0]===myId?'You':esc(r[1])}${chip(r)}</td><td class="score">${r[3]}</td><td>${r[4]}</td><td>${r[5]}</td><td>${r[6]}</td><td>${r[7]?Math.round(r[4]/r[7]*100)+'%':'–'}</td></tr>`).join('');
 }
 function clearWorld(){
-  flights.clear();
+  flights.clear();clearHeistProps();
   for(const ch of [...chars.values()])removeChar(ch);for(const it of [...items.values()])removeItem(it);for(const g of [...ghosts])removeGhost(g);
   for(const p of [...puddles.values()])removePuddle(p);parts.forEach(p=>scene.remove(p.m));parts.length=0;
   floaters.forEach(f=>f.el.remove());floaters.length=0;feedEl.innerHTML='';me=null;stats={};hostRows=[];leaderId=null;scoreDirty=true;slotSig='';
@@ -2429,9 +2542,10 @@ function authStartRound(){
   flights.clear();
   for(const it of [...items.values()])removeItem(it);for(const p of [...puddles.values()])removePuddle(p);
   if(mode==='mp')syncBots();
-  if(mode==='mp'&&gameMode==='teams')balanceTeams(false,teamsManual);
+  if(mode==='mp'&&gameMode==='teams')balanceTeams(false,teamsManual);else if(mode==='mp'&&gameMode==='heist')assignHeistTeams(false);
   stats={};for(const ch of chars.values())ensureStats(ch);
   chestStock=2;chestT=CHEST.refill;
+  if(gameMode==='heist'){buildHeistBases(heistTeams);heistSpawnTeddies();}else clearHeistProps();
   {let i;do{i=Math.floor(Math.random()*CHEST_SPOTS.length);}while(CHEST_SPOTS.length>1&&i===CHEST.spot);moveChest(i);}
   npcReset();
   const sp=CHAR_SPAWNS.slice().sort(()=>Math.random()-.5);const assign=[];let i=0;
@@ -2455,7 +2569,7 @@ function startSolo(){
   ac();mode='solo';isAuth=true;myId='me';clearWorld();roundLen=+radio('len');difficulty=radio('diff');
   me=createChar('me',myName,PALETTE[0],'me',CHAR_SPAWNS[0]);myColor=PALETTE[0];
   const nb=radio('pbots')===''?3:clamp(+radio('pbots'),0,3);['Shazza','Davo','Kev'].slice(0,nb).forEach((n,i)=>createChar('b'+i,n,PALETTE[i+1],'bot',CHAR_SPAWNS[i+1]));
-  gameMode=radio('pmode')==='teams'?'teams':'ffa';friendlyFire=radio('pff')==='1';fallDur=20;readFeatUI('#pFeat','pcontent');matchLen=+radio('prounds')||1;matchOver=true;matchNo=0;teamsManual=false;teamOf.clear();if(gameMode==='teams')balanceTeams(true);
+  gameMode=radio('pmode')==='heist'?'heist':radio('pmode')==='teams'?'teams':'ffa';friendlyFire=radio('pff')==='1';fallDur=20;readFeatUI('#pFeat','pcontent');matchLen=+radio('prounds')||1;matchOver=true;matchNo=0;teamsManual=false;teamOf.clear();if(gameMode==='teams')balanceTeams(true);else if(gameMode==='heist'){heistTeams=clamp(+radio('pheist')||2,2,4);assignHeistTeams(true);}
   hintStage=hintStage>=3?3:0;hintHideT=0;hintEl.style.opacity=0;
   authStartRound();requestLock();canvas.focus();refreshOverlays();
 }
@@ -2467,11 +2581,11 @@ function resume(fromLock){if(state!=='paused')return;if(!fromLock&&!fallbackAim&
 function goMenu(){setFeatMask(31);matchOver=true;matchNo=0;matchWins.clear();if(document.pointerLockElement)document.exitPointerLock();resultsOpen=false;panelOpen=false;setupAttract();refreshOverlays();renderYards();}
 $('#play').addEventListener('click',startSolo);
 const CONTENT_NOTE={family:'Cartoon chucking for everyone. Safe for little ones.',adult:'Adds cheeky stuff, like the dildo chest. Not for little kids.'};
-function menuUpdate(){const t=radio('pmode')==='teams',n=+radio('pbots');$('#pffWrap').hidden=!t;
-  $('#play').textContent=t?'▶ Play: you + a bot vs 2 bots':n===0?'▶ Play with no bots':`▶ Play vs ${n} bot${n>1?'s':''}`;
+function menuUpdate(){const pm=radio('pmode'),t=pm==='teams',heist=pm==='heist',n=+radio('pbots');$('#pffWrap').hidden=!(t||heist);$('#pHeistWrap').hidden=!heist;
+  $('#play').textContent=heist?'▶ Play: Teddy Heist with bots':t?'▶ Play: you + a bot vs 2 bots':n===0?'▶ Play with no bots':`▶ Play vs ${n} bot${n>1?'s':''}`;
   $('#pcNote').textContent=CONTENT_NOTE[radio('pcontent')]||'';$('#ycNote').textContent=CONTENT_NOTE[radio('ycontent')]||'';
   document.querySelector('#menu .card').classList.toggle('pg',radio('pcontent')==='adult');}
-document.querySelectorAll('input[name=pmode],input[name=pbots],input[name=pcontent]').forEach(r=>r.addEventListener('change',menuUpdate));
+document.querySelectorAll('input[name=pmode],input[name=pbots],input[name=pcontent],input[name=pheist]').forEach(r=>r.addEventListener('change',menuUpdate));
 (function tabs(){const bs=[...document.querySelectorAll('#menu .tabs button')],ps=[...document.querySelectorAll('#menu [data-panel]')];
   function show(n){bs.forEach(b=>{const on=b.dataset.tab===n;b.classList.toggle('on',on);b.setAttribute('aria-selected',on);});ps.forEach(p=>p.hidden=p.dataset.panel!==n);}
   bs.forEach(b=>b.addEventListener('click',()=>show(b.dataset.tab)));show('solo');menuUpdate();})();
@@ -2484,15 +2598,22 @@ $('#resume').addEventListener('click',()=>resume(false));
 $('#startMp').addEventListener('click',()=>{if(!net.isHost)return;if(matchOver||matchNo===0)matchLen=+radio('yrounds')||1;roundLen=+radio('ylen');difficulty=radio('ydiff');botCount=+radio('ybots');authStartRound();panelOpen=false;refreshOverlays();requestLock();});
 document.querySelectorAll('input[name=ybots]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost&&state!=='play'&&state!=='countdown'){botCount=+radio('ybots');teamsManual=false;syncBots();renderYardPanel();}}));
 document.querySelectorAll('input[name=ydiff]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost)difficulty=radio('ydiff');}));
-document.querySelectorAll('input[name=ymode]').forEach(r=>r.addEventListener('change',()=>{if(!net.isHost||state==='play'||state==='countdown')return;gameMode=radio('ymode');teamsManual=false;if(gameMode==='teams')balanceTeams(false);scoreDirty=true;renderYardPanel();}));
+document.querySelectorAll('input[name=ymode]').forEach(r=>r.addEventListener('change',()=>{if(!net.isHost||state==='play'||state==='countdown')return;
+  gameMode=radio('ymode')==='heist'?'heist':radio('ymode')==='teams'?'teams':'ffa';teamsManual=false;
+  if(gameMode==='teams')balanceTeams(false);else if(gameMode==='heist'){heistTeams=clamp(+radio('yheist')||2,2,4);assignHeistTeams(false);}
+  scoreDirty=true;renderYardPanel();}));
+document.querySelectorAll('input[name=yheist]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost&&state!=='play'&&state!=='countdown'){heistTeams=clamp(+radio('yheist')||2,2,4);assignHeistTeams(false);renderYardPanel();}}));
 document.querySelectorAll('input[name=ycontent]').forEach(r=>r.addEventListener('change',()=>{$('#ycNote').textContent=CONTENT_NOTE[radio('ycontent')]||'';$('#yardCard').classList.toggle('pg',radio('ycontent')==='adult');if(net.isHost&&state!=='play'&&state!=='countdown'){readFeatUI('#yFeat','ycontent');renderYardPanel();}}));
 document.querySelectorAll('#yFeat input').forEach(c=>c.addEventListener('change',()=>{if(net.isHost&&state!=='play'&&state!=='countdown'){readFeatUI('#yFeat','ycontent');renderYardPanel();}}));
 document.querySelectorAll('input[name=yrounds]').forEach(r=>r.addEventListener('change',()=>renderYardPanel()));
 document.querySelectorAll('input[name=yfall]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost)fallDur=+radio('yfall');}));
 document.querySelectorAll('input[name=yff]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost)friendlyFire=radio('yff')==='1';renderYardPanel();}));
-$('#shuffleTeams').addEventListener('click',()=>{if(net.isHost&&state!=='play'&&state!=='countdown'){teamsManual=false;balanceTeams(true);renderYardPanel();}});
-$('#yardPlayers').addEventListener('click',e=>{const li=e.target.closest('li[data-id]');if(!li||!net.isHost||gameMode!=='teams'||state==='play'||state==='countdown')return;
-  const id=li.dataset.id,cur=teamOf.get(id)||'r';teamOf.set(id,cur==='r'?'b':cur==='b'?'w':'r');teamsManual=true;scoreDirty=true;renderYardPanel();});
+$('#shuffleTeams').addEventListener('click',()=>{if(net.isHost&&state!=='play'&&state!=='countdown'){teamsManual=false;if(gameMode==='heist')assignHeistTeams(true);else balanceTeams(true);renderYardPanel();}});
+$('#yardPlayers').addEventListener('click',e=>{const li=e.target.closest('li[data-id]');if(!li||!net.isHost||(gameMode!=='teams'&&gameMode!=='heist')||state==='play'||state==='countdown')return;
+  const id=li.dataset.id;
+  if(gameMode==='heist'){const keys=heistKeysArr(),idx=keys.indexOf(teamOf.get(id));teamOf.set(id,keys[(idx+1+keys.length)%keys.length]);}
+  else{const cur=teamOf.get(id)||'r';teamOf.set(id,cur==='r'?'b':cur==='b'?'w':'r');}
+  teamsManual=true;scoreDirty=true;renderYardPanel();});
 $('#backIn').addEventListener('click',()=>{panelOpen=false;refreshOverlays();requestLock();canvas.focus();});
 $('#leaveYard').addEventListener('click',()=>leaveYard(null));
 $('#copyCode').addEventListener('click',()=>{const code=net.code.toUpperCase();const b=$('#copyCode');

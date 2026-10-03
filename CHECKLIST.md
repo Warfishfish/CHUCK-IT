@@ -28,10 +28,10 @@
 **Yard life**
 - ✅ Dazza at the BBQ yells, chases and spatulas you, and gets angrier (faster, longer chases) the more you steal from him
 - ✅ Steak/fish can stun Dazza for a quick, reliable escape — the stun gets shorter and the chase after it gets longer each time. Getting angrier each time you pinch his meat: chases get longer and he moves faster. Steak or fish now reliably stuns him for a quick escape (shrinks each time), then he chases you after
-- ✅ Smoko chairs: sit, beer, safe
+- ✅ Smoko chairs: sit, beer, safe — but sitting there ramps your drunk meter noticeably faster than standing around drinking normally, so smoko isn't a totally free pass
 - ✅ Emotes and taunts, plus a cheeky extra set unlocked in PG15+
 - ✅ Dazza's dodgy snags (PG15+): sometimes turns up instead of a steak/fish — press **R** to eat it for a 4s speed burst, then a wobbly toilet-run stumble you have to ride out
-- ✅ Bum-Out Gnome (PG15+): a rare glowing pink gnome, max 3 a game, worth +15 on a hit — small chance to pop out when you KO Dazza with the dildo. Not announced outright; sharp-eyed mates will just see a "dropped something shiny…" line in the feed
+- ✅ Bum-Out Gnome (PG15+): looks like a totally normal gnome at a glance — no glow, no effect — but has a tiny buttcrack detail round the back if you look closely. Max 3 a game, worth +15 on a hit, small chance to pop out when you KO Dazza with the dildo. Not announced outright; sharp-eyed mates will just see a "dropped something shiny…" line in the feed
 - ✅ Cheeky Dazza lines in PG15+ (bigger, ruder bubble set); Family keeps the clean lines
 - ✅ Ruder bot/mate names in PG15+ ("Skidmark", "Mate 77" style) — rides on the same PG15+ switch rather than its own toggle, to keep the setup screen simple
 
@@ -43,6 +43,15 @@
 - ✅ Hits, streaks, leader bounty, drunk bonus, pool/tramp bonus
 - ✅ Teams (Red / Blue / Wildcard), friendly fire option
 - ✅ Best-of-3 matches; host picks what's in the yard
+
+**Teddy Heist (new team mode)**
+- ✅ 2 to 4 teams (host picks under "Game mode"), using Red/Blue + Green/Yellow for 3-4 teams. Each team gets a base in its own corner/side of the yard, ringed by a fence/crate wall with a gap or two to get in
+- ✅ Each base holds a bundle of that team's teddies — 2 per team, so a tight scrap rather than a mess to defend (2 teams = 4 teddies, 3 teams = 6, 4 teams = 8)
+- ✅ Run an enemy teddy back to your own base to bank it for points; stealing it back before it's banked just returns it. Getting slapped or knocked down while carrying drops the teddy on the spot — no auto-return, so there's a scramble
+- ✅ Walking up to your own team's teddy auto-returns it home instead of letting you "steal" your own
+- ✅ Win: whoever's banked the most teddies when the clock runs out
+- ✅ Teddy Heist gets its own map layout (not the free-for-all yard): chokepoints and a repositioned obstacle cluster in the middle so there's no straight sprint between bases, scaling cleanly from 2 bases (opposite sides) up to 4 (corners). Free-for-all and Teams keep today's map
+- ✅ Live tally bar during the round shows each team's banked count by colour
 
 ---
 
@@ -122,3 +131,10 @@
 - ⬜ Sabotage items
 - ⬜ Dazza crying or throwing hot snags
 - ⬜ Recruit Dazza (easter egg, idea only — not built): stun him with meat 3 times in one round *without* ever KO'ing/berserking/flipping him (i.e. only ever use the steak/fish quick-stun, never the dildo), then feed him a Dodgy Snag while he's stunned on the 3rd time. He joins your team for the rest of the round (follows you, slaps your rivals for free, no more escalating chase). No on-screen instructions — the clue is the "he's not as angry as he should be" dialogue line already in his escalating-anger chatter if he's never been dildo-KO'd. Needs: a small tracker for stuns-without-KO, feeding logic while NPC.state==='stunned', and a "recruited" NPC state. Confirm before building
+- ⬜ **Snags, smell & stun tune-up (idea only — not built, confirm before building):**
+  - Remove Dazza's Dodgy Snags entirely (drop the pickup, the R-to-eat prompt, the speed burst, and the toilet-run stumble).
+  - Fish slap smell cloud: slapping someone with a fish has a small, occasional chance (not every time) to leave a brief "whiff" effect on the victim — a visible stink-cloud puff and/or a short on-screen note, no gameplay effect beyond the joke.
+  - Bad fish variant: occasionally the fish is "a bit off" — same slap, but when *that* one triggers the smell cloud it's bigger/longer/stinkier than the normal version, as a rarer extra-funny version of the same effect.
+  - Change steak and fish stun duration from today's value down to a flat 2 seconds (currently shrinks over repeated Dazza stuns — decide whether that shrink-over-time behaviour stays or whether it's now just a flat 2s always).
+  - Stun stacking fix: if a player is already stunned and gets hit again, the new hit should not add to or restart their stun timer — getting hit while already stunned leaves the existing stun as-is rather than stacking/extending it.
+  - "Help me!" sign: when a player is down/fallen (not just stunned — actually on the ground), they automatically hold up a simple "HELP ME" sign so teammates can spot them from across the yard. Purely a visibility/attention cue, no new mechanic.
