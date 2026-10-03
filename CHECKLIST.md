@@ -52,7 +52,7 @@
 **Setup screen**
 - ✅ Tabs: Solo / With mates / How to play, with one big Play button
 - ✅ With mates has its own ⚙️ Game options (Cheeky mode, bots, bot skill, round length, rounds, friendly fire for Teams, what's in the yard including Naughty Corner and Drunk mode, stacked-it time). The yard opens with them, and the host can still change them in the yard before each round
-- ✅ 😜 **Cheeky mode** tick (off by default), in its own spot: on the main Solo screen under Game mode, at the top of With mates ⚙️ Game options, and at the top of the yard's host settings. Replaces the old Who's playing / PG15+ section. Unlocks the dildo chest, rude jokes and cheeky names and any future adult content, synced to everyone in the yard
+- ✅ 😜 **Cheeky mode** tick (off by default), in its own spot: on the main Solo screen under Game mode, at the top of With mates ⚙️ Game options, and at the top of the yard's host settings. Replaces the old Who's playing / PG15+ section. The How to play item list only shows the Purple Dildo when Cheeky mode is ticked Unlocks the dildo chest, rude jokes and cheeky names and any future adult content, synced to everyone in the yard
 
 **Scoring and matches**
 - ✅ Hits, streaks, leader bounty, drunk bonus, pool/tramp bonus
