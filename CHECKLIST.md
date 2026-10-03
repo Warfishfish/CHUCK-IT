@@ -58,41 +58,31 @@
 - ✅ Win: whoever's banked the most teddies when the clock runs out
 - ✅ Teddy Heist gets its own map layout (not the free-for-all yard): chokepoints and a repositioned obstacle cluster in the middle so there's no straight sprint between bases, scaling cleanly from 2 bases (opposite sides) up to 4 (corners). Free-for-all and Teams keep today's map
 - ✅ Live tally bar during the round shows each team's banked count by colour
+- ✅ Bots play the objective: they raid the nearest enemy teddy (going round to the doorway first), run it home, chase anyone carrying one of theirs, pick up loose teddies of their own, and the first bot on each team of 2+ guards the base
+- ⚠️ A thief can still throw a stolen teddy to a mate. Left in on purpose, so watch it in playtest (it might be fun, it might be exploitable)
+
+
+**Grab and carry**
+- ✅ Press **V** next to someone who's down, fallen or stunned to pick them up. **V** again puts them down, **hold V** chucks them (about 7 metres)
+- ✅ The carried player hangs over your shoulder, flopping and bouncing as you walk. You move slower, can't sprint, throw or slap, and they drop anything they were holding (including a stolen teddy)
+- ✅ The carried player **mashes Space** to wriggle free (about 8 presses). Nobody can be carried for more than 6 seconds, and a freed player can't be grabbed again for 8 seconds
+- ✅ You drop them if you get hit, knocked down, fall over or walk into the pool. Chucking someone into the pool or onto the tramp still scores the splash/orbit bonus
+- ✅ Bots can be carried (they wriggle free on their own). Bots don't grab anyone yet
+- ✅ Works online for host and guests; if someone leaves mid-carry the carry just ends
+
+**Naughty Corner**
+- ✅ Tick **😈 Smoko is the Naughty Corner** in the yard options (solo and hosted). The smoko pad turns red
+- ✅ Drop or chuck a carried player into the smoko area: **+100** (not for dumping a teammate, and the same victim isn't worth points again for 45s) and a "SENT TO THE NAUGHTY CORNER!" banner
+- ✅ The victim is plonked on a smoko chair for 5s and can't move, then is **Naughty** for 20s: the aim sways, wind-up is slower and throws are weaker (bots get a much worse aim). A dunce cap shows on them for everyone
+- ✅ Naughty players can't be picked up. Nobody can sit at smoko for a safe break in this mode, and bots stop going there
 
 ---
-
-## 1. Grab and carry your mates ⬜
-> Knock someone down, then pick them up and haul them somewhere embarrassing.
-
-- ⬜ You can only grab someone who's **down, fallen, stunned or passed out**, so every slap sets up a carry
-- ⬜ **V** near them: grab. **V** again: drop. **Hold V**: chuck them
-- ⬜ Carried player hangs over your shoulder, flopping and bouncing with every step
-- ⬜ Carrying slows you down, and you can't throw or sprint
-- ⬜ Carried player **mashes Space** to wriggle free (max carry ~6s)
-- ⬜ Chucked into the pool or onto the tramp scores the existing bonus
-- ⬜ You drop them if you get hit, slapped, fall over, or walk into the pool
-- ⬜ Can't be re-grabbed for ~8s after getting free
-- ⬜ Bots can be carried (they won't grab you yet)
-- ⬜ Works online the same for host and guests, with no one getting stuck if someone leaves mid-carry
-- ⬜ **Playtest:** is it funny? Is escaping too easy or too hard? Is 6s the right carry time?
-
-## 2. Naughty Corner ⬜
-> Dump a mate in the smoko area and they get punished.
-
-- ⬜ Host setting: smoko is **Safe Zone** (like now) or **Naughty Corner** (added to the existing "What's in the yard" menu)
-- ⬜ Drop or chuck a carried player into smoko: **+100** and a "SENT TO THE NAUGHTY CORNER!" banner
-- ⬜ Victim sits on the naughty chair for ~5s and can't move
-- ⬜ Then they're **Naughty** for ~20s: aim sways, wind-up is slower, and throws are weaker
-- ⬜ Everyone can see a dunce cap on the Naughty player
-- ⬜ No one can carry them while they're being punished
-- ⬜ In Naughty Corner mode, you can't sit at smoko for a safe break
-- ⬜ **Playtest:** is the punishment annoying enough to fear, but not so bad it's no fun?
 
 ## 3. Fair scoring ⬜
 > Stop people farming the same mate for points.
 
-- ⬜ No points for dumping or carrying your own teammate
-- ⬜ The same victim can't be worth Naughty Corner points again for ~45s
+- ✅ No points for dumping your own teammate in the Naughty Corner
+- ✅ The same victim can't be worth Naughty Corner points again for 45s
 - ⬜ The same attacker and victim pair has a longer cooldown (~90s)
 - ⬜ No points for slapping someone who's already down
 - ⬜ 3s protection at the start of each round
@@ -115,11 +105,11 @@
 ## 5. Polish ⬜
 > Juice once the gameplay feels right.
 
-- ⬜ Carry animations: grab lunge, wriggle, drop flop
+- ⬜ Carry animations: grab lunge, drop flop (the draped carry and wriggle shake are in)
 - ⬜ Naughty Corner: dunce cap wobble, sulking pose
 - ⬜ Sounds: grab grunt, "OI!", naughty jingle
 - ⬜ Marcus's custom sounds for Dazza and other effects
-- ⬜ Phone buttons for Grab and Ready
+- ⬜ Phone buttons for Grab/carry (V) and Ready
 
 ## 6. Engine and Steam ⬜ (later)
 > Finish the gameplay here in the browser first (quick to change), then decide on the engine.

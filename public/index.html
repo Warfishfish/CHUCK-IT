@@ -276,7 +276,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.16.1</span>
+      <span class="tag">Backyard Brawl · prototype 0.18.0</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -332,6 +332,7 @@ body.touch #cds{display:none}
             <label><input type="checkbox" data-f="bbq" checked>🔥 BBQ &amp; Dazza</label>
             <label class="adultonly"><input type="checkbox" data-f="chest" checked>🍆 Dildo chest</label>
             <label><input type="checkbox" data-f="smoko" checked>🪑 Smoko</label>
+            <label><input type="checkbox" data-f="naughty">😈 Smoko is the Naughty Corner</label>
             <label><input type="checkbox" data-f="falls" checked>🥴 Stacking it</label>
           </div></fieldset>
         </div>
@@ -387,6 +388,7 @@ body.touch #cds{display:none}
           <span><kbd>Shift</kbd></span><span>Speed boost</span>
           <span><kbd>Right click</kbd></span><span>Catch</span>
           <span><kbd>R</kbd></span><span>Drink, grab, smoko, help up (hold)</span>
+          <span><kbd>V</kbd></span><span>Pick up someone who's down, again to drop, hold to chuck. Dump them in the smoko area when it's the Naughty Corner</span>
           <span><kbd>Q</kbd></span><span>Swap item</span>
           <span><kbd>T</kbd> <kbd>G</kbd> <kbd>B</kbd></span><span>Taunt, dance, laugh</span>
           <span><kbd>Esc</kbd></span><span>Menu</span>
@@ -451,6 +453,7 @@ body.touch #cds{display:none}
           <label><input type="checkbox" data-f="bbq" checked>🔥 BBQ &amp; Dazza</label>
           <label class="adultonly"><input type="checkbox" data-f="chest" checked>🍆 Dildo chest</label>
           <label><input type="checkbox" data-f="smoko" checked>🪑 Smoko</label>
+          <label><input type="checkbox" data-f="naughty">😈 Smoko is the Naughty Corner</label>
           <label><input type="checkbox" data-f="falls" checked>🥴 Stacking it</label>
         </div></fieldset>
       <fieldset class="seg"><legend>Round length</legend><div class="opts">
@@ -594,15 +597,16 @@ const CHEST={x:-29,z:-21,max:3,refill:12,spot:0};
 const CHEST_SPOTS=[[-29,-21,.5],[29,-21.5,-.5],[27.5,21.8,2.6],[-29,21.8,-2.6],[-31,9,1.57],[31,-9,-1.57],[13,-21.8,0],[-13,22,3.14],[31,6,-1.57]];let chestStock=2,chestT=CHEST.refill,chestLid=null,chestToys=[];
 const colliders=[];
 /* ---- map features the host can switch on/off: everything built for a feature is tagged so it can be hidden, colliders included ---- */
-const FEAT={bar:true,bbq:true,chest:true,smoko:true,falls:true,adult:false},FEAT_KEYS=['bar','bbq','chest','smoko','falls','adult'];
+const FEAT={bar:true,bbq:true,chest:true,smoko:true,falls:true,adult:false,naughty:false},FEAT_KEYS=['bar','bbq','chest','smoko','falls','adult','naughty'];
 /* PG15+ (FEAT.adult) must be on for any adult content: dildo chest now, anything else later. Hook new adult features onto ADULT_FEATS. */
 const ADULT_FEATS=['chest'];
-const FEAT_NAMES={bar:'Bar',bbq:'BBQ & Dazza',chest:'Dildo chest',smoko:'Smoko',falls:'Stacking it',adult:'PG15+'};
+const FEAT_NAMES={bar:'Bar',bbq:'BBQ & Dazza',chest:'Dildo chest',smoko:'Smoko',falls:'Stacking it',adult:'PG15+',naughty:'Naughty Corner'};
 const featObjs={bar:[],bbq:[],chest:[],smoko:[]},featCols={bar:[],bbq:[],chest:[],smoko:[]},featAt={};
 function featMark(k,end){if(!end){featAt[k]=[scene.children.length,colliders.length];return;}const [o,c]=featAt[k];
   for(let i=o;i<scene.children.length;i++)featObjs[k].push(scene.children[i]);for(let i=c;i<colliders.length;i++)featCols[k].push(colliders[i]);}
 function featMask(){return FEAT_KEYS.reduce((m,k,i)=>m|(FEAT[k]?1<<i:0),0);}
-function applyFeatures(){for(const k in featObjs){const on=FEAT[k];for(const o of featObjs[k])o.visible=on;
+function applyFeatures(){try{smokoPad.material.color.set(FEAT.naughty&&FEAT.smoko?0xff8a8a:0xffffff);}catch(e){}
+  for(const k in featObjs){const on=FEAT[k];for(const o of featObjs[k])o.visible=on;
     for(const c of featCols[k]){const i=colliders.indexOf(c);if(on&&i<0)colliders.push(c);else if(!on&&i>=0)colliders.splice(i,1);}}
   if(!FEAT.smoko&&me&&me.smokoSeat>=0)me.smokoSeat=-1;
   if(!FEAT.bbq){for(const p of smoke)scene.remove(p.m);smoke.length=0;}}
@@ -959,7 +963,7 @@ function syncChest(dt){if(!chestLid)return;const open=chestStock>0?-1.15:-.08;ch
   chestToys.forEach((t,k)=>t.visible=k<chestStock);chestLid.userData.glow.intensity=chestStock>0?.9+.3*Math.sin(elapsed*3):0;}
 const SLAP_NAMES=['HELICOPTER!','CARTWHEEL!','TIMBER!'],SLAP_USES=3,MEAT_STUN=2,MEAT_PTS=50;
 // attacker's client: find someone close in front and ask the host to resolve it
-function trySlap(){const it=selItem(me),unarmed=!it||!it.def.melee;
+function trySlap(){if(isCarrying(me))return;const it=selItem(me),unarmed=!it||!it.def.melee;
   if(unarmed&&!FEAT.adult)return;
   if(!canAct()||me.stun>0||me.drinkT>0||elapsed-me.lastSwing<(unarmed?.9:.55))return;
   me.lastSwing=elapsed;me.swingT=.28;SFX.whoosh(me.pos);
@@ -1042,6 +1046,13 @@ const SMOKO={x:-24,z:-3,maxT:20,sip:4};let smokoN=0,smokoChairs=[],smokoGroup=nu
 function smokoRing(n){return 1.9+n*.2;}
 function smokoZoneR(){return smokoRing(Math.max(2,smokoN))+1.3;}
 function seatPos(i,n){const R=smokoRing(n),a=i/n*Math.PI*2+.4;return [SMOKO.x+Math.cos(a)*R,SMOKO.z+Math.sin(a)*R];}
+const NAUGHTY={sit:5,dur:20,pts:100,windup:1.8,weak:.68,cd:45};
+const naughtyCd=new Map(); // host: victim -> when a dump on them is worth points again
+function naughtyOn(){return FEAT.naughty&&FEAT.smoko;}
+function inSmokoAt(x,z,y){return FEAT.smoko&&(y||0)<.5&&Math.hypot(x-SMOKO.x,z-SMOKO.z)<smokoZoneR();}
+function authNaughty(tid,vid){const v=chars.get(vid);if(!naughtyOn()||!v||!chars.has(tid)||tid===vid||v.naughtyT>0||v.smokoSeat>=0||!(state==='play'||state==='warmup'))return;
+  let pts=0;if(state==='play'&&gameMode!=='heist'&&stats[tid]&&!sameTeam(tid,vid)&&(naughtyCd.get(vid)||0)<=elapsed){pts=NAUGHTY.pts;stats[tid].score+=pts;scoreDirty=true;}
+  naughtyCd.set(vid,elapsed+NAUGHTY.cd);fx('naughty',vid,tid,pts);}
 function inSmoko(ch){return FEAT.smoko&&!!ch&&ch.pos.y<.5&&Math.hypot(ch.pos.x-SMOKO.x,ch.pos.z-SMOKO.z)<smokoZoneR();}
 function seatTaken(i){for(const c of chars.values())if(c!==me&&c.smokoSeat===i)return true;return false;}
 function makeChair(){const g=new THREE.Group(),fr=mat(0x2a2a2a),fab=mat(0x1f6fd1);
@@ -1064,6 +1075,7 @@ function syncSmoko(){const n=clamp(chars.size,2,16);if(n===smokoN)return;smokoN=
   for(let i=0;i<n;i++){const c=makeChair(),[x,z]=seatPos(i,n);c.position.set(x,0,z);c.rotation.y=Math.atan2(SMOKO.x-x,SMOKO.z-z);smokoGroup.add(c);smokoChairs.push(c);}
   smokoPad.scale.setScalar(smokoZoneR());}
 function sitDown(){if(!me||me.smokoSeat>=0||!inSmoko(me))return false;
+  if(naughtyOn()){showHint('This is the <b>Naughty Corner</b>. No safe break here!',2.2);return true;}
   let best=-1,bd=1e9;for(let i=0;i<smokoN;i++){if(seatTaken(i))continue;const [x,z]=seatPos(i,smokoN),d=Math.hypot(x-me.pos.x,z-me.pos.z);if(d<bd){bd=d;best=i;}}
   if(best<0){showHint('No free chairs. Wait for someone to finish their smoko.',2);return true;}
   me.smokoSeat=best;me.smokoT=0;me.sipT=1.5;me.charging=false;me.charge=0;me.drinkT=0;me.drinkType=null;me.boostT=0;
@@ -1108,6 +1120,50 @@ function fallCheck(ch,dt){ch.fallImmune=Math.max(0,ch.fallImmune-dt);
 function startFall(ch){ch.fallT=fallDur;ch.fallAge=0;ch.stun=Math.max(ch.stun,fallDur);ch.charging=false;ch.charge=0;ch.drinkT=0;ch.drinkType=null;ch.vel.x*=.3;ch.vel.z*=.3;
   SFX.thud(ch.pos);SFX.whoa(ch.pos);
   if(ch.kind==='me'&&me){shake=Math.max(shake,.15);floater('STACKED IT!',camera.position.clone().add(fwd(me).multiplyScalar(2.2)).setY(camera.position.y+.4),'big');}}
+/* ---- grab and carry: pick up someone who's down and haul them about ---- */
+const CARRY={max:6,reach:1.9,wig:.8,immune:8,hold:.4,slow:.6,hv:10.5,vy:8.5};
+const carryOf=new Map(),carriedBy=new Map(),grabImmune=new Map(); // carrierId->{vid,t,wr,lastW} · victimId->carrierId · host: victimId->time they can be grabbed again
+let vHeld=0,vArmed=false;
+function isCarried(ch){return !!ch&&carriedBy.has(ch.id);}
+function isCarrying(ch){return !!ch&&carryOf.has(ch.id);}
+function carryForget(id){const c=carryOf.get(id);if(c)carriedBy.delete(c.vid);carryOf.delete(id);const g=carriedBy.get(id);if(g)carryOf.delete(g);carriedBy.delete(id);}
+function carryReset(){carryOf.clear();carriedBy.clear();grabImmune.clear();vArmed=false;}
+function canGrab(g,t){return !!g&&!!t&&g!==t&&(state==='play'||state==='warmup')&&!isCarried(g)&&!isCarrying(g)&&!isCarried(t)&&!isCarrying(t)
+  &&g.smokoSeat<0&&t.smokoSeat<0&&!(t.naughtyT>0)&&g.stun<=0&&g.downT<=0&&g.fallT<=0&&!g.inPool&&!t.inPool&&t.pos.y<.6&&(t.downT>0||t.fallT>0||t.stun>0);}
+function grabTarget(){if(!me||!canAct()||me.stun>0)return null;let best=null,bd=CARRY.reach;
+  for(const o of chars.values()){if(!canGrab(me,o))continue;const d=Math.hypot(o.pos.x-me.pos.x,o.pos.z-me.pos.z);if(d<bd){bd=d;best=o;}}return best;}
+function authGrab(gid,vid){const g=chars.get(gid),t=chars.get(vid);if(!canGrab(g,t)||Math.hypot(g.pos.x-t.pos.x,g.pos.z-t.pos.z)>2.8||(grabImmune.get(vid)||0)>elapsed)return;
+  for(const it of heldOf(vid))authDrop(vid,it);
+  fx('grab',gid,vid);}
+function authRelease(gid,mode,dx,dz){const c=carryOf.get(gid);if(!c)return;const vid=c.vid;grabImmune.set(vid,elapsed+CARRY.immune);
+  if(mode===4){let l=Math.hypot(dx||0,dz||0);const g=chars.get(gid);if(l<1e-3){const f=g?fwd(g):new V3(0,0,1);dx=f.x;dz=f.z;l=1;}
+    fx('gfree',gid,vid,4,r2(dx/l*CARRY.hv),CARRY.vy,r2(dz/l*CARRY.hv));}
+  else{fx('gfree',gid,vid,mode,0,0,0);const g=chars.get(gid);if(mode===0&&g&&naughtyOn()&&inSmokoAt(g.pos.x,g.pos.z,g.pos.y))authNaughty(gid,vid);}}
+function authWriggle(vid){const gid=carriedBy.get(vid),c=gid&&carryOf.get(gid);if(!c||elapsed-(c.lastW||-9)<.08)return;c.lastW=elapsed;c.wr=(c.wr||0)+1;c.t+=CARRY.wig;}
+function carryHostTick(dt){for(const [gid,c] of [...carryOf]){const g=chars.get(gid),v=chars.get(c.vid);
+    if(!g||!v||!(state==='play'||state==='warmup')){authRelease(gid,3);continue;}
+    c.t+=dt;if(v.ai)c.t+=dt*.7; // bots wriggle on their own
+    if(g.stun>0||g.downT>0||g.fallT>0||g.inPool){authRelease(gid,3);continue;}
+    if(c.t>=CARRY.max)authRelease(gid,c.wr||v.ai?1:2);}}
+function carryCleanup(id){if(!isAuth)return;for(const [gid,c] of [...carryOf])if(gid===id||c.vid===id)authRelease(gid,3);grabImmune.delete(id);}
+function carryList(){return[...carryOf].map(([g,c])=>[g,c.vid]);}
+function carrySync(list){if(!Array.isArray(list))return;const want=new Map();
+  for(const e of list)if(Array.isArray(e)&&typeof e[0]==='string'&&typeof e[1]==='string'&&chars.has(e[0])&&chars.has(e[1]))want.set(e[0],e[1]);
+  for(const [g,c] of [...carryOf])if(want.get(g)!==c.vid){carryOf.delete(g);carriedBy.delete(c.vid);}
+  for(const [g,v] of want)if(!carryOf.has(g)){carryOf.set(g,{vid:v,t:0,wr:0});carriedBy.set(v,g);}}
+function carryPin(v,g){v.pos.copy(g.pos);v.vel.copy(g.vel);v.grounded=g.grounded;v.wish.set(0,0);v.face=g.face;v.stun=Math.max(v.stun,.3);v.fallT=0;v.downT=0;
+  v.charging=false;v.charge=0;v.drinkT=0;v.slapA=0;v.boostT=0;v.smokoSeat=-1;v.inPool=false;v.fallImmune=Math.max(v.fallImmune||0,8);}
+function vDown(){if(!me||!canAct()||isCarried(me))return;
+  if(isCarrying(me)){vHeld=elapsed;vArmed=true;return;}
+  if(me.stun>0)return;
+  const t=grabTarget();
+  if(t){if(isAuth)authGrab(myId,t.id);else sendEv('gr',t.id);}
+  else showHint('You can only pick up someone who is <b>down, fallen or stunned</b>.',2.2);}
+function vUp(){if(!vArmed)return;vArmed=false;if(me&&isCarrying(me)&&elapsed-vHeld<CARRY.hold){if(isAuth)authRelease(myId,0);else sendEv('gd');}}
+function carryTick(dt){if(!me)return;
+  if(vArmed&&isCarrying(me)&&keys.KeyV&&elapsed-vHeld>=CARRY.hold){vArmed=false;const f=fwd(me);if(isAuth)authRelease(myId,4,f.x,f.z);else sendEv('gt',r2(f.x),r2(f.z));}
+  if(!isCarrying(me))vArmed=false;}
+function wriggle(){if(!me||elapsed-(wriggle.t||-9)<.06)return;wriggle.t=elapsed;me.wrigT=.22;SFX.pickup();if(isAuth)authWriggle(myId);else sendEv('gw');}
 function canHelp(h,t){return !!h&&!!t&&h!==t&&t.fallT>0&&(!teamsOn()||sameTeam(h.id,t.id));}
 function helpTarget(){if(!me||!canAct()||me.stun>0||me.smokoSeat>=0)return null;let best=null,bd=1.9;
   for(const o of chars.values()){if(!canHelp(me,o))continue;const d=Math.hypot(o.pos.x-me.pos.x,o.pos.z-me.pos.z);if(d<bd){bd=d;best=o;}}return best;}
@@ -1260,6 +1316,33 @@ function makeHeistBoard(){const cv=document.createElement('canvas');cv.width=cv.
   const box=mesh(new THREE.BoxGeometry(7,7,7),[face,face,dark,dark,face,face],0,11,0);box.castShadow=false;box.receiveShadow=false;heistProps.push(box);
   heistProps.push(mesh(new THREE.CylinderGeometry(.3,.3,7.5,10),mat(0x9aa0a8),0,3.75,0));
   heistBoard={ctx:cv.getContext('2d'),tex};drawHeistBoard();}
+// ---- bots play the objective ----
+// the doorway of a base is the one wall left open; bots walk to a point just outside it before going in for a teddy
+function heistGate(base){const o=base.open,d=HEIST_HALF+1.2;return new V3(base.x+(o==='xPos'?d:o==='xNeg'?-d:0),0,base.z+(o==='zPos'?d:o==='zNeg'?-d:0));}
+function heistVia(ch,base,target){const inside=Math.abs(ch.pos.x-base.x)<HEIST_HALF+.1&&Math.abs(ch.pos.z-base.z)<HEIST_HALF+.1;
+  if(inside)return target;const g=heistGate(base);return Math.hypot(g.x-ch.pos.x,g.z-ch.pos.z)>1.5?g:target;}
+function heistBotGoal(ch){const myT=teamOf.get(ch.id),home=myT&&heistBases[myT];if(!home)return null;
+  const held=heldOf(ch.id);
+  if(held.some(i=>i.heistTeam!=null&&i.heistTeam!==myT))return new V3(home.x,0,home.z);          // carrying a stolen teddy: get it home
+  let carrier=null,cd=22;                                                                          // an enemy is running off with one of ours: chase
+  for(const c of chars.values()){if(c===ch||teamOf.get(c.id)===myT)continue;
+    if(heldOf(c.id).some(i=>i.heistTeam===myT)){const d=Math.hypot(c.pos.x-ch.pos.x,c.pos.z-ch.pos.z);if(d<cd){cd=d;carrier=c;}}}
+  if(carrier)return carrier.pos;
+  let loose=null,ld=20;                                                                            // one of ours got dropped away from home: touch it to send it back
+  for(const it of items.values()){if(it.heistTeam!==myT||it.state!=='ground')continue;
+    if(Math.hypot(it.pos.x-home.x,it.pos.z-home.z)<2.8)continue;const d=Math.hypot(it.pos.x-ch.pos.x,it.pos.z-ch.pos.z);if(d<ld){ld=d;loose=it;}}
+  if(loose)return loose.pos;
+  const mates=[...chars.values()].filter(c=>teamOf.get(c.id)===myT);
+  if(mates.length>=2&&mates.find(c=>c.kind==='bot')===ch){                                         // one bot per team of 2+ guards the base
+    for(const c of chars.values()){if(teamOf.get(c.id)===myT)continue;if(Math.hypot(c.pos.x-home.x,c.pos.z-home.z)<10)return c.pos;}
+    const a=elapsed*.6+ch.pos.x;return new V3(home.x+Math.cos(a)*3.4,0,home.z+Math.sin(a)*3.4);}
+  let best=null,bd=1e9,hands=heldOf(ch.id).length<2;                                               // otherwise raid: nearest enemy teddy
+  if(!hands)return null;
+  for(const it of items.values()){if(it.heistTeam==null||it.heistTeam===myT||it.state!=='ground')continue;
+    const d=Math.hypot(it.pos.x-ch.pos.x,it.pos.z-ch.pos.z);if(d<bd){bd=d;best=it;}}
+  if(!best)return null;const eb=heistBases[best.heistTeam];
+  const inBase=eb&&Math.abs(best.pos.x-eb.x)<HEIST_HALF&&Math.abs(best.pos.z-eb.z)<HEIST_HALF;
+  return inBase?heistVia(ch,eb,best.pos):best.pos;}
 // each team spawns inside its own base rather than at random yard spots
 const HEIST_SPAWN_OFF=[[0,2.1],[0,-2.1],[2.1,0],[-2.1,0]];let heistSpawnN={};
 function heistSpawnFor(ch){if(gameMode!=='heist')return null;const t=teamOf.get(ch.id),b=t&&heistBases[t];if(!b)return null;
@@ -1270,7 +1353,7 @@ function buildHeistCenterpiece(){const c=0x8a5a36; // a crate cross dead in the 
 function buildHeistBases(n){clearHeistProps();heistTeams=clamp(n|0,2,4);
   const keys=heistKeysArr(),layout=HEIST_LAYOUT[heistTeams]||HEIST_LAYOUT[2],H=HEIST_HALF,th=.35;
   layout.forEach((b,i)=>{const key=keys[i];if(!key)return;const color=TEAMS[key].color;
-    heistBanked[key]=0;heistBases[key]={x:b.x,z:b.z};
+    heistBanked[key]=0;heistBases[key]={x:b.x,z:b.z,open:b.open};
     if(b.open!=='zNeg')buildHeistWall(b.x,b.z-H,2*H,th,color);
     if(b.open!=='zPos')buildHeistWall(b.x,b.z+H,2*H,th,color);
     if(b.open!=='xNeg')buildHeistWall(b.x-H,b.z,th,2*H,color);
@@ -1358,15 +1441,22 @@ function updateCharFx(ch,dt){
     const k=1+.12*Math.sin(elapsed*5);ch.smellCloud.position.set(ch.pos.x,ch.pos.y+1,ch.pos.z);ch.smellCloud.scale.setScalar((ch.smellBad?1.6:1.15)*k*Math.min(1,ch.smellT/.6));
     ch.smellAcc=(ch.smellAcc||0)-dt;if(ch.smellAcc<=0){ch.smellAcc=ch.smellBad?.08:.16;burst(new V3(ch.pos.x,ch.pos.y+.6,ch.pos.z),ch.smellBad?[0x6f8a1e,0x8fae30,0xa9c24a]:[0xcfe08a,0xe3edb2],2,.9,ch.smellBad?.2:.14,-.4);}
   }else if(ch.smellCloud){scene.remove(ch.smellCloud);ch.smellCloud=null;}
+  // dunce cap on anyone in the Naughty Corner
+  if(ch.naughtyT>0){if(!ch.dunce){const g=new THREE.Group();const cone=new THREE.Mesh(new THREE.ConeGeometry(.3,.62,14),new THREE.MeshLambertMaterial({color:0xf4f1e6}));cone.position.y=.31;g.add(cone);
+      const band=new THREE.Mesh(new THREE.CylinderGeometry(.205,.255,.1,14),new THREE.MeshLambertMaterial({color:0xd63a2f}));band.position.y=.17;g.add(band);
+      const tip=new THREE.Mesh(new THREE.SphereGeometry(.05,8,6),new THREE.MeshLambertMaterial({color:0xd63a2f}));tip.position.y=.64;g.add(tip);
+      g.position.set(0,1.78,0);g.rotation.z=.12;ch.body.add(g);ch.dunce=g;}
+    ch.dunce.visible=true;}
+  else if(ch.dunce)ch.dunce.visible=false;
   // anyone who has fallen over (and isn't you) holds up a HELP ME sign so mates can spot them across the yard
-  if(ch.fallT>0&&ch!==me&&ch.smokoSeat<0){
+  if(ch.fallT>0&&ch!==me&&ch.smokoSeat<0&&!carriedBy.has(ch.id)){
     if(!ch.helpSign){const g=new THREE.Group();
       const board=new THREE.Mesh(new THREE.PlaneGeometry(1.5,.94),new THREE.MeshBasicMaterial({map:helpSignTex(),side:THREE.DoubleSide}));board.position.y=.95;g.add(board);
       const pole=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,1,6),mat(0x6b4a2a));pole.position.y=.2;g.add(pole);ch.helpSign=g;scene.add(g);}
     const g=ch.helpSign;g.position.set(ch.pos.x,ch.pos.y+.55,ch.pos.z);g.rotation.y=Math.atan2(camera.position.x-g.position.x,camera.position.z-g.position.z);g.rotation.z=Math.sin(elapsed*7)*.16;
   }else if(ch.helpSign){scene.remove(ch.helpSign);ch.helpSign=null;}
 }
-function removeChar(ch){dropCharFx(ch);scene.remove(ch.mesh);ch.tag.material.map.dispose();chars.delete(ch.id);if(ch===me)me=null;}
+function removeChar(ch){carryForget(ch.id);dropCharFx(ch);scene.remove(ch.mesh);ch.tag.material.map.dispose();chars.delete(ch.id);if(ch===me)me=null;}
 function fwd(ch){return new V3(Math.sin(ch.face),0,Math.cos(ch.face));}
 function heldOf(id){const a=[];for(const it of items.values())if(it.state==='held'&&it.holder===id&&!it.pendingThrow)a.push(it);return a.sort((x,y)=>x.pickT-y.pickT);}
 function selItem(ch){const h=heldOf(ch.id);if(!h.length)return null;let s=h.find(i=>i.id===ch.selId);if(!s){s=h[h.length-1];ch.selId=s.id;}return s;}
@@ -1676,7 +1766,31 @@ function applyKnock(ch,def,kdir,anim,downOverride,knockMul){
 function fx(...a){playFx(a);if(net.yard&&net.isHost)sendEv(...a);}
 function playFx(a){
   const k=a[0];
-  if(k==='hit'){const vid=a[1],tid=a[2],type=TYPES[a[3]]||'teddy',d=ITEM_DEFS[type];const kx=num(a[4],0),kz=num(a[5],1);const line=d.lines[a[6]|0]||d.lines[0];
+  if(k==='grab'){const gid=a[1],vid=a[2],g=chars.get(gid),v=chars.get(vid);carryForget(gid);carryForget(vid);carryOf.set(gid,{vid,t:0,wr:0});carriedBy.set(vid,gid);
+    if(v){v.charging=false;v.charge=0;v.drinkT=0;}if(g)SFX.pickup(g.pos);
+    feed(`${nm(gid)} picked up ${nm(vid)}`);
+    if(vid===myId&&me)showHint('<b>Oi, put me down!</b> Mash <b>SPACE</b> to wriggle free.',4);
+  }else if(k==='gfree'){const gid=a[1],vid=a[2],mode=a[3]|0,v=chars.get(vid);carryOf.delete(gid);carriedBy.delete(vid);if(gid===myId)vArmed=false;
+    if(v){v.slapA=0;v.fallT=0;v.downT=0;v.fallImmune=Math.max(v.fallImmune||0,8);
+      if(mode===4){const vx=num(a[4],0),vy=num(a[5],8),vz=num(a[6],0);v.lastHitBy=gid;v.lastHitT=elapsed;v.chuckBy=gid;v.chuckT=elapsed;
+        if(v.kind!=='proxy'){v.vel.set(vx,vy,vz);v.grounded=false;v.stun=Math.max(v.stun,1.2);v.pos.y+=1;}
+        const d=new V3(vx,0,vz);if(d.lengthSq()>1e-4)applyTumble(v,d.normalize(),9);
+        SFX.throw(v.pos);burst(v.pos.clone().setY(v.pos.y+1.2),[0xffffff,0xffd23f],10,4,.07);}
+      else if(v.kind!=='proxy'){v.vel.multiplyScalar(.3);v.stun=Math.max(v.stun,mode===0?.5:.3);}
+      if(mode!==4&&mode!==0)floater(mode===1?'WRIGGLED FREE!':'DROPPED!',v.pos.clone().setY(v.pos.y+2.3),'small');
+      if(v.kind==='me'&&me&&mode!==4)SFX.thud(v.pos);}
+    feed(mode===4?`${nm(gid)} <em>CHUCKED</em> ${nm(vid)}`:mode===1?`${nm(vid)} wriggled free of ${nm(gid)}`:mode===0?`${nm(gid)} put ${nm(vid)} down`:`${nm(gid)} dropped ${nm(vid)}`);
+    if(vid===myId&&me)hintEl.style.opacity=0;
+  }else if(k==='naughty'){const vid=a[1],tid=a[2],pts=num(a[3],0),v=chars.get(vid);
+    if(v){v.naughtyT=NAUGHTY.sit+NAUGHTY.dur;v.chuckBy=null;
+      if(v.kind!=='proxy'){let bi=0,bd=1e9;for(let i=0;i<smokoN;i++){const [x,z]=seatPos(i,smokoN),d=Math.hypot(x-v.pos.x,z-v.pos.z);if(d<bd){bd=d;bi=i;}}v.naughtySeat=bi;
+        if(v.kind==='me'){const [x,z]=seatPos(bi,smokoN);v.yaw=Math.atan2(x-SMOKO.x,z-SMOKO.z);v.pitch=-.12;}}
+      floater('SENT TO THE NAUGHTY CORNER!',v.pos.clone().setY(v.pos.y+2.6),'big');burst(v.pos.clone().setY(v.pos.y+1.2),[0xff5f5f,0xffd23f,0xffffff],14,3.5,.08);SFX.boing&&SFX.boing(v.pos);}
+    feed(`${nm(vid)} was sent to the <em>Naughty Corner</em>${pts?` by ${nm(tid)} <b>+${pts}</b>`:''}`);
+    if(vid===myId&&me)showAlert('SENT TO THE NAUGHTY CORNER!<small>Sit there and think about what you did…</small>','round',3.5);
+    else if(tid===myId&&me)showAlert('SENT TO THE NAUGHTY CORNER!'+(pts?`<small>+${pts}</small>`:''),'round',2.6);
+    if(tid===myId&&pts)hitMarker();
+  }else if(k==='hit'){const vid=a[1],tid=a[2],type=TYPES[a[3]]||'teddy',d=ITEM_DEFS[type];const kx=num(a[4],0),kz=num(a[5],1);const line=d.lines[a[6]|0]||d.lines[0];
     const bounty=!!a[7],pos=new V3(num(a[8],0),num(a[9],1),num(a[10],0)),scoring=!!a[11];const streak=num(a[12],0),gain=num(a[13],0)||100;const victim=chars.get(vid);
     if(victim&&tid&&tid!==vid){victim.lastHitBy=tid;victim.lastHitT=elapsed;}
     if(type==='teddy')burst(pos,[0xa86b3c,0xe2b98a,0xffffff],14,4,.06,.4);else if(type==='gnome')burst(pos,[0xd63a2f,0x2d5fa8,0xf2c9a0,0x6b4a2a],14,5,.09);
@@ -1933,7 +2047,7 @@ function updateDrink(ch,dt){
 }
 const DOWN_TIME=3.5;
 const TRAMP_MAX=5,JUMP_V=7.5,BOOST_MULT=1.7,BOOST_TIME=1.6,BOOST_CD=5;
-function tryBoost(ch){if(ch.smokoSeat>=0||ch.boostT>0||ch.boostCd>0||ch.stun>0||state==='countdown')return;ch.boostT=BOOST_TIME;SFX.dodge(ch.pos);}
+function tryBoost(ch){if(carryOf.has(ch.id)||ch.smokoSeat>=0||ch.boostT>0||ch.boostCd>0||ch.stun>0||state==='countdown')return;ch.boostT=BOOST_TIME;SFX.dodge(ch.pos);}
 function tryJump(ch){if(ch.stun>0)return;ch.jumpBuf=.14;}
 function floorAt(ch){let floor=0;for(const c of colliders){if(ch.pos.x>c.x0-.1&&ch.pos.x<c.x1+.1&&ch.pos.z>c.z0-.1&&ch.pos.z<c.z1+.1&&(ch.pos.y>=c.h-.35||ch.prevY>=c.h-.05))floor=Math.max(floor,c.h);}return floor;}
 // VP puddles: run onto one and you skate across it, arms flailing, spinning, barely able to steer
@@ -1947,8 +2061,13 @@ function slideCheck(ch,dt){ch.slideT=Math.max(0,(ch.slideT||0)-dt);
     if(ch.kind==='me'&&me)shake=Math.max(shake,.06);}
   ch.wasSlip=ch.slip;}
 function updateChar(ch,dt){
+  {const cb=carriedBy.get(ch.id),cg=cb&&chars.get(cb);if(cg&&ch.kind!=='proxy'){carryPin(ch,cg);return;}}
+  if(ch.wrigT>0)ch.wrigT=Math.max(0,ch.wrigT-dt);
+  if(ch.naughtyT>NAUGHTY.dur&&ch.kind!=='proxy'){if(!FEAT.smoko){ch.naughtyT=0;}else{const [x,z]=seatPos(Math.min(ch.naughtySeat||0,smokoN-1),smokoN);
+    ch.pos.set(x,0,z);ch.vel.set(0,0,0);ch.wish.set(0,0);ch.stun=Math.max(ch.stun,.3);ch.charging=false;ch.charge=0;ch.drinkT=0;ch.grounded=true;ch.boostT=0;ch.face=Math.atan2(SMOKO.x-x,SMOKO.z-z);return;}}
   ch.stun=Math.max(0,ch.stun-dt);ch.downT=Math.max(0,ch.downT-dt);ch.dodgeT=Math.max(0,ch.dodgeT-dt);ch.dodgeCd=Math.max(0,ch.dodgeCd-dt);ch.catchT=Math.max(0,ch.catchT-dt);ch.catchCd=Math.max(0,ch.catchCd-dt);
   if(ch.snagBuffT>0){ch.snagBuffT=Math.max(0,ch.snagBuffT-dt);if(ch.snagBuffT<=0){ch.snagStumbleT=SNAG_STUMBLE;if(ch.kind==='me')showHint('<b>Uh oh...</b> that snag is kicking in.',SNAG_STUMBLE);}}else if(ch.snagStumbleT>0)ch.snagStumbleT=Math.max(0,ch.snagStumbleT-dt);
+  if(ch.chuckBy&&ch.grounded&&elapsed-ch.chuckT>.15){const by=ch.chuckBy;ch.chuckBy=null;if(naughtyOn()&&elapsed-ch.chuckT<3&&inSmoko(ch)&&(ch.kind==='me'||(isAuth&&ch.kind==='bot'))){if(isAuth)authNaughty(by,ch.id);else sendEv('ng',by);}}
   ch.inPool=inPoolRect(ch.pos)&&ch.pos.y<.1;
   if(ch.inPool&&!ch.wasInPool){SFX.splash(ch.pos);burst(ch.pos.clone().setY(WATER_Y+.15),[0x9ee3ff,0xffffff],12,3,.07);envCheck(ch,'pool');}ch.wasInPool=ch.inPool;
   ch.slip=ch.pos.y<.1&&[...puddles.values()].some(p=>Math.hypot(ch.pos.x-p.x,ch.pos.z-p.z)<p.r*p.grow);
@@ -1957,9 +2076,9 @@ function updateChar(ch,dt){
   // speed boost (Shift): short burst, then a cooldown before it can be used again
   if(ch.boostT>0){ch.boostT=Math.max(0,ch.boostT-dt);if(ch.boostT<=0)ch.boostCd=BOOST_CD;}
   else ch.boostCd=Math.max(0,ch.boostCd-dt);
-  ch.sprinting=ch.boostT>0&&!ch.inPool&&ch.stun<=0&&!frozen;
+  ch.sprinting=ch.boostT>0&&!ch.inPool&&ch.stun<=0&&!frozen&&!carryOf.has(ch.id);
   if(ch.kind!=='proxy'){smokoTick(ch,dt);updateDrink(ch,dt);fallCheck(ch,dt);}
-  const maxSp=6.2*(ch.inPool?.5:1)*(ch.charging?.72:1)*(ch.sprinting?BOOST_MULT:1)*(ch.drinkT>0?.55:1)*(ch.snagBuffT>0?1.35:1)*(ch.snagStumbleT>0?.62:1);
+  const maxSp=6.2*(ch.inPool?.5:1)*(ch.charging?.72:1)*(ch.sprinting?BOOST_MULT:1)*(ch.drinkT>0?.55:1)*(ch.snagBuffT>0?1.35:1)*(ch.snagStumbleT>0?.62:1)*(carryOf.has(ch.id)?CARRY.slow:1);
   let tx=ch.wish.x*maxSp,tz=ch.wish.y*maxSp;if(ch.stun>0||frozen){tx=0;tz=0;}
   if(ch.dodgeT>0){ch.vel.x=ch.dodgeDir.x*14.5;ch.vel.z=ch.dodgeDir.z*14.5;}
   else{const grip=!ch.grounded?(ch.stun>0?2.2:6):ch.stun>0?3.2:ch.slideT>0?.3:ch.slip?1.1:ch.snagStumbleT>0?2.4:12;const k=1-Math.exp(-grip*dt);ch.vel.x+=(tx-ch.vel.x)*k;ch.vel.z+=(tz-ch.vel.z)*k;}
@@ -1992,7 +2111,7 @@ function updateChar(ch,dt){
     if(base)for(const it of heldOf(ch.id)){
       if(it.heistTeam!=null&&it.heistTeam!==myT&&Math.hypot(ch.pos.x-base.x,ch.pos.z-base.z)<HEIST_BASE_R){
         if(isAuth)authHeistBank(ch.id,it);else if(ch.kind==='me'&&elapsed-it.reqT>.6){it.reqT=elapsed;sendEv('bk',it.id);}}}}
-  const s=selItem(ch);if(ch.charging&&s)ch.charge=Math.min(1,ch.charge+dt/s.def.charge);
+  const s=selItem(ch);if(ch.charging&&s)ch.charge=Math.min(1,ch.charge+dt/(s.def.charge*(ch.naughtyT>0?NAUGHTY.windup:1)));
   if(ch.kind==='me'){if(ch.charging&&ch.charge>=1){ch.overT=(ch.overT||0)+dt;if(ch.overT>OVERHOLD)overholdDrop();}else ch.overT=0;}
 }
 function overholdDrop(){const it=selItem(me);me.charging=false;me.charge=0;me.overT=0;if(!it)return;SFX.thud(me.pos);
@@ -2007,11 +2126,13 @@ function updateProxy(ch,dt){
   ch.slip=ch.pos.y<.1&&[...puddles.values()].some(p=>Math.hypot(ch.pos.x-p.x,ch.pos.z-p.z)<p.r*p.grow);slideCheck(ch,dt);
 }
 function separate(){const list=[...chars.values()];for(let i=0;i<list.length;i++)for(let j=i+1;j<list.length;j++){const a=list[i],b=list[j];
+  if(carriedBy.get(a.id)===b.id||carriedBy.get(b.id)===a.id)continue;
   const aL=a.kind!=='proxy',bL=b.kind!=='proxy';if(!aL&&!bL)continue;
   const dx=b.pos.x-a.pos.x,dz=b.pos.z-a.pos.z,d=Math.hypot(dx,dz);
   if(d<.9&&d>1e-4&&Math.abs(a.pos.y-b.pos.y)<1.5){const p=(.9-d)/(aL&&bL?2:1),nx=dx/d,nz=dz/d;if(aL){a.pos.x-=nx*p;a.pos.z-=nz*p;}if(bL){b.pos.x+=nx*p;b.pos.z+=nz*p;}}}}
 const UP=new V3(0,1,0),la=new V3(),dq=new THREE.Quaternion(),de=new THREE.Euler(0,0,0,'YXZ');
 function syncCharMesh(ch,dt){
+  if(ch.naughtyT>0)ch.naughtyT=Math.max(0,ch.naughtyT-dt);
   ch.tiltV+=(-ch.tilt*55-ch.tiltV*7)*dt;ch.tilt=clamp(ch.tilt+ch.tiltV*dt,-1.45,1.45);
   ch.spinV*=Math.exp(-3*dt);ch.spinA+=ch.spinV*dt;
   const sp=Math.hypot(ch.vel.x,ch.vel.z);if(ch.grounded&&sp>.5)ch.walk+=sp*dt*2.4;
@@ -2047,7 +2168,7 @@ function syncCharMesh(ch,dt){
   else if(ch.rise>0){ch.rise=Math.max(0,ch.rise-dt);fl=ch.rise/.45;}
   if(fl>0&&!P){ch.body.quaternion.setFromEuler(de.set(Math.PI/2*fl,0,Math.sin(elapsed*1.6+ch.phase)*.06*fl));ch.body.position.y=.34*fl;}
   if(ch.dizzyT>0){ch.dizzyT=Math.max(0,ch.dizzyT-dt);if(!P&&!(ch.downT>0)){const w=Math.min(1,ch.dizzyT)*.24;ch.body.quaternion.multiply(dq.setFromEuler(de.set(Math.sin(elapsed*7)*w,0,Math.cos(elapsed*7)*w)));}}
-  const seated=ch.smokoSeat>=0&&!P&&!(fl>0);ch.smokoCan.visible=seated;
+  const nSit=ch.naughtyT>NAUGHTY.dur,seated=(ch.smokoSeat>=0||nSit)&&!P&&!(fl>0);ch.smokoCan.visible=seated&&!nSit;
   if(ch.bubbleT>0){ch.bubbleT-=dt;if(ch.bubbleT<=0)ch.bubble.visible=false;}
   if(ch.emote){const e=ch.emote;e.t+=dt;if(e.t>e.dur||P||fl>0||ch.stun>.5)ch.emote=null;
     else if(!seated){const t=e.t;
@@ -2055,6 +2176,14 @@ function syncCharMesh(ch,dt){
       else if(e.k==='laugh'){ch.hand.position.set(-.18,1.02,.62);ch.body.quaternion.multiply(dq.setFromEuler(de.set(-.22+Math.sin(t*24)*.1,0,Math.sin(t*12)*.06)));}
       else{ch.body.position.y+=Math.abs(Math.sin(t*9))*.16;ch.body.quaternion.multiply(dq.setFromEuler(de.set(0,t*5.5,Math.sin(t*9)*.22)));ch.hand.position.set(-.5,1.2+.3*Math.sin(t*9),.1);}}}
   if(seated){ch.body.position.y=-.3;ch.body.quaternion.setFromEuler(de.set(-.2,0,0));const sp2=Math.pow(Math.max(0,Math.sin(elapsed*1.5+ch.phase)),6);ch.hand.position.set(-.34,.9+.5*sp2,.28);ch.smokoCan.rotation.x=-sp2*1.2;}
+  {const cb=carriedBy.get(ch.id),g=cb&&chars.get(cb);
+    if(g){ // draped across the carrier's shoulders, bouncing with their steps
+      const ry2=g.face+Math.PI/2,gsp=Math.hypot(g.vel.x,g.vel.z),bob=g.grounded&&gsp>.5?Math.abs(Math.sin(g.walk))*.1:0;
+      ch.mesh.rotation.y=ry2;ch.mesh.position.set(g.pos.x-Math.sin(ry2)*.72,g.pos.y+1.18+bob,g.pos.z-Math.cos(ry2)*.72);
+      const flop=Math.sin(elapsed*3.1+ch.phase)*.14+(ch.wrigT>0?Math.sin(elapsed*60)*.4:0);
+      ch.body.quaternion.setFromEuler(de.set(Math.PI/2+.1,0,flop));ch.body.position.y=.34;ch.body.scale.set(1,1,1);
+      ch.hand.position.set(-.5,.4+Math.sin(elapsed*8+ch.phase)*.2,.2);ch.handL.position.set(.5,.4+Math.cos(elapsed*8+ch.phase)*.2,.2);}
+    else if(carryOf.has(ch.id)){ch.body.quaternion.multiply(dq.setFromEuler(de.set(-.14,0,0)));}}
   ch.stars.visible=ch.stun>.15||ch.dizzyT>0;if(ch.stars.visible)ch.stars.rotation.y+=dt*6;
   ch.crown.visible=leaderId===ch.id;
   const tm=teamOfId(ch.id);if(ch.teamShown!==tm){ch.teamShown=tm;ch.sash.visible=!!tm;if(tm)ch.sash.material=mat(TEAMS[tm].color);ch.teamCss=tm?TEAMS[tm].css:null;
@@ -2078,7 +2207,7 @@ function botThrow(ch,t){const it=selItem(ch);if(!it)return;const d=it.def,df=DIF
   let sol=ballistic(from,aim,speed,g);
   if(sol){aim.x+=t.vel.x*sol.t*df.lead;aim.z+=t.vel.z*sol.t*df.lead;sol=ballistic(from,aim,speed,g)||sol;}
   let v;if(sol)v=sol.v;else{const dir=aim.clone().sub(from).setY(0).normalize();v=new V3(dir.x*speed*.707,speed*.707,dir.z*speed*.707);}
-  const e=df.err*(1+drunkAmt(ch.drunk||0)*1.6);v.x+=rand(-1,1)*e;v.z+=rand(-1,1)*e;v.y+=rand(-.5,.5)*e;
+  const e=df.err*(1+drunkAmt(ch.drunk||0)*1.6)*(ch.naughtyT>0?2.2:1);v.x+=rand(-1,1)*e;v.z+=rand(-1,1)*e;v.y+=rand(-.5,.5)*e;
   ch.face=Math.atan2(t.pos.x-ch.pos.x,t.pos.z-ch.pos.z);ch.charging=false;ch.charge=0;
   authThrow(ch.id,it,from,v);ch.ai.throwCd=rand(.8,1.9)*df.cd;}
 function botHop(ch){tryJump(ch);}
@@ -2086,7 +2215,7 @@ function seatFree(i){for(const c of chars.values())if(c.smokoSeat===i)return fal
 function botPickErrand(ch){if(state==='countdown'||ch.smokoSeat>=0)return null;const held=heldOf(ch.id),sel=selItem(ch),opts=[];
   const hasMelee=held.some(i=>i.def.melee&&!i.def.throwable);
   if(FEAT.bar&&(ch.drunk||0)<55)opts.push(['bar',3]);
-  if(FEAT.smoko){let f=0;for(let i=0;i<smokoN;i++)if(seatFree(i))f++;if(f>1)opts.push(['smoko',1.6]);}
+  if(FEAT.smoko&&!naughtyOn()){let f=0;for(let i=0;i<smokoN;i++)if(seatFree(i))f++;if(f>1)opts.push(['smoko',1.6]);}
   if(FEAT.chest&&chestStock>0&&held.length<2&&!hasMelee)opts.push(['chest',2.4]);
   if(FEAT.bbq&&held.length<2&&!hasMelee&&NPC.state!=='chase')opts.push(['meat',1.8]);
   if(Math.random()<.35||!opts.length)return null; // most of the time, just keep chucking
@@ -2127,12 +2256,14 @@ function aiUpdate(ch,dt){
     else if(Math.random()<df.juke){if(ch.grounded&&Math.random()<.55)botHop(ch);
       else{const s=Math.random()<.5?-1:1,l=Math.hypot(it.vel.x,it.vel.z)||1;ai.sideT=.42;ai.sideDir=new THREE.Vector2(-it.vel.z/l*s,it.vel.x/l*s);}}}
   let goal=null,faceTo=null;const near=nearestFreeItem(ch);const nHeld=heldOf(ch.id).length;
+  const hg=gameMode==='heist'?heistBotGoal(ch):null;
+  const carryingTeddy=gameMode==='heist'&&heldOf(ch.id).some(i=>i.heistTeam!=null&&i.heistTeam!==teamOf.get(ch.id));
   // little errands: a drink at the bar, a sit at smoko, a dildo from the chest, meat off Dazza's table
   if(ai.errCd==null)ai.errCd=rand(6,16);ai.errCd-=dt;
-  if(!ai.errand&&ai.errCd<=0){ai.errCd=rand(14,26);ai.errand=botPickErrand(ch);}
+  if(!ai.errand&&ai.errCd<=0&&gameMode!=='heist'){ai.errCd=rand(14,26);ai.errand=botPickErrand(ch);}
   if(ai.errand){const r=botErrand(ch,dt);if(r===true){ch.wish.set(0,0);return;}if(r)goal=r;else ai.errand=null;}
   const mel=selItem(ch);ai.meleeOnly=!!(mel&&mel.def.melee&&!mel.def.throwable);
-  if(goal){}
+  if(goal||carryingTeddy){}
   else if(ai.meleeOnly){ // up close and slap them
     if(!ai.target||ai.retarget<=0||!chars.has(ai.target.id)||(mel.def.melee==='down'&&ai.target.downT>.3))pickTarget(ch);
     const t=ai.target;if(t){faceTo=t.pos;const d=Math.hypot(t.pos.x-ch.pos.x,t.pos.z-ch.pos.z)||1;
@@ -2152,6 +2283,7 @@ function aiUpdate(ch,dt){
       else if(ai.throwCd<=0&&dist<21&&los(ch.pos,t.pos)&&selItem(ch)){ai.windup=selItem(ch).def.charge*rand(.55,1);ch.charge=0;}
     }
   }
+  if(hg){goal=hg;faceTo=faceTo||hg;}
   if(goal){const gx=goal.x-ch.pos.x,gz=goal.z-ch.pos.z,gl=Math.hypot(gx,gz)||1;ch.wish.set(gx/gl,gz/gl);if(!faceTo)faceTo=goal;}
   if(ai.windup>0)ch.wish.multiplyScalar(.5);
   if(ai.sideT>0){ai.sideT-=dt;ch.wish.copy(ai.sideDir);}
@@ -2172,7 +2304,7 @@ function buildWorld(){
   const it=[];for(const i of items.values()){const f=i.state==='flying';it.push([i.id,TYPES.indexOf(i.type),STATES.indexOf(i.state),r2(i.pos.x),r2(i.pos.y),r2(i.pos.z),f?r2(i.vel.x):0,f?r2(i.vel.y):0,f?r2(i.vel.z):0,i.holder||0,i.thrower||0,i.live?1:0,i.flight&&i.flight.active?i.flight.id:0,i.uses||0,i.variant?DILDO_VKEYS.indexOf(i.variant):0,i.bumOut?1:0,i.heistTeam?HEIST_TEAM_KEYS.indexOf(i.heistTeam)+1:0]);}
   const b=[];for(const c of chars.values())if(c.kind==='bot')b.push([c.id,c.name,c.color,r2(c.pos.x),r2(c.pos.y),r2(c.pos.z),r2(c.face),c.stun>0?1:0,c.charging?r2(c.charge):0,(selItem(c)||{}).id||0,r2(c.vel.x),r2(c.vel.y),r2(c.vel.z),r1(c.downT),c.smokoSeat>=0?c.smokoSeat:-1,Math.round(c.drunk||0)]);
   const pd=[];for(const p of puddles.values())pd.push([p.id,r2(p.x),r2(p.z),r2(p.r),r1(p.life)]);
-  return{fe:featMask(),mt:[matchLen,matchNo,[...matchWins],roundWinner||0,matchOver?1:0],fd:fallDur,gm:gameMode==='heist'?2:gameMode==='teams'?1:0,ht:gameMode==='heist'?heistTeams:0,hb:gameMode==='heist'?heistKeysArr().map(k=>heistBanked[k]||0):0,ff:friendlyFire?1:0,tm:(gameMode==='teams'||gameMode==='heist')?[...teamOf].filter(([id])=>chars.has(id)):0,cs:chestStock,cp:CHEST.spot,np:[r2(NPC.pos.x),r2(NPC.pos.z),r2(NPC.face),NPC_STATES.indexOf(NPC.state)],st:state,tl:r1(roundLeft),cd:r1(countdown),len:roundLen,it,b,sc:boardRows(),ld:leaderId||0,pd,res:(state==='results'&&resultsRows)?resultsRows:0};
+  return{fe:featMask(),mt:[matchLen,matchNo,[...matchWins],roundWinner||0,matchOver?1:0],fd:fallDur,gm:gameMode==='heist'?2:gameMode==='teams'?1:0,ht:gameMode==='heist'?heistTeams:0,hb:gameMode==='heist'?heistKeysArr().map(k=>heistBanked[k]||0):0,ff:friendlyFire?1:0,cy:carryList(),tm:(gameMode==='teams'||gameMode==='heist')?[...teamOf].filter(([id])=>chars.has(id)):0,cs:chestStock,cp:CHEST.spot,np:[r2(NPC.pos.x),r2(NPC.pos.z),r2(NPC.face),NPC_STATES.indexOf(NPC.state)],st:state,tl:r1(roundLeft),cd:r1(countdown),len:roundLen,it,b,sc:boardRows(),ld:leaderId||0,pd,res:(state==='results'&&resultsRows)?resultsRows:0};
 }
 function buildPresence(){
   const p={id:myId,n:myName,c:myColor,ev:net.out};
@@ -2205,7 +2337,7 @@ function peerUpdate(p){
 }
 function peerLeft(p){const id=net.idByPeer.get(p.peer);if(!id)return;net.idByPeer.delete(p.peer);
   if(!net.isHost&&id===net.hostId){leaveYard('The host left the yard, so the game ended.');return;}
-  const ch=chars.get(id);if(ch){if(isAuth)for(const it of heldOf(id))authDrop(id,it);removeChar(ch);}
+  const ch=chars.get(id);if(ch){if(isAuth){carryCleanup(id);for(const it of heldOf(id))authDrop(id,it);}removeChar(ch);}
   net.seen.delete(id);scoreDirty=true;}
 function updateRemotePlayer(id,pr){
   let ch=chars.get(id);const name=cleanName(pr.n),color=clamp(num(pr.c,0xffffff)|0,0,0xffffff);
@@ -2241,6 +2373,11 @@ function handleEvent(fromId,e){
     else if(k==='mg')authMeatGrab(fromId,e[1]);
     else if(k==='sl'){if(typeof e[1]==='string')authSlap(fromId,e[1],items.get(e[2]));}
     else if(k==='sw'){if(elapsed-(ch.lastSw||-9)>.4){ch.lastSw=elapsed;fx('sw',fromId);}}
+    else if(k==='gr'){if(typeof e[1]==='string')authGrab(fromId,e[1]);}
+    else if(k==='gd'){authRelease(fromId,0);}
+    else if(k==='gt'){authRelease(fromId,4,clamp(num(e[1],0),-1,1),clamp(num(e[2],0),-1,1));}
+    else if(k==='gw'){authWriggle(fromId);}
+    else if(k==='ng'){const v=chars.get(fromId);if(typeof e[1]==='string'&&v&&v.chuckBy===e[1]&&elapsed-v.chuckT<3.5&&inSmoko(v))authNaughty(e[1],fromId);}
   }else if(fromId===net.hostId)playFx(e);
 }
 /* guest: mirror the host's world */
@@ -2292,6 +2429,7 @@ function applyWorld(w){
       if(leavingHeist)clearHeistProps();}
     {const live=gm==='heist'&&w.st!=='warmup'&&w.st!=='menu';if(live&&Object.keys(heistBases).length!==ht)buildHeistBases(ht);else if(!live&&heistProps.length)clearHeistProps();}
     if(gameMode==='heist'&&Array.isArray(w.hb)){heistKeysArr().forEach((k,i)=>{heistBanked[k]=num(w.hb[i],0)|0;});}}
+  carrySync(w.cy);
   // puddles
   if(Array.isArray(w.pd)){const ps=new Set();for(const a of w.pd){if(!Array.isArray(a))continue;const id=a[0];ps.add(id);let p=puddles.get(id);if(!p)p=makePuddle(id,num(a[1],0),num(a[2],0),num(a[3],1.2),num(a[4],10));p.life=num(a[4],p.life);}
     for(const p of [...puddles.values()])if(!ps.has(p.id))removePuddle(p);}
@@ -2359,6 +2497,7 @@ function enterMp(){
   refreshOverlays();renderYardPanel();
 }
 function leaveYard(msg){
+  carryReset();
   clearTimeout(net.joinTimer);
   if(net.yard){try{net.yard.leave();}catch(e){}}
   net.unsub.forEach(u=>{try{u();}catch(e){}});net.unsub=[];
@@ -2382,13 +2521,13 @@ const touchMode=window.matchMedia&&window.matchMedia('(pointer: coarse)').matche
 const touchMove=new THREE.Vector2();
 if(touchMode)document.body.classList.add('touch');
 function canAct(){return !!me&&(state==='play'||(mode==='mp'&&(state==='warmup'||state==='results')));}
-function startCharge(){if(!canAct()||me.stun>0||me.drinkT>0||me.smokoSeat>=0)return;
+function startCharge(){if(isCarrying(me)){showHint('Hands full! Put them down first (<b>V</b>).',1.8);return;}if(!canAct()||me.stun>0||me.drinkT>0||me.smokoSeat>=0)return;
   if(!selItem(me)){showHint('Nothing to chuck. Walk over something <b>glowing</b> on the lawn to pick it up.',2.5);return;}
   if(selItem(me).def.melee&&!selItem(me).def.throwable){trySlap();return;}
   me.charging=true;me.charge=0;me.chargeAt=elapsed;}
 function vmStart(){return new V3(.28,-.22,-.55).applyMatrix4(camera.matrixWorld);}
 function playerThrowVel(it){const dir=new V3();camera.getWorldDirection(dir);dir.y+=.07;dir.normalize();
-  return dir.multiplyScalar(it.def.speed*(.42+.58*me.charge)).add(new V3(me.vel.x*.3,0,me.vel.z*.3));}
+  return dir.multiplyScalar(it.def.speed*(.42+.58*me.charge)*(me.naughtyT>0?NAUGHTY.weak:1)).add(new V3(me.vel.x*.3,0,me.vel.z*.3));}
 function releaseCharge(){if(!me||!me.charging)return;const it=selItem(me);if(!canAct()||!it){me.charging=false;return;}
   if(it.def.throwable&&elapsed-(me.chargeAt||0)<.2){me.charging=false;me.charge=0;trySlap();return;}
   const chg=me.charge,vel=playerThrowVel(it),start=vmStart();me.charging=false;me.charge=0;me.overT=0;SFX.throw(me.pos);
@@ -2400,7 +2539,8 @@ function typing(e){const t=e.target;return t&&(t.tagName==='INPUT'||t.tagName===
 window.addEventListener('keydown',e=>{if(typing(e))return;keys[e.code]=true;
   if((e.code==='Space'||e.code.startsWith('Arrow'))&&mode!=='menu')e.preventDefault();
   if(canAct()){
-    if(e.code==='Space'&&!e.repeat){if(me.smokoSeat>=0)standUp();else tryJump(me);}
+    if(e.code==='Space'&&!e.repeat){if(isCarried(me))wriggle();else if(me.smokoSeat>=0)standUp();else tryJump(me);}
+    if(e.code==='KeyV'&&!e.repeat)vDown();
     if((e.code==='ShiftLeft'||e.code==='ShiftRight')&&!e.repeat)tryBoost(me);
     if(e.code==='KeyR'&&!e.repeat)interact();
     if((e.code==='KeyQ'||e.code==='KeyE')&&!e.repeat)swap(1);
@@ -2413,7 +2553,7 @@ window.addEventListener('keydown',e=>{if(typing(e))return;keys[e.code]=true;
   if(mode==='solo'){if((e.code==='KeyP'||(e.code==='Escape'&&(fallbackAim||touchMode)))&&(state==='play'||state==='countdown'))pause();else if(e.code==='KeyP'&&state==='paused')resume(false);}
   if(mode==='mp'&&(fallbackAim||touchMode)&&e.code==='Escape'){panelOpen=!panelOpen;refreshOverlays();}
 });
-window.addEventListener('keyup',e=>{keys[e.code]=false;if(e.code==='KeyF')releaseCharge();});
+window.addEventListener('keyup',e=>{keys[e.code]=false;if(e.code==='KeyF')releaseCharge();if(e.code==='KeyV')vUp();});
 window.addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
 function requestLock(){if(touchMode||fallbackAim)return;try{const p=canvas.requestPointerLock();if(p&&p.catch)p.catch(()=>lockFailed());}catch(e){lockFailed();}}
 function lockFailed(){if(!hadLock){fallbackAim=true;if(mode==='mp'){panelOpen=false;refreshOverlays();}
@@ -2462,7 +2602,7 @@ function playerInput(){
   let mx=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0),my=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0);
   if(touchMode){mx=touchMove.x;my=touchMove.y;}
   if(mode==='mp'&&panelOpen&&!fallbackAim&&!touchMode){mx=0;my=0;}
-  if(me.smokoSeat>=0){mx=0;my=0;}
+  if(me.smokoSeat>=0||isCarried(me)){mx=0;my=0;}
   const s=Math.sin(me.yaw),c=Math.cos(me.yaw);
   me.wish.set(c*mx-s*my,-s*mx-c*my);if(me.wish.length()>1)me.wish.normalize();
   const da=drunkAmt(me.drunk);if(da>0&&(mx||my)){const th=da*(Math.sin(elapsed*.5)*.5+Math.sin(elapsed*1.37+1)*.2),cs=Math.cos(th),sn=Math.sin(th),wx=me.wish.x,wz=me.wish.y;me.wish.set(wx*cs-wz*sn,wx*sn+wz*cs);}
@@ -2521,12 +2661,17 @@ function updateHud(dt){
     const spot=canAct()&&me.drinkT<=0&&me.stun<=0?barSpot(me):null,bp=$('#barPrompt'),atChest=canAct()&&me.stun<=0&&chestNear(me);
     const ms=canAct()&&me.stun<=0?meatSpot(me):null;
     const ht=helpTick(dt);
-    if(me.fallT>0){const alone=teamsOn()&&(teamOf.get(myId)==='w'||![...chars.values()].some(o=>o!==me&&sameTeam(myId,o.id)));
+    const gt=(!me.fallT&&me.smokoSeat<0&&!isCarried(me)&&!isCarrying(me))?grabTarget():null;
+    if(isCarried(me)){const html='<b>Carried!</b> Mash <kbd>SPACE</kbd> to wriggle free';if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
+    else if(isCarrying(me)){const html=touchMode?'Carrying a mate':'<kbd>V</kbd>Put down · hold <kbd>V</kbd> to chuck';if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
+    else if(me.fallT>0){const alone=teamsOn()&&(teamOf.get(myId)==='w'||![...chars.values()].some(o=>o!==me&&sameTeam(myId,o.id)));
       const html=`<b>Stacked it!</b> Up in ${Math.ceil(me.fallT)}s${alone?'':teamsOn()?' (or a teammate can help you up)':' (or a mate can help you up)'}`;if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
     else if(me.smokoSeat>=0){const html=`<b>Smoko.</b> Nobody can touch you for ${Math.ceil(SMOKO.maxT-me.smokoT)}s. `+(touchMode?'Tap <b>Up</b> to get back to it':'<kbd>R</kbd>get back to it');if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
+    else if(canAct()&&me.stun<=0&&inSmoko(me)&&!ht&&naughtyOn()){const html='<b>Naughty Corner!</b> Get dumped here and you\'re in trouble';if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
     else if(canAct()&&me.stun<=0&&inSmoko(me)&&!ht){const html=touchMode?'Tap <b>Sit</b> for smoko (safe, but you have to drink)':'<kbd>R</kbd>Sit down for smoko (safe, but you have to drink)';if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
     else if(ht){const who=esc(ht.kind==='me'?'yourself':ht.name),pc=Math.round(me.helpT/HELP_TIME*100);
-      const html=me.helpT>0?`Helping ${who} up… ${pc}%`:(touchMode?`Hold <b>Help</b> to get ${who} up (+${HELP_PTS})`:`<kbd>R</kbd>Hold to help ${who} up (+${HELP_PTS})`);if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
+      const html=me.helpT>0?`Helping ${who} up… ${pc}%`:(touchMode?`Hold <b>Help</b> to get ${who} up (+${HELP_PTS})`:`<kbd>R</kbd>Hold to help ${who} up (+${HELP_PTS}) · <kbd>V</kbd>pick up`);if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
+    else if(gt){const html=touchMode?`${esc(gt.name)} is down`:`<kbd>V</kbd>Pick up ${esc(gt.name)}`;if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
     else if(ms){const nm2=ms==='steak'?'a raw steak':'a raw fish';const html=touchMode?`Tap <b>Grab</b> to nick ${nm2}`:`<kbd>R</kbd>Nick ${nm2} (Dazza won't like it)`;if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
     else if(atChest){const html=chestStock>0?(touchMode?`Tap <b>Grab</b> something from the chest (${chestStock} left)`:`<kbd>R</kbd>Grab something from the chest (${chestStock} left)`):'Chest is empty, restocking…';if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
     else if(spot){const html=touchMode?`Tap <b>Drink</b> for ${DRINKS[spot].full}`:`<kbd>R</kbd>Drink ${DRINKS[spot].full}`;if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}else bp.classList.remove('on');
@@ -2578,7 +2723,7 @@ function renderYardPanel(){
   else if(state==='warmup'||state==='results')msg.textContent=net.isHost?`Warm-up. Mates can join with the code any time${humans.length<2?' (nobody else is here yet)':''}. Keep this tab open and in front: your browser runs the yard.`:`Warm-up. Throws don’t score until ${hostName} starts the round.`;
   else msg.textContent='Round in progress. Get back out there.';
   $('#hostCtl').hidden=!net.isHost;
-  {const off=FEAT_KEYS.filter(k=>k!=='adult'&&!FEAT[k]&&(FEAT.adult||!ADULT_FEATS.includes(k))).map(k=>FEAT_NAMES[k]);if(!net.isHost){msg.textContent+=FEAT.adult?' This yard is PG15+.':' This yard is Family friendly.';if(off.length)msg.textContent+=` Switched off this game: ${off.join(', ')}.`;}}
+  {const off=FEAT_KEYS.filter(k=>k!=='adult'&&k!=='naughty'&&!FEAT[k]&&(FEAT.adult||!ADULT_FEATS.includes(k))).map(k=>FEAT_NAMES[k]);if(!net.isHost){msg.textContent+=FEAT.adult?' This yard is PG15+.':' This yard is Family friendly.';if(off.length)msg.textContent+=` Switched off this game: ${off.join(', ')}.`;}}
   $('#yardCard').classList.toggle('pg',FEAT.adult);
   if(net.isHost)document.querySelectorAll('#yFeat input,input[name=ycontent]').forEach(i=>i.disabled=busy);
   if(net.isHost){$('#teamOpts').hidden=!tOn;$('#yHeistCountWrap').hidden=gameMode!=='heist';
@@ -2635,6 +2780,7 @@ function authStartRound(){
   if(assign.length)fx('rs',assign);
   const ss=SPAWNS.filter(q=>gameMode!=='heist'||heistClear(q[0],q[1],1.2)).sort(()=>Math.random()-.5);for(let k=0;k<Math.min(ss.length,8+Math.floor(chars.size*1.5));k++)spawnItem(k<3?TYPES[k]:randomType(),ss[k][0],ss[k][1],true);
   for(let k=0;k<NOODLES;k++)spawnNoodle();noodleT=4;
+  carryReset();for(const c of chars.values())c.naughtyT=0;
   roundLeft=roundLen;countdown=3.2;lastBeep=4;state='countdown';resultsRows=null;resultsOpen=false;scoreDirty=true;leaderId=null;
   refreshOverlays();renderYardPanel();
 }
@@ -2743,11 +2889,13 @@ function frame(now){
   if(state==='play'){roundLeft-=dt;const s=Math.ceil(roundLeft);if(roundLeft<=10&&s!==beepS&&s>0){beepS=s;SFX.beep();}if(isAuth&&roundLeft<=0){roundLeft=0;authEndRound();}}
   if(state!==frame.lastState){if(state==='countdown'&&matchLen>1&&mode!=='menu'){const lead=matchLeader();
       showAlert(`ROUND ${matchNo} OF ${matchLen}`+`<small>${matchWins.size?(lead?esc(keyName(lead,'You'))+' lead'+(lead==='p:'+myId?'':'s')+' · ':'All square · ')+matchStandings():'First to '+matchNeed()+' round wins takes the match'}</small>`,'round',4);}
+    for(const c of chars.values()){c.naughtyT=0;c.chuckBy=null;}naughtyCd.clear();
     if(state==='countdown'&&me){me.drunk=0;me.drinkT=0;me.drinkType=null;me.fallT=0;me.fallImmune=0;me.rise=0;me.smokoSeat=-1;
       const t=teamOfId(myId);if(t)showHint(t==='w'?'You\'re the <b>Wildcard</b>. Everyone is fair game, and everyone is after you.':`You're on the <b style="color:${TEAMS[t].css}">${TEAMS[t].name}</b> team. Get the other lot${friendlyFire?'. Friendly fire is on, so watch your aim':''}.`,5);}
     frame.lastState=state;}
   if(me)playerInput();
-  if(isAuth)for(const ch of chars.values())if(ch.ai)aiUpdate(ch,dt);
+  if(me)carryTick(dt);if(isAuth)carryHostTick(dt);
+  if(isAuth)for(const ch of chars.values())if(ch.ai&&!carriedBy.has(ch.id)&&!(ch.naughtyT>NAUGHTY.dur))aiUpdate(ch,dt);
   for(const ch of chars.values()){if(ch.kind==='proxy')updateProxy(ch,dt);else updateChar(ch,dt);}
   separate();
   if(isAuth&&mode!=='menu')computeLeader();
@@ -2760,7 +2908,7 @@ function frame(now){
     camera.position.set(me.pos.x+sx*.3,me.pos.y+1.55-(me.sink||0)+bob+sy*.3-mdn*1.2+(SC?SC.lift:0)-FF*1.25-(me.smokoSeat>=0?.45:0),me.pos.z);
     const dr=me.dodgeT>0?(me.dodgeDir.dot(new V3(Math.cos(me.yaw),0,-Math.sin(me.yaw)))>0?-.12:.12):0;
     const da=drunkAmt(me.drunk),et=elapsed;
-    const swY=da*(Math.sin(et*.63)*.06+Math.sin(et*1.71)*.018),swP=da*(Math.sin(et*.52+1.3)*.035+Math.sin(et*1.37)*.012),swR=da*(Math.sin(et*.8+.5)*.21+Math.sin(et*1.9)*.03);
+    const nsw=me.naughtyT>0&&me.naughtyT<=NAUGHTY.dur?1:0,swY=da*(Math.sin(et*.63)*.06+Math.sin(et*1.71)*.018)+nsw*(Math.sin(et*1.9)*.045+Math.sin(et*4.3)*.015),swP=da*(Math.sin(et*.52+1.3)*.035+Math.sin(et*1.37)*.012)+nsw*(Math.sin(et*2.3+1)*.03+Math.sin(et*5.1)*.01),swR=da*(Math.sin(et*.8+.5)*.21+Math.sin(et*1.9)*.03);
     camera.rotation.set(me.pitch+sy*.2+swP+mdn*(1.1-me.pitch)+(SC?SC.pitch:0),me.yaw+sx*.2+swY+(SC?SC.yaw:0),camRoll+dr+swR+mdn*.25+(SC?SC.roll:0)+(me.dizzyT>0?Math.sin(et*5)*.09*Math.min(1,me.dizzyT):0)+FF*1.15);
     const tf=me.sprinting?81:74;if(Math.abs(camera.fov-tf)>.05){camera.fov+=(tf-camera.fov)*(1-Math.exp(-8*dt));camera.updateProjectionMatrix();}
   }else{const a=elapsed*.05;camera.position.set(Math.sin(a)*40,17,Math.cos(a)*40);camera.lookAt(0,1,0);}
