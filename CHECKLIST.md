@@ -44,8 +44,11 @@
 - ✅ Teams (Red / Blue / Wildcard), friendly fire option
 - ✅ Best-of-3 matches; host picks what's in the yard
 
-**Teddy Heist (new team mode)**
-- ✅ 2 to 4 teams (host picks under "Game mode"), using Red/Blue + Green/Yellow for 3-4 teams. Each team gets a base in its own corner/side of the yard, ringed by a fence/crate wall with a gap or two to get in
+**Teddy Heist (its own mode)**
+- ✅ Its own **🧸 Teddy Heist tab** on the main menu (not buried in More options): pick 2-4 teams and bots, then Play solo or Host online. Teams spawn inside their own base
+- ✅ Bases are loud: coloured floor pad marking the banking zone, a tall flag pole and a light beam you can spot across the yard, taller walls
+- ✅ Heist map is no longer a plain rectangle: stepped blocks cut off all four yard corners
+- ✅ 2 to 4 teams, using Red/Blue + Green/Yellow for 3-4 teams. Each team gets a base in its own corner/side of the yard, ringed by a fence/crate wall with a gap or two to get in
 - ✅ Each base holds a bundle of that team's teddies — 2 each in a small lobby, rising to a max of 4 per team as more players share each team (formula: 2 + one extra per 2 players per team, capped at 4)
 - ✅ Run an enemy teddy back to your own base to bank it for points; stealing it back before it's banked just returns it. Getting slapped or knocked down while carrying drops the teddy on the spot — no auto-return, so there's a scramble
 - ✅ Walking up to your own team's teddy auto-returns it home instead of letting you "steal" your own
