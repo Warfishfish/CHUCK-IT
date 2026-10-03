@@ -277,7 +277,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.20.0</span>
+      <span class="tag">Backyard Brawl · prototype 0.21.0</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -292,10 +292,6 @@ body.touch #cds{display:none}
 
     <section class="panel" data-panel="solo">
       <button class="btn primary big" id="play" type="button">▶ Play vs 3 bots</button>
-      <fieldset class="seg who"><legend>👨‍👩‍👧 Who's playing?</legend><div class="opts">
-        <input type="radio" name="pcontent" id="pcFam" value="family" checked><label for="pcFam">🧒 Family</label>
-        <input type="radio" name="pcontent" id="pcAdult" value="adult"><label for="pcAdult">😈 PG15+</label>
-      </div><p class="note" id="pcNote"></p></fieldset>
       <fieldset class="seg"><legend>🤖 Bots</legend><div class="opts">
         <input type="radio" name="pbots" id="pb0" value="0"><label for="pb0">None</label>
         <input type="radio" name="pbots" id="pb1" value="1"><label for="pb1">1</label>
@@ -334,6 +330,7 @@ body.touch #cds{display:none}
             <input type="radio" name="pff" id="pffOn" value="1"><label for="pffOn">On</label>
           </div></fieldset>
           <fieldset class="seg"><legend>🏡 What's in the yard</legend><div class="feat" id="pFeat">
+            <label class="adultbox"><input type="checkbox" data-f="adult">🔞 Adult stuff (dildo chest, cheeky lines and names)</label>
             <label><input type="checkbox" data-f="bar" checked>🍺 Bar</label>
             <label><input type="checkbox" data-f="bbq" checked>🔥 BBQ &amp; Dazza</label>
             <label class="adultonly"><input type="checkbox" data-f="chest" checked>🍆 Dildo chest</label>
@@ -363,10 +360,6 @@ body.touch #cds{display:none}
       <details class="more" id="mOpts">
         <summary>⚙️ Game options (when you host)</summary>
         <div class="setup">
-          <fieldset class="seg who"><legend>👨‍👩‍👧 Who's playing?</legend><div class="opts">
-            <input type="radio" name="mcontent" id="mcFam" value="family" checked><label for="mcFam">🧒 Family</label>
-            <input type="radio" name="mcontent" id="mcAdult" value="adult"><label for="mcAdult">😈 PG15+</label>
-          </div><p class="note" id="mcNote"></p></fieldset>
           <fieldset class="seg"><legend>🤖 Bots filling in</legend><div class="opts">
             <input type="radio" name="mbots" id="mb0" value="0" checked><label for="mb0">None</label>
             <input type="radio" name="mbots" id="mb1" value="1"><label for="mb1">1</label>
@@ -392,6 +385,7 @@ body.touch #cds{display:none}
             <input type="radio" name="mff" id="mffOn" value="1"><label for="mffOn">On</label>
           </div></fieldset>
           <fieldset class="seg"><legend>🏡 What's in the yard</legend><div class="feat" id="mFeat">
+            <label class="adultbox"><input type="checkbox" data-f="adult">🔞 Adult stuff (dildo chest, cheeky lines and names)</label>
             <label><input type="checkbox" data-f="bar" checked>🍺 Bar</label>
             <label><input type="checkbox" data-f="bbq" checked>🔥 BBQ &amp; Dazza</label>
             <label class="adultonly"><input type="checkbox" data-f="chest" checked>🍆 Dildo chest</label>
@@ -401,8 +395,8 @@ body.touch #cds{display:none}
             <label><input type="checkbox" data-f="drunkall">🍻 Drunk mode (everyone's hammered all game)</label>
           </div></fieldset>
           <fieldset class="seg"><legend>🥴 Stacked it: back up after</legend><div class="opts">
-            <input type="radio" name="mfall" id="mf10" value="10"><label for="mf10">10 s</label>
-            <input type="radio" name="mfall" id="mf20" value="20" checked><label for="mf20">20 s</label>
+            <input type="radio" name="mfall" id="mf10" value="10" checked><label for="mf10">10 s</label>
+            <input type="radio" name="mfall" id="mf20" value="20"><label for="mf20">20 s</label>
             <input type="radio" name="mfall" id="mf30" value="30"><label for="mf30">30 s</label>
           </div></fieldset>
           <p class="note">You can still change all of these in the yard before each round.</p>
@@ -468,10 +462,6 @@ body.touch #cds{display:none}
     <p id="yardMsg"></p>
     <ul class="yard-players" id="yardPlayers"></ul>
     <div class="host-ctl" id="hostCtl" hidden>
-      <fieldset class="seg who"><legend>👨‍👩‍👧 Who's playing?</legend><div class="opts">
-        <input type="radio" name="ycontent" id="ycFam" value="family" checked><label for="ycFam">🧒 Family</label>
-        <input type="radio" name="ycontent" id="ycAdult" value="adult"><label for="ycAdult">😈 PG15+</label>
-      </div><p class="note" id="ycNote"></p></fieldset>
       <fieldset class="seg"><legend>Rounds</legend><div class="opts">
         <input type="radio" name="yrounds" id="yr1" value="1" checked><label for="yr1">Single</label>
         <input type="radio" name="yrounds" id="yr3" value="3"><label for="yr3">Best of 3</label>
@@ -495,6 +485,7 @@ body.touch #cds{display:none}
         <button class="btn small" id="shuffleTeams" type="button">Shuffle teams</button>
       </div>
       <fieldset class="seg"><legend>What's in the yard</legend><div class="feat" id="yFeat">
+            <label class="adultbox"><input type="checkbox" data-f="adult">🔞 Adult stuff (dildo chest, cheeky lines and names)</label>
           <label><input type="checkbox" data-f="bar" checked>🍺 Bar</label>
           <label><input type="checkbox" data-f="bbq" checked>🔥 BBQ &amp; Dazza</label>
           <label class="adultonly"><input type="checkbox" data-f="chest" checked>🍆 Dildo chest</label>
@@ -519,8 +510,8 @@ body.touch #cds{display:none}
         <input type="radio" name="ydiff" id="ydSpicy" value="spicy"><label for="ydSpicy">Spicy</label>
       </div></fieldset>
       <fieldset class="seg"><legend>Stacked it: back up after</legend><div class="opts">
-        <input type="radio" name="yfall" id="yf10" value="10"><label for="yf10">10 s</label>
-        <input type="radio" name="yfall" id="yf20" value="20" checked><label for="yf20">20 s</label>
+        <input type="radio" name="yfall" id="yf10" value="10" checked><label for="yf10">10 s</label>
+        <input type="radio" name="yfall" id="yf20" value="20"><label for="yf20">20 s</label>
         <input type="radio" name="yfall" id="yf30" value="30"><label for="yf30">30 s</label>
       </div></fieldset>
       <button class="btn primary" id="startMp" type="button">Start round</button>
@@ -588,7 +579,7 @@ const ITEM_DEFS={
     lines:["GNOMED!","No place like gnome!","Gnome sweet gnome!"],stats:[.55,1,.9]},
   noodle:{name:'Pool Noodle',short:'Noodle',melee:'stun',throwable:true,uses:6,slapStun:1.2,slapPts:50,blurb:'Floating in the pool. Tap: floppy slap. Hold: chuck it',speed:21,knock:5,charge:.6,r:.2,bounce:.45,grav:.85,weight:0,sfx:'boing',
     lines:["NOODLED!","Pool noodle justice!","Floppy whack!"],stats:[.6,.35,.3]},
-  snag:{adult:true,name:'Dodgy Snag',short:'Snag',eat:true,blurb:'From the BBQ (PG15+ chance). Press R to eat it: a speed burst, then you\'ll regret it',speed:20,knock:3,charge:.6,r:.18,bounce:.1,grav:1,weight:0,sfx:'thud',
+  snag:{adult:true,name:'Dodgy Snag',short:'Snag',eat:true,blurb:'From the BBQ (adult chance). Press R to eat it: a speed burst, then you\'ll regret it',speed:20,knock:3,charge:.6,r:.18,bounce:.1,grav:1,weight:0,sfx:'thud',
     lines:["SNAGGED!","Sauce much?","Dodgy as."],stats:[.5,.3,.3]}
 };
 const ICONS={
@@ -645,9 +636,9 @@ const CHEST_SPOTS=[[-29,-21,.5],[29,-21.5,-.5],[27.5,21.8,2.6],[-29,21.8,-2.6],[
 const colliders=[];
 /* ---- map features the host can switch on/off: everything built for a feature is tagged so it can be hidden, colliders included ---- */
 const FEAT={bar:true,bbq:true,chest:true,smoko:true,falls:true,adult:false,naughty:false,drunkall:false},FEAT_KEYS=['bar','bbq','chest','smoko','falls','adult','naughty','drunkall'];
-/* PG15+ (FEAT.adult) must be on for any adult content: dildo chest now, anything else later. Hook new adult features onto ADULT_FEATS. */
+/* the Adult stuff tick (FEAT.adult) must be on for any adult content: dildo chest now, anything else later. Hook new adult features onto ADULT_FEATS. */
 const ADULT_FEATS=['chest'];
-const FEAT_NAMES={bar:'Bar',bbq:'BBQ & Dazza',chest:'Dildo chest',smoko:'Smoko',falls:'Stacking it',adult:'PG15+',naughty:'Naughty Corner',drunkall:'Drunk mode'};
+const FEAT_NAMES={bar:'Bar',bbq:'BBQ & Dazza',chest:'Dildo chest',smoko:'Smoko',falls:'Stacking it',adult:'Adult stuff',naughty:'Naughty Corner',drunkall:'Drunk mode'};
 const featObjs={bar:[],bbq:[],chest:[],smoko:[]},featCols={bar:[],bbq:[],chest:[],smoko:[]},featAt={};
 function featMark(k,end){if(!end){featAt[k]=[scene.children.length,colliders.length];return;}const [o,c]=featAt[k];
   for(let i=o;i<scene.children.length;i++)featObjs[k].push(scene.children[i]);for(let i=c;i<colliders.length;i++)featCols[k].push(colliders[i]);}
@@ -660,7 +651,7 @@ function applyFeatures(){try{smokoPad.material.color.set(FEAT.naughty&&FEAT.smok
 function setFeatMask(m){let ch=false;FEAT_KEYS.forEach((k,i)=>{const v=!!(m&(1<<i));if(FEAT[k]!==v){FEAT[k]=v;ch=true;}});
   if(!FEAT.adult)for(const k of ADULT_FEATS)if(FEAT[k]){FEAT[k]=false;ch=true;}
   if(ch)applyFeatures();return ch;}
-function readFeatUI(sel,rn){setFeatMask(FEAT_KEYS.reduce((a,k,i)=>{if(k==='adult')return a|(radio(rn)==='adult'?1<<i:0);const el=document.querySelector(`${sel} input[data-f=${k}]`);return a|(!el||el.checked?1<<i:0);},0));}
+function readFeatUI(sel,rn){setFeatMask(FEAT_KEYS.reduce((a,k,i)=>{const el=document.querySelector(`${sel} input[data-f=${k}]`);return a|(!el||el.checked?1<<i:0);},0));}
 function col(cx,cz,w,d,h){colliders.push({x0:cx-w/2,x1:cx+w/2,z0:cz-d/2,z1:cz+d/2,h});}
 const inPoolRect=p=>p.x>POOL.x0&&p.x<POOL.x1&&p.z>POOL.z0&&p.z<POOL.z1;
 let hoistHead,poolTex,clouds=[];
@@ -1159,8 +1150,18 @@ function startEmote(ch,k,i){const list=emoteLines(k);if(!list)return;const text=
   (k==='laugh'?SFX.laugh:k==='dance'?SFX.jig:SFX.babble)(ch.pos);}
 function tryEmote(k){if(!me||mode==='menu'||!EMOTES[k]||elapsed-(tryEmote.t||-9)<2||me.stun>0||me.fallT>0)return;tryEmote.t=elapsed;
   const i=Math.floor(Math.random()*emoteLines(k).length);if(isAuth)fx('emote',myId,k,i);else{startEmote(me,k,i);sendEv('em',k,i);}}
-function drunkModeFall(ch,dt){ // Drunk mode: every 2s of walking there's a 10% chance you stack it
-  if(ch.wish.lengthSq()>.04){ch.dFallT=(ch.dFallT||0)+dt;if(ch.dFallT>=2){ch.dFallT=0;if(Math.random()<.1)startFall(ch);}}}
+/* Drunk mode walking speed. Real drunk walking is slower on average and much less steady: the body
+   tips forward and the legs hurry to catch up (a lurch), then they slow right down or nearly stop
+   to get their balance back, with an uneven rhythm in between. Scaled by how drunk they are. */
+function drunkGait(ch,dt){if(!FEAT.drunkall)return 1;const da=drunkAmt(ch.drunk||0);if(da<=0)return 1;
+  const g=ch.gait||(ch.gait={st:0,t:rand(1,3),k:1});g.t-=dt;
+  if(g.t<=0){if(g.st!==0){g.st=0;g.t=rand(1,3);}else{const r=Math.random();if(r<.42){g.st=1;g.t=rand(.3,.7);}else if(r<.8){g.st=2;g.t=rand(.4,1.1);}else g.t=rand(.6,1.8);}}
+  const wave=1+.12*Math.sin(elapsed*2.1+ch.phase)+.07*Math.sin(elapsed*5.3+ch.phase*2);
+  const target=(g.st===1?1.32:g.st===2?.5:.88)*wave;
+  g.k+=(target-g.k)*(1-Math.exp(-(g.st===1?10:5)*dt));
+  return clamp(1+(g.k-1)*da,.35,1.45);}
+function drunkModeFall(ch,dt){ // Drunk mode: every 2s of walking there's a 4% chance you stack it
+  if(ch.wish.lengthSq()>.04){ch.dFallT=(ch.dFallT||0)+dt;if(ch.dFallT>=2){ch.dFallT=0;if(Math.random()<.04)startFall(ch);}}}
 function fallCheck(ch,dt){ch.fallImmune=Math.max(0,ch.fallImmune-dt);
   if(ch.fallT>0){ch.fallT=Math.max(0,ch.fallT-dt);ch.fallAge+=dt;ch.stun=Math.max(ch.stun,ch.fallT);
     if(ch.fallT<=0){ch.fallImmune=FEAT.drunkall?6:25;ch.stun=0;}return;}
@@ -1308,7 +1309,7 @@ function againLabel(){return matchLen>1&&!matchOver?`Next round (${matchNo+1} of
 function matchLeader(){let best=null,bv=-1,tie=false;for(const [k,v] of matchWins){if(v>bv){bv=v;best=k;tie=false;}else if(v===bv)tie=true;}return tie?null:best;}
 function matchStandings(){return [...matchWins].sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${esc(keyName(k,'You'))} ${v}`).join(' · ')||'No rounds won yet';}
 /* ---- teams ---- */
-let gameMode='ffa',friendlyFire=false,teamsManual=false,fallDur=20,touchHold=false;const teamOf=new Map();
+let gameMode='ffa',friendlyFire=false,teamsManual=false,fallDur=10,touchHold=false;const teamOf=new Map();
 const TEAMS={r:{name:'Red',color:0xe8443a,css:'#e8443a'},b:{name:'Blue',color:0x2f7fe0,css:'#2f7fe0'},g:{name:'Green',color:0x2e9e4f,css:'#2e9e4f'},y:{name:'Yellow',color:0xf2b705,css:'#f2b705'},w:{name:'Wildcard',color:0xf2c230,css:'#e0a800'}};
 function teamsOn(){return (mode==='mp'||mode==='solo')&&(gameMode==='teams'||gameMode==='heist');}
 function teamOfId(id){return teamsOn()?teamOf.get(id)||null:null;}
@@ -2092,7 +2093,7 @@ function spawner(dt){
 function tryCatch(ch){if(ch.catchCd>0||ch.stun>0||ch.smokoSeat>=0)return;ch.catchT=.32;ch.catchCd=.9;
   if(ch.kind==='me'){const r=$('#catchring');r.classList.add('on');setTimeout(()=>r.classList.remove('on'),320);}}
 const DRINKS={beer:{name:'VP',full:'a cold VP',amt:18,t:1.4},wine:{name:'Wine',full:'a glass of wine',amt:26,t:1.2},rum:{name:'Rum shot',full:'a rum shot',amt:34,t:.6}};
-const DRUNK_ALL=62; // Drunk mode keeps everybody at least this drunk
+const DRUNK_ALL=78; // Drunk mode keeps everybody at least this drunk
 const SOBER_RATE=1.6; // drunk points lost per second
 function drunkTier(d){return d<15?'Sober':d<40?'Tipsy':d<70?'Drunk':d<90?'Maggot':'Absolutely maggoted';}
 function barSpot(ch){if(!FEAT.bar||!ch||ch.pos.y>.4)return null;const dx=ch.pos.x-BAR.x,dz=ch.pos.z-BAR.z;
@@ -2140,7 +2141,7 @@ function updateChar(ch,dt){
   else ch.boostCd=Math.max(0,ch.boostCd-dt);
   ch.sprinting=ch.boostT>0&&!ch.inPool&&ch.stun<=0&&!frozen&&!carryOf.has(ch.id);
   if(ch.kind!=='proxy'){smokoTick(ch,dt);updateDrink(ch,dt);fallCheck(ch,dt);}
-  const maxSp=6.2*(ch.inPool?.5:1)*(ch.charging?.72:1)*(ch.sprinting?BOOST_MULT:1)*(ch.drinkT>0?.55:1)*(ch.snagBuffT>0?1.35:1)*(ch.snagStumbleT>0?.62:1)*(carryOf.has(ch.id)?CARRY.slow:1);
+  const maxSp=6.2*(ch.inPool?.5:1)*(ch.charging?.72:1)*(ch.sprinting?BOOST_MULT:1)*(ch.drinkT>0?.55:1)*(ch.snagBuffT>0?1.35:1)*(ch.snagStumbleT>0?.62:1)*(carryOf.has(ch.id)?CARRY.slow:1)*(ch.kind!=='proxy'?drunkGait(ch,dt):1);
   let tx=ch.wish.x*maxSp,tz=ch.wish.y*maxSp;if(ch.stun>0||frozen){tx=0;tz=0;}
   if(ch.dodgeT>0){ch.vel.x=ch.dodgeDir.x*14.5;ch.vel.z=ch.dodgeDir.z*14.5;}
   else{const grip=!ch.grounded?(ch.stun>0?2.2:6):ch.stun>0?3.2:ch.slideT>0?.3:ch.slip?1.1:ch.snagStumbleT>0?2.4:12;const k=1-Math.exp(-grip*dt);ch.vel.x+=(tx-ch.vel.x)*k;ch.vel.z+=(tz-ch.vel.z)*k;}
@@ -2580,15 +2581,15 @@ function pickColor(){const used=new Set();try{for(const p of net.yard?net.yard.p
   return PALETTE.find(c=>!used.has(c))||pick(PALETTE);}
 // copy the With mates options into the yard's host panel, so the yard opens with them
 function copyHostOpts(){
-  for(const [m,y] of [['mcontent','ycontent'],['mbots','ybots'],['mdiff','ydiff'],['mlen','ylen'],['mrounds','yrounds'],['mff','yff'],['mfall','yfall']]){
+  for(const [m,y] of [['mbots','ybots'],['mdiff','ydiff'],['mlen','ylen'],['mrounds','yrounds'],['mff','yff'],['mfall','yfall']]){
     const el=document.querySelector(`input[name=${y}][value="${radio(m)}"]`);if(el)el.checked=true;}
   document.querySelectorAll('#mFeat input[data-f]').forEach(c=>{const y=document.querySelector(`#yFeat input[data-f=${c.dataset.f}]`);if(y)y.checked=c.checked;});
-  $('#ycNote').textContent=CONTENT_NOTE[radio('ycontent')]||'';$('#yardCard').classList.toggle('pg',radio('ycontent')==='adult');}
+  $('#yardCard').classList.toggle('pg',adultTicked('#yFeat'));}
 async function hostYard(){
   if(!mpReady())return;ac();copyHostOpts();$('#hostBtn').disabled=true;setMpNote('Opening your yard…');
   const hm=radio('hmode')||'ffa';{const r=$('#'+({ffa:'ymFfa',teams:'ymTeams',heist:'ymHeist'})[hm]);if(r)r.checked=true;}
   gameMode=hm==='heist'?'heist':hm==='teams'?'teams':'ffa';friendlyFire=hm!=='heist'&&radio('yff')==='1';
-  if(hm==='heist'){heistTeams=clamp(+radio('hheist')||2,2,4);$('#ymHeist').checked=true;const yr=$('#yh'+heistTeams);if(yr)yr.checked=true;}teamsManual=false;teamOf.clear();net.lastTm=null;fallDur=+radio('yfall')||20;matchLen=+radio('yrounds')||1;matchOver=true;matchNo=0;readFeatUI('#yFeat','ycontent');
+  if(hm==='heist'){heistTeams=clamp(+radio('hheist')||2,2,4);$('#ymHeist').checked=true;const yr=$('#yh'+heistTeams);if(yr)yr.checked=true;}teamsManual=false;teamOf.clear();net.lastTm=null;fallDur=+radio('yfall')||10;matchLen=+radio('yrounds')||1;matchOver=true;matchNo=0;readFeatUI('#yFeat','ycontent');
   const a='abcdefghjkmnpqrstuvwxyz';let code='yard-';for(let i=0;i<4;i++)code+=a[Math.floor(Math.random()*a.length)];
   try{net.yard=await net.room.join(code);}catch(e){setMpNote('Couldn’t open a yard ('+(e&&e.code||'error')+'). Try again in a moment.',true);updateMpButtons();return;}
   net.code=code;net.isHost=true;myId=newId();net.hostId=myId;enterMp();
@@ -2838,7 +2839,7 @@ function renderYardPanel(){
   else if(state==='warmup'||state==='results')msg.textContent=net.isHost?`Warm-up. Mates can join with the code any time${humans.length<2?' (nobody else is here yet)':''}. Keep this tab open and in front: your browser runs the yard.`:`Warm-up. Throws don’t score until ${hostName} starts the round.`;
   else msg.textContent='Round in progress. Get back out there.';
   $('#hostCtl').hidden=!net.isHost;
-  {const off=FEAT_KEYS.filter(k=>k!=='adult'&&k!=='naughty'&&k!=='drunkall'&&!FEAT[k]&&(FEAT.adult||!ADULT_FEATS.includes(k))).map(k=>FEAT_NAMES[k]);if(!net.isHost){msg.textContent+=FEAT.adult?' This yard is PG15+.':' This yard is Family friendly.';if(off.length)msg.textContent+=` Switched off this game: ${off.join(', ')}.`;}}
+  {const off=FEAT_KEYS.filter(k=>k!=='adult'&&k!=='naughty'&&k!=='drunkall'&&!FEAT[k]&&(FEAT.adult||!ADULT_FEATS.includes(k))).map(k=>FEAT_NAMES[k]);if(!net.isHost){msg.textContent+=FEAT.adult?' Adult stuff is on in this yard.':' This yard is family friendly.';if(off.length)msg.textContent+=` Switched off this game: ${off.join(', ')}.`;}}
   $('#yardCard').classList.toggle('pg',FEAT.adult);
   if(net.isHost)document.querySelectorAll('#yFeat input,input[name=ycontent]').forEach(i=>i.disabled=busy);
   if(net.isHost){$('#teamOpts').hidden=!tOn;$('#yHeistCountWrap').hidden=gameMode!=='heist';
@@ -2912,7 +2913,7 @@ function startSolo(){
   ac();mode='solo';isAuth=true;myId='me';clearWorld();roundLen=+radio('len');difficulty=radio('diff');
   me=createChar('me',myName,PALETTE[0],'me',CHAR_SPAWNS[0]);myColor=PALETTE[0];
   const nb=radio('pbots')===''?3:clamp(+radio('pbots'),0,3);['Shazza','Davo','Kev'].slice(0,nb).forEach((n,i)=>createChar('b'+i,n,PALETTE[i+1],'bot',CHAR_SPAWNS[i+1]));
-  const sheist=radio('pmode')==='heist';gameMode=sheist?'heist':radio('pmode')==='teams'?'teams':'ffa';friendlyFire=!sheist&&radio('pff')==='1';fallDur=20;readFeatUI('#pFeat','pcontent');matchLen=sheist?1:+radio('prounds')||1;matchOver=true;matchNo=0;teamsManual=false;teamOf.clear();if(gameMode==='teams')balanceTeams(true);else if(gameMode==='heist'){heistTeams=clamp(+radio('pheist')||2,2,4);assignHeistTeams(true);}
+  const sheist=radio('pmode')==='heist';gameMode=sheist?'heist':radio('pmode')==='teams'?'teams':'ffa';friendlyFire=!sheist&&radio('pff')==='1';fallDur=10;readFeatUI('#pFeat','pcontent');matchLen=sheist?1:+radio('prounds')||1;matchOver=true;matchNo=0;teamsManual=false;teamOf.clear();if(gameMode==='teams')balanceTeams(true);else if(gameMode==='heist'){heistTeams=clamp(+radio('pheist')||2,2,4);assignHeistTeams(true);}
   hintStage=hintStage>=3?3:0;hintHideT=0;hintEl.style.opacity=0;
   authStartRound();requestLock();canvas.focus();refreshOverlays();
 }
@@ -2923,13 +2924,13 @@ function resume(fromLock){if(state!=='paused')return;if(!fromLock&&!fallbackAim&
   state=pause.prev||'play';last=performance.now();refreshOverlays();}
 function goMenu(){setFeatMask(31);matchOver=true;matchNo=0;matchWins.clear();if(document.pointerLockElement)document.exitPointerLock();resultsOpen=false;panelOpen=false;setupAttract();refreshOverlays();renderYards();}
 $('#play').addEventListener('click',startSolo);
+function adultTicked(sel){const el=document.querySelector(`${sel} input[data-f=adult]`);return !!el&&el.checked;}
 const CONTENT_NOTE={family:'Cartoon chucking for everyone. Safe for little ones.',adult:'Adds cheeky stuff, like the dildo chest. Not for little kids.'};
-function menuUpdate(){const pm=radio('pmode'),t=pm==='teams',h=pm==='heist',n=+radio('pbots');$('#pffWrap').hidden=!t;$('#pHeistWrap').hidden=!h;$('#hHeistWrap').hidden=radio('hmode')!=='heist';$('#mffWrap').hidden=radio('hmode')!=='teams';$('#mcNote').textContent=CONTENT_NOTE[radio('mcontent')]||'';
+function menuUpdate(){const pm=radio('pmode'),t=pm==='teams',h=pm==='heist',n=+radio('pbots');$('#pffWrap').hidden=!t;$('#pHeistWrap').hidden=!h;$('#hHeistWrap').hidden=radio('hmode')!=='heist';$('#mffWrap').hidden=radio('hmode')!=='teams';
   const pn=$('#pmNote');pn.hidden=!h;pn.textContent=h?'Each team guards a walled base full of teddies. Sneak into an enemy base, grab a teddy and run it back to yours to bank it. Most banked when the clock runs out wins.':'';
   $('#play').textContent=h?(n===0?'▶ Play Teddy Heist (no bots)':`▶ Play Teddy Heist vs ${n} bot${n>1?'s':''}`):t?'▶ Play: you + a bot vs 2 bots':n===0?'▶ Play with no bots':`▶ Play vs ${n} bot${n>1?'s':''}`;
-  $('#pcNote').textContent=CONTENT_NOTE[radio('pcontent')]||'';$('#ycNote').textContent=CONTENT_NOTE[radio('ycontent')]||'';
-  document.querySelector('#menu .card').classList.toggle('pg',radio('pcontent')==='adult'||radio('mcontent')==='adult');}
-document.querySelectorAll('input[name=pmode],input[name=pbots],input[name=pcontent],input[name=hmode],input[name=mcontent]').forEach(r=>r.addEventListener('change',menuUpdate));
+  document.querySelector('#menu .card').classList.toggle('pg',adultTicked('#pFeat')||adultTicked('#mFeat'));}
+document.querySelectorAll('input[name=pmode],input[name=pbots],input[name=hmode],#pFeat input[data-f=adult],#mFeat input[data-f=adult]').forEach(r=>r.addEventListener('change',menuUpdate));
 (function tabs(){const bs=[...document.querySelectorAll('#menu .tabs button')],ps=[...document.querySelectorAll('#menu [data-panel]')];
   function show(n){bs.forEach(b=>{const on=b.dataset.tab===n;b.classList.toggle('on',on);b.setAttribute('aria-selected',on);});ps.forEach(p=>p.hidden=p.dataset.panel!==n);}
   bs.forEach(b=>b.addEventListener('click',()=>show(b.dataset.tab)));show('solo');menuUpdate();})();
@@ -2947,8 +2948,7 @@ document.querySelectorAll('input[name=ymode]').forEach(r=>r.addEventListener('ch
   if(gameMode==='teams')balanceTeams(false);else if(gameMode==='heist'){heistTeams=clamp(+radio('yheist')||2,2,4);assignHeistTeams(false);}
   scoreDirty=true;renderYardPanel();}));
 document.querySelectorAll('input[name=yheist]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost&&state!=='play'&&state!=='countdown'){heistTeams=clamp(+radio('yheist')||2,2,4);assignHeistTeams(false);renderYardPanel();}}));
-document.querySelectorAll('input[name=ycontent]').forEach(r=>r.addEventListener('change',()=>{$('#ycNote').textContent=CONTENT_NOTE[radio('ycontent')]||'';$('#yardCard').classList.toggle('pg',radio('ycontent')==='adult');if(net.isHost&&state!=='play'&&state!=='countdown'){readFeatUI('#yFeat','ycontent');renderYardPanel();}}));
-document.querySelectorAll('#yFeat input').forEach(c=>c.addEventListener('change',()=>{if(net.isHost&&state!=='play'&&state!=='countdown'){readFeatUI('#yFeat','ycontent');renderYardPanel();}}));
+document.querySelectorAll('#yFeat input').forEach(c=>c.addEventListener('change',()=>{$('#yardCard').classList.toggle('pg',adultTicked('#yFeat'));if(net.isHost&&state!=='play'&&state!=='countdown'){readFeatUI('#yFeat','ycontent');renderYardPanel();}}));
 document.querySelectorAll('input[name=yrounds]').forEach(r=>r.addEventListener('change',()=>renderYardPanel()));
 document.querySelectorAll('input[name=yfall]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost)fallDur=+radio('yfall');}));
 document.querySelectorAll('input[name=yff]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost)friendlyFire=radio('yff')==='1';renderYardPanel();}));
