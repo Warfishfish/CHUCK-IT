@@ -15,7 +15,7 @@
 **Chucking and slapping**
 - ✅ Teddy, VP can, gnome, and floating pool noodles
 - ✅ Power throw: let go near the end of the wind-up bar (90% or more, the bar turns red past a little white mark) and a hit knocks the person over for 2 seconds. Players only, bots don't power-throw. Doesn't work on someone in their 1 second stun grace
-- ✅ Dildo chest (Cheeky mode only, random spot): 4 variants (Mini/Classic/Jumbo/rare Golden Wonder), each worth different points and a different knockdown length. Slaps knock people flat with Helicopter / Cartwheel / Timber
+- ✅ Dildo chest (Cheeky mode only, random spot): 4 variants (Mini/Classic/Jumbo/rare Golden Wonder), each worth different points and a different knockdown length. Slaps knock people flat with Sent Flying (flung backwards away from the slapper, lands on their back and skids, replaced the old spinning Helicopter) / Cartwheel / Timber
 - ✅ Dildo critical hit: ~15% chance on any dildo slap to flatten them for a full 5s with a much bigger flying knockback — "💥 CRITICAL!", no stun stacking on top
 - ✅ Steak, fish, noodle slaps stun (steak and fish stun for 2s). Stuns never stack: hitting someone who's already stunned shoves them but doesn't start or extend a stun (a dildo can still floor someone who's stunned but standing)
 - ✅ Fish slaps sometimes leave a green stink cloud round the victim (about 1 in 3), and occasionally the fish is properly off — bigger, darker, longer-lasting cloud and a "THAT FISH WAS OFF!" pop-up. Pure joke, no gameplay effect
@@ -23,6 +23,7 @@
 - ✅ Wet-willy, noogie, wedgie (Cheeky mode): a close-range unarmed slap, no item needed — shove-knockback, sillier label, no knockdown
 - ✅ Slap the chef: KO / Berserk / Flip the grill (gnome knockdown-stun eased back slightly so it's not as brutal)
 - ✅ Press **Q** to swap your held item
+- ✅ While you're knocked flat or have stacked it you can't throw, slap or catch, and the lying-down animation now lasts exactly as long as you're actually down (short dildo knockdowns used to leave you lying there but able to throw)
 
 **Drinking**
 - ✅ Beer, wine, rum at the bar; drunk meter, wobbly vision, drifting
