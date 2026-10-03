@@ -46,7 +46,7 @@
 
 **Teddy Heist (new team mode)**
 - ✅ 2 to 4 teams (host picks under "Game mode"), using Red/Blue + Green/Yellow for 3-4 teams. Each team gets a base in its own corner/side of the yard, ringed by a fence/crate wall with a gap or two to get in
-- ✅ Each base holds a bundle of that team's teddies — 2 per team, so a tight scrap rather than a mess to defend (2 teams = 4 teddies, 3 teams = 6, 4 teams = 8)
+- ✅ Each base holds a bundle of that team's teddies — 2 each in a small lobby, rising to a max of 4 per team as more players share each team (formula: 2 + one extra per 2 players per team, capped at 4)
 - ✅ Run an enemy teddy back to your own base to bank it for points; stealing it back before it's banked just returns it. Getting slapped or knocked down while carrying drops the teddy on the spot — no auto-return, so there's a scramble
 - ✅ Walking up to your own team's teddy auto-returns it home instead of letting you "steal" your own
 - ✅ Win: whoever's banked the most teddies when the clock runs out

@@ -276,7 +276,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.14.0</span>
+      <span class="tag">Backyard Brawl · prototype 0.14.1</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -1731,7 +1731,7 @@ function hitWall(it,axis){const d=it.def,sp=it.vel.length();
   if(sp>5)fx(it.type==='gnome'?'clonk':'thud',r2(it.pos.x),r2(it.pos.y),r2(it.pos.z));return false;}
 function onSurface(it,h,c){
   const d=it.def,sp=it.vel.length();
-  if(Math.abs(it.pos.x)>W||Math.abs(it.pos.z)>D){if(it.thrower)fx('over',it.thrower);removeItem(it);return;}
+  if(Math.abs(it.pos.x)>W||Math.abs(it.pos.z)>D){if(it.heistTeam!=null&&isAuth&&heistBases[it.heistTeam]){heistReturnTeddy(it);return;}if(it.thrower)fx('over',it.thrower);removeItem(it);return;}
   if(h===0&&inPoolRect(it.pos)){if(sp>2)fx('splash',r2(it.pos.x),r2(it.pos.z));if(d.smash){removeItem(it);return;}restItem(it,.02);it.pos.y=WATER_Y+.04;return;}
   if(d.smash&&sp>5){authSmash(it);return;}
   if(sp>5)fx(it.type==='gnome'?'clonk':'thud',r2(it.pos.x),r2(h+.05),r2(it.pos.z));
@@ -1752,7 +1752,7 @@ function collideWorld(it){
   }
   if(Math.abs(it.pos.x)>W-r&&Math.abs(it.pos.x)<W+.5&&it.pos.y<1.8+r){it.pos.x=Math.sign(it.pos.x)*(W-r);if(hitWall(it,'x'))return;}
   if(Math.abs(it.pos.z)>D-r&&Math.abs(it.pos.z)<D+.5&&it.pos.y<1.8+r){it.pos.z=Math.sign(it.pos.z)*(D-r);if(hitWall(it,'z'))return;}
-  if(it.pos.y<-4||Math.abs(it.pos.x)>60||Math.abs(it.pos.z)>60)removeItem(it);
+  if(it.pos.y<-4||Math.abs(it.pos.x)>60||Math.abs(it.pos.z)>60){if(it.heistTeam!=null&&isAuth&&heistBases[it.heistTeam])heistReturnTeddy(it);else removeItem(it);}
 }
 /* visual-only collisions: online guests and ghosts */
 function landVisual(it){if(it.isGhost&&it.def.smash){it.done=true;return;}
