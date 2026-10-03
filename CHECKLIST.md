@@ -23,7 +23,8 @@
 - ✅ Wet-willy, noogie, wedgie (Cheeky mode): a close-range unarmed slap, no item needed — shove-knockback, sillier label, no knockdown
 - ✅ Slap the chef: KO / Berserk / Flip the grill (gnome knockdown-stun eased back slightly so it's not as brutal)
 - ✅ Press **Q** to swap your held item
-- ✅ While you're knocked flat or have stacked it you can't throw, slap or catch, and the lying-down animation now lasts exactly as long as you're actually down (short dildo knockdowns used to leave you lying there but able to throw)
+- ✅ While you're knocked flat or have stacked it you can still throw or slap if you're holding something (bare-handed slaps and catches don't work lying down). The lying-down animation lasts exactly as long as you're actually down
+- ✅ You can't stand on top of the clothesline pole any more (bouncing off the tramp onto it): you slide off
 
 **Drinking**
 - ✅ Beer, wine, rum at the bar; drunk meter, wobbly vision, drifting
@@ -114,6 +115,7 @@
 - ⬜ Pick your look: colour, one accessory (cap / bucket hat / sunnies / headband), optional shirt pattern (original blob style)
 - ⬜ All host settings in one panel (rounds, teams, friendly fire, yard features, smoko mode)
 - ✅ Simpler setup screen (tabs, big Play button, More options)
+- ✅ Ticking or unticking things in "What's in the yard" (and Cheeky mode for the chest) adds or removes them from the yard behind the menu straight away, for whichever tab you're on
 - ⬜ Rules on their own screen, in short pages, only showing what's switched on
 
 ## 5. Polish ⬜

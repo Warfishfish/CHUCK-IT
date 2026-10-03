@@ -277,7 +277,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.22.0</span>
+      <span class="tag">Backyard Brawl · prototype 0.22.1</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -718,7 +718,7 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   const lineM=new THREE.LineBasicMaterial({color:0xeef0ee});
   [.8,1.4,2.0,2.55].forEach(r=>{const pts=armPts.map(a=>new THREE.Vector3(Math.cos(a)*r,.12+r*.09,-Math.sin(a)*r));hoistHead.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),lineM));});
   [0xf25c54,0x4cc9f0,0xffd23f,0xffffff].forEach((c,k)=>{const a=k*Math.PI/2;const s=mesh(new THREE.PlaneGeometry(1.1,.85),new THREE.MeshLambertMaterial({color:c,side:THREE.DoubleSide}),Math.cos(a)*1.5,-.3,-Math.sin(a)*1.5,hoistHead);s.rotation.y=a+Math.PI/2;});
-  col(0,3,.3,.3,2.3);
+  col(0,3,.3,.3,2.3);colliders[colliders.length-1].noTop=true; // the clothesline pole: too thin to stand on
 
   // shed
   const corr=canvasTex(64,64,(x,w,h)=>{for(let i=0;i<w;i+=8){x.fillStyle='#a9b5ae';x.fillRect(i,0,4,h);x.fillStyle='#93a19a';x.fillRect(i+4,0,4,h);}},6,1);
@@ -1008,9 +1008,9 @@ function syncChest(dt){if(!chestLid)return;const open=chestStock>0?-1.15:-.08;ch
   chestToys.forEach((t,k)=>t.visible=k<chestStock);chestLid.userData.glow.intensity=chestStock>0?.9+.3*Math.sin(elapsed*3):0;}
 const SLAP_NAMES=['SENT FLYING!','CARTWHEEL!','TIMBER!'],SLAP_USES=3,MEAT_STUN=2,MEAT_PTS=50;
 // attacker's client: find someone close in front and ask the host to resolve it
-function trySlap(){if(isCarrying(me)||me.downT>0||me.fallT>0||me.slapA)return;const it=selItem(me),unarmed=!it||!it.def.melee;
-  if(unarmed&&!FEAT.adult)return;
-  if(!canAct()||me.stun>0||me.drinkT>0||elapsed-me.lastSwing<(unarmed?.9:.55))return;
+function trySlap(){if(isCarrying(me))return;const it=selItem(me),unarmed=!it||!it.def.melee;
+  if(unarmed&&(!FEAT.adult||isDown(me)))return; // lying down you can still slap with something in your hand, not bare-handed
+  if(!canAct()||(me.stun>0&&!isDown(me))||me.drinkT>0||elapsed-me.lastSwing<(unarmed?.9:.55))return;
   me.lastSwing=elapsed;me.swingT=.28;SFX.whoosh(me.pos);
   const f=new V3();camera.getWorldDirection(f);f.y=0;if(f.lengthSq()<1e-4)f.copy(fwd(me));f.normalize();
   let best=null,bd=9;for(const c of chars.values()){if(c===me||c.downT>.3||c.smokoSeat>=0||(!friendlyFire&&sameTeam(myId,c.id)))continue;const d=new V3(c.pos.x-me.pos.x,0,c.pos.z-me.pos.z),L=d.length();
@@ -1030,7 +1030,6 @@ function authSilly(attId,vicId){const a=chars.get(attId),v=chars.get(vicId);if(a
   fx('silly',attId,vicId,Math.floor(Math.random()*SILLY_NAMES.length),r2(kd.x),r2(kd.z),scoring?1:0,gain,tk?1:0,db);}
 // host: validate, score, pick the outcome so every screen plays the same one
 function authSlap(attId,vicId,it){const a=chars.get(attId),v=chars.get(vicId);
-  if(a&&(a.downT>.2||a.fallT>.2))return;
   if(!a||!v||a===v||!it||it.holder!==attId||!it.def.melee||v.smokoSeat>=0||a.smokoSeat>=0)return;
   const tk=sameTeam(attId,vicId);if(tk&&!friendlyFire)return;
   if(it.def.melee==='stun'){ // raw meat: stun, +50, no penalty for the victim
@@ -1184,6 +1183,7 @@ function startFall(ch){ch.fallT=fallDur;ch.fallAge=0;ch.stun=Math.max(ch.stun,fa
 const CARRY={max:6,reach:1.9,wig:.8,immune:8,hold:.4,slow:.6,hv:10.5,vy:8.5};
 const carryOf=new Map(),carriedBy=new Map(),grabImmune=new Map(); // carrierId->{vid,t,wr,lastW} · victimId->carrierId · host: victimId->time they can be grabbed again
 let vHeld=0,vArmed=false;
+function isDown(ch){return !!ch&&(ch.downT>0||ch.fallT>0);}
 function isCarried(ch){return !!ch&&carriedBy.has(ch.id);}
 function isCarrying(ch){return !!ch&&carryOf.has(ch.id);}
 function carryForget(id){const c=carryOf.get(id);if(c)carriedBy.delete(c.vid);carryOf.delete(id);const g=carriedBy.get(id);if(g)carryOf.delete(g);carriedBy.delete(id);}
@@ -1738,7 +1738,7 @@ function authHeistBank(id,it){const ch=chars.get(id);if(!ch||!it||it.holder!==id
 function authDrop(id,it){const ch=chars.get(id);const p=ch?ch.pos:it.pos;it.state='flying';it.holder=null;it.thrower=null;it.live=false;it.flyT=0;
   it.pos.set(p.x+rand(-.5,.5),(ch?ch.pos.y:0)+.8,p.z+rand(-.5,.5));it.vel.set(rand(-1,1),2,rand(-1,1));}
 function authThrow(id,it,pos,vel,chg){
-  if(!it||it.holder!==id||it.state!=='held')return;{const tc=chars.get(id);if(tc&&(tc.downT>.2||tc.fallT>.2))return;}
+  if(!it||it.holder!==id||it.state!=='held')return;
   it.state='flying';it.holder=null;it.thrower=id;it.live=true;it.flyT=0;it.ignore.clear();it.pos.copy(pos);it.vel.copy(vel);
   it.spinAxis.set(rand(-1,1),rand(-.3,.3),rand(-1,1)).normalize();
   const c=chg!=null&&isFinite(chg)?clamp(chg,0,1):clamp((vel.length()/it.def.speed-.42)/.58,0,1);
@@ -2118,7 +2118,7 @@ const DOWN_TIME=3.5;
 const TRAMP_MAX=5,JUMP_V=7.5,BOOST_MULT=1.7,BOOST_TIME=1.6,BOOST_CD=5;
 function tryBoost(ch){if(carryOf.has(ch.id)||ch.smokoSeat>=0||ch.boostT>0||ch.boostCd>0||ch.stun>0||state==='countdown')return;ch.boostT=BOOST_TIME;SFX.dodge(ch.pos);}
 function tryJump(ch){if(ch.stun>0)return;ch.jumpBuf=.14;}
-function floorAt(ch){let floor=0;for(const c of colliders){if(ch.pos.x>c.x0-.1&&ch.pos.x<c.x1+.1&&ch.pos.z>c.z0-.1&&ch.pos.z<c.z1+.1&&(ch.pos.y>=c.h-.35||ch.prevY>=c.h-.05))floor=Math.max(floor,c.h);}return floor;}
+function floorAt(ch){let floor=0;for(const c of colliders){if(!c.noTop&&ch.pos.x>c.x0-.1&&ch.pos.x<c.x1+.1&&ch.pos.z>c.z0-.1&&ch.pos.z<c.z1+.1&&(ch.pos.y>=c.h-.35||ch.prevY>=c.h-.05))floor=Math.max(floor,c.h);}return floor;}
 // VP puddles: run onto one and you skate across it, arms flailing, spinning, barely able to steer
 const SLIDE_T=1.1;
 function slideCheck(ch,dt){ch.slideT=Math.max(0,(ch.slideT||0)-dt);
@@ -2159,7 +2159,7 @@ function updateChar(ch,dt){
   const fallV=ch.vel.y;
   ch.prevY=ch.pos.y;ch.vel.y-=24*dt;ch.pos.addScaledVector(ch.vel,dt);
   const R=.42;
-  for(const c of colliders){if(ch.pos.y>=c.h-.05||ch.prevY>=c.h-.05)continue; // was above it last frame: land on top, don't get shoved off the side
+  for(const c of colliders){if(c.noTop?ch.pos.y>=c.h+1.5:(ch.pos.y>=c.h-.05||ch.prevY>=c.h-.05))continue; // was above it last frame: land on top, don't get shoved off the side
     const cx=clamp(ch.pos.x,c.x0,c.x1),cz=clamp(ch.pos.z,c.z0,c.z1);const dx=ch.pos.x-cx,dz=ch.pos.z-cz,d2=dx*dx+dz*dz;if(d2>=R*R)continue;
     if(d2>1e-6){const d=Math.sqrt(d2),nx=dx/d,nz=dz/d;ch.pos.x+=nx*(R-d);ch.pos.z+=nz*(R-d);const vn=ch.vel.x*nx+ch.vel.z*nz;if(vn<0){ch.vel.x-=vn*nx;ch.vel.z-=vn*nz;}}
     else{const l=ch.pos.x-c.x0,r=c.x1-ch.pos.x,b=ch.pos.z-c.z0,f=c.z1-ch.pos.z,m=Math.min(l,r,b,f);
@@ -2647,14 +2647,14 @@ const touchMode=window.matchMedia&&window.matchMedia('(pointer: coarse)').matche
 const touchMove=new THREE.Vector2();
 if(touchMode)document.body.classList.add('touch');
 function canAct(){return !!me&&(state==='play'||(mode==='mp'&&(state==='warmup'||state==='results')));}
-function startCharge(){if(me&&(me.downT>0||me.fallT>0||me.slapA))return;if(isCarrying(me)){showHint('Hands full! Put them down first (<b>F</b>).',1.8);return;}if(!canAct()||me.stun>0||me.drinkT>0||me.smokoSeat>=0)return;
+function startCharge(){if(isCarrying(me)){showHint('Hands full! Put them down first (<b>F</b>).',1.8);return;}if(!canAct()||(me.stun>0&&!isDown(me))||me.drinkT>0||me.smokoSeat>=0)return;
   if(!selItem(me)){showHint('Nothing to chuck. Walk over something <b>glowing</b> on the lawn to pick it up.',2.5);return;}
   if(selItem(me).def.melee&&!selItem(me).def.throwable){trySlap();return;}
   me.charging=true;me.charge=0;me.chargeAt=elapsed;}
 function vmStart(){return new V3(.28,-.22,-.55).applyMatrix4(camera.matrixWorld);}
 function playerThrowVel(it){const dir=new V3();camera.getWorldDirection(dir);dir.y+=.07;dir.normalize();
   return dir.multiplyScalar(it.def.speed*(.42+.58*me.charge)).add(new V3(me.vel.x*.3,0,me.vel.z*.3));}
-function releaseCharge(){if(!me||!me.charging)return;if(me.downT>0||me.fallT>0||me.slapA){me.charging=false;me.charge=0;return;}const it=selItem(me);if(!canAct()||!it){me.charging=false;return;}
+function releaseCharge(){if(!me||!me.charging)return;const it=selItem(me);if(!canAct()||!it){me.charging=false;return;}
   if(it.def.throwable&&elapsed-(me.chargeAt||0)<.2){me.charging=false;me.charge=0;trySlap();return;}
   const chg=me.charge,vel=playerThrowVel(it),start=vmStart();me.charging=false;me.charge=0;me.overT=0;SFX.throw(me.pos);
   if(isAuth)authThrow(me.id,it,start,vel,chg);
@@ -2931,7 +2931,10 @@ function pause(){if(mode!=='solo'||(state!=='play'&&state!=='countdown'))return;
   if(me){me.charging=false;me.charge=0;}for(const k in keys)keys[k]=false;refreshOverlays();}
 function resume(fromLock){if(state!=='paused')return;if(!fromLock&&!fallbackAim&&!touchMode&&!locked){requestLock();return;}
   state=pause.prev||'play';last=performance.now();refreshOverlays();}
-function goMenu(){setFeatMask(31);matchOver=true;matchNo=0;matchWins.clear();if(document.pointerLockElement)document.exitPointerLock();resultsOpen=false;panelOpen=false;setupAttract();refreshOverlays();renderYards();}
+let menuTab='solo';
+// the yard behind the menu shows what's ticked in the tab you're looking at
+function menuFeatPreview(){readFeatUI(menuTab==='mates'?'#mFeat':'#pFeat');}
+function goMenu(){setFeatMask(31);menuFeatPreview();matchOver=true;matchNo=0;matchWins.clear();if(document.pointerLockElement)document.exitPointerLock();resultsOpen=false;panelOpen=false;setupAttract();refreshOverlays();renderYards();}
 $('#play').addEventListener('click',startSolo);
 function adultTicked(sel){const el=document.querySelector(ADULT_BOX[sel]);return !!el&&el.checked;}
 const CONTENT_NOTE={family:'Cartoon chucking for everyone. Safe for little ones.',adult:'Adds cheeky stuff, like the dildo chest. Not for little kids.'};
@@ -2941,9 +2944,10 @@ function menuUpdate(){const pm=radio('pmode'),t=pm==='teams',h=pm==='heist',n=+r
   document.querySelector('#menu .card').classList.toggle('pg',adultTicked('#pFeat')||adultTicked('#mFeat'));fillAmmo(adultTicked('#pFeat')||adultTicked('#mFeat'));}
 document.querySelectorAll('input[name=pmode],input[name=pbots],input[name=hmode],#pAdult,#mAdult').forEach(r=>r.addEventListener('change',menuUpdate));
 (function tabs(){const bs=[...document.querySelectorAll('#menu .tabs button')],ps=[...document.querySelectorAll('#menu [data-panel]')];
-  function show(n){bs.forEach(b=>{const on=b.dataset.tab===n;b.classList.toggle('on',on);b.setAttribute('aria-selected',on);});ps.forEach(p=>p.hidden=p.dataset.panel!==n);}
+  function show(n){menuTab=n;if(mode==='menu')menuFeatPreview();bs.forEach(b=>{const on=b.dataset.tab===n;b.classList.toggle('on',on);b.setAttribute('aria-selected',on);});ps.forEach(p=>p.hidden=p.dataset.panel!==n);}
   bs.forEach(b=>b.addEventListener('click',()=>show(b.dataset.tab)));show('solo');menuUpdate();})();
 $('#hostBtn').addEventListener('click',hostYard);
+document.querySelectorAll('#pFeat input,#pAdult,#mFeat input,#mAdult').forEach(c=>c.addEventListener('change',()=>{if(mode==='menu')menuFeatPreview();}));
 $('#joinForm').addEventListener('submit',e=>{e.preventDefault();joinYard($('#codeIn').value);});
 $('#again').addEventListener('click',()=>{if(mode==='solo'){if(matchOver)startSolo();else{resultsOpen=false;authStartRound();requestLock();canvas.focus();}}else if(mode==='mp'&&net.isHost){roundLen=+radio('ylen');difficulty=radio('ydiff');botCount=+radio('ybots');authStartRound();requestLock();}});
 $('#toMenu').addEventListener('click',()=>{if(mode==='mp'){resultsOpen=false;if(net.isHost&&state==='results'){state='warmup';clearHeistProps();}refreshOverlays();renderYardPanel();}else goMenu();});
