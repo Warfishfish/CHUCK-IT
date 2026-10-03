@@ -15,6 +15,7 @@
   color-scheme:light;
 }
 [hidden]{display:none!important}
+.card:not(.pg) .adultonly{display:none!important}
 html,body{height:100%;overflow:hidden}
 body{background:#9fd8f2;color:var(--ink);font-family:'Figtree',system-ui,-apple-system,Segoe UI,sans-serif;-webkit-user-select:none;user-select:none}
 #c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
@@ -52,6 +53,17 @@ h2{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.14em;c
 .seg .feat label{flex:0 0 auto;white-space:nowrap;border-left:2px solid var(--ink);padding:6px 12px;font-size:13px}
 .feat label:has(input:focus-visible){outline:3px solid var(--esky);outline-offset:2px}
 .feat label:has(input:checked){background:var(--sun)}.feat label:has(input:disabled){opacity:.6;cursor:not-allowed}.feat input{accent-color:#172418;margin:0}
+.tabs{display:flex;gap:8px}
+.tabs button{flex:1;appearance:none;font:inherit;font-weight:800;font-size:15px;cursor:pointer;color:var(--ink);background:#fff;border:3px solid var(--ink);border-radius:14px;padding:11px 4px;box-shadow:0 4px 0 var(--ink);transition:transform .08s,box-shadow .08s}
+.tabs button:hover{transform:translateY(-1px)}
+.tabs button.on{background:var(--sun);transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+.tabs button:focus-visible{outline:3px solid var(--esky);outline-offset:3px}
+.tabs b{display:block;font-size:22px;line-height:1.1}
+.btn.big{width:100%;font-size:21px;padding:16px 18px;border-radius:16px}
+.btn.primary.big{background:var(--tomato);color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.25)}
+.panel{display:flex;flex-direction:column;gap:14px}
+.note{margin:0;font-size:13px;line-height:1.35;color:var(--muted)}
+.seg.who label{padding:11px 6px;font-size:15px}
 .howto{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px;font-size:14px;line-height:1.35}.howto kbd{font-size:11px}
 .more{margin-top:10px}.more summary{cursor:pointer;font-weight:800;font-size:13px;color:var(--muted);padding:4px 0}.more[open] summary{margin-bottom:8px}
 .more .keys{margin-bottom:10px;font-size:13px}.more .rules{margin-bottom:10px}
@@ -260,14 +272,69 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.12.12</span>
+      <span class="tag">Backyard Brawl · prototype 0.13.0</span>
       <div id="logo" class="logo display">Chuck It</div>
-      <p class="pitch">Your mates, one backyard, three minutes. Grab whatever is lying on the lawn and chuck it at them before they chuck it at you.</p>
+      <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
 
     <label class="field" for="nick"><span>Your name</span><input class="input" id="nick" maxlength="14" autocomplete="off" spellcheck="false"></label>
 
-    <section class="mp" aria-labelledby="mpTitle">
+    <div class="tabs" role="tablist" aria-label="Pick how to play">
+      <button type="button" role="tab" data-tab="solo"><b>🤖</b>Solo</button>
+      <button type="button" role="tab" data-tab="mates"><b>👫</b>With mates</button>
+      <button type="button" role="tab" data-tab="how"><b>❓</b>How to play</button>
+    </div>
+
+    <section class="panel" data-panel="solo">
+      <button class="btn primary big" id="play" type="button">▶ Play vs 3 bots</button>
+      <fieldset class="seg who"><legend>👨‍👩‍👧 Who's playing?</legend><div class="opts">
+        <input type="radio" name="pcontent" id="pcFam" value="family" checked><label for="pcFam">🧒 Family</label>
+        <input type="radio" name="pcontent" id="pcAdult" value="adult"><label for="pcAdult">😈 PG15+</label>
+      </div><p class="note" id="pcNote"></p></fieldset>
+      <fieldset class="seg"><legend>🤖 Bots</legend><div class="opts">
+        <input type="radio" name="pbots" id="pb0" value="0"><label for="pb0">None</label>
+        <input type="radio" name="pbots" id="pb1" value="1"><label for="pb1">1</label>
+        <input type="radio" name="pbots" id="pb2" value="2"><label for="pb2">2</label>
+        <input type="radio" name="pbots" id="pb3" value="3" checked><label for="pb3">3</label>
+      </div></fieldset>
+      <details class="more" id="moreOpts">
+        <summary>⚙️ More options</summary>
+        <div class="setup">
+          <fieldset class="seg"><legend>⏱ Round length</legend><div class="opts">
+            <input type="radio" name="len" id="len60" value="60"><label for="len60">1 min</label>
+            <input type="radio" name="len" id="len180" value="180" checked><label for="len180">3 min</label>
+          </div></fieldset>
+          <fieldset class="seg"><legend>🎯 Bot skill</legend><div class="opts">
+            <input type="radio" name="diff" id="dEasy" value="easy"><label for="dEasy">Easy</label>
+            <input type="radio" name="diff" id="dFair" value="fair" checked><label for="dFair">Fair dinkum</label>
+            <input type="radio" name="diff" id="dSpicy" value="spicy"><label for="dSpicy">Spicy</label>
+          </div></fieldset>
+          <fieldset class="seg"><legend>🏆 Rounds</legend><div class="opts">
+            <input type="radio" name="prounds" id="pr1" value="1" checked><label for="pr1">Single</label>
+            <input type="radio" name="prounds" id="pr3" value="3"><label for="pr3">Best of 3</label>
+            <input type="radio" name="prounds" id="pr5" value="5"><label for="pr5">Best of 5</label>
+          </div></fieldset>
+          <fieldset class="seg"><legend>👥 Game mode</legend><div class="opts">
+            <input type="radio" name="pmode" id="pmFfa" value="ffa" checked><label for="pmFfa">Free for all</label>
+            <input type="radio" name="pmode" id="pmTeams" value="teams"><label for="pmTeams">Teams (2 v 2)</label>
+          </div></fieldset>
+          <fieldset class="seg" id="pffWrap" hidden><legend>💥 Friendly fire</legend><div class="opts">
+            <input type="radio" name="pff" id="pffOff" value="0" checked><label for="pffOff">Off</label>
+            <input type="radio" name="pff" id="pffOn" value="1"><label for="pffOn">On</label>
+          </div></fieldset>
+          <fieldset class="seg"><legend>🏡 What's in the yard</legend><div class="feat" id="pFeat">
+            <label><input type="checkbox" data-f="bar" checked>🍺 Bar</label>
+            <label><input type="checkbox" data-f="bbq" checked>🔥 BBQ &amp; Dazza</label>
+            <label class="adultonly"><input type="checkbox" data-f="chest" checked>🍆 Dildo chest</label>
+            <label><input type="checkbox" data-f="smoko" checked>🪑 Smoko</label>
+            <label><input type="checkbox" data-f="falls" checked>🥴 Stacking it</label>
+          </div></fieldset>
+        </div>
+      </details>
+    </section>
+
+    <div data-panel="mates" class="panel">
+      <section class="mp" aria-labelledby="mpTitle">
       <h2 id="mpTitle">Play with mates</h2>
       <p class="mp-note" id="mpNote">Checking whether online play is available here…</p>
       <button class="btn primary" id="hostBtn" type="button" disabled>Host a yard</button>
@@ -277,56 +344,14 @@ body.touch #cds{display:none}
         <button class="btn" type="submit" id="joinBtn" disabled>Join</button>
       </form>
     </section>
+    </div>
 
-    <section>
-      <h2>Practice</h2>
-      <div class="setup">
-        <fieldset class="seg"><legend>Round length</legend><div class="opts">
-          <input type="radio" name="len" id="len60" value="60"><label for="len60">1 min</label>
-          <input type="radio" name="len" id="len180" value="180" checked><label for="len180">3 min</label>
-        </div></fieldset>
-        <fieldset class="seg"><legend>Bots</legend><div class="opts">
-          <input type="radio" name="pbots" id="pb0" value="0"><label for="pb0">None</label>
-          <input type="radio" name="pbots" id="pb1" value="1"><label for="pb1">1</label>
-          <input type="radio" name="pbots" id="pb2" value="2"><label for="pb2">2</label>
-          <input type="radio" name="pbots" id="pb3" value="3" checked><label for="pb3">3</label>
-        </div></fieldset>
-        <fieldset class="seg"><legend>Bot skill</legend><div class="opts">
-          <input type="radio" name="diff" id="dEasy" value="easy"><label for="dEasy">Easy</label>
-          <input type="radio" name="diff" id="dFair" value="fair" checked><label for="dFair">Fair dinkum</label>
-          <input type="radio" name="diff" id="dSpicy" value="spicy"><label for="dSpicy">Spicy</label>
-        </div></fieldset>
-        <fieldset class="seg"><legend>Rounds</legend><div class="opts">
-          <input type="radio" name="prounds" id="pr1" value="1" checked><label for="pr1">Single</label>
-          <input type="radio" name="prounds" id="pr3" value="3"><label for="pr3">Best of 3</label>
-          <input type="radio" name="prounds" id="pr5" value="5"><label for="pr5">Best of 5</label>
-        </div></fieldset>
-        <fieldset class="seg"><legend>Game mode</legend><div class="opts">
-          <input type="radio" name="pmode" id="pmFfa" value="ffa" checked><label for="pmFfa">Free for all</label>
-          <input type="radio" name="pmode" id="pmTeams" value="teams"><label for="pmTeams">Teams (2 v 2)</label>
-        </div></fieldset>
-        <fieldset class="seg" id="pffWrap" hidden><legend>Friendly fire</legend><div class="opts">
-          <input type="radio" name="pff" id="pffOff" value="0" checked><label for="pffOff">Off</label>
-          <input type="radio" name="pff" id="pffOn" value="1"><label for="pffOn">On</label>
-        </div></fieldset>
-        <fieldset class="seg"><legend>What's in the yard</legend><div class="feat" id="pFeat">
-          <label><input type="checkbox" data-f="bar" checked>🍺 Bar</label>
-          <label><input type="checkbox" data-f="bbq" checked>🔥 BBQ &amp; Dazza</label>
-          <label><input type="checkbox" data-f="chest" checked>🍆 Dildo chest</label>
-          <label><input type="checkbox" data-f="smoko" checked>🪑 Smoko</label>
-          <label><input type="checkbox" data-f="falls" checked>🥴 Stacking it</label>
-        </div></fieldset>
-        <button class="btn" id="play" type="button">Practice vs 3 bots</button>
-      </div>
-    </section>
-
-    <section>
-      <h2>How to play</h2>
+    <section class="panel" data-panel="how">
       <ul class="howto">
         <li>Grab stuff off the lawn and chuck it at your mates. <b>+100</b> a hit, <b>−50</b> if you cop one.</li>
-        <li><kbd>R</kbd> does everything else: drink at the bar, raid the chest or the BBQ, sit on smoko, help a mate up.</li>
+        <li><kbd>R</kbd> does everything else: drink at the bar, raid the BBQ, sit on smoko, help a mate up<span class="adultonly">, raid the chest</span>.</li>
         <li>Drunk = wobbly, but hits score extra. Don't stack it.</li>
-        <li>Dildos, steaks and fish are for slapping. Get up close and click.</li>
+        <li>Steaks and fish are for slapping<span class="adultonly">, and so is anything from the chest</span>. Get up close and click.</li>
         <li>Smoko keeps you safe for 20 seconds, but you're drinking the whole time.</li>
       </ul>
       <details class="more">
@@ -357,12 +382,12 @@ body.touch #cds{display:none}
       </details>
     </section>
 
-    <label class="sound"><input type="checkbox" id="sound" checked> Sound effects</label>
+    <label class="sound"><input type="checkbox" id="sound" checked> 🔊 Sound effects</label>
   </div>
 </div>
 
 <div id="yardPanel" class="overlay center" hidden>
-  <div class="card" role="dialog" aria-labelledby="yardCode">
+  <div class="card" id="yardCard" role="dialog" aria-labelledby="yardCode">
     <div class="yard-head">
       <span class="tag">Yard code</span>
       <div class="code display" id="yardCode">YARD</div>
@@ -371,6 +396,10 @@ body.touch #cds{display:none}
     <p id="yardMsg"></p>
     <ul class="yard-players" id="yardPlayers"></ul>
     <div class="host-ctl" id="hostCtl" hidden>
+      <fieldset class="seg who"><legend>👨‍👩‍👧 Who's playing?</legend><div class="opts">
+        <input type="radio" name="ycontent" id="ycFam" value="family" checked><label for="ycFam">🧒 Family</label>
+        <input type="radio" name="ycontent" id="ycAdult" value="adult"><label for="ycAdult">😈 PG15+</label>
+      </div><p class="note" id="ycNote"></p></fieldset>
       <fieldset class="seg"><legend>Rounds</legend><div class="opts">
         <input type="radio" name="yrounds" id="yr1" value="1" checked><label for="yr1">Single</label>
         <input type="radio" name="yrounds" id="yr3" value="3"><label for="yr3">Best of 3</label>
@@ -390,7 +419,7 @@ body.touch #cds{display:none}
       <fieldset class="seg"><legend>What's in the yard</legend><div class="feat" id="yFeat">
           <label><input type="checkbox" data-f="bar" checked>🍺 Bar</label>
           <label><input type="checkbox" data-f="bbq" checked>🔥 BBQ &amp; Dazza</label>
-          <label><input type="checkbox" data-f="chest" checked>🍆 Dildo chest</label>
+          <label class="adultonly"><input type="checkbox" data-f="chest" checked>🍆 Dildo chest</label>
           <label><input type="checkbox" data-f="smoko" checked>🪑 Smoko</label>
           <label><input type="checkbox" data-f="falls" checked>🥴 Stacking it</label>
         </div></fieldset>
@@ -469,7 +498,7 @@ const ITEM_DEFS={
     lines:["Teddy'd!","Cuddle attack!","Beary rude!"],stats:[.85,.35,.3]},
   stubby:{name:'VP Can',blurb:'Fastest, leaves a slippery puddle',speed:27,knock:8,charge:.7,r:.14,bounce:0,grav:1,weight:35,sfx:'smash',smash:true,
     lines:["Cheers, mate!","Wasted a good VP!","Canned!"],stats:[1,.55,.45]},
-  dildo:{name:'Purple Dildo',short:'Dildo',melee:'down',blurb:'From the chest. Slap: knocks them flat',speed:23,knock:9,charge:.75,r:.2,bounce:.6,grav:1,weight:0,sfx:'boing',knockdown:true,
+  dildo:{adult:true,name:'Purple Dildo',short:'Dildo',melee:'down',blurb:'From the chest. Slap: knocks them flat',speed:23,knock:9,charge:.75,r:.2,bounce:.6,grav:1,weight:0,sfx:'boing',knockdown:true,
     lines:["DONGED!","Knocked flat!","Right in the dignity!"],stats:[.8,1,.7]},
   steak:{name:'Raw Steak',short:'Steak',melee:'stun',blurb:'From the BBQ. Slap: 3s stun',speed:20,knock:3,charge:.6,r:.18,bounce:.1,grav:1,weight:0,sfx:'thud',
     lines:["STEAKED!","Well done!","Rare form!"],stats:[.5,.3,.3]},
@@ -492,7 +521,7 @@ const ICONS={
 (function fillMenu(){
   const lbl=['Speed','Knock','Wind-up'];
   $('#ammo').innerHTML=Object.keys(ITEM_DEFS).map(k=>{const d=ITEM_DEFS[k];
-    return `<div class="ammo-row">${ICONS[k]}<div><b>${d.name}</b><small>${d.blurb}</small></div></div>`;}).join('');
+    return `<div class="ammo-row${d.adult?' adultonly':''}">${ICONS[k]}<div><b>${d.name}</b><small>${d.blurb}</small></div></div>`;}).join('');
 })();
 
 /* ================= RENDERER / SCENE ================= */
@@ -531,8 +560,10 @@ const CHEST={x:-29,z:-21,max:3,refill:12,spot:0};
 const CHEST_SPOTS=[[-29,-21,.5],[29,-21.5,-.5],[27.5,21.8,2.6],[-29,21.8,-2.6],[-31,9,1.57],[31,-9,-1.57],[13,-21.8,0],[-13,22,3.14],[31,6,-1.57]];let chestStock=2,chestT=CHEST.refill,chestLid=null,chestToys=[];
 const colliders=[];
 /* ---- map features the host can switch on/off: everything built for a feature is tagged so it can be hidden, colliders included ---- */
-const FEAT={bar:true,bbq:true,chest:true,smoko:true,falls:true},FEAT_KEYS=['bar','bbq','chest','smoko','falls'];
-const FEAT_NAMES={bar:'Bar',bbq:'BBQ & Dazza',chest:'Dildo chest',smoko:'Smoko',falls:'Stacking it'};
+const FEAT={bar:true,bbq:true,chest:true,smoko:true,falls:true,adult:false},FEAT_KEYS=['bar','bbq','chest','smoko','falls','adult'];
+/* PG15+ (FEAT.adult) must be on for any adult content: dildo chest now, anything else later. Hook new adult features onto ADULT_FEATS. */
+const ADULT_FEATS=['chest'];
+const FEAT_NAMES={bar:'Bar',bbq:'BBQ & Dazza',chest:'Dildo chest',smoko:'Smoko',falls:'Stacking it',adult:'PG15+'};
 const featObjs={bar:[],bbq:[],chest:[],smoko:[]},featCols={bar:[],bbq:[],chest:[],smoko:[]},featAt={};
 function featMark(k,end){if(!end){featAt[k]=[scene.children.length,colliders.length];return;}const [o,c]=featAt[k];
   for(let i=o;i<scene.children.length;i++)featObjs[k].push(scene.children[i]);for(let i=c;i<colliders.length;i++)featCols[k].push(colliders[i]);}
@@ -541,8 +572,10 @@ function applyFeatures(){for(const k in featObjs){const on=FEAT[k];for(const o o
     for(const c of featCols[k]){const i=colliders.indexOf(c);if(on&&i<0)colliders.push(c);else if(!on&&i>=0)colliders.splice(i,1);}}
   if(!FEAT.smoko&&me&&me.smokoSeat>=0)me.smokoSeat=-1;
   if(!FEAT.bbq){for(const p of smoke)scene.remove(p.m);smoke.length=0;}}
-function setFeatMask(m){let ch=false;FEAT_KEYS.forEach((k,i)=>{const v=!!(m&(1<<i));if(FEAT[k]!==v){FEAT[k]=v;ch=true;}});if(ch)applyFeatures();return ch;}
-function readFeatUI(sel){setFeatMask(FEAT_KEYS.reduce((a,k,i)=>{const el=document.querySelector(`${sel} input[data-f=${k}]`);return a|(!el||el.checked?1<<i:0);},0));}
+function setFeatMask(m){let ch=false;FEAT_KEYS.forEach((k,i)=>{const v=!!(m&(1<<i));if(FEAT[k]!==v){FEAT[k]=v;ch=true;}});
+  if(!FEAT.adult)for(const k of ADULT_FEATS)if(FEAT[k]){FEAT[k]=false;ch=true;}
+  if(ch)applyFeatures();return ch;}
+function readFeatUI(sel,rn){setFeatMask(FEAT_KEYS.reduce((a,k,i)=>{if(k==='adult')return a|(radio(rn)==='adult'?1<<i:0);const el=document.querySelector(`${sel} input[data-f=${k}]`);return a|(!el||el.checked?1<<i:0);},0));}
 function col(cx,cz,w,d,h){colliders.push({x0:cx-w/2,x1:cx+w/2,z0:cz-d/2,z1:cz+d/2,h});}
 const inPoolRect=p=>p.x>POOL.x0&&p.x<POOL.x1&&p.z>POOL.z0&&p.z<POOL.z1;
 let hoistHead,poolTex,clouds=[];
@@ -2027,7 +2060,7 @@ function pickColor(){const used=new Set();try{for(const p of net.yard?net.yard.p
   return PALETTE.find(c=>!used.has(c))||pick(PALETTE);}
 async function hostYard(){
   if(!mpReady())return;ac();$('#hostBtn').disabled=true;setMpNote('Opening your yard…');
-  gameMode=radio('ymode')==='teams'?'teams':'ffa';friendlyFire=radio('yff')==='1';teamsManual=false;teamOf.clear();net.lastTm=null;fallDur=+radio('yfall')||20;matchLen=+radio('yrounds')||1;matchOver=true;matchNo=0;readFeatUI('#yFeat');
+  gameMode=radio('ymode')==='teams'?'teams':'ffa';friendlyFire=radio('yff')==='1';teamsManual=false;teamOf.clear();net.lastTm=null;fallDur=+radio('yfall')||20;matchLen=+radio('yrounds')||1;matchOver=true;matchNo=0;readFeatUI('#yFeat','ycontent');
   const a='abcdefghjkmnpqrstuvwxyz';let code='yard-';for(let i=0;i<4;i++)code+=a[Math.floor(Math.random()*a.length)];
   try{net.yard=await net.room.join(code);}catch(e){setMpNote('Couldn’t open a yard ('+(e&&e.code||'error')+'). Try again in a moment.',true);updateMpButtons();return;}
   net.code=code;net.isHost=true;myId=newId();net.hostId=myId;enterMp();
@@ -2266,8 +2299,9 @@ function renderYardPanel(){
   else if(state==='warmup'||state==='results')msg.textContent=net.isHost?`Warm-up. Mates can join with the code any time${humans.length<2?' (nobody else is here yet)':''}. Keep this tab open and in front: your browser runs the yard.`:`Warm-up. Throws don’t score until ${hostName} starts the round.`;
   else msg.textContent='Round in progress. Get back out there.';
   $('#hostCtl').hidden=!net.isHost;
-  {const off=FEAT_KEYS.filter(k=>!FEAT[k]).map(k=>FEAT_NAMES[k]);if(off.length&&!net.isHost)msg.textContent+=` Switched off this game: ${off.join(', ')}.`;}
-  if(net.isHost)document.querySelectorAll('#yFeat input').forEach(i=>i.disabled=busy);
+  {const off=FEAT_KEYS.filter(k=>k!=='adult'&&!FEAT[k]&&(FEAT.adult||!ADULT_FEATS.includes(k))).map(k=>FEAT_NAMES[k]);if(!net.isHost){msg.textContent+=FEAT.adult?' This yard is PG15+.':' This yard is Family friendly.';if(off.length)msg.textContent+=` Switched off this game: ${off.join(', ')}.`;}}
+  $('#yardCard').classList.toggle('pg',FEAT.adult);
+  if(net.isHost)document.querySelectorAll('#yFeat input,input[name=ycontent]').forEach(i=>i.disabled=busy);
   if(net.isHost){$('#teamOpts').hidden=!tOn;document.querySelectorAll('input[name=ymode],input[name=yff]').forEach(i=>i.disabled=busy);$('#shuffleTeams').disabled=busy;
     if(tOn&&!busy)msg.textContent+=' Teams: click a player to move them, or shuffle.';}
   else if(tOn&&!busy)msg.textContent+=` Teams are on${friendlyFire?', with friendly fire':''}.`;
@@ -2333,7 +2367,7 @@ function startSolo(){
   ac();mode='solo';isAuth=true;myId='me';clearWorld();roundLen=+radio('len');difficulty=radio('diff');
   me=createChar('me',myName,PALETTE[0],'me',CHAR_SPAWNS[0]);myColor=PALETTE[0];
   const nb=radio('pbots')===''?3:clamp(+radio('pbots'),0,3);['Shazza','Davo','Kev'].slice(0,nb).forEach((n,i)=>createChar('b'+i,n,PALETTE[i+1],'bot',CHAR_SPAWNS[i+1]));
-  gameMode=radio('pmode')==='teams'?'teams':'ffa';friendlyFire=radio('pff')==='1';fallDur=20;readFeatUI('#pFeat');matchLen=+radio('prounds')||1;matchOver=true;matchNo=0;teamsManual=false;teamOf.clear();if(gameMode==='teams')balanceTeams(true);
+  gameMode=radio('pmode')==='teams'?'teams':'ffa';friendlyFire=radio('pff')==='1';fallDur=20;readFeatUI('#pFeat','pcontent');matchLen=+radio('prounds')||1;matchOver=true;matchNo=0;teamsManual=false;teamOf.clear();if(gameMode==='teams')balanceTeams(true);
   hintStage=hintStage>=3?3:0;hintHideT=0;hintEl.style.opacity=0;
   authStartRound();requestLock();canvas.focus();refreshOverlays();
 }
@@ -2344,7 +2378,15 @@ function resume(fromLock){if(state!=='paused')return;if(!fromLock&&!fallbackAim&
   state=pause.prev||'play';last=performance.now();refreshOverlays();}
 function goMenu(){setFeatMask(31);matchOver=true;matchNo=0;matchWins.clear();if(document.pointerLockElement)document.exitPointerLock();resultsOpen=false;panelOpen=false;setupAttract();refreshOverlays();renderYards();}
 $('#play').addEventListener('click',startSolo);
-document.querySelectorAll('input[name=pmode]').forEach(r=>r.addEventListener('change',()=>{const t=radio('pmode')==='teams';$('#pffWrap').hidden=!t;$('#play').textContent=t?'Practice: you + a bot vs 2 bots':'Practice vs 3 bots';}));
+const CONTENT_NOTE={family:'Cartoon chucking for everyone. Safe for little ones.',adult:'Adds cheeky stuff, like the dildo chest. Not for little kids.'};
+function menuUpdate(){const t=radio('pmode')==='teams',n=+radio('pbots');$('#pffWrap').hidden=!t;
+  $('#play').textContent=t?'▶ Play: you + a bot vs 2 bots':n===0?'▶ Play with no bots':`▶ Play vs ${n} bot${n>1?'s':''}`;
+  $('#pcNote').textContent=CONTENT_NOTE[radio('pcontent')]||'';$('#ycNote').textContent=CONTENT_NOTE[radio('ycontent')]||'';
+  document.querySelector('#menu .card').classList.toggle('pg',radio('pcontent')==='adult');}
+document.querySelectorAll('input[name=pmode],input[name=pbots],input[name=pcontent]').forEach(r=>r.addEventListener('change',menuUpdate));
+(function tabs(){const bs=[...document.querySelectorAll('#menu .tabs button')],ps=[...document.querySelectorAll('#menu [data-panel]')];
+  function show(n){bs.forEach(b=>{const on=b.dataset.tab===n;b.classList.toggle('on',on);b.setAttribute('aria-selected',on);});ps.forEach(p=>p.hidden=p.dataset.panel!==n);}
+  bs.forEach(b=>b.addEventListener('click',()=>show(b.dataset.tab)));show('solo');menuUpdate();})();
 $('#hostBtn').addEventListener('click',hostYard);
 $('#joinForm').addEventListener('submit',e=>{e.preventDefault();joinYard($('#codeIn').value);});
 $('#again').addEventListener('click',()=>{if(mode==='solo'){if(matchOver)startSolo();else{resultsOpen=false;authStartRound();requestLock();canvas.focus();}}else if(mode==='mp'&&net.isHost){roundLen=+radio('ylen');difficulty=radio('ydiff');botCount=+radio('ybots');authStartRound();requestLock();}});
@@ -2355,7 +2397,8 @@ $('#startMp').addEventListener('click',()=>{if(!net.isHost)return;if(matchOver||
 document.querySelectorAll('input[name=ybots]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost&&state!=='play'&&state!=='countdown'){botCount=+radio('ybots');teamsManual=false;syncBots();renderYardPanel();}}));
 document.querySelectorAll('input[name=ydiff]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost)difficulty=radio('ydiff');}));
 document.querySelectorAll('input[name=ymode]').forEach(r=>r.addEventListener('change',()=>{if(!net.isHost||state==='play'||state==='countdown')return;gameMode=radio('ymode');teamsManual=false;if(gameMode==='teams')balanceTeams(false);scoreDirty=true;renderYardPanel();}));
-document.querySelectorAll('#yFeat input').forEach(c=>c.addEventListener('change',()=>{if(net.isHost&&state!=='play'&&state!=='countdown'){readFeatUI('#yFeat');renderYardPanel();}}));
+document.querySelectorAll('input[name=ycontent]').forEach(r=>r.addEventListener('change',()=>{$('#ycNote').textContent=CONTENT_NOTE[radio('ycontent')]||'';$('#yardCard').classList.toggle('pg',radio('ycontent')==='adult');if(net.isHost&&state!=='play'&&state!=='countdown'){readFeatUI('#yFeat','ycontent');renderYardPanel();}}));
+document.querySelectorAll('#yFeat input').forEach(c=>c.addEventListener('change',()=>{if(net.isHost&&state!=='play'&&state!=='countdown'){readFeatUI('#yFeat','ycontent');renderYardPanel();}}));
 document.querySelectorAll('input[name=yrounds]').forEach(r=>r.addEventListener('change',()=>renderYardPanel()));
 document.querySelectorAll('input[name=yfall]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost)fallDur=+radio('yfall');}));
 document.querySelectorAll('input[name=yff]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost)friendlyFire=radio('yff')==='1';renderYardPanel();}));

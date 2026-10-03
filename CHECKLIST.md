@@ -9,12 +9,12 @@
 ## Already in the game ✅
 
 **Moving**
-- ✅ WASD, Space jump, Shift sprint boost, C dodge, right-click catch
+- ✅ WASD, Space jump, Shift sprint boost, Q swap item, right-click catch
 - ✅ 1.5x bigger yard with cover, pool (deep), trampoline
 
 **Chucking and slapping**
 - ✅ Teddy, VP can, gnome, and floating pool noodles
-- ✅ Dildo chest (random spot): slaps knock people flat with Helicopter / Cartwheel / Timber
+- ✅ Dildo chest (PG15+ only, random spot): slaps knock people flat with Helicopter / Cartwheel / Timber
 - ✅ Steak, fish, noodle slaps stun
 - ✅ Slap the chef: KO / Berserk / Flip the grill
 
@@ -26,6 +26,10 @@
 - ✅ Dazza at the BBQ yells, chases and spatulas you
 - ✅ Smoko chairs: sit, beer, safe
 - ✅ Emotes and taunts
+
+**Setup screen**
+- ✅ Tabs: Solo / With mates / How to play, with one big Play button
+- ✅ Family / PG15+ switch (default Family): PG15+ unlocks the dildo chest and any future adult content, synced to everyone in the yard
 
 **Scoring and matches**
 - ✅ Hits, streaks, leader bounty, drunk bonus, pool/tramp bonus
@@ -82,6 +86,7 @@
 - ⬜ Late joiners jump in next round
 - ⬜ Pick your look: colour, one accessory (cap / bucket hat / sunnies / headband), optional shirt pattern (original blob style)
 - ⬜ All host settings in one panel (rounds, teams, friendly fire, yard features, smoko mode)
+- ✅ Simpler setup screen (tabs, big Play button, More options)
 - ⬜ Rules on their own screen, in short pages, only showing what's switched on
 
 ## 5. Polish ⬜
