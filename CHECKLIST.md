@@ -38,6 +38,7 @@
 
 **Drunk mode and stuns**
 - ✅ **🍻 Drunk mode** tick box (Solo and hosted options): everyone, bots included, is kept drunk all game, so no sobering up and no drunk bonus points
+- ✅ In Drunk mode you have a 10% chance of stacking it every 2 seconds you're walking (only real players fall over, not bots)
 - ✅ After a stun ends you can't be stunned again for 1 second (you can still be shoved, and a dildo can still floor you)
 
 **Setup screen**
@@ -62,7 +63,7 @@
 - ✅ Win: whoever's banked the most teddies when the clock runs out
 - ✅ Teddy Heist gets its own map layout (not the free-for-all yard): chokepoints and a repositioned obstacle cluster in the middle so there's no straight sprint between bases, scaling cleanly from 2 bases (opposite sides) up to 4 (corners). Free-for-all and Teams keep today's map
 - ✅ Live tally bar during the round shows each team's banked count by colour
-- ✅ Bots play the objective: they raid the nearest enemy teddy (going round to the doorway first), run it home, chase anyone carrying one of theirs, pick up loose teddies of their own, and the first bot on each team of 2+ guards the base
+- ✅ Bots play the objective: they raid the nearest enemy teddy (going round to the doorway first), run it home, chase anyone carrying one of theirs, pick up loose teddies of their own, and the first bot on each team of 2+ guards the base by walking between four spots inside it. Bots caught inside a base leave through its doorway instead of pushing at the walls
 - ⚠️ A thief can still throw a stolen teddy to a mate. Left in on purpose, so watch it in playtest (it might be fun, it might be exploitable)
 
 

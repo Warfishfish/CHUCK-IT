@@ -276,7 +276,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.19.0</span>
+      <span class="tag">Backyard Brawl · prototype 0.19.1</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -1110,10 +1110,13 @@ function startEmote(ch,k,i){const list=emoteLines(k);if(!list)return;const text=
   (k==='laugh'?SFX.laugh:k==='dance'?SFX.jig:SFX.babble)(ch.pos);}
 function tryEmote(k){if(!me||mode==='menu'||!EMOTES[k]||elapsed-(tryEmote.t||-9)<2||me.stun>0||me.fallT>0)return;tryEmote.t=elapsed;
   const i=Math.floor(Math.random()*emoteLines(k).length);if(isAuth)fx('emote',myId,k,i);else{startEmote(me,k,i);sendEv('em',k,i);}}
+function drunkModeFall(ch,dt){ // Drunk mode: every 2s of walking there's a 10% chance you stack it
+  if(ch.wish.lengthSq()>.04){ch.dFallT=(ch.dFallT||0)+dt;if(ch.dFallT>=2){ch.dFallT=0;if(Math.random()<.1)startFall(ch);}}}
 function fallCheck(ch,dt){ch.fallImmune=Math.max(0,ch.fallImmune-dt);
   if(ch.fallT>0){ch.fallT=Math.max(0,ch.fallT-dt);ch.fallAge+=dt;ch.stun=Math.max(ch.stun,ch.fallT);
-    if(ch.fallT<=0){ch.fallImmune=25;ch.stun=0;}return;}
+    if(ch.fallT<=0){ch.fallImmune=FEAT.drunkall?6:25;ch.stun=0;}return;}
   if(!FEAT.falls||ch.kind!=='me'||!canAct()||ch.downT>0||ch.slapA||!ch.grounded||ch.fallImmune>0||ch.inPool)return;
+  if(FEAT.drunkall){drunkModeFall(ch,dt);return;}
   const da=drunkAmt(ch.drunk);if(da<.35)return;
   const moving=ch.wish.lengthSq()>.04;if(Math.random()<Math.pow(da,1.5)*(moving?.028:.008)*dt)startFall(ch);}
 function startFall(ch){ch.fallT=fallDur;ch.fallAge=0;ch.stun=Math.max(ch.stun,fallDur);ch.charging=false;ch.charge=0;ch.drinkT=0;ch.drinkType=null;ch.vel.x*=.3;ch.vel.z*=.3;
@@ -1321,9 +1324,15 @@ function makeHeistBoard(){const cv=document.createElement('canvas');cv.width=cv.
 function heistGate(base){const o=base.open,d=HEIST_HALF+1.2;return new V3(base.x+(o==='xPos'?d:o==='xNeg'?-d:0),0,base.z+(o==='zPos'?d:o==='zNeg'?-d:0));}
 function heistVia(ch,base,target){const inside=Math.abs(ch.pos.x-base.x)<HEIST_HALF+.1&&Math.abs(ch.pos.z-base.z)<HEIST_HALF+.1;
   if(inside)return target;const g=heistGate(base);return Math.hypot(g.x-ch.pos.x,g.z-ch.pos.z)>1.5?g:target;}
-function heistBotGoal(ch){const myT=teamOf.get(ch.id),home=myT&&heistBases[myT];if(!home)return null;
+// bots inside a walled base have to leave by its doorway, not shove at the wall on the way to somewhere else
+function heistLeave(ch,t){if(!t)return t;
+  for(const k in heistBases){const b=heistBases[k],H=HEIST_HALF+.1;
+    if(Math.abs(ch.pos.x-b.x)<H&&Math.abs(ch.pos.z-b.z)<H&&!(Math.abs(t.x-b.x)<H&&Math.abs(t.z-b.z)<H))return heistGate(b);}
+  return t;}
+function heistBotGoal(ch){return heistLeave(ch,heistBotGoalRaw(ch));}
+function heistBotGoalRaw(ch){const myT=teamOf.get(ch.id),home=myT&&heistBases[myT];if(!home)return null;
   const held=heldOf(ch.id);
-  if(held.some(i=>i.heistTeam!=null&&i.heistTeam!==myT))return new V3(home.x,0,home.z);          // carrying a stolen teddy: get it home
+  if(held.some(i=>i.heistTeam!=null&&i.heistTeam!==myT))return heistVia(ch,home,new V3(home.x,0,home.z));          // carrying a stolen teddy: get it home
   let carrier=null,cd=22;                                                                          // an enemy is running off with one of ours: chase
   for(const c of chars.values()){if(c===ch||teamOf.get(c.id)===myT)continue;
     if(heldOf(c.id).some(i=>i.heistTeam===myT)){const d=Math.hypot(c.pos.x-ch.pos.x,c.pos.z-ch.pos.z);if(d<cd){cd=d;carrier=c;}}}
@@ -1335,7 +1344,10 @@ function heistBotGoal(ch){const myT=teamOf.get(ch.id),home=myT&&heistBases[myT];
   const mates=[...chars.values()].filter(c=>teamOf.get(c.id)===myT);
   if(mates.length>=2&&mates.find(c=>c.kind==='bot')===ch){                                         // one bot per team of 2+ guards the base
     for(const c of chars.values()){if(teamOf.get(c.id)===myT)continue;if(Math.hypot(c.pos.x-home.x,c.pos.z-home.z)<10)return c.pos;}
-    const a=elapsed*.6+ch.pos.x;return new V3(home.x+Math.cos(a)*3.4,0,home.z+Math.sin(a)*3.4);}
+    const ai=ch.ai;if(ai.patrolI==null)ai.patrolI=Math.floor(Math.random()*4);
+    const ang=ai.patrolI*Math.PI/2+Math.PI/4,wp=new V3(home.x+Math.cos(ang)*1.9,0,home.z+Math.sin(ang)*1.9);
+    if(Math.hypot(wp.x-ch.pos.x,wp.z-ch.pos.z)<.9)ai.patrolI=(ai.patrolI+1)%4;
+    return heistVia(ch,home,wp);}
   let best=null,bd=1e9,hands=heldOf(ch.id).length<2;                                               // otherwise raid: nearest enemy teddy
   if(!hands)return null;
   for(const it of items.values()){if(it.heistTeam==null||it.heistTeam===myT||it.state!=='ground')continue;
