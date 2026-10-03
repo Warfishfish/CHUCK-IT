@@ -272,7 +272,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.13.0</span>
+      <span class="tag">Backyard Brawl · prototype 0.13.1</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -498,7 +498,7 @@ const ITEM_DEFS={
     lines:["Teddy'd!","Cuddle attack!","Beary rude!"],stats:[.85,.35,.3]},
   stubby:{name:'VP Can',blurb:'Fastest, leaves a slippery puddle',speed:27,knock:8,charge:.7,r:.14,bounce:0,grav:1,weight:35,sfx:'smash',smash:true,
     lines:["Cheers, mate!","Wasted a good VP!","Canned!"],stats:[1,.55,.45]},
-  dildo:{adult:true,name:'Purple Dildo',short:'Dildo',melee:'down',blurb:'From the chest. Slap: knocks them flat',speed:23,knock:9,charge:.75,r:.2,bounce:.6,grav:1,weight:0,sfx:'boing',knockdown:true,
+  dildo:{adult:true,name:'Purple Dildo',short:'Dildo',melee:'down',blurb:'From the chest, in different sizes. Bigger = more points but a longer stun. Slap: knocks them flat',speed:23,knock:9,charge:.75,r:.2,bounce:.6,grav:1,weight:0,sfx:'boing',knockdown:true,
     lines:["DONGED!","Knocked flat!","Right in the dignity!"],stats:[.8,1,.7]},
   steak:{name:'Raw Steak',short:'Steak',melee:'stun',blurb:'From the BBQ. Slap: 3s stun',speed:20,knock:3,charge:.6,r:.18,bounce:.1,grav:1,weight:0,sfx:'thud',
     lines:["STEAKED!","Well done!","Rare form!"],stats:[.5,.3,.3]},
@@ -805,8 +805,22 @@ const SFX={
 };
 
 /* ================= ITEM MESHES ================= */
-const DILDO_MAT={body:new THREE.MeshPhongMaterial({color:0xa44de0,emissive:0x2a0a40,specular:0x9a70b0,shininess:55}),
-  vein:new THREE.MeshPhongMaterial({color:0x9340cf,emissive:0x220838,specular:0x9a70b0,shininess:40}),base:new THREE.MeshPhongMaterial({color:0x7a2bb0,emissive:0x1a0530,specular:0x604070,shininess:50})};
+/* Dildo variants: same physics, different look, size, stun length and points. The chest rolls one at random each grab;
+   the Golden Wonder is a rare "mystery chest" pull with the best stats. */
+const DILDO_VARIANTS={
+  dildo:     {label:'Purple Dildo',   short:'Dildo',   scale:1,    color:0xa44de0, down:0,  pts:0,   w:46},
+  dildoMini: {label:'Pocket Rocket',  short:'Mini',    scale:.66,  color:0xff6fb0, down:-1, pts:-25, w:28},
+  dildoJumbo:{label:'The Unit',       short:'Jumbo',   scale:1.38, color:0x5a2a8a, down:1,  pts:50,  w:18},
+  dildoGold: {label:'Golden Wonder',  short:'Golden',  scale:1.12, color:0xffd23f, down:2,  pts:120, w:4, rare:true}
+};
+const DILDO_VKEYS=Object.keys(DILDO_VARIANTS);
+function pickDildoVariant(){const tw=DILDO_VKEYS.reduce((sum,k)=>sum+DILDO_VARIANTS[k].w,0);let r=Math.random()*tw;
+  for(const k of DILDO_VKEYS){r-=DILDO_VARIANTS[k].w;if(r<=0)return k;}return 'dildo';}
+const DILDO_MAT_CACHE={};
+function dildoMats(variant){if(DILDO_MAT_CACHE[variant])return DILDO_MAT_CACHE[variant];
+  const base=new THREE.Color((DILDO_VARIANTS[variant]||DILDO_VARIANTS.dildo).color);
+  const mk=(mul,spec,sh)=>{const c=base.clone().multiplyScalar(mul),e=c.clone().multiplyScalar(.22);return new THREE.MeshPhongMaterial({color:c,emissive:e,specular:spec,shininess:sh});};
+  const m={body:mk(1,0x9a70b0,55),vein:mk(.88,0x9a70b0,40),base:mk(.72,0x604070,50)};DILDO_MAT_CACHE[variant]=m;return m;}
 const DILDO_R=.1,DILDO_GEO={cup:new THREE.CylinderGeometry(.145,.172,.07,20),lip:new THREE.TorusGeometry(.172,.019,6,20),vein:new THREE.CylinderGeometry(.012,.012,.16,5),
   head:new THREE.SphereGeometry(.097,16,12),rim:new THREE.TorusGeometry(.094,.022,8,18),shaft:[],joint:[]};
 for(let i=0;i<7;i++){const r0=DILDO_R-i*.004,r1=DILDO_R-(i+1)*.004;DILDO_GEO.shaft.push(new THREE.CylinderGeometry(r1,r0,.167,16));DILDO_GEO.joint.push(new THREE.SphereGeometry(r1,14,8));}
@@ -838,11 +852,11 @@ const MAKERS={
     mesh(new THREE.CylinderGeometry(.066,.066,.18,18),[vpLabel,alu,alu],0,0,0,g);
     mesh(new THREE.CylinderGeometry(.056,.066,.02,18),alu,0,.1,0,g);mesh(new THREE.CylinderGeometry(.066,.056,.02,18),alu,0,-.1,0,g);
     mesh(new THREE.BoxGeometry(.03,.004,.045),mat(0x9aa0a6),0,.112,.015,g);return g;},
-  dildo(){const g=new THREE.Group(),M=DILDO_MAT;
+  dildo(variant){const dv=variant||'dildo',g=new THREE.Group(),inner=new THREE.Group();g.add(inner);const M=dildoMats(dv);
     // suction-cup base
-    mesh(DILDO_GEO.cup,M.base,0,-.17,0,g);const lip=mesh(DILDO_GEO.lip,M.base,0,-.195,0,g);lip.rotation.x=Math.PI/2;
+    mesh(DILDO_GEO.cup,M.base,0,-.17,0,inner);const lip=mesh(DILDO_GEO.lip,M.base,0,-.195,0,inner);lip.rotation.x=Math.PI/2;
     // a long chain of ribbed, veiny segments so it bends, droops and flops
-    const segs=[];let parent=g;const N=7,H=.155;
+    const segs=[];let parent=inner;const N=7,H=.155;
     for(let i=0;i<N;i++){const sg=new THREE.Group();sg.position.y=i===0?-.145:H;parent.add(sg);
       mesh(DILDO_GEO.shaft[i],M.body,0,H/2,0,sg);if(i<N-1)mesh(DILDO_GEO.joint[i],M.body,0,H,0,sg);
       if(i<=4){const r=DILDO_R-i*.004,a=i*1.9; // raised veins that wander round the shaft
@@ -852,7 +866,8 @@ const MAKERS={
     // the head: a rounded tip with a flared rim
     const head=mesh(DILDO_GEO.head,M.body,0,H+.08,0,parent);head.scale.set(1,1.25,1);
     const rim=mesh(DILDO_GEO.rim,M.body,0,H+.02,0,parent);rim.rotation.x=Math.PI/2;
-    g.userData.segs=segs;g.userData.droop=.17;return g;},
+    inner.scale.setScalar((DILDO_VARIANTS[dv]||DILDO_VARIANTS.dildo).scale);
+    g.userData.segs=segs;g.userData.droop=.17;g.userData.variant=dv;return g;},
   noodle(id){const g=new THREE.Group(),c=[0xff5fa8,0xffd23f,0x3fd17a,0x3fa9ff][(id|0)%4],fm=mat(c),dk=mat(0x3a2a33);
     const segs=[];let parent=g;const N=7,H=.2,R=.075;
     for(let i=0;i<N;i++){const sg=new THREE.Group();sg.position.y=i===0?-.36:H;parent.add(sg);
@@ -894,7 +909,7 @@ const MAKERS={
   const top=mesh(new THREE.CylinderGeometry(.4,.4,1.3,16,1,false,0,Math.PI),wood,0,0,.4,lid);top.rotation.z=Math.PI/2;
   [-.45,.45].forEach(x=>{const bd=mesh(new THREE.CylinderGeometry(.41,.41,.08,16,1,false,0,Math.PI),band,x,0,.4,lid);bd.rotation.z=Math.PI/2;});
   chestLid=pivot;
-  for(let k=0;k<CHEST.max;k++){const t=MAKERS.dildo();t.scale.setScalar(.52);t.position.set(-.35+k*.35,.45,0);t.rotation.set(-.6,0,(k-1)*.35);g.add(t);chestToys.push(t);}
+  for(let k=0;k<CHEST.max;k++){const t=MAKERS.dildo(DILDO_VKEYS[k%DILDO_VKEYS.length]);t.scale.multiplyScalar(.52);t.position.set(-.35+k*.35,.45,0);t.rotation.set(-.6,0,(k-1)*.35);g.add(t);chestToys.push(t);}
   const glow=new THREE.PointLight(0xc070ff,0,3.2);glow.position.set(0,.9,0);g.add(glow);chestLid.userData.glow=glow;
   col(CHEST.x,CHEST.z,1.45,1.1,.8);CHEST.col=colliders[colliders.length-1];CHEST.g=g;featObjs.chest.push(g);featCols.chest.push(CHEST.col);})();
 function moveChest(i){i=clamp(i|0,0,CHEST_SPOTS.length-1);const[x,z,r]=CHEST_SPOTS[i];CHEST.spot=i;CHEST.x=x;CHEST.z=z;CHEST.g.position.set(x,0,z);CHEST.g.rotation.y=r;
@@ -926,12 +941,13 @@ function authSlap(attId,vicId,it){const a=chars.get(attId),v=chars.get(vicId);
     if(it.uses<=0){fx('poof',r2(a.pos.x),r2(a.pos.y+1.3),r2(a.pos.z));removeItem(it);}return;}
   if(v.downT>.3||elapsed-a.lastSlap<.45||a.pos.distanceTo(v.pos)>3.6)return;a.lastSlap=elapsed;
   const scoring=state==='play',bounty=leaderId===vicId;let streak=0,gain=0,db=0;
-  if(scoring){if(stats[attId]&&!tk){stats[attId].streak=(stats[attId].streak||0)+1;streak=stats[attId].streak;db=drunkBonus(attId);gain=Math.round((100+(bounty?50:0))*streakMult(streak))+db;
+  const vbonus=it.type==='dildo'?((DILDO_VARIANTS[it.variant]||DILDO_VARIANTS.dildo).pts||0):0;
+  if(scoring){if(stats[attId]&&!tk){stats[attId].streak=(stats[attId].streak||0)+1;streak=stats[attId].streak;db=drunkBonus(attId);gain=Math.round((100+(bounty?50:0))*streakMult(streak))+db+vbonus;
       stats[attId].score+=gain;stats[attId].hits++;stats[attId].throws++;}
     if(stats[vicId]){stats[vicId].score-=50;stats[vicId].taken++;stats[vicId].streak=0;}scoreDirty=true;}
   const anim=1+Math.floor(Math.random()*3);const kd=v.pos.clone().sub(a.pos).setY(0);if(kd.lengthSq()<1e-4)kd.set(0,0,1);kd.normalize();
   it.uses=(it.uses||it.def.uses||SLAP_USES)-1;
-  fx('slap',attId,vicId,anim,r2(kd.x),r2(kd.z),scoring?1:0,streak,gain,bounty?1:0,tk?1:0,db);
+  fx('slap',attId,vicId,anim,r2(kd.x),r2(kd.z),scoring?1:0,streak,gain,bounty?1:0,tk?1:0,db,it.type==='dildo'?DILDO_VKEYS.indexOf(it.variant):0);
   if(it.uses<=0){fx('poof',r2(a.pos.x),r2(a.pos.y+1.3),r2(a.pos.z));removeItem(it);}}
 // the three outcomes. Everything is driven by time since the slap, so every client animates it identically.
 function slapPose(ch){if(!ch.slapA)return null;const t=ch.slapT,g=clamp((DOWN_TIME-t)/.45,0,1),TAU=Math.PI*2;
@@ -1055,7 +1071,8 @@ function botHelp(ch,dt){if(!teamsOn())return false;let t=null,bd=22;
 function chestNear(ch){return FEAT.chest&&!!ch&&ch.pos.y<.5&&Math.hypot(ch.pos.x-CHEST.x,ch.pos.z-CHEST.z)<2;}
 function authChestGrab(id){const ch=chars.get(id);if(!FEAT.chest||!ch||chestStock<=0||heldOf(id).length>=2||Math.hypot(ch.pos.x-CHEST.x,ch.pos.z-CHEST.z)>3)return;
   chestStock--;if(chestStock<CHEST.max&&chestT<=0)chestT=CHEST.refill;
-  const it=makeItem(nextItemId++,'dildo');it.uses=SLAP_USES;it.pos.set(ch.pos.x,ch.pos.y+1,ch.pos.z);authGive(id,it);if(id===myId)SFX.pickup();}
+  const variant=pickDildoVariant();const it=makeItem(nextItemId++,'dildo',variant);it.uses=SLAP_USES;it.pos.set(ch.pos.x,ch.pos.y+1,ch.pos.z);authGive(id,it);if(id===myId)SFX.pickup();
+  if(DILDO_VARIANTS[variant].rare)fx('mystery',id,DILDO_VKEYS.indexOf(variant));}
 function interact(){if(!me||!canAct()||me.stun>0)return;
   if(me.smokoSeat>=0){standUp();return;}
   if(helpTarget())return; // holding R helps them up (see helpTick)
@@ -1221,15 +1238,19 @@ function authMeatGrab(id,kind){const ch=chars.get(id);if(!FEAT.bbq||!ch||(kind!=
 
 /* ---- Dazza, the BBQ cook. The host runs his brain; everyone animates him. ---- */
 const NPC={home:new V3(-6,0,-19.3),pos:new V3(-6,0,-19.3),face:0,state:'cook',target:null,stateT:0,swingT:0,swingCd:0,pending:null,anger:new Map(),walk:0,
-  netP:new V3(-6,0,-19.3),netFace:0,chatT:14,mesh:null,body:null,arm:null,bubble:null,bubbleT:0};
-const NPC_STATES=['cook','angry','chase','return','ko'];
+  netP:new V3(-6,0,-19.3),netFace:0,chatT:14,mesh:null,body:null,arm:null,bubble:null,bubbleT:0,angerLevel:0,stunAfter:0};
+const NPC_STATES=['cook','angry','chase','return','ko','stunned'];
+const ANGER_MAX=8;
+function chaseDur(){return clamp(8+NPC.angerLevel*2,8,26);}
+function stunDur(){return Math.max(.4,1-NPC.angerLevel*.08);}
 const NPC_LINES={angry:["OI! Hrmblgrr MY SNAGS!","Wha- BLURGH! Put it DOWN!","Yabba grrbl, ya drongo!","HNNG! Oi oi OI!","Mrrph! Bloody thief!","Grrblmph! Me STEAKS!","Oi! Wobba wobba NO!"],
-  rage:["RAAAAH! COME 'ERE!","GRRBLARGH! I'LL GETCHA!","THAT'S IT! OI OI OI!","BLAAARGH! YER DEAD MEAT!"],
+  rage:["RAAAAH! COME 'ERE!","GRRBLARGH! I'LL GETCHA!","THAT'S IT! OI OI OI!","BLAAARGH! YER DEAD MEAT!","I'VE HAD IT UP TO 'ERE WITH YA!","RIGHT, THAT'S WAR!"],
   gotcha:["HAH! Hrrmph.","That'll learn ya. Mrrph.","Snags don't grow on trees!"],
   giveup:["Pfff... hrrmph. Me snags are burnin'.","Bloody kids. Grrbl."],
   ko:["Urrrgh...","*snore*"],
   wake:["Wha... who turned the lights off?","Me head... ME SNAGS!"],
   berserk:["YOU SLAPPED ME WITH ME OWN STEAK?!","RAAAARGH! YOU'RE DONE!","THAT'S IT. NO MORE MR NICE DAZZA!"],
+  stunned:["OI! Right in the... OW!","Me EYE! Ya mongrel!","Cheeky little drongo!","GRRBL! That stings!"],
   flip:["ME SNAGS!! FLIPPIN' 'ELL!","THAT'S IT! NOBODY EATS!","RAAAH! HAVE IT ALL THEN!"],
   smoko:["Fair enough. It's smoko.","Hrrmph. Smoko's sacred.","Enjoy yer smoko, ya thief."],
   chat:["Snags are nearly done!","Who wants a steak? Not you.","Hrrmph. Perfect sear.","Onions! Where's me onions?","Mmm. Blurgh. Beautiful."]};
@@ -1257,35 +1278,46 @@ const NPC_LINES={angry:["OI! Hrmblgrr MY SNAGS!","Wha- BLURGH! Put it DOWN!","Ya
   g.position.copy(NPC.pos);scene.add(g);Object.assign(NPC,{mesh:g,body,arm,bubble});featObjs.bbq.push(g);})();
 function npcBubble(text){const b=NPC.bubble,c=b.userData.c,x=c.getContext('2d');x.clearRect(0,0,512,128);
   x.font='900 34px "Arial Black",Arial,sans-serif';const w=Math.min(500,x.measureText(text).width+40);
-  x.fillStyle='#fff';x.strokeStyle='#172418';x.lineWidth=5;x.beginPath();if(x.roundRect)x.roundRect(256-w/2,8,w,82,20);else x.rect(256-w/2,8,w,82);x.fill();x.stroke();
+  x.fillStyle=NPC.angerLevel>=4?'#ffd0c6':'#fff';x.strokeStyle='#172418';x.lineWidth=5;x.beginPath();if(x.roundRect)x.roundRect(256-w/2,8,w,82,20);else x.rect(256-w/2,8,w,82);x.fill();x.stroke();
   x.beginPath();x.moveTo(236,88);x.lineTo(256,120);x.lineTo(270,88);x.closePath();x.fill();x.stroke();x.fillStyle='#fff';x.fillRect(238,82,30,8);
   x.fillStyle='#172418';x.textAlign='center';x.textBaseline='middle';x.fillText(text,256,50,480);b.userData.t.needsUpdate=true;b.visible=true;NPC.bubbleT=2.8;}
 function npcSay(kind){fx('npcsay',pick(NPC_LINES[kind]));}
-const NPC_SLAPS=['KNOCKED OUT COLD!','BERSERK!','FLIPPED THE BARBIE!'],NPC_SLAP_PTS=[75,25,50];
-function authSlapNpc(attId,it){const a=chars.get(attId);if(!FEAT.bbq||!a||!it||it.holder!==attId||!it.def.melee||NPC.state==='ko'||a.smokoSeat>=0)return;
+const NPC_SLAPS=['KNOCKED OUT COLD!','BERSERK!','FLIPPED THE BARBIE!'],NPC_SLAP_PTS=[75,25,50],NPC_STUN_PTS=20;
+function authSlapNpc(attId,it){const a=chars.get(attId);if(!FEAT.bbq||!a||!it||it.holder!==attId||!it.def.melee||NPC.state==='ko'||NPC.state==='stunned'||a.smokoSeat>=0)return;
   if(elapsed-a.lastSlap<.45||Math.hypot(a.pos.x-NPC.pos.x,a.pos.z-NPC.pos.z)>3.6)return;a.lastSlap=elapsed;
-  const o=1+Math.floor(Math.random()*3),scoring=state==='play';let pts=0;if(scoring&&stats[attId]){pts=NPC_SLAP_PTS[o-1];stats[attId].score+=pts;scoreDirty=true;}
   NPC.pending=null;
+  if(it.def.melee==='stun'){ // raw meat or fish: always works, a short stun to buy an escape. He's angrier each time, so the stun gets shorter and the chase after it gets longer
+    const scoring=state==='play';let pts=0;if(scoring&&stats[attId]){pts=NPC_STUN_PTS;stats[attId].score+=pts;scoreDirty=true;}
+    const sd=stunDur();NPC.state='stunned';NPC.stateT=sd;NPC.target=attId;NPC.stunAfter=chaseDur();NPC.angerLevel=Math.min(ANGER_MAX,NPC.angerLevel+1);
+    it.uses=(it.uses||it.def.uses||SLAP_USES)-1;fx('nstun',attId,r1(sd),pts,pick(NPC_LINES.stunned));
+    if(it.uses<=0){fx('poof',r2(a.pos.x),r2(a.pos.y+1.3),r2(a.pos.z));removeItem(it);}return;}
+  const o=1+Math.floor(Math.random()*3),scoring=state==='play';let pts=0;if(scoring&&stats[attId]){pts=NPC_SLAP_PTS[o-1];stats[attId].score+=pts;scoreDirty=true;}
   if(o===1){NPC.state='ko';NPC.stateT=8;NPC.target=null;NPC.anger.clear();}
-  else if(o===2){NPC.state='chase';NPC.target=attId;NPC.stateT=8;NPC.berserk=true;NPC.swingCd=1.2;} // a head start to leg it
+  else if(o===2){NPC.state='chase';NPC.target=attId;NPC.stateT=chaseDur();NPC.berserk=true;NPC.swingCd=1.2;NPC.angerLevel=Math.min(ANGER_MAX,NPC.angerLevel+1);} // a head start to leg it
   else{for(let k=0;k<5;k++){const m=spawnItem(Math.random()<.5?'steak':'fish',-6,-18,false);const an=rand(-.3,Math.PI+.3);m.pos.set(-6+rand(-.3,.3),1.4,-18);m.vel.set(Math.cos(an)*rand(3,7),rand(5,8),Math.sin(an)*rand(3,7)+2);m.state='flying';m.live=false;}
-    NPC.state='angry';NPC.target=attId;NPC.stateT=3.5;}
+    NPC.state='angry';NPC.target=attId;NPC.stateT=3.5;NPC.angerLevel=Math.min(ANGER_MAX,NPC.angerLevel+1);}
   it.uses=(it.uses||it.def.uses||SLAP_USES)-1;fx('nslap',attId,o,TYPES.indexOf(it.type),pts,pick(NPC_LINES[['ko','berserk','flip'][o-1]]));
   if(it.uses<=0){fx('poof',r2(a.pos.x),r2(a.pos.y+1.3),r2(a.pos.z));removeItem(it);}}
-function npcAngry(id){if(!FEAT.bbq||NPC.state==='ko')return;const n=(NPC.anger.get(id)||0)+1;NPC.anger.set(id,n);NPC.target=id;
-  if(n>=2.5){NPC.state='chase';NPC.stateT=12;npcSay('rage');}else if(NPC.state!=='chase'){NPC.state='angry';NPC.stateT=3.5;npcSay('angry');}}
+function npcAngry(id){if(!FEAT.bbq||NPC.state==='ko'||NPC.state==='stunned')return;const n=(NPC.anger.get(id)||0)+1;NPC.anger.set(id,n);NPC.target=id;
+  NPC.angerLevel=Math.min(ANGER_MAX,NPC.angerLevel+1);
+  if(n>=2.5){NPC.state='chase';NPC.stateT=chaseDur();npcSay('rage');}else if(NPC.state!=='chase'){NPC.state='angry';NPC.stateT=3.5;npcSay('angry');}}
 // his spot is behind the grill: if he's out front, walk round the open right-hand side first
 function npcHomeRoute(){const p=NPC.pos;if(p.z<-18.75)return NPC.home;if(p.x>-4.6)return new V3(-4.3,0,-19.3);return new V3(-4.3,0,Math.max(p.z,-17.1));}
-function npcReset(){NPC.state='return';NPC.target=null;NPC.anger.clear();NPC.pending=null;}
+function npcReset(){NPC.state='return';NPC.target=null;NPC.anger.clear();NPC.pending=null;NPC.angerLevel=0;NPC.stunAfter=0;}
 function npcUpdate(dt){ // host only
   if(NPC.state==='ko'){NPC.stateT-=dt;NPC.swingCd=1;if(NPC.stateT<=0){NPC.state='return';npcSay('wake');}return;}
+  if(NPC.state==='stunned'){NPC.stateT-=dt;NPC.swingCd=1;
+    if(NPC.stateT<=0){const tgt=NPC.target?chars.get(NPC.target):null;
+      if(tgt){NPC.state='chase';NPC.stateT=NPC.stunAfter||chaseDur();NPC.berserk=NPC.angerLevel>=4;npcSay('rage');}
+      else{NPC.state='return';NPC.target=null;}}
+    return;}
   if(NPC.state!=='chase')NPC.berserk=false;
   NPC.swingCd-=dt;for(const [k,v] of NPC.anger){const nv=v-dt/25;if(nv<=0)NPC.anger.delete(k);else NPC.anger.set(k,nv);}
   let tgt=NPC.target?chars.get(NPC.target):null;
   if(tgt&&tgt.smokoSeat>=0&&(NPC.state==='chase'||NPC.state==='angry')){npcSay('smoko');NPC.state='return';NPC.target=null;NPC.pending=null;tgt=null;}
   if(NPC.state==='angry'||NPC.state==='chase'){NPC.stateT-=dt;if(NPC.stateT<=0||!tgt){if(NPC.state==='chase')npcSay('giveup');NPC.state='return';NPC.target=null;tgt=null;}}
   let goal=null,speed=0,stop=0;
-  if(NPC.state==='chase'&&tgt){goal=tgt.pos;speed=NPC.berserk?8.6:7.2;stop=1.2;}
+  if(NPC.state==='chase'&&tgt){goal=tgt.pos;speed=(NPC.berserk?8.6:7.2)+Math.min(2.2,NPC.angerLevel*.3);stop=1.2;}
   else if(NPC.state==='angry'&&tgt){if(tgt.pos.distanceTo(NPC.home)<5){goal=tgt.pos;speed=3.4;stop=1.2;}else goal=npcHomeRoute(),speed=3.4;}
   else if(NPC.state==='return'){goal=npcHomeRoute();speed=4;if(Math.hypot(NPC.pos.x-NPC.home.x,NPC.pos.z-NPC.home.z)<.25){NPC.state='cook';NPC.pos.copy(NPC.home);}}
   else{NPC.chatT-=dt;if(NPC.chatT<=0){NPC.chatT=rand(25,35);if(state!=='countdown')npcSay('chat');}}
@@ -1340,10 +1372,10 @@ function syncNpc(dt){const n=NPC;
   else n.arm.rotation.set(-2.2,0,-.4);
   if(n.bubbleT>0){n.bubbleT-=dt;if(n.bubbleT<=0)n.bubble.visible=false;}}
 function randomType(){const r=Math.random()*100;let acc=0;for(const k in ITEM_DEFS){acc+=ITEM_DEFS[k].weight;if(r<acc)return k;}return 'teddy';}
-function makeItem(id,type){
-  const def=ITEM_DEFS[type],m=MAKERS[type](id);scene.add(m);
+function makeItem(id,type,variant){
+  const dv=type==='dildo'?(variant||'dildo'):null,def=ITEM_DEFS[type],m=type==='dildo'?MAKERS.dildo(dv):MAKERS[type](id);scene.add(m);
   const ring=new THREE.Mesh(ringGeo,new THREE.MeshBasicMaterial({color:0xffd23f,transparent:true,opacity:.75,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.visible=false;scene.add(ring);
-  const it={id,type,def,mesh:m,ring,pos:new V3(),vel:new V3(),renderOff:new V3(),state:'ground',live:false,holder:null,thrower:null,flyT:0,restT:0,groundY:0,
+  const it={id,type,def,variant:dv,mesh:m,ring,pos:new V3(),vel:new V3(),renderOff:new V3(),state:'ground',live:false,holder:null,thrower:null,flyT:0,restT:0,groundY:0,
     ignore:new Set(),ignoreMe:false,pickT:0,reqT:-9,pendingThrow:false,pendT:0,ghost:null,claimedBy:null,
     spinAxis:new V3(rand(-1,1),rand(-1,1),rand(-1,1)).normalize()};
   items.set(id,it);return it;
@@ -1439,13 +1471,13 @@ function nm(id){if(id===myId)return'<b style="color:var(--sun)">You</b>';const[n
 let shake=0,camRoll=0,camRollV=0,vignette=0;
 function hitMarker(){const h=$('#hitmark');h.classList.add('on');clearTimeout(hitMarker.t);hitMarker.t=setTimeout(()=>h.classList.remove('on'),160);}
 function applyTumble(ch,kdir,knock){ch.tiltAxis.set(kdir.z,0,-kdir.x);ch.tiltV+=knock*.95;ch.spinV+=(Math.random()<.5?-1:1)*knock*.45;}
-function applyKnock(ch,def,kdir,anim){
+function applyKnock(ch,def,kdir,anim,downOverride){
   const kn=anim===1?1.2:anim===3?2.5:def.knock;
   ch.vel.addScaledVector(kdir,kn);ch.vel.y=Math.max(ch.vel.y,anim?2.5:def.knock*.38);ch.grounded=false;
   ch.stun=Math.max(ch.stun,.35+def.knock*.035);ch.charging=false;ch.charge=0;if(ch.ai)ch.ai.windup=0;
   if(!anim)applyTumble(ch,kdir,def.knock);
   if(def.knockdown&&!ch.slapA){ch.slapA=anim||2;ch.slapT=0;}
-  if(def.knockdown){ch.downT=DOWN_TIME;ch.stun=Math.max(ch.stun,DOWN_TIME);ch.drinkT=0;ch.drinkType=null;if(ch.kind==='me')showHint('<b>Knocked flat!</b> Back on your feet in a few seconds.',DOWN_TIME);}
+  if(def.knockdown){const dt2=downOverride!=null?downOverride:DOWN_TIME;ch.downT=dt2;ch.stun=Math.max(ch.stun,dt2);ch.drinkT=0;ch.drinkType=null;if(ch.kind==='me')showHint('<b>Knocked flat!</b> Back on your feet in a few seconds.',dt2);}
   if(ch.kind==='me'){vignette=1;shake=Math.max(shake,.12+def.knock*.012);camRollV+=(Math.random()<.5?-1:1)*def.knock*.08;SFX.hurt();}
 }
 
@@ -1468,11 +1500,12 @@ function playFx(a){
     }
     if(tid)feed(`${nm(tid)} → ${nm(vid)} <em>${esc(line)}</em>${bounty?' ♛':''}${streak>=3?' <b>×'+(streak>=5?2:1.5)+'</b>':''}`);
   }else if(k==='slap'){const aid=a[1],vid=a[2],anim=clamp(a[3]|0,1,3),kd=new V3(num(a[4],0),0,num(a[5],1)),scoring=!!a[6],streak=num(a[7],0),gain=num(a[8],0),bounty=!!a[9];
+    const variant=DILDO_VKEYS[a[12]|0]||'dildo',vdef=DILDO_VARIANTS[variant]||DILDO_VARIANTS.dildo;
     const at=chars.get(aid),vc=chars.get(vid);if(at)at.swingT=.28;if(vc){vc.lastHitBy=aid;vc.lastHitT=elapsed;}
     if(vc){vc.slapA=anim;vc.slapT=0;const hp=vc.pos.clone().setY(vc.pos.y+1.3);
       SFX.slap(hp);SFX[['heli','cartwheel','timber'][anim-1]](hp);burst(hp,[0xa44de0,0xe2b8ff,0xffffff,0xff5fa8],24,5,.07);
-      if(vc.kind==='me'||(isAuth&&vc.kind==='bot'))applyKnock(vc,ITEM_DEFS.dildo,kd,anim);
-      const label=SLAP_NAMES[anim-1];
+      if(vc.kind==='me'||(isAuth&&vc.kind==='bot'))applyKnock(vc,ITEM_DEFS.dildo,kd,anim,Math.max(1.2,DOWN_TIME+vdef.down));
+      const label=SLAP_NAMES[anim-1]+(vdef.short!=='Dildo'?' ('+vdef.short+'!)':'');
       if(vc.kind==='me'&&me)floater(label,camera.position.clone().add(fwd(me).multiplyScalar(2.2)).setY(camera.position.y+.4),'big');else floater(label,vc.pos.clone().setY(vc.pos.y+2.4),'big');
       if(aid===myId&&scoring&&a[10])floater('Teammate! No points',vc.pos.clone().setY(vc.pos.y+3),'bad');
       else if(aid===myId&&scoring){hitMarker();let txt='+'+gain;if(bounty)txt+=' bounty';if(a[11])txt+=' 🍺 drunk bonus';if(streak>=3)txt+=' ×'+(streak>=5?2:1.5);floater(txt,vc.pos.clone().setY(vc.pos.y+3),'small');
@@ -1511,9 +1544,17 @@ function playFx(a){
     if(o===1){NPC.koAge=0;SFX.thud(NPC.pos);}if(o===3){for(const f of grillFood)f.flip=.4;burst(new V3(-6,1.3,-18),[0x6e2a1a,0x9b4a2a,0x444444],30,6,.08);SFX.clonk(new V3(-6,1,-18));}
     if(aid===myId&&pts)floater('+'+pts+' chef slap',NPC.pos.clone().setY(4.1),'small');
     feed(`${nm(aid)} slapped <b style="color:#ff9f1c">Dazza</b> <em>${lbl}</em>`);
+  }else if(k==='nstun'){const aid=a[1],sd=num(a[2],1),pts=num(a[3],0),at=chars.get(aid);
+    const hp=NPC.pos.clone().setY(1.6);SFX.clang(hp);SFX.babble(hp);burst(hp,[0xc4455a,0xf2d2c8,0xffd0c6],20,5,.07);
+    floater('STUNNED! RUN!',NPC.pos.clone().setY(3.2),'big');if(typeof a[4]==='string')npcBubble(a[4].slice(0,40));
+    if(aid===myId&&pts)floater('+'+pts+' cheeky escape',NPC.pos.clone().setY(3.9),'small');
+    feed(`${nm(aid)} stunned <b style="color:#ff9f1c">Dazza</b> and bolted!`);
   }else if(k==='npcsay'){npcBubble(String(a[1]||'').slice(0,40));SFX.babble(NPC.pos);
   }else if(k==='npcswing'){NPC.swingT=.35;SFX.whoosh(NPC.pos);
   }else if(k==='sw'){const c=chars.get(a[1]);if(c&&c.kind!=='me'){c.swingT=.28;SFX.whoosh(c.pos);}
+  }else if(k==='mystery'){const vid=a[1],vc=chars.get(vid),variant=DILDO_VKEYS[a[2]|0]||'dildoGold',vdef=DILDO_VARIANTS[variant]||DILDO_VARIANTS.dildoGold;
+    const p=vc?vc.pos.clone().setY(vc.pos.y+2.1):camera.position.clone();SFX.boing(p);SFX.pickup(p);burst(p,[0xffd23f,0xfff3b0,0xffffff],26,6,.08);
+    floater('✨ MYSTERY CHEST! '+vdef.label+'! ✨',p.clone().setY(p.y+.6),'big');feed(`${nm(vid)} pulled the <b style="color:#ffd23f">${esc(vdef.label)}</b> from the chest!`);
   }else if(k==='poof'){const p=new V3(num(a[1],0),num(a[2],0),num(a[3],0));burst(p,[0xa44de0,0xe2b8ff,0xffffff],18,3,.06);SFX.pop(p);
   }else if(k==='cat'){const cid=a[1],tid=a[2],type=TYPES[a[3]]||'teddy';const c=chars.get(cid);
     const p=c?c.pos.clone().setY(c.pos.y+2.1):camera.position.clone();SFX.catch(p);
@@ -1909,7 +1950,7 @@ function newId(){const a='abcdefghjkmnpqrstuvwxyz23456789';let s='p';for(let i=0
 function sendEv(...a){if(!net.yard)return;net.out.push([++net.seq,...a]);if(net.out.length>14)net.out.shift();}
 function boardRows(){if(isAuth)return Object.entries(stats).map(([id,s])=>[id,s.name,s.color,s.score,s.hits,s.taken,s.catches,s.throws]);return hostRows;}
 function buildWorld(){
-  const it=[];for(const i of items.values()){const f=i.state==='flying';it.push([i.id,TYPES.indexOf(i.type),STATES.indexOf(i.state),r2(i.pos.x),r2(i.pos.y),r2(i.pos.z),f?r2(i.vel.x):0,f?r2(i.vel.y):0,f?r2(i.vel.z):0,i.holder||0,i.thrower||0,i.live?1:0,i.flight&&i.flight.active?i.flight.id:0,i.uses||0]);}
+  const it=[];for(const i of items.values()){const f=i.state==='flying';it.push([i.id,TYPES.indexOf(i.type),STATES.indexOf(i.state),r2(i.pos.x),r2(i.pos.y),r2(i.pos.z),f?r2(i.vel.x):0,f?r2(i.vel.y):0,f?r2(i.vel.z):0,i.holder||0,i.thrower||0,i.live?1:0,i.flight&&i.flight.active?i.flight.id:0,i.uses||0,i.variant?DILDO_VKEYS.indexOf(i.variant):0]);}
   const b=[];for(const c of chars.values())if(c.kind==='bot')b.push([c.id,c.name,c.color,r2(c.pos.x),r2(c.pos.y),r2(c.pos.z),r2(c.face),c.stun>0?1:0,c.charging?r2(c.charge):0,(selItem(c)||{}).id||0,r2(c.vel.x),r2(c.vel.y),r2(c.vel.z),r1(c.downT),c.smokoSeat>=0?c.smokoSeat:-1,Math.round(c.drunk||0)]);
   const pd=[];for(const p of puddles.values())pd.push([p.id,r2(p.x),r2(p.z),r2(p.r),r1(p.life)]);
   return{fe:featMask(),mt:[matchLen,matchNo,[...matchWins],roundWinner||0,matchOver?1:0],fd:fallDur,gm:gameMode==='teams'?1:0,ff:friendlyFire?1:0,tm:gameMode==='teams'?[...teamOf].filter(([id])=>chars.has(id)):0,cs:chestStock,cp:CHEST.spot,np:[r2(NPC.pos.x),r2(NPC.pos.z),r2(NPC.face),NPC_STATES.indexOf(NPC.state)],st:state,tl:r1(roundLeft),cd:r1(countdown),len:roundLen,it,b,sc:boardRows(),ld:leaderId||0,pd,res:(state==='results'&&resultsRows)?resultsRows:0};
@@ -1990,7 +2031,7 @@ function applyWorld(w){
   // items
   const seen=new Set();
   if(Array.isArray(w.it))for(const a of w.it){if(!Array.isArray(a))continue;const id=a[0];const type=TYPES[a[1]];const s=STATES[a[2]];if(typeof id!=='number'||!type||!s)continue;
-    seen.add(id);let it=items.get(id);if(!it){it=makeItem(id,type);it.state='?';}
+    seen.add(id);let it=items.get(id);if(!it){it=makeItem(id,type,type==='dildo'?(DILDO_VKEYS[a[14]|0]||'dildo'):null);it.state='?';}
     const prev=it.state,prevHolder=it.holder;const np=new V3(num(a[3],0),num(a[4],0),num(a[5],0));
     if(s==='flying'){if(prev==='flying')it.renderOff.add(it.pos).sub(np);else{it.renderOff.set(0,0,0);it.flyT=0;}it.pos.copy(np);it.vel.set(num(a[6],0),num(a[7],0),num(a[8],0));}
     else{it.pos.copy(np);it.vel.set(0,0,0);it.renderOff.set(0,0,0);}
@@ -2249,7 +2290,7 @@ function updateHud(dt){
     else if(ht){const who=esc(ht.kind==='me'?'yourself':ht.name),pc=Math.round(me.helpT/HELP_TIME*100);
       const html=me.helpT>0?`Helping ${who} up… ${pc}%`:(touchMode?`Hold <b>Help</b> to get ${who} up (+${HELP_PTS})`:`<kbd>R</kbd>Hold to help ${who} up (+${HELP_PTS})`);if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
     else if(ms){const nm2=ms==='steak'?'a raw steak':'a raw fish';const html=touchMode?`Tap <b>Grab</b> to nick ${nm2}`:`<kbd>R</kbd>Nick ${nm2} (Dazza won't like it)`;if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
-    else if(atChest){const html=chestStock>0?(touchMode?`Tap <b>Grab</b> for a purple dildo (${chestStock} left)`:`<kbd>R</kbd>Grab a purple dildo (${chestStock} left)`):'Chest is empty, restocking…';if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
+    else if(atChest){const html=chestStock>0?(touchMode?`Tap <b>Grab</b> something from the chest (${chestStock} left)`:`<kbd>R</kbd>Grab something from the chest (${chestStock} left)`):'Chest is empty, restocking…';if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
     else if(spot){const html=touchMode?`Tap <b>Drink</b> for ${DRINKS[spot].full}`:`<kbd>R</kbd>Drink ${DRINKS[spot].full}`;if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}else bp.classList.remove('on');
     const td=$('#tDrink');if(td){const zs=me.smokoSeat<0&&canAct()&&me.stun<=0&&inSmoko(me);td.hidden=!(spot||atChest||ms||ht||zs||me.smokoSeat>=0);td.textContent=me.smokoSeat>=0?'Up':ht?'Help':zs?'Sit':(atChest||ms)?'Grab':'Drink';}}
   {const rt=$('#roundTag'),show=matchLen>1&&matchNo>0;rt.hidden=!show;if(show){const t=`Round ${matchNo}/${matchLen}`;if(rt.textContent!==t)rt.textContent=t;}}
