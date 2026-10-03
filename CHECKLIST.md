@@ -23,7 +23,8 @@
 - ✅ Everyone sees you sway; random drunk falls; mates help you up
 
 **Yard life**
-- ✅ Dazza at the BBQ yells, chases and spatulas you. Getting angrier each time you pinch his meat: chases get longer and he moves faster. Steak or fish now reliably stuns him for a quick escape (shrinks each time), then he chases you after
+- ✅ Dazza at the BBQ yells, chases and spatulas you, and gets angrier (faster, longer chases) the more you steal from him
+- ✅ Steak/fish can stun Dazza for a quick, reliable escape — the stun gets shorter and the chase after it gets longer each time. Getting angrier each time you pinch his meat: chases get longer and he moves faster. Steak or fish now reliably stuns him for a quick escape (shrinks each time), then he chases you after
 - ✅ Smoko chairs: sit, beer, safe
 - ✅ Emotes and taunts
 
