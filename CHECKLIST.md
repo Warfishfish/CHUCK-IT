@@ -1,4 +1,4 @@
-# Chuck It / Backyard Brawl: gameplay checklist
+# Australian BBQ (was Chuck It / Backyard Brawl): gameplay checklist
 
 ✅ done · ⬜ to do · 🔒 checkpoint
 
@@ -10,7 +10,7 @@
 
 **Moving**
 - ✅ WASD, Space jump, Shift sprint boost, Q swap item, right-click catch
-- ✅ 1.5x bigger yard with cover, pool (deep), trampoline
+- ✅ 1.5x bigger yard with cover, a big deep pool (14 x 8), trampoline
 
 **Chucking and slapping**
 - ✅ Teddy, VP can, gnome, and floating pool noodles
@@ -36,6 +36,10 @@
 - ✅ Cheeky Dazza lines in PG15+ (bigger, ruder bubble set); Family keeps the clean lines
 - ✅ Ruder bot/mate names in PG15+ ("Skidmark", "Mate 77" style) — rides on the same PG15+ switch rather than its own toggle, to keep the setup screen simple
 
+**Drunk mode and stuns**
+- ✅ **🍻 Drunk mode** tick box (Solo and hosted options): everyone, bots included, is kept drunk all game, so no sobering up and no drunk bonus points
+- ✅ After a stun ends you can't be stunned again for 1 second (you can still be shoved, and a dildo can still floor you)
+
 **Setup screen**
 - ✅ Tabs: Solo / With mates / How to play, with one big Play button
 - ✅ Family / PG15+ switch (default Family): PG15+ unlocks the dildo chest and any future adult content, synced to everyone in the yard
@@ -46,7 +50,7 @@
 - ✅ Best-of-3 matches; host picks what's in the yard
 
 **Teddy Heist (its own mode)**
-- ✅ Its own **🧸 Teddy Heist tab** on the main menu (not buried in More options): pick 2-4 teams and bots, then Play solo or Host online. Teams spawn inside their own base
+- ✅ Pick **🧸 Teddy Heist** as the Game mode in either the **Solo** or **With mates** section (no separate tab). Choose 2-4 teams there, then Play or Host. Teams spawn inside their own base
 - ✅ Bases are loud: coloured floor pad marking the banking zone, a tall flag pole and a light beam you can spot across the yard, taller walls
 - ✅ Heist map is an oval, not a rectangle: the corners curve away in stone steps and a half-round bay is pushed into the middle of each side. Only applies to Teddy Heist — Free-for-all and Teams keep the normal yard
 - ✅ 2 to 4 teams, using Red/Blue + Green/Yellow for 3-4 teams. Each team gets a base in its own corner/side of the yard, ringed by a fence/crate wall with a gap or two to get in
@@ -63,7 +67,7 @@
 
 
 **Grab and carry**
-- ✅ Press **V** next to someone who's down, fallen or stunned to pick them up. **V** again puts them down, **hold V** chucks them (about 7 metres)
+- ✅ Press **F** next to someone who's down, fallen or stunned to pick them up. Tap **F** again to put them down, **hold F** to throw them (about 7 metres). With nobody to pick up, F still winds up a throw like before
 - ✅ The carried player hangs over your shoulder, flopping and bouncing as you walk. You move slower, can't sprint, throw or slap, and they drop anything they were holding (including a stolen teddy)
 - ✅ The carried player **mashes Space** to wriggle free (about 8 presses). Nobody can be carried for more than 6 seconds, and a freed player can't be grabbed again for 8 seconds
 - ✅ You drop them if you get hit, knocked down, fall over or walk into the pool. Chucking someone into the pool or onto the tramp still scores the splash/orbit bonus
@@ -72,9 +76,9 @@
 
 **Naughty Corner**
 - ✅ Tick **😈 Smoko is the Naughty Corner** in the yard options (solo and hosted). The smoko pad turns red
-- ✅ Drop or chuck a carried player into the smoko area: **+100** (not for dumping a teammate, and the same victim isn't worth points again for 45s) and a "SENT TO THE NAUGHTY CORNER!" banner
-- ✅ The victim is plonked on a smoko chair for 5s and can't move, then is **Naughty** for 20s: the aim sways, wind-up is slower and throws are weaker (bots get a much worse aim). A dunce cap shows on them for everyone
-- ✅ Naughty players can't be picked up. Nobody can sit at smoko for a safe break in this mode, and bots stop going there
+- ✅ Drop or throw a carried player into the smoko area: **+100** (not for dumping a teammate) and a "SENT TO THE NAUGHTY CORNER!" banner
+- ✅ The punishment is just that: the victim sits on a smoko chair for **5 seconds** and can't move. Nothing after it
+- ✅ Someone on the chair can't be picked up. Nobody can sit at smoko for a safe break in this mode, and bots stop going there
 
 ---
 
@@ -82,7 +86,6 @@
 > Stop people farming the same mate for points.
 
 - ✅ No points for dumping your own teammate in the Naughty Corner
-- ✅ The same victim can't be worth Naughty Corner points again for 45s
 - ⬜ The same attacker and victim pair has a longer cooldown (~90s)
 - ⬜ No points for slapping someone who's already down
 - ⬜ 3s protection at the start of each round
