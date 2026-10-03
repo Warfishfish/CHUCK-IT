@@ -15,8 +15,11 @@
 **Chucking and slapping**
 - ✅ Teddy, VP can, gnome, and floating pool noodles
 - ✅ Dildo chest (PG15+ only, random spot): 4 variants (Mini/Classic/Jumbo/rare Golden Wonder), each worth different points and a different knockdown length. Slaps knock people flat with Helicopter / Cartwheel / Timber
+- ✅ Dildo critical hit: ~15% chance on any dildo slap to flatten them for a full 5s with a much bigger flying knockback — "💥 CRITICAL!", no stun stacking on top
 - ✅ Steak, fish, noodle slaps stun
-- ✅ Slap the chef: KO / Berserk / Flip the grill
+- ✅ Wet-willy, noogie, wedgie (PG15+): a close-range unarmed slap, no item needed — shove-knockback, sillier label, no knockdown
+- ✅ Slap the chef: KO / Berserk / Flip the grill (gnome knockdown-stun eased back slightly so it's not as brutal)
+- ✅ Press **Q** to swap your held item
 
 **Drinking**
 - ✅ Beer, wine, rum at the bar; drunk meter, wobbly vision, drifting
@@ -26,7 +29,11 @@
 - ✅ Dazza at the BBQ yells, chases and spatulas you, and gets angrier (faster, longer chases) the more you steal from him
 - ✅ Steak/fish can stun Dazza for a quick, reliable escape — the stun gets shorter and the chase after it gets longer each time. Getting angrier each time you pinch his meat: chases get longer and he moves faster. Steak or fish now reliably stuns him for a quick escape (shrinks each time), then he chases you after
 - ✅ Smoko chairs: sit, beer, safe
-- ✅ Emotes and taunts
+- ✅ Emotes and taunts, plus a cheeky extra set unlocked in PG15+
+- ✅ Dazza's dodgy snags (PG15+): sometimes turns up instead of a steak/fish — press **R** to eat it for a 4s speed burst, then a wobbly toilet-run stumble you have to ride out
+- ✅ Bum-Out Gnome (PG15+): a rare glowing pink gnome, max 3 a game, worth +15 on a hit — small chance to pop out when you KO Dazza with the dildo. Not announced outright; sharp-eyed mates will just see a "dropped something shiny…" line in the feed
+- ✅ Cheeky Dazza lines in PG15+ (bigger, ruder bubble set); Family keeps the clean lines
+- ✅ Ruder bot/mate names in PG15+ ("Skidmark", "Mate 77" style) — rides on the same PG15+ switch rather than its own toggle, to keep the setup screen simple
 
 **Setup screen**
 - ✅ Tabs: Solo / With mates / How to play, with one big Play button
@@ -39,17 +46,7 @@
 
 ---
 
-## 1. PG15+ extras ⬜ (next up)
-> More cheeky options behind the PG15+ switch, same spirit as the dildo chest.
-
-- ⬜ Wet-willy and noogie: a close-range unarmed slap (no item needed), silly animation, bigger knockback than a regular hit
-- ⬜ Dazza's dodgy snags: eating one off the BBQ gives a speed boost, then a toilet-run stumble
-- ⬜ Cheeky Dazza lines: a bigger, ruder set of bubble jokes in PG15+; Family keeps the clean set
-- ⬜ Golden Gnome: a rare gnome (max 3 per game) worth +15 on a hit. Proposed way to get one: when you stun Dazza, there's a small chance he "drops" one near the BBQ as he bolts — not told to the player outright, just something sharp-eyed mates will notice. Confirm or tweak before building
-- ⬜ Rude names toggle: a cheekier bot/player name generator (could just ride on the PG15+ switch rather than a separate toggle — confirm)
-- ⬜ Cheeky emotes: a couple of extra emotes unlocked only in PG15+
-
-## 2. Grab and carry your mates ⬜
+## 1. Grab and carry your mates ⬜
 > Knock someone down, then pick them up and haul them somewhere embarrassing.
 
 - ⬜ You can only grab someone who's **down, fallen, stunned or passed out**, so every slap sets up a carry
@@ -64,7 +61,7 @@
 - ⬜ Works online the same for host and guests, with no one getting stuck if someone leaves mid-carry
 - ⬜ **Playtest:** is it funny? Is escaping too easy or too hard? Is 6s the right carry time?
 
-## 3. Naughty Corner ⬜
+## 2. Naughty Corner ⬜
 > Dump a mate in the smoko area and they get punished.
 
 - ⬜ Host setting: smoko is **Safe Zone** (like now) or **Naughty Corner** (added to the existing "What's in the yard" menu)
@@ -76,7 +73,7 @@
 - ⬜ In Naughty Corner mode, you can't sit at smoko for a safe break
 - ⬜ **Playtest:** is the punishment annoying enough to fear, but not so bad it's no fun?
 
-## 4. Fair scoring ⬜
+## 3. Fair scoring ⬜
 > Stop people farming the same mate for points.
 
 - ⬜ No points for dumping or carrying your own teammate
@@ -87,7 +84,7 @@
 - ⬜ No points in warm-up or after the round ends
 - ⬜ **Playtest:** try to farm points two ways; neither should work
 
-## 5. Lobby and game setup ⬜
+## 4. Lobby and game setup ⬜
 > Before the match: hang out, get ready, pick your look.
 
 - ⬜ Waiting yard before the match, with free play and no scoring
@@ -100,7 +97,7 @@
 - ✅ Simpler setup screen (tabs, big Play button, More options)
 - ⬜ Rules on their own screen, in short pages, only showing what's switched on
 
-## 6. Polish ⬜
+## 5. Polish ⬜
 > Juice once the gameplay feels right.
 
 - ⬜ Carry animations: grab lunge, wriggle, drop flop
@@ -109,7 +106,7 @@
 - ⬜ Marcus's custom sounds for Dazza and other effects
 - ⬜ Phone buttons for Grab and Ready
 
-## 7. Engine and Steam ⬜ (later)
+## 6. Engine and Steam ⬜ (later)
 > Finish the gameplay here in the browser first (quick to change), then decide on the engine.
 
 - ⬜ Keep building and tuning gameplay in the browser version until it feels right
@@ -124,3 +121,4 @@
 - ⬜ Weather or time of day
 - ⬜ Sabotage items
 - ⬜ Dazza crying or throwing hot snags
+- ⬜ Recruit Dazza (easter egg, idea only — not built): stun him with meat 3 times in one round *without* ever KO'ing/berserking/flipping him (i.e. only ever use the steak/fish quick-stun, never the dildo), then feed him a Dodgy Snag while he's stunned on the 3rd time. He joins your team for the rest of the round (follows you, slaps your rivals for free, no more escalating chase). No on-screen instructions — the clue is the "he's not as angry as he should be" dialogue line already in his escalating-anger chatter if he's never been dildo-KO'd. Needs: a small tracker for stuns-without-KO, feeding logic while NPC.state==='stunned', and a "recruited" NPC state. Confirm before building
