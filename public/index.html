@@ -276,7 +276,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.15.1</span>
+      <span class="tag">Backyard Brawl · prototype 0.16.1</span>
       <div id="logo" class="logo display">Chuck It</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -957,7 +957,7 @@ function moveChest(i){i=clamp(i|0,0,CHEST_SPOTS.length-1);const[x,z,r]=CHEST_SPO
 
 function syncChest(dt){if(!chestLid)return;const open=chestStock>0?-1.15:-.08;chestLid.rotation.x+=(open-chestLid.rotation.x)*(1-Math.exp(-6*dt));
   chestToys.forEach((t,k)=>t.visible=k<chestStock);chestLid.userData.glow.intensity=chestStock>0?.9+.3*Math.sin(elapsed*3):0;}
-const SLAP_NAMES=['HELICOPTER!','CARTWHEEL!','TIMBER!'],SLAP_USES=3,MEAT_STUN=3,MEAT_PTS=50;
+const SLAP_NAMES=['HELICOPTER!','CARTWHEEL!','TIMBER!'],SLAP_USES=3,MEAT_STUN=2,MEAT_PTS=50;
 // attacker's client: find someone close in front and ask the host to resolve it
 function trySlap(){const it=selItem(me),unarmed=!it||!it.def.melee;
   if(unarmed&&!FEAT.adult)return;
@@ -975,7 +975,7 @@ function authSilly(attId,vicId){const a=chars.get(attId),v=chars.get(vicId);
   if(!FEAT.adult||!a||!v||a===v||v.smokoSeat>=0||a.smokoSeat>=0)return;
   const tk=sameTeam(attId,vicId);if(tk&&!friendlyFire)return;
   if(v.downT>.3||elapsed-a.lastSlap<.9||a.pos.distanceTo(v.pos)>2.9)return;a.lastSlap=elapsed;
-  const scoring=state==='play';let gain=0,db=0;if(scoring&&stats[attId]&&!tk){db=drunkBonus(attId);gain=SILLY_PTS+db;stats[attId].score+=gain;stats[attId].hits++;}
+  const scoring=state==='play'&&gameMode!=='heist';let gain=0,db=0;if(scoring&&stats[attId]&&!tk){db=drunkBonus(attId);gain=SILLY_PTS+db;stats[attId].score+=gain;stats[attId].hits++;}
   if(scoring&&stats[vicId])stats[vicId].taken++;scoreDirty=true;
   const kd=v.pos.clone().sub(a.pos).setY(0);if(kd.lengthSq()<1e-4)kd.set(0,0,1);kd.normalize();
   fx('silly',attId,vicId,Math.floor(Math.random()*SILLY_NAMES.length),r2(kd.x),r2(kd.z),scoring?1:0,gain,tk?1:0,db);}
@@ -985,13 +985,14 @@ function authSlap(attId,vicId,it){const a=chars.get(attId),v=chars.get(vicId);
   const tk=sameTeam(attId,vicId);if(tk&&!friendlyFire)return;
   if(it.def.melee==='stun'){ // raw meat: stun, +50, no penalty for the victim
     if(elapsed-a.lastSlap<.45||a.pos.distanceTo(v.pos)>3.6)return;a.lastSlap=elapsed;
-    const scoring=state==='play';let gain=0,db=0;if(scoring&&stats[attId]&&!tk){db=drunkBonus(attId);gain=(it.def.slapPts||MEAT_PTS)+db;stats[attId].score+=gain;stats[attId].hits++;stats[attId].throws++;scoreDirty=true;}
+    const scoring=state==='play'&&gameMode!=='heist';let gain=0,db=0;if(scoring&&stats[attId]&&!tk){db=drunkBonus(attId);gain=(it.def.slapPts||MEAT_PTS)+db;stats[attId].score+=gain;stats[attId].hits++;stats[attId].throws++;scoreDirty=true;}
     if(scoring&&stats[vicId])stats[vicId].taken++;
     const kd=v.pos.clone().sub(a.pos).setY(0);if(kd.lengthSq()<1e-4)kd.set(0,0,1);kd.normalize();it.uses=(it.uses||it.def.uses||SLAP_USES)-1;
-    fx('mslap',attId,vicId,TYPES.indexOf(it.type),r2(kd.x),r2(kd.z),scoring?1:0,gain,tk?1:0,db);
+    const smell=it.type==='fish'?(Math.random()<.1?2:Math.random()<.33?1:0):0;
+    fx('mslap',attId,vicId,TYPES.indexOf(it.type),r2(kd.x),r2(kd.z),scoring?1:0,gain,tk?1:0,db,smell);
     if(it.uses<=0){fx('poof',r2(a.pos.x),r2(a.pos.y+1.3),r2(a.pos.z));removeItem(it);}return;}
   if(v.downT>.3||elapsed-a.lastSlap<.45||a.pos.distanceTo(v.pos)>3.6)return;a.lastSlap=elapsed;
-  const scoring=state==='play',bounty=leaderId===vicId;let streak=0,gain=0,db=0;
+  const scoring=state==='play'&&gameMode!=='heist',bounty=leaderId===vicId;let streak=0,gain=0,db=0;
   const vbonus=it.type==='dildo'?((DILDO_VARIANTS[it.variant]||DILDO_VARIANTS.dildo).pts||0):0;
   const crit=it.type==='dildo'&&Math.random()<.15;
   if(scoring){if(stats[attId]&&!tk){stats[attId].streak=(stats[attId].streak||0)+1;streak=stats[attId].streak;db=drunkBonus(attId);gain=Math.round((100+(bounty?50:0))*streakMult(streak))+db+vbonus+(crit?60:0);
@@ -1078,7 +1079,7 @@ const ENV_PTS=50,ENV_NAMES={pool:'SPLASHDOWN!',tramp:'INTO ORBIT!'};
 function envCheck(ch,kind){if(!(ch.kind==='me'||(isAuth&&ch.kind==='bot'))||!ch.lastHitBy||elapsed-ch.lastHitT>2)return;
   if(isAuth)authEnv(ch.lastHitBy,ch.id,kind);else{sendEv('env',kind,ch.lastHitBy);ch.lastHitBy=null;}}
 function authEnv(tid,vid,kind){const v=chars.get(vid);if(!v||!chars.has(tid)||tid===vid||v.lastHitBy!==tid||elapsed-v.lastHitT>3.5||sameTeam(tid,vid)||!ENV_NAMES[kind])return;
-  v.lastHitBy=null;const scoring=state==='play';let pts=0;if(scoring&&stats[tid]){pts=ENV_PTS;stats[tid].score+=pts;scoreDirty=true;}fx('env',kind,vid,tid,pts);}
+  v.lastHitBy=null;const scoring=state==='play'&&gameMode!=='heist';let pts=0;if(scoring&&stats[tid]){pts=ENV_PTS;stats[tid].score+=pts;scoreDirty=true;}fx('env',kind,vid,tid,pts);}
 /* ---- emotes ---- */
 const EMOTES={taunt:["Is that all ya got?","Ya throw like me nan!","Too slow, mate!","Couldn't hit a barn door!","Yeah nah, missed!","Come at me!","Easy as!","Oi! Over here, ya galah!","Stone the crows, weak!"],
   laugh:["HAHAHAHA!","Ha! Get wrecked!","HAHA, look at ya!","Hehehe. Classic."],
@@ -1113,7 +1114,7 @@ function helpTarget(){if(!me||!canAct()||me.stun>0||me.smokoSeat>=0)return null;
 function helpTick(dt){const t=helpTarget();me.helpCd=Math.max(0,(me.helpCd||0)-dt);
   if(t&&(keys.KeyR||touchHold)&&me.helpCd<=0){me.helpT+=dt;if(me.helpT>=HELP_TIME){me.helpT=0;me.helpCd=1;if(isAuth)authHelpUp(myId,t.id);else sendEv('hu',t.id);}}else me.helpT=0;return t;}
 function authHelpUp(hid,tid){const h=chars.get(hid),t=chars.get(tid);if(!canHelp(h,t)||Math.hypot(h.pos.x-t.pos.x,h.pos.z-t.pos.z)>2.8)return;
-  let pts=0;if(state==='play'&&stats[hid]){pts=HELP_PTS;stats[hid].score+=pts;scoreDirty=true;}fx('up',tid,hid,pts);}
+  let pts=0;if(state==='play'&&gameMode!=='heist'&&stats[hid]){pts=HELP_PTS;stats[hid].score+=pts;scoreDirty=true;}fx('up',tid,hid,pts);}
 // bots (in Teams) walk over to a fallen teammate and pull them up
 function botHelp(ch,dt){if(!teamsOn())return false;let t=null,bd=22;
   for(const o of chars.values()){if(!canHelp(ch,o))continue;const d=Math.hypot(o.pos.x-ch.pos.x,o.pos.z-ch.pos.z);if(d<bd){bd=d;t=o;}}
@@ -1217,6 +1218,7 @@ function balanceTeams(reshuffle,assignOnly){
   if(JSON.stringify([...teamOf])!==before)scoreDirty=true;}
 /* ---- Teddy Heist: steal the other team(s)' teddies out of their walled base, bank them in yours ---- */
 const HEIST_TEAM_KEYS=['r','b','g','y'];
+let heistBoard=null;
 let heistTeams=2,heistBanked={},heistBases={},heistProps=[],heistColsSet=[];
 const HEIST_HALF=3,HEIST_WALL_H=2.1,HEIST_BASE_R=4.3,HEIST_BANK_PTS=150;
 const HEIST_LAYOUT={
@@ -1226,7 +1228,7 @@ const HEIST_LAYOUT={
 };
 function heistKeysArr(){return HEIST_TEAM_KEYS.slice(0,heistTeams);}
 function clearHeistProps(){for(const o of heistProps)if(o.parent)o.parent.remove(o);heistProps.length=0;
-  for(const c of heistColsSet){const i=colliders.indexOf(c);if(i>=0)colliders.splice(i,1);}heistColsSet.length=0;heistBases={};heistBanked={};heistSpawnN={};}
+  for(const c of heistColsSet){const i=colliders.indexOf(c);if(i>=0)colliders.splice(i,1);}heistColsSet.length=0;heistBases={};heistBanked={};heistSpawnN={};heistBoard=null;}
 function buildHeistWall(cx,cz,w,d,color,h){h=h||HEIST_WALL_H;heistProps.push(mesh(new THREE.BoxGeometry(w,h,d),mat(color),cx,h/2,cz));
   col(cx,cz,w,d,h);heistColsSet.push(colliders[colliders.length-1]);}
 // true when (x,z) is at least r clear of every heist wall/block
@@ -1241,6 +1243,23 @@ function buildHeistArena(){const {A,B,step,bay}=HEIST_ARENA;let n=0;
     const w=W-Math.min(W,e);if(w>.35){put(-W+w/2,zc,w,step);put(W-w/2,zc,w,step);}   // fill outside the oval, both sides
     if(Math.abs(zc)<bay.r){const dep=bay.depth*Math.sqrt(1-(zc/bay.r)*(zc/bay.r));  // half-round bay in the middle of each side wall
       if(dep>.5){put(-W+dep/2,zc,dep,step);put(W-dep/2,zc,dep,step);}}}}
+// a big four-sided scoreboard floating over the middle of the yard: teddies banked + points per team, readable from anywhere
+function drawHeistBoard(){const b=heistBoard;if(!b)return;const c=b.ctx,keys=heistKeysArr(),N=640;
+  c.clearRect(0,0,N,N);c.fillStyle='#14202b';c.fillRect(0,0,N,N);c.fillStyle='#ffd23f';c.fillRect(0,0,N,14);c.fillRect(0,N-14,N,14);
+  const tx=(t,x,y,al)=>{c.textAlign=al;c.lineWidth=7;c.strokeStyle='rgba(0,0,0,.6)';c.strokeText(t,x,y);c.fillStyle='#fff';c.fillText(t,x,y);};
+  c.font='900 58px system-ui,sans-serif';tx('🧸 TEDDY HEIST 🧸',N/2,88,'center');
+  let best=-1,leader=null,tie=false;for(const k of keys){const v=heistBanked[k]||0;if(v>best){best=v;leader=k;tie=false;}else if(v===best)tie=true;}
+  const rowH=Math.min(190,490/keys.length),f1=Math.min(80,Math.round(rowH*.42)),f2=Math.min(44,Math.round(rowH*.26));
+  keys.forEach((k,i)=>{const y=124+i*rowH,v=heistBanked[k]||0;c.fillStyle=TEAMS[k].css;c.fillRect(24,y,N-48,rowH-12);
+    c.font='900 '+f1+'px system-ui,sans-serif';tx(TEAMS[k].name.toUpperCase()+((!tie&&best>0&&leader===k)?' ♛':''),44,y+(rowH-12)*.5+f1*.35,'left');
+    tx('🧸 '+v,N-40,y+(rowH-12)*.46,'right');
+    c.font='800 '+f2+'px system-ui,sans-serif';tx((v*HEIST_BANK_PTS)+' pts',N-40,y+(rowH-12)*.86,'right');});
+  b.tex.needsUpdate=true;}
+function makeHeistBoard(){const cv=document.createElement('canvas');cv.width=cv.height=640;const tex=new THREE.CanvasTexture(cv);
+  const face=new THREE.MeshBasicMaterial({map:tex}),dark=new THREE.MeshBasicMaterial({color:0x14202b});
+  const box=mesh(new THREE.BoxGeometry(7,7,7),[face,face,dark,dark,face,face],0,11,0);box.castShadow=false;box.receiveShadow=false;heistProps.push(box);
+  heistProps.push(mesh(new THREE.CylinderGeometry(.3,.3,7.5,10),mat(0x9aa0a8),0,3.75,0));
+  heistBoard={ctx:cv.getContext('2d'),tex};drawHeistBoard();}
 // each team spawns inside its own base rather than at random yard spots
 const HEIST_SPAWN_OFF=[[0,2.1],[0,-2.1],[2.1,0],[-2.1,0]];let heistSpawnN={};
 function heistSpawnFor(ch){if(gameMode!=='heist')return null;const t=teamOf.get(ch.id),b=t&&heistBases[t];if(!b)return null;
@@ -1263,7 +1282,7 @@ function buildHeistBases(n){clearHeistProps();heistTeams=clamp(n|0,2,4);
     heistProps.push(mesh(new THREE.CylinderGeometry(.13,.13,7.5,8),mat(0xf2f2f2),b.x,3.75,b.z));
     const fl=mesh(new THREE.PlaneGeometry(2.6,1.5),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}),b.x+1.3,6.6,b.z);fl.castShadow=false;heistProps.push(fl);
     heistProps.push(mesh(new THREE.SphereGeometry(.28,10,8),mat(0xffffff),b.x,7.6,b.z));});
-  buildHeistArena();buildHeistCenterpiece();}
+  buildHeistArena();buildHeistCenterpiece();makeHeistBoard();}
 // how many teddies sit in each base: 2 to start, plus 1 more for every couple of players sharing that team, capped at 4 so a big lobby never turns into clutter
 function heistTeddyCount(){return clamp(2+Math.floor((chars.size/heistTeams)/2),2,4);}
 const HEIST_TEDDY_OFFSETS=[[-1.3,-1.3],[1.3,-1.3],[-1.3,1.3],[1.3,1.3]];
@@ -1327,7 +1346,27 @@ function createChar(id,name,color,kind,sp){
   chars.set(id,ch);return ch;
 }
 function setCharName(ch,name){if(ch.name===name)return;ch.name=name;ch.mesh.remove(ch.tag);ch.tag.material.map.dispose();ch.tag=nameTag(name,ch.color,ch.teamCss);ch.mesh.add(ch.tag);}
-function removeChar(ch){scene.remove(ch.mesh);ch.tag.material.map.dispose();chars.delete(ch.id);if(ch===me)me=null;}
+function dropCharFx(ch){if(ch.smellCloud){scene.remove(ch.smellCloud);ch.smellCloud=null;}if(ch.helpSign){scene.remove(ch.helpSign);ch.helpSign=null;}}
+let helpTex=null;
+function helpSignTex(){if(helpTex)return helpTex;const cv=document.createElement('canvas');cv.width=256;cv.height=160;const c=cv.getContext('2d');
+  c.fillStyle='#fff';c.fillRect(0,0,256,160);c.strokeStyle='#d62d20';c.lineWidth=14;c.strokeRect(7,7,242,146);
+  c.fillStyle='#d62d20';c.font='900 56px system-ui,sans-serif';c.textAlign='center';c.fillText('HELP',128,76);c.fillText('ME!',128,134);
+  helpTex=new THREE.CanvasTexture(cv);return helpTex;}
+function updateCharFx(ch,dt){
+  if(ch.smellT>0){ch.smellT-=dt;
+    if(!ch.smellCloud){ch.smellCloud=new THREE.Mesh(new THREE.SphereGeometry(1,14,10),new THREE.MeshBasicMaterial({color:ch.smellBad?0x7f9a2a:0xb9cf70,transparent:true,opacity:ch.smellBad?.38:.28,depthWrite:false}));scene.add(ch.smellCloud);}
+    const k=1+.12*Math.sin(elapsed*5);ch.smellCloud.position.set(ch.pos.x,ch.pos.y+1,ch.pos.z);ch.smellCloud.scale.setScalar((ch.smellBad?1.6:1.15)*k*Math.min(1,ch.smellT/.6));
+    ch.smellAcc=(ch.smellAcc||0)-dt;if(ch.smellAcc<=0){ch.smellAcc=ch.smellBad?.08:.16;burst(new V3(ch.pos.x,ch.pos.y+.6,ch.pos.z),ch.smellBad?[0x6f8a1e,0x8fae30,0xa9c24a]:[0xcfe08a,0xe3edb2],2,.9,ch.smellBad?.2:.14,-.4);}
+  }else if(ch.smellCloud){scene.remove(ch.smellCloud);ch.smellCloud=null;}
+  // anyone who has fallen over (and isn't you) holds up a HELP ME sign so mates can spot them across the yard
+  if(ch.fallT>0&&ch!==me&&ch.smokoSeat<0){
+    if(!ch.helpSign){const g=new THREE.Group();
+      const board=new THREE.Mesh(new THREE.PlaneGeometry(1.5,.94),new THREE.MeshBasicMaterial({map:helpSignTex(),side:THREE.DoubleSide}));board.position.y=.95;g.add(board);
+      const pole=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,1,6),mat(0x6b4a2a));pole.position.y=.2;g.add(pole);ch.helpSign=g;scene.add(g);}
+    const g=ch.helpSign;g.position.set(ch.pos.x,ch.pos.y+.55,ch.pos.z);g.rotation.y=Math.atan2(camera.position.x-g.position.x,camera.position.z-g.position.z);g.rotation.z=Math.sin(elapsed*7)*.16;
+  }else if(ch.helpSign){scene.remove(ch.helpSign);ch.helpSign=null;}
+}
+function removeChar(ch){dropCharFx(ch);scene.remove(ch.mesh);ch.tag.material.map.dispose();chars.delete(ch.id);if(ch===me)me=null;}
 function fwd(ch){return new V3(Math.sin(ch.face),0,Math.cos(ch.face));}
 function heldOf(id){const a=[];for(const it of items.values())if(it.state==='held'&&it.holder===id&&!it.pendingThrow)a.push(it);return a.sort((x,y)=>x.pickT-y.pickT);}
 function selItem(ch){const h=heldOf(ch.id);if(!h.length)return null;let s=h.find(i=>i.id===ch.selId);if(!s){s=h[h.length-1];ch.selId=s.id;}return s;}
@@ -1362,7 +1401,7 @@ function updateBBQ(dt){
 function meatSpot(ch){if(!FEAT.bbq||!ch||ch.pos.y>.5)return null;const dx=ch.pos.x-MEAT.x,dz=ch.pos.z-MEAT.z;
   const ex=Math.max(0,Math.abs(dx)-MEAT.w/2),ez=Math.max(0,Math.abs(dz)-MEAT.d/2);if(Math.hypot(ex,ez)>1.3)return null;return dx<0?'steak':'fish';}
 function authMeatGrab(id,kind){const ch=chars.get(id);if(!FEAT.bbq||!ch||(kind!=='steak'&&kind!=='fish')||heldOf(id).length>=2||Math.hypot(ch.pos.x-MEAT.x,ch.pos.z-MEAT.z)>3.2||elapsed-(ch.lastMeat||-9)<.8)return;
-  ch.lastMeat=elapsed;const actual=FEAT.adult&&Math.random()<.18?'snag':kind;const it=makeItem(nextItemId++,actual);it.uses=SLAP_USES;it.pos.set(ch.pos.x,ch.pos.y+1,ch.pos.z);authGive(id,it);if(id===myId)SFX.pickup();npcAngry(id);}
+  ch.lastMeat=elapsed;const actual=kind;const it=makeItem(nextItemId++,actual);it.uses=SLAP_USES;it.pos.set(ch.pos.x,ch.pos.y+1,ch.pos.z);authGive(id,it);if(id===myId)SFX.pickup();npcAngry(id);}
 function authEatSnag(id,itemId){const ch=chars.get(id),it=items.get(itemId);if(!FEAT.adult||!ch||!it||it.type!=='snag'||it.holder!==id)return;
   removeItem(it);fx('eat',id);}
 
@@ -1420,7 +1459,7 @@ function authSlapNpc(attId,it){const a=chars.get(attId);if(!FEAT.bbq||!a||!it||i
   if(elapsed-a.lastSlap<.45||Math.hypot(a.pos.x-NPC.pos.x,a.pos.z-NPC.pos.z)>3.6)return;a.lastSlap=elapsed;
   NPC.pending=null;
   if(it.def.melee==='stun'){ // raw meat or fish: always works, a short stun to buy an escape. He's angrier each time, so the stun gets shorter and the chase after it gets longer
-    const scoring=state==='play';let pts=0;if(scoring&&stats[attId]){pts=NPC_STUN_PTS;stats[attId].score+=pts;scoreDirty=true;}
+    const scoring=state==='play'&&gameMode!=='heist';let pts=0;if(scoring&&stats[attId]){pts=NPC_STUN_PTS;stats[attId].score+=pts;scoreDirty=true;}
     const sd=stunDur();NPC.state='stunned';NPC.stateT=sd;NPC.target=attId;NPC.stunAfter=chaseDur();NPC.angerLevel=Math.min(ANGER_MAX,NPC.angerLevel+1);
     it.uses=(it.uses||it.def.uses||SLAP_USES)-1;fx('nstun',attId,r1(sd),pts,pick(NPC_LINES.stunned));
     if(it.uses<=0){fx('poof',r2(a.pos.x),r2(a.pos.y+1.3),r2(a.pos.z));removeItem(it);}return;}
@@ -1539,7 +1578,7 @@ function authHeistBank(id,it){const ch=chars.get(id);if(!ch||!it||it.holder!==id
   const base=heistBases[myT];if(!base||Math.hypot(ch.pos.x-base.x,ch.pos.z-base.z)>=HEIST_BASE_R)return;
   removeItem(it);heistBanked[myT]=(heistBanked[myT]||0)+1;
   const scoring=state==='play';let pts=0;if(scoring&&stats[id]){pts=HEIST_BANK_PTS;stats[id].score+=pts;scoreDirty=true;}
-  fx('heistbank',id,myT,heistBanked[myT],pts);}
+  scoreDirty=true;fx('heistbank',id,myT,heistBanked[myT],pts);}
 function authDrop(id,it){const ch=chars.get(id);const p=ch?ch.pos:it.pos;it.state='flying';it.holder=null;it.thrower=null;it.live=false;it.flyT=0;
   it.pos.set(p.x+rand(-.5,.5),(ch?ch.pos.y:0)+.8,p.z+rand(-.5,.5));it.vel.set(rand(-1,1),2,rand(-1,1));}
 function authThrow(id,it,pos,vel,chg){
@@ -1579,7 +1618,7 @@ function authCatch(id,it,f){
   f.scored=true;
   const cur=heldOf(id);if(cur.length>=2)authDrop(id,cur[0]);
   const thrower=f.thrower;authGive(id,it);
-  if(state==='play'){if(stats[id]){stats[id].score+=50;stats[id].catches++;}if(thrower&&stats[thrower])stats[thrower].streak=0;scoreDirty=true;}
+  if(state==='play'){if(stats[id]&&gameMode!=='heist'){stats[id].score+=50;stats[id].catches++;}if(thrower&&stats[thrower])stats[thrower].streak=0;scoreDirty=true;}
   fx('cat',id,thrower||0,TYPES.indexOf(it.type));
 }
 function authSmash(it){fx('smash',r2(it.pos.x),r2(it.pos.y),r2(it.pos.z));if(it.pos.y<1.4&&!inPoolRect(it.pos))addPuddle(it.pos.x,it.pos.z);removeItem(it);}
@@ -1621,12 +1660,14 @@ let shake=0,camRoll=0,camRollV=0,vignette=0;
 function hitMarker(){const h=$('#hitmark');h.classList.add('on');clearTimeout(hitMarker.t);hitMarker.t=setTimeout(()=>h.classList.remove('on'),160);}
 function applyTumble(ch,kdir,knock){ch.tiltAxis.set(kdir.z,0,-kdir.x);ch.tiltV+=knock*.95;ch.spinV+=(Math.random()<.5?-1:1)*knock*.45;}
 function applyKnock(ch,def,kdir,anim,downOverride,knockMul){
+  const wasStunned=ch.stun>0;
   const kn=(anim===1?1.2:anim===3?2.5:def.knock)*(knockMul||1);
   ch.vel.addScaledVector(kdir,kn);ch.vel.y=Math.max(ch.vel.y,anim?2.5:def.knock*.38);ch.grounded=false;
-  ch.stun=Math.max(ch.stun,def.stun!=null?def.stun:.35+def.knock*.035);ch.charging=false;ch.charge=0;if(ch.ai)ch.ai.windup=0;
+  if(!wasStunned)ch.stun=Math.max(ch.stun,def.stun!=null?def.stun:.35+def.knock*.035);ch.charging=false;ch.charge=0;if(ch.ai)ch.ai.windup=0;
   if(!anim)applyTumble(ch,kdir,def.knock);
-  if(def.knockdown&&!ch.slapA){ch.slapA=anim||2;ch.slapT=0;}
-  if(def.knockdown){const dt2=downOverride!=null?downOverride:DOWN_TIME;ch.downT=dt2;ch.stun=Math.max(ch.stun,dt2);ch.drinkT=0;ch.drinkType=null;if(ch.kind==='me')showHint('<b>Knocked flat!</b> Back on your feet in a few seconds.',dt2);}
+  const canDown=def.knockdown&&!(ch.downT>0)&&!(ch.fallT>0);
+  if(canDown&&!ch.slapA){ch.slapA=anim||2;ch.slapT=0;}
+  if(canDown){const dt2=downOverride!=null?downOverride:DOWN_TIME;ch.downT=dt2;ch.stun=Math.max(ch.stun,dt2);ch.drinkT=0;ch.drinkType=null;if(ch.kind==='me')showHint('<b>Knocked flat!</b> Back on your feet in a few seconds.',dt2);}
   if(ch.kind==='me'){vignette=1;shake=Math.max(shake,.12+def.knock*.012);camRollV+=(Math.random()<.5?-1:1)*def.knock*.08;SFX.hurt();}
   if(gameMode==='heist')for(const it of heldOf(ch.id))if(it.heistTeam!=null){if(isAuth)authDrop(ch.id,it);else if(ch.kind==='me')sendEv('dp',it.id);}
 }
@@ -1667,14 +1708,17 @@ function playFx(a){
     if(vc){const hp=vc.pos.clone().setY(vc.pos.y+1.3-(vc.sink||0));if(type==='noodle'){SFX.boing(hp);SFX.bonk(hp);}else SFX.splat(hp);
       burst(hp,type==='fish'?[0xc9d6de,0x8aa4b4,0xffffff,0x6fa8c8]:type==='noodle'?[0xff5fa8,0xffd23f,0xffffff,0x9ee3ff]:[0xc4455a,0xf2d2c8,0x8a1f2c],20,4,.06);
       vc.dizzyT=ST;
-      if(vc.kind==='me'||(isAuth&&vc.kind==='bot')){applyKnock(vc,ITEM_DEFS[type],kd);vc.stun=Math.max(vc.stun,ST);vc.drinkT=0;vc.drinkType=null;if(vc.kind==='me')showHint(type==='noodle'?'<b>Noodled!</b> Wobbly for a sec.':'<b>Stunned!</b> Seeing stars for a few seconds.',ST);}
+      {const sm=num(a[10],0)|0;if(type==='fish'&&sm>0){vc.smellT=sm===2?9:5;vc.smellBad=sm===2;vc.smellAcc=0;
+        floater(sm===2?'\u{1F922} THAT FISH WAS OFF!':'\u{1F41F} PONG!',vc.pos.clone().setY(vc.pos.y+3.1),'big');
+        feed(`${nm(vid)} reeks of ${sm===2?'rancid ':''}fish`);}}
+      if(vc.kind==='me'||(isAuth&&vc.kind==='bot')){{const was=vc.stun>0;applyKnock(vc,ITEM_DEFS[type],kd);if(!was)vc.stun=Math.max(vc.stun,ST);}vc.drinkT=0;vc.drinkType=null;if(vc.kind==='me')showHint(type==='noodle'?'<b>Noodled!</b> Wobbly for a sec.':'<b>Stunned!</b> Seeing stars for a few seconds.',ST);}
       const label=ITEM_DEFS[type].lines[Math.floor(Math.random()*3)];
       if(vc.kind==='me'&&me)floater(label,camera.position.clone().add(fwd(me).multiplyScalar(2.2)).setY(camera.position.y+.4),'big');else floater(label,vc.pos.clone().setY(vc.pos.y+2.4),'big');
       if(aid===myId&&scoring){if(tk)floater('Teammate! No points',vc.pos.clone().setY(vc.pos.y+3),'bad');else{hitMarker();floater('+'+gain+(a[9]?' 🍺 drunk bonus':''),vc.pos.clone().setY(vc.pos.y+3),'small');}}
       feed(`${nm(aid)} ${type==='fish'?'fish-slapped':type==='noodle'?'noodled':'steaked'} ${nm(vid)}`);}
   }else if(k==='spat'){const vid=a[1],kd=new V3(num(a[2],0),0,num(a[3],1)),vc=chars.get(vid);
     if(vc){const hp=vc.pos.clone().setY(vc.pos.y+1.4);SFX.clang(hp);burst(hp,[0xd9dfe0,0xffd23f,0xffffff],14,4,.05);const sd=a[4]?2.8:1.6;vc.dizzyT=sd;
-      if(vc.kind==='me'||(isAuth&&vc.kind==='bot')){applyKnock(vc,SPATULA,kd);vc.stun=Math.max(vc.stun,sd);vc.drinkT=0;vc.drinkType=null;}
+      if(vc.kind==='me'||(isAuth&&vc.kind==='bot')){{const was=vc.stun>0;applyKnock(vc,SPATULA,kd);if(!was)vc.stun=Math.max(vc.stun,sd);}vc.drinkT=0;vc.drinkType=null;}
       if(vc.kind==='me'&&me)floater("SPATULA'D!",camera.position.clone().add(fwd(me).multiplyScalar(2.2)).setY(camera.position.y+.4),'big');else floater("SPATULA'D!",vc.pos.clone().setY(vc.pos.y+2.4),'big');
       feed(`<b style="color:#ff9f1c">Dazza</b> spatula'd ${nm(vid)}`);}
   }else if(k==='up'){const t=chars.get(a[1]),pts=num(a[3],0);
@@ -1713,7 +1757,7 @@ function playFx(a){
     feed(`${nm(id)} scoffed a dodgy snag\u2026`);}
   }else if(k==='bumout'){const p=new V3(num(a[1],0),.3,num(a[2],0));SFX.boing(p);SFX.pickup(p);burst(p,[0xff5fa8,0xffd23f,0xffffff],28,6,.09);
     floater('\ud83c\udf51 Dazza dropped something shiny\u2026',p.clone().setY(1.6),'big');feed('A glowing gnome rolled out from behind the BBQ\u2026');
-  }else if(k==='heistbank'){const id=a[1],key=a[2],count=a[3]|0,pts=a[4]|0;heistBanked[key]=count;
+  }else if(k==='heistbank'){const id=a[1],key=a[2],count=a[3]|0,pts=a[4]|0;heistBanked[key]=count;scoreDirty=true;
     const ch=chars.get(id);const p=ch?ch.pos.clone().setY(ch.pos.y+2.6):new V3();const tcol=(TEAMS[key]||TEAMS.r).color;
     SFX.pickup();burst(p,[tcol,0xffffff,0xffd23f],22,5,.08);
     floater('🧸 BANKED!'+(pts?'  +'+pts:''),p,'big');
@@ -2451,7 +2495,7 @@ function renderBoard(){const rows=boardRows().slice().sort((a,b)=>b[3]-a[3]);
   const row=r=>`<li class="${r[0]===myId?'me':''}"><span class="dot" style="background:${hex(r[2])}"></span><span>${r[0]===myId?'You':esc(r[1])}${leaderId===r[0]?'<span class="crown">♛</span>':''}</span><span>${r[3]}</span></li>`;
   if(!teamsOn()){boardEl.innerHTML=rows.map(row).join('');return;}
   let html='';for(const t of Object.keys(TEAMS)){const grp=rows.filter(r=>teamOf.get(r[0])===t);if(!grp.length)continue;const tot=grp.reduce((n,r)=>n+r[3],0);
-    html+=`<li class="team" style="--tc:${TEAMS[t].css}"><span></span><span>${TEAMS[t].name}${t==='w'?'':' team'}${teamOf.get(myId)===t?' (you)':''}</span><span>${t==='w'?'':tot}</span></li>`+grp.map(row).join('');}
+    html+=`<li class="team" style="--tc:${TEAMS[t].css}"><span></span><span>${TEAMS[t].name}${t==='w'?'':' team'}${teamOf.get(myId)===t?' (you)':''}</span><span>${t==='w'?'':(gameMode==='heist'?'🧸 '+(heistBanked[t]||0):tot)}</span></li>`+grp.map(row).join('');}
   html+=rows.filter(r=>!teamOf.get(r[0])).map(row).join('');boardEl.innerHTML=html;}
 function computeLeader(){const s=boardRows().sort((a,b)=>b[3]-a[3]);const nl=(s[0]&&s[0][3]>0&&(!s[1]||s[0][3]>s[1][3]))?s[0][0]:null;if(nl!==leaderId){leaderId=nl;scoreDirty=true;}}
 let hintHideT=0;
@@ -2461,7 +2505,7 @@ function banner(text,t){bannerEl.textContent=text;bannerEl.classList.add('on');b
 function fmt(s){s=Math.max(0,Math.ceil(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
 let heistBarSig='';
 function updateHeistBar(){const el=$('#heistBar');if(!el)return;if(gameMode!=='heist'){el.hidden=true;return;}
-  const keys=heistKeysArr(),sig=keys.map(k=>heistBanked[k]||0).join(',');if(sig===heistBarSig&&!el.hidden)return;heistBarSig=sig;
+  const keys=heistKeysArr(),sig=keys.map(k=>heistBanked[k]||0).join(',');if(sig===heistBarSig&&!el.hidden)return;heistBarSig=sig;drawHeistBoard();
   el.hidden=false;el.innerHTML=keys.map(k=>`<span><i style="background:${TEAMS[k].css}"></i>${heistBanked[k]||0}</span>`).join('');}
 function updateHud(dt){
   if(scoreDirty){renderBoard();scoreDirty=false;if(mode==='mp')renderYardPanel();}
@@ -2723,7 +2767,7 @@ function frame(now){
   camera.updateMatrixWorld();
   updateItems(dt);if(isAuth){spawner(dt);for(const f of flights.values()){if(f.active){const it=items.get(f.itemId);if(!it||it.flight!==f||!it.live){f.active=false;f.endT=elapsed;}}else if(elapsed-f.endT>6)flights.delete(f.id);}}
   updateParts(dt);updatePuddles(dt);syncChest(dt);syncSmoko();updateWobble(dt);if(FEAT.bbq){if(isAuth&&mode!=='menu')npcUpdate(dt);syncNpc(dt);updateBBQ(dt);}
-  for(const ch of chars.values())syncCharMesh(ch,dt);
+  for(const ch of chars.values()){syncCharMesh(ch,dt);updateCharFx(ch,dt);}
   syncItemMeshes();updateTrajectory();
   hoistHead.rotation.y+=dt*.12;poolTex.offset.x+=dt*.02;poolTex.offset.y+=dt*.013;if(poolTex.userData.caus){const c=poolTex.userData.caus;c.offset.x=Math.sin(elapsed*.35)*.12;c.offset.y+=dt*.018;}
   for(const c of clouds){c.position.x+=dt*1.2;if(c.position.x>110)c.position.x=-110;}

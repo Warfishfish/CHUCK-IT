@@ -16,7 +16,9 @@
 - ✅ Teddy, VP can, gnome, and floating pool noodles
 - ✅ Dildo chest (PG15+ only, random spot): 4 variants (Mini/Classic/Jumbo/rare Golden Wonder), each worth different points and a different knockdown length. Slaps knock people flat with Helicopter / Cartwheel / Timber
 - ✅ Dildo critical hit: ~15% chance on any dildo slap to flatten them for a full 5s with a much bigger flying knockback — "💥 CRITICAL!", no stun stacking on top
-- ✅ Steak, fish, noodle slaps stun
+- ✅ Steak, fish, noodle slaps stun (steak and fish stun for 2s). Stuns never stack: hitting someone who's already stunned shoves them but doesn't start or extend a stun (a dildo can still floor someone who's stunned but standing)
+- ✅ Fish slaps sometimes leave a green stink cloud round the victim (about 1 in 3), and occasionally the fish is properly off — bigger, darker, longer-lasting cloud and a "THAT FISH WAS OFF!" pop-up. Pure joke, no gameplay effect
+- ✅ Anyone who's fallen over (drunk face-plant) holds up a wobbling HELP ME! sign so mates can spot them across the yard
 - ✅ Wet-willy, noogie, wedgie (PG15+): a close-range unarmed slap, no item needed — shove-knockback, sillier label, no knockdown
 - ✅ Slap the chef: KO / Berserk / Flip the grill (gnome knockdown-stun eased back slightly so it's not as brutal)
 - ✅ Press **Q** to swap your held item
@@ -30,7 +32,6 @@
 - ✅ Steak/fish can stun Dazza for a quick, reliable escape — the stun gets shorter and the chase after it gets longer each time. Getting angrier each time you pinch his meat: chases get longer and he moves faster. Steak or fish now reliably stuns him for a quick escape (shrinks each time), then he chases you after
 - ✅ Smoko chairs: sit, beer, safe — but sitting there ramps your drunk meter noticeably faster than standing around drinking normally, so smoko isn't a totally free pass
 - ✅ Emotes and taunts, plus a cheeky extra set unlocked in PG15+
-- ✅ Dazza's dodgy snags (PG15+): sometimes turns up instead of a steak/fish — press **R** to eat it for a 4s speed burst, then a wobbly toilet-run stumble you have to ride out
 - ✅ Bum-Out Gnome (PG15+): looks like a totally normal gnome at a glance — no glow, no effect — but has a tiny buttcrack detail round the back if you look closely. Max 3 a game, worth +15 on a hit, small chance to pop out when you KO Dazza with the dildo. Not announced outright; sharp-eyed mates will just see a "dropped something shiny…" line in the feed
 - ✅ Cheeky Dazza lines in PG15+ (bigger, ruder bubble set); Family keeps the clean lines
 - ✅ Ruder bot/mate names in PG15+ ("Skidmark", "Mate 77" style) — rides on the same PG15+ switch rather than its own toggle, to keep the setup screen simple
@@ -52,6 +53,8 @@
 - ✅ Each base holds a bundle of that team's teddies — 2 each in a small lobby, rising to a max of 4 per team as more players share each team (formula: 2 + one extra per 2 players per team, capped at 4)
 - ✅ Run an enemy teddy back to your own base to bank it for points; stealing it back before it's banked just returns it. Getting slapped or knocked down while carrying drops the teddy on the spot — no auto-return, so there's a scramble
 - ✅ Walking up to your own team's teddy auto-returns it home instead of letting you "steal" your own
+- ✅ Heist scoring is all about teddies: banking is the only thing that scores (150 pts each). Hits, throws, streaks, catches and the pool/tramp bonuses pay nothing in this mode, so there's nothing to farm off teammates
+- ✅ Big four-sided scoreboard floating over the middle of the yard shows each team's teddies banked and points, with a crown on the leader — readable from anywhere. The sidebar team headings show teddies too
 - ✅ Win: whoever's banked the most teddies when the clock runs out
 - ✅ Teddy Heist gets its own map layout (not the free-for-all yard): chokepoints and a repositioned obstacle cluster in the middle so there's no straight sprint between bases, scaling cleanly from 2 bases (opposite sides) up to 4 (corners). Free-for-all and Teams keep today's map
 - ✅ Live tally bar during the round shows each team's banked count by colour
@@ -133,11 +136,4 @@
 - ⬜ Weather or time of day
 - ⬜ Sabotage items
 - ⬜ Dazza crying or throwing hot snags
-- ⬜ Recruit Dazza (easter egg, idea only — not built): stun him with meat 3 times in one round *without* ever KO'ing/berserking/flipping him (i.e. only ever use the steak/fish quick-stun, never the dildo), then feed him a Dodgy Snag while he's stunned on the 3rd time. He joins your team for the rest of the round (follows you, slaps your rivals for free, no more escalating chase). No on-screen instructions — the clue is the "he's not as angry as he should be" dialogue line already in his escalating-anger chatter if he's never been dildo-KO'd. Needs: a small tracker for stuns-without-KO, feeding logic while NPC.state==='stunned', and a "recruited" NPC state. Confirm before building
-- ⬜ **Snags, smell & stun tune-up (idea only — not built, confirm before building):**
-  - Remove Dazza's Dodgy Snags entirely (drop the pickup, the R-to-eat prompt, the speed burst, and the toilet-run stumble).
-  - Fish slap smell cloud: slapping someone with a fish has a small, occasional chance (not every time) to leave a brief "whiff" effect on the victim — a visible stink-cloud puff and/or a short on-screen note, no gameplay effect beyond the joke.
-  - Bad fish variant: occasionally the fish is "a bit off" — same slap, but when *that* one triggers the smell cloud it's bigger/longer/stinkier than the normal version, as a rarer extra-funny version of the same effect.
-  - Change steak and fish stun duration from today's value down to a flat 2 seconds (currently shrinks over repeated Dazza stuns — decide whether that shrink-over-time behaviour stays or whether it's now just a flat 2s always).
-  - Stun stacking fix: if a player is already stunned and gets hit again, the new hit should not add to or restart their stun timer — getting hit while already stunned leaves the existing stun as-is rather than stacking/extending it.
-  - "Help me!" sign: when a player is down/fallen (not just stunned — actually on the ground), they automatically hold up a simple "HELP ME" sign so teammates can spot them from across the yard. Purely a visibility/attention cue, no new mechanic.
+- ⬜ Recruit Dazza (easter egg, idea only — not built): stun him with meat 3 times in one round *without* ever KO'ing/berserking/flipping him (i.e. only ever use the steak/fish quick-stun, never the dildo), then feed him something while he's stunned on the 3rd time (needs a replacement for the Dodgy Snag, which has been removed). He joins your team for the rest of the round (follows you, slaps your rivals for free, no more escalating chase). No on-screen instructions — the clue is the "he's not as angry as he should be" dialogue line already in his escalating-anger chatter if he's never been dildo-KO'd. Needs: a small tracker for stuns-without-KO, feeding logic while NPC.state==='stunned', and a "recruited" NPC state. Confirm before building
