@@ -79,7 +79,7 @@
 
 
 **Grab and carry**
-- ✅ Press **F** next to someone who's down, fallen or stunned to pick them up. Tap **F** again to put them down, **hold F** to throw them (about 7 metres). With nobody to pick up, F still winds up a throw like before
+- ✅ Press **F** next to someone who's actually down (knocked flat or stacked it) to pick them up. Someone who's only stunned from a hit, but still standing, can't be picked up. Tap **F** again to put them down, **hold F** to throw them (about 7 metres). With nobody to pick up, F still winds up a throw like before
 - ✅ The carried player hangs over your shoulder, flopping and bouncing as you walk. You move slower, can't sprint, throw or slap, and they drop anything they were holding (including a stolen teddy)
 - ✅ The carried player **mashes Space** to wriggle free (about 8 presses). Nobody can be carried for more than 6 seconds, and a freed player can't be grabbed again for 8 seconds
 - ✅ You drop them if you get hit, knocked down, fall over or walk into the pool. Chucking someone into the pool or onto the tramp still scores the splash/orbit bonus

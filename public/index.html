@@ -277,7 +277,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.22.3</span>
+      <span class="tag">Backyard Brawl · prototype 0.22.4</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -1189,7 +1189,7 @@ function isCarrying(ch){return !!ch&&carryOf.has(ch.id);}
 function carryForget(id){const c=carryOf.get(id);if(c)carriedBy.delete(c.vid);carryOf.delete(id);const g=carriedBy.get(id);if(g)carryOf.delete(g);carriedBy.delete(id);}
 function carryReset(){carryOf.clear();carriedBy.clear();grabImmune.clear();vArmed=false;}
 function canGrab(g,t){return !!g&&!!t&&g!==t&&(state==='play'||state==='warmup')&&!isCarried(g)&&!isCarrying(g)&&!isCarried(t)&&!isCarrying(t)
-  &&g.smokoSeat<0&&t.smokoSeat<0&&!(t.naughtyT>0)&&g.stun<=0&&g.downT<=0&&g.fallT<=0&&!g.inPool&&!t.inPool&&t.pos.y<.6&&(t.downT>0||t.fallT>0||t.stun>0);}
+  &&g.smokoSeat<0&&t.smokoSeat<0&&!(t.naughtyT>0)&&g.stun<=0&&g.downT<=0&&g.fallT<=0&&!g.inPool&&!t.inPool&&t.pos.y<.6&&(t.downT>0||t.fallT>0);} // only someone actually down (knocked flat or stacked it), not just stunned from a hit
 function grabTarget(){if(!me||!canAct()||me.stun>0)return null;let best=null,bd=CARRY.reach;
   for(const o of chars.values()){if(!canGrab(me,o))continue;const d=Math.hypot(o.pos.x-me.pos.x,o.pos.z-me.pos.z);if(d<bd){bd=d;best=o;}}return best;}
 function authGrab(gid,vid){const g=chars.get(gid),t=chars.get(vid);if(!canGrab(g,t)||Math.hypot(g.pos.x-t.pos.x,g.pos.z-t.pos.z)>2.8||(grabImmune.get(vid)||0)>elapsed)return;
