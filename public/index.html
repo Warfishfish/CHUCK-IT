@@ -277,7 +277,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.21.0</span>
+      <span class="tag">Backyard Brawl · prototype 0.21.1</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -303,6 +303,7 @@ body.touch #cds{display:none}
         <input type="radio" name="pmode" id="pmTeams" value="teams"><label for="pmTeams">Teams (2 v 2)</label>
         <input type="radio" name="pmode" id="pmHeist" value="heist"><label for="pmHeist">🧸 Teddy Heist</label>
       </div><p class="note" id="pmNote" hidden></p></fieldset>
+      <fieldset class="seg"><legend>😜 Cheeky mode</legend><div class="feat"><label class="adultbox"><input type="checkbox" id="pAdult" data-f="adult">Rude jokes, cheeky names and the dildo chest</label></div><p class="note">Off is fine for the kids.</p></fieldset>
       <fieldset class="seg" id="pHeistWrap" hidden><legend>🏴 Heist teams</legend><div class="opts">
         <input type="radio" name="pheist" id="ph2" value="2" checked><label for="ph2">2</label>
         <input type="radio" name="pheist" id="ph3" value="3"><label for="ph3">3</label>
@@ -330,7 +331,6 @@ body.touch #cds{display:none}
             <input type="radio" name="pff" id="pffOn" value="1"><label for="pffOn">On</label>
           </div></fieldset>
           <fieldset class="seg"><legend>🏡 What's in the yard</legend><div class="feat" id="pFeat">
-            <label class="adultbox"><input type="checkbox" data-f="adult">🔞 Adult stuff (dildo chest, cheeky lines and names)</label>
             <label><input type="checkbox" data-f="bar" checked>🍺 Bar</label>
             <label><input type="checkbox" data-f="bbq" checked>🔥 BBQ &amp; Dazza</label>
             <label class="adultonly"><input type="checkbox" data-f="chest" checked>🍆 Dildo chest</label>
@@ -360,6 +360,7 @@ body.touch #cds{display:none}
       <details class="more" id="mOpts">
         <summary>⚙️ Game options (when you host)</summary>
         <div class="setup">
+          <fieldset class="seg"><legend>😜 Cheeky mode</legend><div class="feat"><label class="adultbox"><input type="checkbox" id="mAdult" data-f="adult">Rude jokes, cheeky names and the dildo chest</label></div><p class="note">Off is fine for the kids.</p></fieldset>
           <fieldset class="seg"><legend>🤖 Bots filling in</legend><div class="opts">
             <input type="radio" name="mbots" id="mb0" value="0" checked><label for="mb0">None</label>
             <input type="radio" name="mbots" id="mb1" value="1"><label for="mb1">1</label>
@@ -385,7 +386,6 @@ body.touch #cds{display:none}
             <input type="radio" name="mff" id="mffOn" value="1"><label for="mffOn">On</label>
           </div></fieldset>
           <fieldset class="seg"><legend>🏡 What's in the yard</legend><div class="feat" id="mFeat">
-            <label class="adultbox"><input type="checkbox" data-f="adult">🔞 Adult stuff (dildo chest, cheeky lines and names)</label>
             <label><input type="checkbox" data-f="bar" checked>🍺 Bar</label>
             <label><input type="checkbox" data-f="bbq" checked>🔥 BBQ &amp; Dazza</label>
             <label class="adultonly"><input type="checkbox" data-f="chest" checked>🍆 Dildo chest</label>
@@ -462,6 +462,7 @@ body.touch #cds{display:none}
     <p id="yardMsg"></p>
     <ul class="yard-players" id="yardPlayers"></ul>
     <div class="host-ctl" id="hostCtl" hidden>
+      <fieldset class="seg"><legend>😜 Cheeky mode</legend><div class="feat"><label class="adultbox"><input type="checkbox" id="yAdult" data-f="adult">Rude jokes, cheeky names and the dildo chest</label></div><p class="note">Off is fine for the kids.</p></fieldset>
       <fieldset class="seg"><legend>Rounds</legend><div class="opts">
         <input type="radio" name="yrounds" id="yr1" value="1" checked><label for="yr1">Single</label>
         <input type="radio" name="yrounds" id="yr3" value="3"><label for="yr3">Best of 3</label>
@@ -485,7 +486,6 @@ body.touch #cds{display:none}
         <button class="btn small" id="shuffleTeams" type="button">Shuffle teams</button>
       </div>
       <fieldset class="seg"><legend>What's in the yard</legend><div class="feat" id="yFeat">
-            <label class="adultbox"><input type="checkbox" data-f="adult">🔞 Adult stuff (dildo chest, cheeky lines and names)</label>
           <label><input type="checkbox" data-f="bar" checked>🍺 Bar</label>
           <label><input type="checkbox" data-f="bbq" checked>🔥 BBQ &amp; Dazza</label>
           <label class="adultonly"><input type="checkbox" data-f="chest" checked>🍆 Dildo chest</label>
@@ -636,9 +636,9 @@ const CHEST_SPOTS=[[-29,-21,.5],[29,-21.5,-.5],[27.5,21.8,2.6],[-29,21.8,-2.6],[
 const colliders=[];
 /* ---- map features the host can switch on/off: everything built for a feature is tagged so it can be hidden, colliders included ---- */
 const FEAT={bar:true,bbq:true,chest:true,smoko:true,falls:true,adult:false,naughty:false,drunkall:false},FEAT_KEYS=['bar','bbq','chest','smoko','falls','adult','naughty','drunkall'];
-/* the Adult stuff tick (FEAT.adult) must be on for any adult content: dildo chest now, anything else later. Hook new adult features onto ADULT_FEATS. */
+/* the Cheeky mode tick (FEAT.adult) must be on for any adult content: dildo chest now, anything else later. Hook new adult features onto ADULT_FEATS. */
 const ADULT_FEATS=['chest'];
-const FEAT_NAMES={bar:'Bar',bbq:'BBQ & Dazza',chest:'Dildo chest',smoko:'Smoko',falls:'Stacking it',adult:'Adult stuff',naughty:'Naughty Corner',drunkall:'Drunk mode'};
+const FEAT_NAMES={bar:'Bar',bbq:'BBQ & Dazza',chest:'Dildo chest',smoko:'Smoko',falls:'Stacking it',adult:'Cheeky mode',naughty:'Naughty Corner',drunkall:'Drunk mode'};
 const featObjs={bar:[],bbq:[],chest:[],smoko:[]},featCols={bar:[],bbq:[],chest:[],smoko:[]},featAt={};
 function featMark(k,end){if(!end){featAt[k]=[scene.children.length,colliders.length];return;}const [o,c]=featAt[k];
   for(let i=o;i<scene.children.length;i++)featObjs[k].push(scene.children[i]);for(let i=c;i<colliders.length;i++)featCols[k].push(colliders[i]);}
@@ -651,7 +651,8 @@ function applyFeatures(){try{smokoPad.material.color.set(FEAT.naughty&&FEAT.smok
 function setFeatMask(m){let ch=false;FEAT_KEYS.forEach((k,i)=>{const v=!!(m&(1<<i));if(FEAT[k]!==v){FEAT[k]=v;ch=true;}});
   if(!FEAT.adult)for(const k of ADULT_FEATS)if(FEAT[k]){FEAT[k]=false;ch=true;}
   if(ch)applyFeatures();return ch;}
-function readFeatUI(sel,rn){setFeatMask(FEAT_KEYS.reduce((a,k,i)=>{const el=document.querySelector(`${sel} input[data-f=${k}]`);return a|(!el||el.checked?1<<i:0);},0));}
+const ADULT_BOX={'#pFeat':'#pAdult','#mFeat':'#mAdult','#yFeat':'#yAdult'}; // which Cheeky mode tick goes with which yard list
+function readFeatUI(sel,rn){setFeatMask(FEAT_KEYS.reduce((a,k,i)=>{const el=k==='adult'?document.querySelector(ADULT_BOX[sel]):document.querySelector(`${sel} input[data-f=${k}]`);if(k==='adult')return a|(el&&el.checked?1<<i:0);return a|(!el||el.checked?1<<i:0);},0));}
 function col(cx,cz,w,d,h){colliders.push({x0:cx-w/2,x1:cx+w/2,z0:cz-d/2,z1:cz+d/2,h});}
 const inPoolRect=p=>p.x>POOL.x0&&p.x<POOL.x1&&p.z>POOL.z0&&p.z<POOL.z1;
 let hoistHead,poolTex,clouds=[];
@@ -2583,6 +2584,7 @@ function pickColor(){const used=new Set();try{for(const p of net.yard?net.yard.p
 function copyHostOpts(){
   for(const [m,y] of [['mbots','ybots'],['mdiff','ydiff'],['mlen','ylen'],['mrounds','yrounds'],['mff','yff'],['mfall','yfall']]){
     const el=document.querySelector(`input[name=${y}][value="${radio(m)}"]`);if(el)el.checked=true;}
+  $('#yAdult').checked=$('#mAdult').checked;
   document.querySelectorAll('#mFeat input[data-f]').forEach(c=>{const y=document.querySelector(`#yFeat input[data-f=${c.dataset.f}]`);if(y)y.checked=c.checked;});
   $('#yardCard').classList.toggle('pg',adultTicked('#yFeat'));}
 async function hostYard(){
@@ -2839,9 +2841,9 @@ function renderYardPanel(){
   else if(state==='warmup'||state==='results')msg.textContent=net.isHost?`Warm-up. Mates can join with the code any time${humans.length<2?' (nobody else is here yet)':''}. Keep this tab open and in front: your browser runs the yard.`:`Warm-up. Throws don’t score until ${hostName} starts the round.`;
   else msg.textContent='Round in progress. Get back out there.';
   $('#hostCtl').hidden=!net.isHost;
-  {const off=FEAT_KEYS.filter(k=>k!=='adult'&&k!=='naughty'&&k!=='drunkall'&&!FEAT[k]&&(FEAT.adult||!ADULT_FEATS.includes(k))).map(k=>FEAT_NAMES[k]);if(!net.isHost){msg.textContent+=FEAT.adult?' Adult stuff is on in this yard.':' This yard is family friendly.';if(off.length)msg.textContent+=` Switched off this game: ${off.join(', ')}.`;}}
+  {const off=FEAT_KEYS.filter(k=>k!=='adult'&&k!=='naughty'&&k!=='drunkall'&&!FEAT[k]&&(FEAT.adult||!ADULT_FEATS.includes(k))).map(k=>FEAT_NAMES[k]);if(!net.isHost){msg.textContent+=FEAT.adult?' Cheeky mode is on in this yard.':' This yard is family friendly.';if(off.length)msg.textContent+=` Switched off this game: ${off.join(', ')}.`;}}
   $('#yardCard').classList.toggle('pg',FEAT.adult);
-  if(net.isHost)document.querySelectorAll('#yFeat input,input[name=ycontent]').forEach(i=>i.disabled=busy);
+  if(net.isHost)document.querySelectorAll('#yFeat input,#yAdult').forEach(i=>i.disabled=busy);
   if(net.isHost){$('#teamOpts').hidden=!tOn;$('#yHeistCountWrap').hidden=gameMode!=='heist';
     document.querySelectorAll('input[name=ymode],input[name=yff],input[name=yheist]').forEach(i=>i.disabled=busy);$('#shuffleTeams').disabled=busy;
     if(tOn&&!busy)msg.textContent+=' Teams: click a player to move them, or shuffle.';}
@@ -2924,13 +2926,13 @@ function resume(fromLock){if(state!=='paused')return;if(!fromLock&&!fallbackAim&
   state=pause.prev||'play';last=performance.now();refreshOverlays();}
 function goMenu(){setFeatMask(31);matchOver=true;matchNo=0;matchWins.clear();if(document.pointerLockElement)document.exitPointerLock();resultsOpen=false;panelOpen=false;setupAttract();refreshOverlays();renderYards();}
 $('#play').addEventListener('click',startSolo);
-function adultTicked(sel){const el=document.querySelector(`${sel} input[data-f=adult]`);return !!el&&el.checked;}
+function adultTicked(sel){const el=document.querySelector(ADULT_BOX[sel]);return !!el&&el.checked;}
 const CONTENT_NOTE={family:'Cartoon chucking for everyone. Safe for little ones.',adult:'Adds cheeky stuff, like the dildo chest. Not for little kids.'};
 function menuUpdate(){const pm=radio('pmode'),t=pm==='teams',h=pm==='heist',n=+radio('pbots');$('#pffWrap').hidden=!t;$('#pHeistWrap').hidden=!h;$('#hHeistWrap').hidden=radio('hmode')!=='heist';$('#mffWrap').hidden=radio('hmode')!=='teams';
   const pn=$('#pmNote');pn.hidden=!h;pn.textContent=h?'Each team guards a walled base full of teddies. Sneak into an enemy base, grab a teddy and run it back to yours to bank it. Most banked when the clock runs out wins.':'';
   $('#play').textContent=h?(n===0?'▶ Play Teddy Heist (no bots)':`▶ Play Teddy Heist vs ${n} bot${n>1?'s':''}`):t?'▶ Play: you + a bot vs 2 bots':n===0?'▶ Play with no bots':`▶ Play vs ${n} bot${n>1?'s':''}`;
   document.querySelector('#menu .card').classList.toggle('pg',adultTicked('#pFeat')||adultTicked('#mFeat'));}
-document.querySelectorAll('input[name=pmode],input[name=pbots],input[name=hmode],#pFeat input[data-f=adult],#mFeat input[data-f=adult]').forEach(r=>r.addEventListener('change',menuUpdate));
+document.querySelectorAll('input[name=pmode],input[name=pbots],input[name=hmode],#pAdult,#mAdult').forEach(r=>r.addEventListener('change',menuUpdate));
 (function tabs(){const bs=[...document.querySelectorAll('#menu .tabs button')],ps=[...document.querySelectorAll('#menu [data-panel]')];
   function show(n){bs.forEach(b=>{const on=b.dataset.tab===n;b.classList.toggle('on',on);b.setAttribute('aria-selected',on);});ps.forEach(p=>p.hidden=p.dataset.panel!==n);}
   bs.forEach(b=>b.addEventListener('click',()=>show(b.dataset.tab)));show('solo');menuUpdate();})();
@@ -2948,7 +2950,7 @@ document.querySelectorAll('input[name=ymode]').forEach(r=>r.addEventListener('ch
   if(gameMode==='teams')balanceTeams(false);else if(gameMode==='heist'){heistTeams=clamp(+radio('yheist')||2,2,4);assignHeistTeams(false);}
   scoreDirty=true;renderYardPanel();}));
 document.querySelectorAll('input[name=yheist]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost&&state!=='play'&&state!=='countdown'){heistTeams=clamp(+radio('yheist')||2,2,4);assignHeistTeams(false);renderYardPanel();}}));
-document.querySelectorAll('#yFeat input').forEach(c=>c.addEventListener('change',()=>{$('#yardCard').classList.toggle('pg',adultTicked('#yFeat'));if(net.isHost&&state!=='play'&&state!=='countdown'){readFeatUI('#yFeat','ycontent');renderYardPanel();}}));
+document.querySelectorAll('#yFeat input,#yAdult').forEach(c=>c.addEventListener('change',()=>{$('#yardCard').classList.toggle('pg',adultTicked('#yFeat'));if(net.isHost&&state!=='play'&&state!=='countdown'){readFeatUI('#yFeat','ycontent');renderYardPanel();}}));
 document.querySelectorAll('input[name=yrounds]').forEach(r=>r.addEventListener('change',()=>renderYardPanel()));
 document.querySelectorAll('input[name=yfall]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost)fallDur=+radio('yfall');}));
 document.querySelectorAll('input[name=yff]').forEach(r=>r.addEventListener('change',()=>{if(net.isHost)friendlyFire=radio('yff')==='1';renderYardPanel();}));

@@ -15,12 +15,12 @@
 **Chucking and slapping**
 - ✅ Teddy, VP can, gnome, and floating pool noodles
 - ✅ Power throw: let go near the end of the wind-up bar (90% or more, the bar turns red past a little white mark) and a hit knocks the person over for 2 seconds. Players only, bots don't power-throw. Doesn't work on someone in their 1 second stun grace
-- ✅ Dildo chest (Adult stuff only, random spot): 4 variants (Mini/Classic/Jumbo/rare Golden Wonder), each worth different points and a different knockdown length. Slaps knock people flat with Helicopter / Cartwheel / Timber
+- ✅ Dildo chest (Cheeky mode only, random spot): 4 variants (Mini/Classic/Jumbo/rare Golden Wonder), each worth different points and a different knockdown length. Slaps knock people flat with Helicopter / Cartwheel / Timber
 - ✅ Dildo critical hit: ~15% chance on any dildo slap to flatten them for a full 5s with a much bigger flying knockback — "💥 CRITICAL!", no stun stacking on top
 - ✅ Steak, fish, noodle slaps stun (steak and fish stun for 2s). Stuns never stack: hitting someone who's already stunned shoves them but doesn't start or extend a stun (a dildo can still floor someone who's stunned but standing)
 - ✅ Fish slaps sometimes leave a green stink cloud round the victim (about 1 in 3), and occasionally the fish is properly off — bigger, darker, longer-lasting cloud and a "THAT FISH WAS OFF!" pop-up. Pure joke, no gameplay effect
 - ✅ Anyone who's fallen over (drunk face-plant) holds up a wobbling HELP ME! sign so mates can spot them across the yard
-- ✅ Wet-willy, noogie, wedgie (Adult stuff): a close-range unarmed slap, no item needed — shove-knockback, sillier label, no knockdown
+- ✅ Wet-willy, noogie, wedgie (Cheeky mode): a close-range unarmed slap, no item needed — shove-knockback, sillier label, no knockdown
 - ✅ Slap the chef: KO / Berserk / Flip the grill (gnome knockdown-stun eased back slightly so it's not as brutal)
 - ✅ Press **Q** to swap your held item
 
@@ -32,10 +32,10 @@
 - ✅ Dazza at the BBQ yells, chases and spatulas you, and gets angrier (faster, longer chases) the more you steal from him
 - ✅ Steak/fish can stun Dazza for a quick, reliable escape — the stun gets shorter and the chase after it gets longer each time. Getting angrier each time you pinch his meat: chases get longer and he moves faster. Steak or fish now reliably stuns him for a quick escape (shrinks each time), then he chases you after
 - ✅ Smoko chairs: sit, beer, safe — but sitting there ramps your drunk meter noticeably faster than standing around drinking normally, so smoko isn't a totally free pass
-- ✅ Emotes and taunts, plus a cheeky extra set unlocked with Adult stuff
-- ✅ Bum-Out Gnome (Adult stuff): looks like a totally normal gnome at a glance — no glow, no effect — but has a tiny buttcrack detail round the back if you look closely. Max 3 a game, worth +15 on a hit, small chance to pop out when you KO Dazza with the dildo. Not announced outright; sharp-eyed mates will just see a "dropped something shiny…" line in the feed
-- ✅ Cheeky Dazza lines with Adult stuff on (bigger, ruder bubble set); otherwise the clean lines
-- ✅ Ruder bot/mate names with Adult stuff on ("Skidmark", "Mate 77" style) — rides on the same Adult stuff tick rather than its own toggle, to keep the setup screen simple
+- ✅ Emotes and taunts, plus a cheeky extra set unlocked in Cheeky mode
+- ✅ Bum-Out Gnome (Cheeky mode): looks like a totally normal gnome at a glance — no glow, no effect — but has a tiny buttcrack detail round the back if you look closely. Max 3 a game, worth +15 on a hit, small chance to pop out when you KO Dazza with the dildo. Not announced outright; sharp-eyed mates will just see a "dropped something shiny…" line in the feed
+- ✅ Cheeky Dazza lines in Cheeky mode (bigger, ruder bubble set); otherwise the clean lines
+- ✅ Ruder bot/mate names in Cheeky mode ("Skidmark", "Mate 77" style) — rides on the same Cheeky mode tick rather than its own toggle, to keep the setup screen simple
 
 **Drunk mode and stuns**
 - ✅ **🍻 Drunk mode** tick box (Solo and hosted options): everyone, bots included, is kept properly drunk all game ("Maggot" level), so no sobering up and no drunk bonus points
@@ -51,8 +51,8 @@
 
 **Setup screen**
 - ✅ Tabs: Solo / With mates / How to play, with one big Play button
-- ✅ With mates has its own ⚙️ Game options (Adult stuff tick, bots, bot skill, round length, rounds, friendly fire for Teams, what's in the yard including Naughty Corner and Drunk mode, stacked-it time). The yard opens with them, and the host can still change them in the yard before each round
-- ✅ 🔞 **Adult stuff** tick box in "What's in the yard" (off by default) instead of the old Who's playing / PG15+ section: unlocks the dildo chest, cheeky lines and names and any future adult content, synced to everyone in the yard
+- ✅ With mates has its own ⚙️ Game options (Cheeky mode, bots, bot skill, round length, rounds, friendly fire for Teams, what's in the yard including Naughty Corner and Drunk mode, stacked-it time). The yard opens with them, and the host can still change them in the yard before each round
+- ✅ 😜 **Cheeky mode** tick (off by default), in its own spot: on the main Solo screen under Game mode, at the top of With mates ⚙️ Game options, and at the top of the yard's host settings. Replaces the old Who's playing / PG15+ section. Unlocks the dildo chest, rude jokes and cheeky names and any future adult content, synced to everyone in the yard
 
 **Scoring and matches**
 - ✅ Hits, streaks, leader bounty, drunk bonus, pool/tramp bonus
