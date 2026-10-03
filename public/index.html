@@ -277,7 +277,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.22.1</span>
+      <span class="tag">Backyard Brawl · prototype 0.22.2</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -2940,7 +2940,7 @@ function adultTicked(sel){const el=document.querySelector(ADULT_BOX[sel]);return
 const CONTENT_NOTE={family:'Cartoon chucking for everyone. Safe for little ones.',adult:'Adds cheeky stuff, like the dildo chest. Not for little kids.'};
 function menuUpdate(){const pm=radio('pmode'),t=pm==='teams',h=pm==='heist',n=+radio('pbots');$('#pffWrap').hidden=!t;$('#pHeistWrap').hidden=!h;$('#hHeistWrap').hidden=radio('hmode')!=='heist';$('#mffWrap').hidden=radio('hmode')!=='teams';
   const pn=$('#pmNote');pn.hidden=!h;pn.textContent=h?'Each team guards a walled base full of teddies. Sneak into an enemy base, grab a teddy and run it back to yours to bank it. Most banked when the clock runs out wins.':'';
-  $('#play').textContent=h?(n===0?'▶ Play Teddy Heist (no bots)':`▶ Play Teddy Heist vs ${n} bot${n>1?'s':''}`):t?'▶ Play: you + a bot vs 2 bots':n===0?'▶ Play with no bots':`▶ Play vs ${n} bot${n>1?'s':''}`;
+  $('#play').textContent=h?'▶ Play Teddy Heist':t?'▶ Play: you + a bot vs 2 bots':n===0?'▶ Play with no bots':`▶ Play vs ${n} bot${n>1?'s':''}`;
   document.querySelector('#menu .card').classList.toggle('pg',adultTicked('#pFeat')||adultTicked('#mFeat'));fillAmmo(adultTicked('#pFeat')||adultTicked('#mFeat'));}
 document.querySelectorAll('input[name=pmode],input[name=pbots],input[name=hmode],#pAdult,#mAdult').forEach(r=>r.addEventListener('change',menuUpdate));
 (function tabs(){const bs=[...document.querySelectorAll('#menu .tabs button')],ps=[...document.querySelectorAll('#menu [data-panel]')];
