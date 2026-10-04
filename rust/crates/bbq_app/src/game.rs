@@ -5,7 +5,7 @@ use bbq_core::drinks::{self, Drink};
 use bbq_core::drunk_state::{self, DrunkState, Env, Event as DrunkEvent, HelpHold};
 use bbq_core::emotes::Place;
 use bbq_core::flight::ItemState;
-use bbq_core::hands::{self, Picker, Press, Release, Situation, Slots, Wind};
+use bbq_core::hands::{self, Press, Release, Situation, Slots, Wind};
 use bbq_core::hitting::{self, Catcher, Context, Target};
 use bbq_core::items::{ItemKind, Melee};
 use bbq_core::itemworld::{ItemWorld, WorldEvent, no_walls};
@@ -56,6 +56,34 @@ pub struct Dummy {
     pub face: f32,
     /// Sitting at smoko because its own brain chose to (not sent to the Naughty Corner).
     pub sat_by_choice: bool,
+}
+
+impl Dummy {
+    /// A fresh bot (or practice blob) standing at `(x, z)`. `i` is its place in the yard.
+    pub fn new(id: PlayerId, x: f32, z: f32, i: usize, rng: &mut Rng) -> Self {
+        Dummy {
+            id,
+            mover: Mover::new(x, z),
+            body: Body::default(),
+            home: (x, z),
+            anim: bbq_core::pose::Animator::new(i as f32 * 2.1),
+            drunk: 0.0,
+            fallen: false,
+            crown: false,
+            team: None,
+            smelly: false,
+            smell_t: 0.0,
+            seat: None,
+            naughty_t: 0.0,
+            dragged: None,
+            last_hit: None,
+            thrown_at: None,
+            thrown_hit: false,
+            bot: BotBody::new(i as f32 * 1.9, rng),
+            face: 0.0,
+            sat_by_choice: false,
+        }
+    }
 }
 
 /// The player's own body: stuns and falls, the drunk meter, and helping mates up.
@@ -114,6 +142,10 @@ pub struct Game {
     pub life: crate::life::Life,
     /// The bots' minds.
     pub crowd: bbq_core::bots::Crowd,
+    /// Rounds, matches and the game mode.
+    pub round: crate::round::RoundCtl,
+    /// Teddy Heist, when that is the mode.
+    pub heist: Option<crate::heist_app::HeistState>,
 }
 
 impl Game {
@@ -153,28 +185,7 @@ impl Plugin for GamePlugin {
             .enumerate()
             .map(|(i, s)| {
                 board.ensure(100 + i as u32);
-                Dummy {
-                    id: 100 + i as u32,
-                    mover: Mover::new(s.0, s.1),
-                    body: Body::default(),
-                    home: *s,
-                    anim: bbq_core::pose::Animator::new(i as f32 * 2.1),
-                    drunk: 0.0,
-                    fallen: false,
-                    crown: false,
-                    team: None,
-                    smelly: false,
-                    smell_t: 0.0,
-                    seat: None,
-                    naughty_t: 0.0,
-                    dragged: None,
-                    last_hit: None,
-                    thrown_at: None,
-                    thrown_hit: false,
-                    bot: BotBody::new(i as f32 * 1.9, &mut dummy_rng),
-                    face: 0.0,
-                    sat_by_choice: false,
-                }
+                Dummy::new(100 + i as u32, s.0, s.1, i, &mut dummy_rng)
             })
             .collect();
         for d in &dummies {
@@ -216,6 +227,8 @@ impl Plugin for GamePlugin {
             prompt: String::new(),
             life: crate::life::Life::new(),
             crowd,
+            round: crate::round::RoundCtl::new(),
+            heist: None,
         })
         .add_systems(FixedUpdate, step_game);
     }
@@ -260,6 +273,10 @@ pub fn step_game(
     let now = g.now;
     let g = &mut *g;
     let p = &mut *player;
+
+    // ---- the round clock, and Heist banking ----
+    crate::round::step(g);
+    crate::heist_app::step(g, p);
 
     // ---- the player's body: drinking, falling over, helping mates up ----
     g.options.smoko_on = yard.0.features.smoko;
@@ -331,7 +348,7 @@ pub fn step_game(
     if help_done && let Some(i) = help_target {
         g.dummies[i].body.get_up();
         let pts = g.board.award(&g.rules, PLAYER_ID, drunk_state::HELP_PTS);
-        let name = crate::characters::BLOB_NAMES[i % 3];
+        let name = crate::characters::BLOB_NAMES[i % crate::characters::BLOB_NAMES.len()];
         g.popup(format!("Helped {name} up! +{pts}"), false);
     }
     let bar_on = yard.0.features.bar;
@@ -354,7 +371,7 @@ pub fn step_game(
             g.me.body.fall_t.ceil()
         )
     } else if let Some(i) = help_target {
-        let name = crate::characters::BLOB_NAMES[i % 3];
+        let name = crate::characters::BLOB_NAMES[i % crate::characters::BLOB_NAMES.len()];
         if g.me.help.t > 0.0 {
             format!("Helping {name} up... {:.0}%", g.me.help.progress() * 100.0)
         } else {
@@ -454,15 +471,17 @@ pub fn step_game(
     }
 
     // ---- pick things up ----
-    let picker = Picker {
-        id: PLAYER_ID,
-        pos: V3::new(p.mover.x, p.mover.y, p.mover.z),
-        held: g.slots.len(),
-        stunned: g.me.body.stun > 0.0,
-        frozen: false,
-        is_bot: false,
-    };
-    if let Some(id) = g.world.pickup_for(&picker, now) {
+    if g.rules.phase != Phase::Countdown
+        && g.me.body.stun <= 0.0
+        && let Some(id) = crate::heist_app::try_pickup(
+            g,
+            PLAYER_ID,
+            V3::new(p.mover.x, p.mover.y, p.mover.z),
+            g.slots.len(),
+            false,
+            false,
+        )
+    {
         g.world.give(id, PLAYER_ID);
         g.slots.add(id);
     }
@@ -471,6 +490,7 @@ pub fn step_game(
     crate::bots_app::step(g, p, &yard.0);
 
     // ---- the dummies stand about and get knocked over ----
+    let countdown = g.rules.phase == Phase::Countdown;
     let mut newly_fallen = Vec::new();
     let mut env_landings: Vec<(usize, Place)> = Vec::new();
     for (i, d) in g.dummies.iter_mut().enumerate() {
@@ -487,6 +507,7 @@ pub fn step_game(
             stunned: d.body.stun > 0.0,
             charging: d.bot.winding,
             drinking: d.bot.drunk.is_drinking(),
+            frozen: countdown,
             ..Default::default()
         };
         let ev = d
@@ -503,7 +524,7 @@ pub fn step_game(
     }
 
     for i in newly_fallen {
-        let name = crate::characters::BLOB_NAMES[i % 3];
+        let name = crate::characters::BLOB_NAMES[i % crate::characters::BLOB_NAMES.len()];
         let lines = [
             "{N} IS ABSOLUTELY WRECKED AND HAS FACE-PLANTED. GO HELP!",
             "MAN DOWN! {N} HAS HAD ONE TOO MANY. PICK 'EM UP!",
@@ -546,9 +567,10 @@ pub fn step_game(
     });
     let teams = g.teams.clone();
     let ctx = Context {
-        friendly_fire: false,
+        friendly_fire: g.rules.friendly_fire,
         teams: &teams,
     };
+    let stray_teddies = crate::heist_app::team_teddies(g);
     let events = g.world.step(
         dt,
         &yard.0,
@@ -557,8 +579,18 @@ pub fn step_game(
         &ctx,
         2 + g.dummies.len(),
         true,
-        &no_walls,
+        &|x, z| yard.0.heist_clear(x, z, 1.2),
     );
+    let removed: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            WorldEvent::Removed(id) => Some(*id),
+            _ => None,
+        })
+        .collect();
+    if !stray_teddies.is_empty() && !removed.is_empty() {
+        crate::heist_app::teddies_left(g, &stray_teddies, &removed);
+    }
 
     for ev in events {
         match ev {
@@ -619,7 +651,8 @@ pub fn step_game(
                 if thrower == Some(PLAYER_ID) {
                     g.say(msg);
                 } else {
-                    let who = thrower.map_or("Somebody".to_string(), |t| crate::bots_app::name_of(g, t));
+                    let who =
+                        thrower.map_or("Somebody".to_string(), |t| crate::bots_app::name_of(g, t));
                     let to = crate::bots_app::name_of(g, victim);
                     g.say(format!("{who} hit {to}"));
                 }
@@ -729,6 +762,7 @@ pub fn is_melee_only(kind: ItemKind) -> bool {
 mod tests {
     use super::*;
     use bbq_core::movement::FOV_DEFAULT;
+    use bbq_core::teams::Team;
 
     /// A tiny app with just the game rules in it (no window, no graphics).
     fn app() -> App {
@@ -1624,7 +1658,10 @@ mod tests {
     }
 
     fn bot_throws(g: &Game) -> u32 {
-        g.dummies.iter().map(|d| g.board.get(d.id).map_or(0, |s| s.throws)).sum()
+        g.dummies
+            .iter()
+            .map(|d| g.board.get(d.id).map_or(0, |s| s.throws))
+            .sum()
     }
 
     #[test]
@@ -1654,11 +1691,18 @@ mod tests {
         ticks(&mut app, 60 * 40);
         let g = app.world().resource::<Game>();
         let held: usize = g.dummies.iter().map(|d| d.bot.slots.len()).sum();
-        assert!(held + bot_throws(g) as usize > 0, "bots should have picked something up");
+        assert!(
+            held + bot_throws(g) as usize > 0,
+            "bots should have picked something up"
+        );
         assert!(bot_throws(g) >= 1, "and thrown it; feed {:?}", g.feed);
         for d in &g.dummies {
             let moved = (d.mover.x - d.home.0).hypot(d.mover.z - d.home.1);
-            assert!(moved > 2.0 || d.seat.is_some(), "bot {} never left home", d.id);
+            assert!(
+                moved > 2.0 || d.seat.is_some(),
+                "bot {} never left home",
+                d.id
+            );
         }
     }
 
@@ -1675,7 +1719,11 @@ mod tests {
         ticks(&mut app, 60 * 45);
         let g = app.world().resource::<Game>();
         let me = g.board.get(PLAYER_ID).unwrap();
-        assert!(me.taken >= 1, "someone should have hit the player; feed {:?}", g.feed);
+        assert!(
+            me.taken >= 1,
+            "someone should have hit the player; feed {:?}",
+            g.feed
+        );
         assert!(me.score <= -50);
         let scored: i32 = g.dummies.iter().map(|d| g.board.score(d.id)).sum();
         assert!(scored > 0, "the thrower should have been paid");
@@ -1725,7 +1773,12 @@ mod tests {
         ticks(&mut app, 60 * 25);
         let g = app.world().resource::<Game>();
         let steaked = g.feed.iter().any(|(m, _)| m.contains("steaked you"));
-        assert!(steaked || g.board.score(100) >= 50, "feed {:?} score {}", g.feed, g.board.score(100));
+        assert!(
+            steaked || g.board.score(100) >= 50,
+            "feed {:?} score {}",
+            g.feed,
+            g.board.score(100)
+        );
     }
 
     #[test]
@@ -1766,12 +1819,15 @@ mod tests {
 
     #[test]
     fn bots_start_fair_and_the_test_fixture_freezes_them() {
-        let mut app = app();
+        let app = app();
         assert_eq!(
             app.world().resource::<Game>().options.bot_difficulty,
             bbq_core::bots::Difficulty::Fair
         );
-        assert!(!app.world().resource::<Game>().options.bots_on, "the test fixture freezes them");
+        assert!(
+            !app.world().resource::<Game>().options.bots_on,
+            "the test fixture freezes them"
+        );
     }
 
     #[test]
@@ -1782,7 +1838,15 @@ mod tests {
         {
             let mut g = app.world_mut().resource_mut::<Game>();
             let id = g.dummies[1].id;
-            g.board.award(&Rules { mode: GameMode::FreeForAll, friendly_fire: false, phase: Phase::Play }, id, 300);
+            g.board.award(
+                &Rules {
+                    mode: GameMode::FreeForAll,
+                    friendly_fire: false,
+                    phase: Phase::Play,
+                },
+                id,
+                300,
+            );
         }
         ticks(&mut app, 5);
         let g = app.world().resource::<Game>();
@@ -1802,7 +1866,10 @@ mod tests {
             let g = app.world().resource::<Game>();
             for (i, d) in g.dummies.iter().enumerate() {
                 let moved = (d.mover.x - last[i].0).hypot(d.mover.z - last[i].1);
-                let parked = d.seat.is_some() || d.bot.drunk.is_drinking() || d.bot.winding || d.body.stun > 0.0;
+                let parked = d.seat.is_some()
+                    || d.bot.drunk.is_drinking()
+                    || d.bot.winding
+                    || d.body.stun > 0.0;
                 if sec > 0 && moved < 0.3 && !parked {
                     still[i] += 1.0;
                     worst = worst.max(still[i]);
@@ -1813,5 +1880,609 @@ mod tests {
             }
         }
         assert!(worst < 12.0, "a bot stood still for {worst} s");
+    }
+
+    // ---------------------------------------------------------------- Phase 7: rounds and modes
+
+    fn start_with(app: &mut App, setup: crate::round::Setup) {
+        app.world_mut().resource_mut::<Game>().round.setup = setup;
+        app.world_mut().resource_scope(|w, mut g: Mut<Game>| {
+            w.resource_scope(|w, mut p: Mut<Player>| {
+                let mut y = w.resource_mut::<YardRes>();
+                crate::round::start_round(&mut g, &mut p, &mut y);
+            });
+        });
+        // the real game runs bots; the fixture froze them
+        app.world_mut().resource_mut::<Game>().options.bots_on = true;
+    }
+
+    fn setup(mode: GameMode, bots: usize) -> crate::round::Setup {
+        crate::round::Setup {
+            mode,
+            bots,
+            round_len: 60.0,
+            ..crate::round::Setup::default()
+        }
+    }
+
+    #[test]
+    fn a_round_counts_down_plays_and_blows_the_whistle() {
+        let mut app = app();
+        start_with(&mut app, setup(GameMode::FreeForAll, 3));
+        assert_eq!(app.world().resource::<Game>().rules.phase, Phase::Countdown);
+        // nobody moves in the countdown
+        let before = {
+            let g = app.world().resource::<Game>();
+            g.dummies
+                .iter()
+                .map(|d| (d.mover.x, d.mover.z))
+                .collect::<Vec<_>>()
+        };
+        app.world_mut().resource_mut::<Wanted>().wish = (1.0, 0.0);
+        ticks(&mut app, 120);
+        {
+            let g = app.world().resource::<Game>();
+            assert_eq!(g.rules.phase, Phase::Countdown);
+            for (d, b) in g.dummies.iter().zip(&before) {
+                assert!(
+                    (d.mover.x - b.0).abs() < 0.2 && (d.mover.z - b.1).abs() < 0.2,
+                    "a bot moved in the countdown"
+                );
+            }
+            assert!(g.round.banner.is_some());
+        }
+        ticks(&mut app, 90); // 3.2 s is 192 ticks
+        assert_eq!(app.world().resource::<Game>().rules.phase, Phase::Play);
+        assert!((app.world().resource::<Game>().round.time_left - 60.0).abs() < 2.0);
+        ticks(&mut app, 60 * 61);
+        let g = app.world().resource::<Game>();
+        assert_eq!(g.rules.phase, Phase::Results);
+        assert!(g.round.results.is_some());
+        assert!(g.round.mtch.over, "a single round is a whole match");
+    }
+
+    #[test]
+    fn nothing_scores_after_the_whistle() {
+        let mut app = app();
+        start_with(&mut app, setup(GameMode::FreeForAll, 1));
+        ticks(&mut app, 200 + 60 * 61);
+        let scores: Vec<i32> = {
+            let g = app.world().resource::<Game>();
+            g.board.iter().map(|(_, s)| s.score).collect()
+        };
+        ticks(&mut app, 600);
+        let g = app.world().resource::<Game>();
+        let after: Vec<i32> = g.board.iter().map(|(_, s)| s.score).collect();
+        assert_eq!(scores, after);
+    }
+
+    #[test]
+    fn the_bot_count_is_synced_each_round() {
+        let mut app = app();
+        start_with(&mut app, setup(GameMode::FreeForAll, 7));
+        {
+            let g = app.world().resource::<Game>();
+            assert_eq!(g.dummies.len(), 7);
+            assert_eq!(g.board.iter().count(), 8);
+            assert_eq!(g.crowd.brains.len(), 7);
+        }
+        start_with(&mut app, setup(GameMode::FreeForAll, 0));
+        let g = app.world().resource::<Game>();
+        assert!(g.dummies.is_empty(), "1v1 with no bots must always work");
+        assert_eq!(g.board.iter().count(), 1);
+        assert!(g.crowd.brains.is_empty());
+    }
+
+    #[test]
+    fn a_round_with_no_bots_runs_and_ends() {
+        let mut app = app();
+        start_with(&mut app, setup(GameMode::FreeForAll, 0));
+        ticks(&mut app, 200 + 60 * 61);
+        let g = app.world().resource::<Game>();
+        assert_eq!(g.rules.phase, Phase::Results);
+        assert!(g.round.results.as_ref().unwrap().lines.len() >= 2);
+    }
+
+    #[test]
+    fn everyone_starts_a_round_sober_with_empty_hands_and_a_scoreboard_of_zero() {
+        let mut app = app();
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            g.me.drunk.add(80.0);
+            g.board.award(
+                &Rules {
+                    mode: GameMode::FreeForAll,
+                    friendly_fire: false,
+                    phase: Phase::Play,
+                },
+                PLAYER_ID,
+                500,
+            );
+        }
+        give_teddy(&mut app);
+        start_with(&mut app, setup(GameMode::FreeForAll, 3));
+        let g = app.world().resource::<Game>();
+        assert_eq!(g.me.drunk.meter, 0.0);
+        assert!(g.slots.is_empty());
+        assert!(g.board.iter().all(|(_, s)| s.score == 0));
+        assert!(g.world.items.len() >= 8, "the yard is stocked");
+    }
+
+    #[test]
+    fn teams_are_dealt_and_wear_sashes_and_the_odd_one_out_is_the_wildcard() {
+        let mut app = app();
+        start_with(&mut app, setup(GameMode::Teams, 3)); // four people: 2 v 2
+        {
+            let g = app.world().resource::<Game>();
+            let red = g.teams.count(Team::Red);
+            let blue = g.teams.count(Team::Blue);
+            assert_eq!((red, blue), (2, 2));
+            assert!(g.dummies.iter().all(|d| d.team.is_some()));
+        }
+        start_with(&mut app, setup(GameMode::Teams, 2)); // three people: a Wildcard
+        let g = app.world().resource::<Game>();
+        assert_eq!(g.teams.count(Team::Wildcard), 1);
+    }
+
+    #[test]
+    fn bots_do_not_target_their_own_team() {
+        let mut app = app();
+        start_with(&mut app, setup(GameMode::Teams, 3));
+        ticks(&mut app, 200 + 60 * 40);
+        let g = app.world().resource::<Game>();
+        for (id, brain) in &g.crowd.brains {
+            if let Some(t) = brain.target {
+                assert!(!g.teams.same_team(*id, t), "bot {id} targeted teammate {t}");
+            }
+        }
+    }
+
+    #[test]
+    fn teammates_pass_through_each_other_unless_friendly_fire_is_on() {
+        for friendly in [false, true] {
+            let mut app = app();
+            let mut s = setup(GameMode::Teams, 3);
+            s.friendly_fire = friendly;
+            start_with(&mut app, s);
+            {
+                let mut g = app.world_mut().resource_mut::<Game>();
+                g.options.bots_on = false;
+                g.rules.phase = Phase::Play;
+                // put the player and bot 0 on the same team, bot 1 far away
+                g.teams.set(PLAYER_ID, Team::Red);
+                let b0 = g.dummies[0].id;
+                g.teams.set(b0, Team::Red);
+                g.dummies[0].mover.x = 2.0;
+                g.dummies[0].mover.z = 6.0;
+                g.dummies[0].home = (2.0, 6.0);
+                g.dummies[1].mover.x = -30.0;
+                g.dummies[2].mover.x = 30.0;
+                g.world.clear();
+                for d in g.dummies.iter_mut() {
+                    d.bot.wish = (0.0, 0.0);
+                }
+            }
+            put_player(&mut app, 2.0, 0.0);
+            give_teddy_at(&mut app, 2.0, 0.0);
+            app.world_mut().resource_mut::<Player>().yaw = std::f32::consts::PI; // looking along +z, at bot 0
+            app.world_mut().resource_mut::<Player>().pitch = 0.05;
+            app.world_mut().resource_mut::<Wanted>().throw_down = true;
+            ticks(&mut app, 40);
+            app.world_mut().resource_mut::<Wanted>().throw_up = true;
+            ticks(&mut app, 90);
+            let g = app.world().resource::<Game>();
+            let hit = g.board.get(g.dummies[0].id).unwrap().taken > 0;
+            assert_eq!(
+                hit,
+                friendly,
+                "friendly fire {friendly}: taken {}",
+                g.board.get(g.dummies[0].id).unwrap().taken
+            );
+        }
+    }
+
+    fn give_teddy_at(app: &mut App, x: f32, z: f32) {
+        let mut g = app.world_mut().resource_mut::<Game>();
+        let mut rng = Rng::new(9);
+        let id = g.world.spawn(ItemKind::Teddy, x, z, false, &mut rng);
+        g.world.give(id, PLAYER_ID);
+        g.slots.add(id);
+    }
+
+    #[test]
+    fn the_team_with_more_points_wins_a_teams_round() {
+        let mut app = app();
+        start_with(&mut app, setup(GameMode::Teams, 3));
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            g.options.bots_on = false;
+            let rules = Rules {
+                mode: GameMode::Teams,
+                friendly_fire: false,
+                phase: Phase::Play,
+            };
+            let ids: Vec<_> = crate::round::everyone(&g);
+            for id in ids {
+                let team = g.teams.get(id).unwrap();
+                g.board
+                    .award(&rules, id, if team == Team::Blue { 200 } else { 50 });
+            }
+        }
+        ticks(&mut app, 200 + 60 * 61);
+        let g = app.world().resource::<Game>();
+        assert_eq!(
+            g.round.results.as_ref().unwrap().winner,
+            Some(bbq_core::matchflow::Key::Team(Team::Blue))
+        );
+    }
+
+    #[test]
+    fn a_best_of_three_goes_on_until_someone_has_two_round_wins() {
+        let mut app = app();
+        let mut s = setup(GameMode::FreeForAll, 1);
+        s.match_len = 3;
+        s.round_len = 5.0;
+        start_with(&mut app, s.clone());
+        let mut rounds = 0;
+        while !app.world().resource::<Game>().round.mtch.over && rounds < 3 {
+            // you win each round: 100 points
+            ticks(&mut app, 200);
+            {
+                let mut g = app.world_mut().resource_mut::<Game>();
+                g.options.bots_on = false;
+                g.board.award(
+                    &Rules {
+                        mode: GameMode::FreeForAll,
+                        friendly_fire: false,
+                        phase: Phase::Play,
+                    },
+                    PLAYER_ID,
+                    100,
+                );
+            }
+            ticks(&mut app, 60 * 6);
+            rounds += 1;
+            if !app.world().resource::<Game>().round.mtch.over {
+                start_with(&mut app, s.clone());
+            }
+        }
+        let g = app.world().resource::<Game>();
+        assert_eq!(rounds, 2, "two straight wins take a best of three");
+        assert!(g.round.mtch.over);
+        assert_eq!(
+            g.round.mtch.leader(),
+            Some(bbq_core::matchflow::Key::Player(PLAYER_ID))
+        );
+    }
+
+    // ---- Teddy Heist ----
+
+    fn heist_app(teams: usize, bots: usize) -> App {
+        let mut app = app();
+        let mut s = setup(GameMode::Heist, bots);
+        s.heist_teams = teams;
+        start_with(&mut app, s);
+        {
+            // skip the countdown and freeze the bots so each test can set the scene
+            let mut g = app.world_mut().resource_mut::<Game>();
+            g.rules.phase = Phase::Play;
+            g.round.time_left = 600.0;
+            g.options.bots_on = false;
+        }
+        ticks(&mut app, 240); // the teddies are tossed in and settle
+        app
+    }
+
+    fn base_of(app: &App, team: Team) -> bbq_core::heist::BaseDef {
+        let g = app.world().resource::<Game>();
+        bbq_core::heist::base_of(g.heist.as_ref().unwrap().teams, team).unwrap()
+    }
+
+    fn teddies_of(app: &App, team: Team) -> Vec<bbq_core::flight::ItemId> {
+        let g = app.world().resource::<Game>();
+        let ti = crate::heist_app::team_index(team).unwrap();
+        g.world
+            .items
+            .values()
+            .filter(|i| i.team == Some(ti))
+            .map(|i| i.id)
+            .collect()
+    }
+
+    #[test]
+    fn heist_puts_the_player_in_their_base_with_teddies_in_every_base() {
+        let app = heist_app(2, 3);
+        let g = app.world().resource::<Game>();
+        let p = app.world().resource::<Player>();
+        let team = g.teams.get(PLAYER_ID).unwrap();
+        let b = base_of(&app, team);
+        assert!(
+            bbq_core::heist::inside_base(b, p.mover.x, p.mover.z),
+            "spawned outside the base"
+        );
+        // 4 players, 2 teams: 2 per team = 2 + 1 teddies each
+        for t in [Team::Red, Team::Blue] {
+            assert_eq!(teddies_of(&app, t).len(), 3, "{t:?}");
+        }
+        assert!(app.world().resource::<YardRes>().0.heist.is_some());
+    }
+
+    #[test]
+    fn walking_over_an_enemy_teddy_steals_it() {
+        let mut app = heist_app(2, 1);
+        let me = app.world().resource::<Game>().teams.get(PLAYER_ID).unwrap();
+        let enemy = if me == Team::Red {
+            Team::Blue
+        } else {
+            Team::Red
+        };
+        let t = teddies_of(&app, enemy)[0];
+        let at = app.world().resource::<Game>().world.items[&t].pos;
+        let at2 = app.world().resource::<Game>().world.items[&t].pos;
+        let _ = at;
+        put_player(&mut app, at2.x, at2.z);
+        ticks(&mut app, 5);
+        let g = app.world().resource::<Game>();
+        let pp = app.world().resource::<Player>();
+        assert!(
+            g.slots.ids().contains(&t),
+            "should have picked up the enemy teddy: item {:?} player ({},{},{}) me {:?}",
+            g.world
+                .items
+                .get(&t)
+                .map(|i| (i.pos, i.state, i.rest_t, i.team)),
+            pp.mover.x,
+            pp.mover.y,
+            pp.mover.z,
+            g.teams.get(PLAYER_ID)
+        );
+    }
+
+    #[test]
+    fn walking_over_your_own_teddy_does_nothing_at_home_but_sends_a_stray_home() {
+        let mut app = heist_app(2, 1);
+        let me = app.world().resource::<Game>().teams.get(PLAYER_ID).unwrap();
+        ticks(&mut app, 120);
+        let mine = teddies_of(&app, me)[0];
+        let at = app.world().resource::<Game>().world.items[&mine].pos;
+        put_player(&mut app, at.x, at.z);
+        ticks(&mut app, 5);
+        assert!(
+            !app.world().resource::<Game>().slots.ids().contains(&mine),
+            "a teddy at home is left alone"
+        );
+        // now it is somewhere else in the yard
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            let it = g.world.items.get_mut(&mine).unwrap();
+            it.pos = V3::new(10.0, 0.3, 10.0);
+            it.state = ItemState::Ground;
+            it.rest_t = 1.0;
+        }
+        put_player(&mut app, 10.0, 10.0);
+        ticks(&mut app, 3);
+        let g = app.world().resource::<Game>();
+        assert!(!g.slots.ids().contains(&mine));
+        assert!(
+            g.feed.iter().any(|(m, _)| m.contains("scurried back")),
+            "{:?}",
+            g.feed
+        );
+        ticks(&mut app, 120);
+        let g = app.world().resource::<Game>();
+        let b = bbq_core::heist::base_of(2, me).unwrap();
+        let it = &g.world.items[&mine];
+        assert!(
+            it.pos.horiz_dist(V3::new(b.x, 0.0, b.z)) < 3.0,
+            "went home to {:?}",
+            it.pos
+        );
+    }
+
+    #[test]
+    fn carrying_an_enemy_teddy_into_your_base_banks_it_for_150() {
+        let mut app = heist_app(2, 1);
+        let me = app.world().resource::<Game>().teams.get(PLAYER_ID).unwrap();
+        let enemy = if me == Team::Red {
+            Team::Blue
+        } else {
+            Team::Red
+        };
+        ticks(&mut app, 120);
+        let t = teddies_of(&app, enemy)[0];
+        let at = app.world().resource::<Game>().world.items[&t].pos;
+        put_player(&mut app, at.x, at.z);
+        ticks(&mut app, 5);
+        assert!(app.world().resource::<Game>().slots.ids().contains(&t));
+        // not yet: outside the banking zone
+        assert_eq!(
+            app.world()
+                .resource::<Game>()
+                .heist
+                .as_ref()
+                .unwrap()
+                .bank
+                .get(me),
+            0
+        );
+        let home = base_of(&app, me);
+        put_player(&mut app, home.x, home.z);
+        ticks(&mut app, 3);
+        let g = app.world().resource::<Game>();
+        assert_eq!(g.heist.as_ref().unwrap().bank.get(me), 1);
+        assert_eq!(g.board.score(PLAYER_ID), 150, "only banking scores");
+        assert_eq!(g.board.get(PLAYER_ID).unwrap().banked, 1);
+        assert!(!g.world.items.contains_key(&t), "the banked teddy is gone");
+        assert!(g.slots.is_empty());
+    }
+
+    #[test]
+    fn a_stunned_thief_drops_the_teddy_and_cannot_bank() {
+        let mut app = heist_app(2, 1);
+        let me = app.world().resource::<Game>().teams.get(PLAYER_ID).unwrap();
+        let enemy = if me == Team::Red {
+            Team::Blue
+        } else {
+            Team::Red
+        };
+        ticks(&mut app, 120);
+        let t = teddies_of(&app, enemy)[0];
+        let at = app.world().resource::<Game>().world.items[&t].pos;
+        put_player(&mut app, at.x, at.z);
+        ticks(&mut app, 5);
+        assert!(app.world().resource::<Game>().slots.ids().contains(&t));
+        app.world_mut()
+            .resource_mut::<Game>()
+            .me
+            .body
+            .apply_hit(1.0, None);
+        ticks(&mut app, 2);
+        let g = app.world().resource::<Game>();
+        assert!(!g.slots.ids().contains(&t), "the stun made them drop it");
+        assert!(g.world.items.contains_key(&t));
+    }
+
+    #[test]
+    fn a_stolen_teddy_thrown_over_the_fence_comes_home() {
+        let mut app = heist_app(2, 1);
+        let me = app.world().resource::<Game>().teams.get(PLAYER_ID).unwrap();
+        let enemy = if me == Team::Red {
+            Team::Blue
+        } else {
+            Team::Red
+        };
+        ticks(&mut app, 120);
+        let t = teddies_of(&app, enemy)[0];
+        let before = app
+            .world()
+            .resource::<Game>()
+            .world
+            .items
+            .values()
+            .filter(|i| i.team.is_some())
+            .count();
+        {
+            // pretend it was thrown out of the yard
+            let mut g = app.world_mut().resource_mut::<Game>();
+            let it = g.world.items.get_mut(&t).unwrap();
+            it.pos = V3::new(32.0, 3.0, 0.0);
+            it.vel = V3::new(30.0, 4.0, 0.0);
+            it.state = ItemState::Flying;
+            it.live = true;
+            it.thrower = Some(PLAYER_ID);
+        }
+        ticks(&mut app, 60);
+        let g = app.world().resource::<Game>();
+        let count = g.world.items.values().filter(|i| i.team.is_some()).count();
+        assert_eq!(count, before, "the teddy count stays the same");
+        assert!(
+            g.feed.iter().any(|(m, _)| m.contains("came back")),
+            "{:?}",
+            g.feed
+        );
+    }
+
+    #[test]
+    fn thrown_hits_pay_nothing_in_heist_but_still_knock_people_over() {
+        let mut app = heist_app(2, 3);
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            g.world.clear();
+            let b0 = g.dummies[0].id;
+            g.teams.set(PLAYER_ID, Team::Red);
+            g.teams.set(b0, Team::Blue);
+            g.dummies[0].mover.x = 8.0;
+            g.dummies[0].mover.z = 6.0;
+            g.dummies[0].home = (8.0, 6.0);
+            g.dummies[0].mover.y = 0.0;
+            for d in g.dummies.iter_mut() {
+                d.bot.wish = (0.0, 0.0);
+            }
+        }
+        put_player(&mut app, 8.0, 0.0);
+        give_teddy_at(&mut app, 8.0, 0.0);
+        app.world_mut().resource_mut::<Player>().yaw = std::f32::consts::PI;
+        app.world_mut().resource_mut::<Player>().pitch = 0.05;
+        app.world_mut().resource_mut::<Wanted>().throw_down = true;
+        ticks(&mut app, 40);
+        app.world_mut().resource_mut::<Wanted>().throw_up = true;
+        let mut hit = false;
+        for _ in 0..90 {
+            ticks(&mut app, 1);
+            let d = &app.world().resource::<Game>().dummies[0];
+            hit |= d.body.stun > 0.0 || d.body.is_down();
+        }
+        let g = app.world().resource::<Game>();
+        let d = &g.dummies[0];
+        assert!(hit, "it should have hit");
+        assert_eq!(g.board.score(PLAYER_ID), 0, "no points for a hit in Heist");
+        assert_eq!(g.board.score(d.id), 0, "and nothing lost");
+    }
+
+    #[test]
+    fn the_heist_winner_is_the_team_with_most_banked() {
+        let mut app = heist_app(2, 3);
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            let h = g.heist.as_mut().unwrap();
+            h.bank.add(Team::Blue);
+            h.bank.add(Team::Blue);
+            h.bank.add(Team::Red);
+            g.round.time_left = 0.01;
+        }
+        ticks(&mut app, 5);
+        let g = app.world().resource::<Game>();
+        assert_eq!(
+            g.round.results.as_ref().unwrap().winner,
+            Some(bbq_core::matchflow::Key::Team(Team::Blue))
+        );
+    }
+
+    #[test]
+    fn heist_bots_play_for_a_while_and_nobody_gets_stuck() {
+        let mut app = heist_app(2, 3);
+        app.world_mut().resource_mut::<Game>().options.bots_on = true;
+        put_player(&mut app, 0.0, 22.0); // the player sits out in a corner
+        let mut last = [(0.0f32, 0.0f32); 3];
+        let mut still = [0.0f32; 3];
+        let mut worst = 0.0f32;
+        let mut moved_far = [0.0f32; 3];
+        for sec in 0..150 {
+            ticks(&mut app, 60);
+            let g = app.world().resource::<Game>();
+            for (i, d) in g.dummies.iter().enumerate() {
+                let moved = (d.mover.x - last[i].0).hypot(d.mover.z - last[i].1);
+                moved_far[i] += moved;
+                if sec > 0
+                    && moved < 0.3
+                    && d.body.stun <= 0.0
+                    && !d.bot.winding
+                    && d.dragged.is_none()
+                {
+                    still[i] += 1.0;
+                    worst = worst.max(still[i]);
+                } else {
+                    still[i] = 0.0;
+                }
+                last[i] = (d.mover.x, d.mover.z);
+            }
+        }
+        let g = app.world().resource::<Game>();
+        assert!(
+            moved_far.iter().all(|m| *m > 40.0),
+            "heist bots should be busy: {moved_far:?}"
+        );
+        assert!(worst < 15.0, "a heist bot stood still for {worst} s");
+        // they went for the objective: either teddies moved or something got banked
+        let banked: u32 = [Team::Red, Team::Blue]
+            .iter()
+            .map(|t| g.heist.as_ref().unwrap().bank.get(*t))
+            .sum();
+        let carried = g.dummies.iter().any(|d| !d.bot.slots.is_empty());
+        let hits = g.feed.len();
+        assert!(
+            banked > 0 || carried || hits > 0,
+            "bots did nothing about the teddies"
+        );
     }
 }

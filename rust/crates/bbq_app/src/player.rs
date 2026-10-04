@@ -252,6 +252,7 @@ fn step_player(
         drinking: g.me.drunk.is_drinking(),
         at_smoko: g.life.seated.is_some(),
         carrying: g.life.carry.is_some(),
+        frozen: g.rules.phase == bbq_core::scoring::Phase::Countdown,
         gait,
         ..Default::default()
     };

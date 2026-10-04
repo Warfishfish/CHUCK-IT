@@ -86,12 +86,25 @@ struct Dazza {
     label: Entity,
 }
 
-const BLOB_COLOURS: [Color; 3] = [
+/// Body colours for the bots, from the browser game's palette (the first one is the player's).
+const BLOB_COLOURS: [Color; 11] = [
+    Color::linear_rgb(1.0, 0.478, 0.349),
+    Color::linear_rgb(0.098, 0.702, 0.651),
+    Color::linear_rgb(0.549, 0.416, 0.871),
+    Color::linear_rgb(0.298, 0.788, 0.941),
+    Color::linear_rgb(0.949, 0.361, 0.604),
+    Color::linear_rgb(0.482, 0.82, 0.282),
+    Color::linear_rgb(1.0, 0.624, 0.11),
     Color::linear_rgb(0.9, 0.3, 0.25),
     Color::linear_rgb(0.2, 0.7, 0.65),
     Color::linear_rgb(0.95, 0.75, 0.2),
+    Color::linear_rgb(0.6, 0.6, 0.9),
 ];
-pub const BLOB_NAMES: [&str; 3] = ["Bruce", "Sheila", "Davo"];
+pub const BLOB_NAMES: [&str; 11] = [
+    "Bruce", "Sheila", "Davo", "Shazza", "Kev", "Bazza", "Trish", "Robbo", "Mick", "Nev", "Gaz",
+];
+/// The most bots in a yard (you make twelve, one for each spawn spot).
+pub const MAX_BOTS: usize = 11;
 
 pub struct CharactersPlugin;
 
@@ -105,6 +118,7 @@ impl Plugin for CharactersPlugin {
                 Update,
                 (
                     viewer_keys,
+                    rebuild_blobs,
                     swap_models,
                     compute_poses,
                     apply_roots,
@@ -271,6 +285,73 @@ fn spawn_blobs(
     mut looks: ResMut<Looks>,
     game: Res<Game>,
 ) {
+    build_blobs(
+        &mut commands,
+        &mut meshes,
+        &mut mats,
+        &assets,
+        &cast,
+        &mut looks,
+        &game,
+    );
+}
+
+/// When the number of people in the yard changes (a new round with more or fewer bots), throw the
+/// old blobs away and build the right number.
+fn rebuild_blobs(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut mats: ResMut<Assets<StandardMaterial>>,
+    assets: Res<AssetServer>,
+    cast: Res<Cast>,
+    mut looks: ResMut<Looks>,
+    game: Res<Game>,
+    mut shown: Local<Option<usize>>,
+    old: Query<
+        Entity,
+        Or<(
+            With<BlobRoot>,
+            With<NameTag>,
+            With<HelpSign>,
+            With<StinkCloud>,
+        )>,
+    >,
+) {
+    let n = game.dummies.len();
+    match *shown {
+        None => {
+            *shown = Some(n); // the first ones were built at startup
+            return;
+        }
+        Some(k) if k == n => return,
+        _ => {}
+    }
+    *shown = Some(n);
+    for e in &old {
+        commands.entity(e).despawn();
+    }
+    looks.0.clear();
+    build_blobs(
+        &mut commands,
+        &mut meshes,
+        &mut mats,
+        &assets,
+        &cast,
+        &mut looks,
+        &game,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_blobs(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    mats: &mut Assets<StandardMaterial>,
+    assets: &AssetServer,
+    cast: &Cast,
+    looks: &mut Looks,
+    game: &Game,
+) {
     let gold = mats.add(StandardMaterial {
         base_color: Color::linear_rgb(1.0, 0.81, 0.2),
         emissive: LinearRgba::new(0.27, 0.2, 0.0, 1.0),
@@ -296,7 +377,7 @@ fn spawn_blobs(
     };
 
     for (i, d) in game.dummies.iter().enumerate() {
-        let colour = BLOB_COLOURS[i % 3];
+        let colour = BLOB_COLOURS[i % BLOB_COLOURS.len()];
         let body_mat = mats.add(colour);
         let head_mat = mats.add(lighter(colour));
         let foot_mat = mats.add(darker(colour));
@@ -327,7 +408,7 @@ fn spawn_blobs(
             can_mat: mats.add(Color::linear_rgb(0.85, 0.6, 0.1)),
             body_entity: body,
         };
-        spawn_model(&mut commands, &assets, &look, i, cast.character_of(i));
+        spawn_model(commands, assets, &look, i, cast.character_of(i));
         looks.0.push(look);
 
         // leader crown
@@ -392,7 +473,7 @@ fn spawn_blobs(
 
         // name tag
         commands.spawn((
-            Text2d::new(BLOB_NAMES[i % 3]),
+            Text2d::new(BLOB_NAMES[i % BLOB_NAMES.len()]),
             tag_font.clone(),
             TextColor(Color::WHITE),
             Transform::from_xyz(0.0, 3.0, 0.0).with_scale(Vec3::splat(0.0085)),
@@ -630,9 +711,11 @@ fn viewer_keys(keys: Res<ButtonInput<KeyCode>>, mut game: ResMut<Game>, mut cast
         (KeyCode::KeyL, SlapKind::Timber),
     ];
     for (i, (k, kind)) in kinds.iter().enumerate() {
-        if keys.just_pressed(*k) {
-            g.dummies[i].anim.start_slap(*kind, dur);
-            g.dummies[i].anim.tumble(V3::new(0.0, 0.0, 1.0), 6.0, 1.0);
+        if keys.just_pressed(*k)
+            && let Some(d) = g.dummies.get_mut(i)
+        {
+            d.anim.start_slap(*kind, dur);
+            d.anim.tumble(V3::new(0.0, 0.0, 1.0), 6.0, 1.0);
         }
     }
     if keys.just_pressed(KeyCode::KeyN) {
@@ -674,7 +757,9 @@ fn viewer_keys(keys: Res<ButtonInput<KeyCode>>, mut game: ResMut<Game>, mut cast
         }
     }
     if keys.just_pressed(KeyCode::KeyC) {
-        g.dummies[0].crown = !g.dummies[0].crown;
+        if let Some(d) = g.dummies.get_mut(0) {
+            d.crown = !d.crown;
+        }
     }
     if keys.just_pressed(KeyCode::KeyV) {
         let order = [
@@ -689,7 +774,9 @@ fn viewer_keys(keys: Res<ButtonInput<KeyCode>>, mut game: ResMut<Game>, mut cast
         }
     }
     if keys.just_pressed(KeyCode::KeyX) {
-        g.dummies[1].smelly = !g.dummies[1].smelly;
+        if let Some(d) = g.dummies.get_mut(1) {
+            d.smelly = !d.smelly;
+        }
     }
 }
 

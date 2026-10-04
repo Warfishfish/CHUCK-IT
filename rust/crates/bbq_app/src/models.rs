@@ -5,10 +5,10 @@ use std::collections::HashMap;
 
 use bbq_core::items::{DildoVariant, ItemKind};
 use bbq_core::looks::{Part, Surface, Tex};
-use bevy::light::{NotShadowCaster, NotShadowReceiver};
 use bevy::image::{
     ImageAddressMode, ImageFilterMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor,
 };
+use bevy::light::{NotShadowCaster, NotShadowReceiver};
 use bevy::prelude::*;
 use bevy::render::render_resource::TextureFormat;
 
@@ -91,7 +91,12 @@ impl Built {
 }
 
 /// Make one finished part from a part description.
-fn build_part(p: &Part, cache: &ModelCache, meshes: &mut Assets<Mesh>, mats: &mut Assets<StandardMaterial>) -> Built {
+fn build_part(
+    p: &Part,
+    cache: &ModelCache,
+    meshes: &mut Assets<Mesh>,
+    mats: &mut Assets<StandardMaterial>,
+) -> Built {
     let s = &p.surface;
     Built {
         mesh: meshes.add(build_mesh(&p.shape)),
@@ -163,7 +168,9 @@ pub fn build_mips(w: u32, h: u32, base: &[u8]) -> Vec<u8> {
                 let mut n = 0.0;
                 for dy in 0..(ch / nh).max(1) {
                     for dx in 0..(cw / nw).max(1) {
-                        let i = (((y * (ch / nh) + dy).min(ch - 1)) * cw + (x * (cw / nw) + dx).min(cw - 1)) * 4;
+                        let i = (((y * (ch / nh) + dy).min(ch - 1)) * cw
+                            + (x * (cw / nw) + dx).min(cw - 1))
+                            * 4;
                         let al = prev[i + 3] as f32;
                         r += prev[i] as f32 * al;
                         g += prev[i + 1] as f32 * al;
@@ -274,7 +281,10 @@ impl ModelCache {
             return b.clone();
         }
         let parts = key.parts();
-        let built: Vec<Built> = parts.iter().map(|p| build_part(p, self, meshes, mats)).collect();
+        let built: Vec<Built> = parts
+            .iter()
+            .map(|p| build_part(p, self, meshes, mats))
+            .collect();
         self.built.insert(key, built.clone());
         built
     }
@@ -288,7 +298,8 @@ impl ModelCache {
         mats: &mut Assets<StandardMaterial>,
         at: Transform,
     ) -> Entity {
-        self.spawn_parts_with_children(commands, parts, meshes, mats, at).0
+        self.spawn_parts_with_children(commands, parts, meshes, mats, at)
+            .0
     }
 
     /// Like `spawn_parts`, but also hands back each part's own entity (in the order of `parts`),
@@ -335,7 +346,9 @@ mod tests {
     #[test]
     fn hex_colours_go_in_as_linear_numbers() {
         let c = hex(0xff8000).to_linear();
-        assert!((c.red - 1.0).abs() < 1e-5 && (c.green - 128.0 / 255.0).abs() < 1e-5 && c.blue == 0.0);
+        assert!(
+            (c.red - 1.0).abs() < 1e-5 && (c.green - 128.0 / 255.0).abs() < 1e-5 && c.blue == 0.0
+        );
     }
 
     #[test]
@@ -395,7 +408,9 @@ mod tests {
     #[test]
     fn fins_are_see_through_and_two_sided() {
         let cache = ModelCache::default();
-        let fin = Surface::shiny(0x7d9fb2, 0xaaccdd, 40.0).both_sides().see_through(0.88);
+        let fin = Surface::shiny(0x7d9fb2, 0xaaccdd, 40.0)
+            .both_sides()
+            .see_through(0.88);
         let m = material(&fin, &cache);
         assert!(m.double_sided);
         assert_eq!(m.cull_mode, None);

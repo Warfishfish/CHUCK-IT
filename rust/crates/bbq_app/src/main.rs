@@ -12,12 +12,14 @@
 mod bots_app;
 mod characters;
 mod game;
+mod heist_app;
 mod hud_fx;
 mod items_view;
 mod life;
 mod lighting;
 mod models;
 mod player;
+mod round;
 mod shapes;
 mod shot;
 mod yard_scene;
@@ -43,11 +45,12 @@ fn main() {
     };
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(window),
-            ..default()
-        }))
-        .insert_resource(ClearColor(models::hex(0x9fd8f2)))
-        .add_plugins((
+        primary_window: Some(window),
+        ..default()
+    }))
+    .insert_resource(ClearColor(models::hex(0x9fd8f2)))
+    .add_plugins(
+        (
             yard_scene::YardScenePlugin,
             player::PlayerPlugin,
             game::GamePlugin,
@@ -55,9 +58,14 @@ fn main() {
             characters::CharactersPlugin,
             hud_fx::HudFxPlugin,
             bots_app::BotsPlugin,
+            round::RoundPlugin,
+            heist_app::HeistViewPlugin,
             models::ModelsPlugin,
-            bevy::core_pipeline::fullscreen_material::FullscreenMaterialPlugin::<lighting::DisplayRaw>::default(),
-        ));
+            bevy::core_pipeline::fullscreen_material::FullscreenMaterialPlugin::<
+                lighting::DisplayRaw,
+            >::default(),
+        ),
+    );
     if let Some(cfg) = shot {
         app.add_plugins(shot::ShotPlugin(cfg));
     }

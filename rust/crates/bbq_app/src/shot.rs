@@ -116,7 +116,13 @@ impl Plugin for ShotPlugin {
             .add_systems(Startup, spawn_gallery)
             .add_systems(
                 Update,
-                (shot_camera.after(update_camera), hide_hud, take_shot, only_light, keep_bare),
+                (
+                    shot_camera.after(update_camera),
+                    hide_hud,
+                    take_shot,
+                    only_light,
+                    keep_bare,
+                ),
             );
     }
 }
@@ -266,7 +272,12 @@ mod tests {
         assert!(!c.gallery);
         assert_eq!(c.cam, Some([1.0, 2.0, 3.0, 4.0, 5.0, 60.0]));
         // a short list is ignored rather than guessed at
-        assert_eq!(parse(&args("bbq_app --shot a.png --cam 1,2,3")).unwrap().cam, None);
+        assert_eq!(
+            parse(&args("bbq_app --shot a.png --cam 1,2,3"))
+                .unwrap()
+                .cam,
+            None
+        );
         assert!(parse(&args("bbq_app --shot a.png --bare")).unwrap().bare);
     }
 

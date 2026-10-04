@@ -9,9 +9,9 @@
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
-use crate::drunk_state::bar_spot;
 use crate::drinks::drunk_amt;
-use crate::flight::{ItemId, ITEM_GRAV};
+use crate::drunk_state::bar_spot;
+use crate::flight::{ITEM_GRAV, ItemId};
 use crate::items::{ItemKind, Melee};
 use crate::movement::SEPARATE_DIST;
 use crate::rng::Rng;
@@ -487,6 +487,14 @@ impl BotBrain {
         *self.patrol_i.get_or_insert_with(|| rng.index(4) as u32)
     }
 
+    pub fn patrol_corner_or_zero(&self) -> u32 {
+        self.patrol_i.unwrap_or(0)
+    }
+
+    pub fn set_patrol_corner(&mut self, i: u32) {
+        self.patrol_i = Some(i % 4);
+    }
+
     pub fn next_patrol_corner(&mut self) {
         if let Some(i) = self.patrol_i.as_mut() {
             *i = (*i + 1) % 4;
@@ -631,7 +639,9 @@ impl BotBrain {
                 e.z = bar_z + 1.25;
             }
             ErrandKind::Smoko => {
-                let free: Vec<usize> = (0..w.free_seats.len()).filter(|i| w.free_seats[*i]).collect();
+                let free: Vec<usize> = (0..w.free_seats.len())
+                    .filter(|i| w.free_seats[*i])
+                    .collect();
                 e.seat = free[rng.index(free.len())];
                 let (x, z) = smoko::seat_pos(e.seat, w.free_seats.len());
                 e.x = x;
@@ -654,7 +664,13 @@ impl BotBrain {
 
     /// One tick of an errand. `Busy` = standing there doing it; `Go(p)` = walk to `p`;
     /// `Done` = finished or given up.
-    fn run_errand(&mut self, me: &SelfView, w: &WorldView, rng: &mut Rng, cmd: &mut Command) -> Step {
+    fn run_errand(
+        &mut self,
+        me: &SelfView,
+        w: &WorldView,
+        rng: &mut Rng,
+        cmd: &mut Command,
+    ) -> Step {
         let Some(mut e) = self.errand else {
             return Step::Done;
         };
@@ -731,7 +747,11 @@ impl BotBrain {
                 }
             }
         }
-        self.errand = if matches!(out, Step::Done) { None } else { Some(e) };
+        self.errand = if matches!(out, Step::Done) {
+            None
+        } else {
+            Some(e)
+        };
         out
     }
 
@@ -985,8 +1005,7 @@ impl BotBrain {
             && let Some(d) = desired
         {
             desired = Some(
-                d + self.look_yaw
-                    * ((self.pause_t / 0.75).min(1.0) * std::f32::consts::PI).sin(),
+                d + self.look_yaw * ((self.pause_t / 0.75).min(1.0) * std::f32::consts::PI).sin(),
             );
         }
         if let Some(d) = desired {
@@ -1186,10 +1205,13 @@ impl BotBrain {
             let t = w.time;
             let near = (arrive / 2.0).min(1.0);
             let da = drunk_amt(me.drunk);
-            a += p.wob * ((t * 0.9 + self.phase).sin() * 0.6 + (t * 2.3 + self.phase * 1.7).sin() * 0.25) * near;
+            a += p.wob
+                * ((t * 0.9 + self.phase).sin() * 0.6 + (t * 2.3 + self.phase * 1.7).sin() * 0.25)
+                * near;
             if da > 0.0 {
                 a += da
-                    * ((t * 0.5 + self.phase).sin() * 0.5 + (t * 1.37 + 1.0 + self.phase).sin() * 0.22)
+                    * ((t * 0.5 + self.phase).sin() * 0.5
+                        + (t * 1.37 + 1.0 + self.phase).sin() * 0.22)
                     * near;
             }
             if arrive < 1.4 {
@@ -1227,9 +1249,17 @@ impl BotBrain {
             ];
             for off in offs {
                 let b = base + off;
-                if !blocked(w.yard, me.pos.x + b.cos() * 1.1, me.pos.z + b.sin() * 1.1, me.pos.y)
-                    && !blocked(w.yard, me.pos.x + b.cos() * 0.55, me.pos.z + b.sin() * 0.55, me.pos.y)
-                {
+                if !blocked(
+                    w.yard,
+                    me.pos.x + b.cos() * 1.1,
+                    me.pos.z + b.sin() * 1.1,
+                    me.pos.y,
+                ) && !blocked(
+                    w.yard,
+                    me.pos.x + b.cos() * 0.55,
+                    me.pos.z + b.sin() * 0.55,
+                    me.pos.y,
+                ) {
                     ta = Some(b);
                     if off * sd < 0.0 {
                         self.avoid_side = -sd;
@@ -1259,7 +1289,8 @@ impl BotBrain {
         let mut d = 0.0;
         if let Some(t) = ta {
             d = wrap_pi(t - ca);
-            let turn = p.turn * if arrive < 2.2 { 2.4 } else { 1.0 } * if cm < 0.3 { 3.0 } else { 1.0 };
+            let turn =
+                p.turn * if arrive < 2.2 { 2.4 } else { 1.0 } * if cm < 0.3 { 3.0 } else { 1.0 };
             ca += d.clamp(-turn * dt, turn * dt);
         }
         // ease off through sharp turns
@@ -1490,9 +1521,17 @@ mod tests {
     fn tall_things_block_the_view_but_low_ones_do_not() {
         let yard = Yard::default();
         // the shed is 2.6 high
-        assert!(!line_of_sight(&yard, V3::new(15.0, 1.0, -16.5), V3::new(30.0, 1.0, -16.5)));
+        assert!(!line_of_sight(
+            &yard,
+            V3::new(15.0, 1.0, -16.5),
+            V3::new(30.0, 1.0, -16.5)
+        ));
         // the eskies are low
-        assert!(line_of_sight(&yard, V3::new(-10.0, 1.0, -4.5), V3::new(-5.0, 1.0, -4.5)));
+        assert!(line_of_sight(
+            &yard,
+            V3::new(-10.0, 1.0, -4.5),
+            V3::new(-5.0, 1.0, -4.5)
+        ));
     }
 
     #[test]
@@ -1595,7 +1634,10 @@ mod tests {
         });
         let mut b2 = BotBrain::new(&mut rng);
         b2.err_cd = 999.0;
-        assert_eq!(b2.think(&me_at(0.0, 0.0), &s2.view(0.0), &mut rng).claim, None);
+        assert_eq!(
+            b2.think(&me_at(0.0, 0.0), &s2.view(0.0), &mut rng).claim,
+            None
+        );
     }
 
     #[test]
@@ -1657,7 +1699,11 @@ mod tests {
         assert_eq!(t.item, 5);
         // aimed roughly at the target: mostly +z
         assert!(t.vel.z > t.vel.x.abs() * 2.0, "{:?}", t.vel);
-        assert!(t.charge >= 0.0 && t.charge < 1.0, "bots never power-throw: {}", t.charge);
+        assert!(
+            t.charge >= 0.0 && t.charge < 1.0,
+            "bots never power-throw: {}",
+            t.charge
+        );
         // and then it cools down before the next
         assert!(brain.throw_cd >= 0.8 * 0.8 * 1.15 / 1.15 - 0.01);
     }
@@ -1686,7 +1732,10 @@ mod tests {
     #[test]
     fn harder_bots_aim_better() {
         let mut miss = [0.0f32; 3];
-        for (k, diff) in [Difficulty::Easy, Difficulty::Fair, Difficulty::Spicy].into_iter().enumerate() {
+        for (k, diff) in [Difficulty::Easy, Difficulty::Fair, Difficulty::Spicy]
+            .into_iter()
+            .enumerate()
+        {
             let mut total = 0.0;
             for seed in 0..300 {
                 let mut rng = Rng::new(seed);
@@ -1740,9 +1789,21 @@ mod tests {
         let mut brain = BotBrain::new(&mut rng);
         let mut s = Scene::new();
         let mut t = other(1, 0.0, 10.0);
-        let dry = brain.make_throw(&me_at(0.0, 0.0), teddy(5), &t, &s.view(0.0), &mut Rng::new(1));
+        let dry = brain.make_throw(
+            &me_at(0.0, 0.0),
+            teddy(5),
+            &t,
+            &s.view(0.0),
+            &mut Rng::new(1),
+        );
         t.in_pool = true;
-        let wet = brain.make_throw(&me_at(0.0, 0.0), teddy(5), &t, &s.view(0.0), &mut Rng::new(1));
+        let wet = brain.make_throw(
+            &me_at(0.0, 0.0),
+            teddy(5),
+            &t,
+            &s.view(0.0),
+            &mut Rng::new(1),
+        );
         assert!(wet.vel.y < dry.vel.y);
         s.others.clear();
     }
@@ -1760,9 +1821,16 @@ mod tests {
         let mut vx = 0.0;
         for seed in 0..200 {
             let mut r = Rng::new(seed);
-            vx += brain.make_throw(&me_at(0.0, 0.0), teddy(5), &t, &w, &mut r).vel.x;
+            vx += brain
+                .make_throw(&me_at(0.0, 0.0), teddy(5), &t, &w, &mut r)
+                .vel
+                .x;
         }
-        assert!(vx / 200.0 > 1.0, "should aim ahead of a runner: {}", vx / 200.0);
+        assert!(
+            vx / 200.0 > 1.0,
+            "should aim ahead of a runner: {}",
+            vx / 200.0
+        );
     }
 
     #[test]
@@ -1797,7 +1865,10 @@ mod tests {
             let c2 = brain.think(&me_at(0.0, 0.0), &w, &mut rng);
             assert!(!c2.catch || c.catch, "no second reaction");
         }
-        assert!(caught > 20 && dodged > 100 && nothing > 20, "{caught} {dodged} {nothing}");
+        assert!(
+            caught > 20 && dodged > 100 && nothing > 20,
+            "{caught} {dodged} {nothing}"
+        );
     }
 
     #[test]

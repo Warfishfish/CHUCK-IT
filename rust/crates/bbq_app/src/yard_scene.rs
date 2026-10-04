@@ -238,7 +238,10 @@ fn sync_chest(
     game: Res<Game>,
     yard: Res<YardRes>,
     time: Res<Time>,
-    mut root: Query<(&mut Transform, &mut Visibility), (With<ChestRoot>, Without<ChestLid>, Without<ChestToy>)>,
+    mut root: Query<
+        (&mut Transform, &mut Visibility),
+        (With<ChestRoot>, Without<ChestLid>, Without<ChestToy>),
+    >,
     mut lid: Query<&mut Transform, (With<ChestLid>, Without<ChestRoot>, Without<ChestToy>)>,
     mut toys: Query<(&ChestToy, &mut Visibility), (Without<ChestRoot>, Without<ChestLid>)>,
 ) {
@@ -248,7 +251,11 @@ fn sync_chest(
     for (mut tf, mut vis) in &mut root {
         tf.translation = Vec3::new(at.x, 0.0, at.z);
         tf.rotation = Quat::from_rotation_y(turn);
-        *vis = if on { Visibility::Inherited } else { Visibility::Hidden };
+        *vis = if on {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
     }
     // the lid eases open (-1.15 radians) when there is stock, shut (-0.08) when empty
     let want = if stock > 0 { -1.15 } else { -0.08 };
@@ -282,7 +289,11 @@ fn toggle_features(
         if keys.just_pressed(key) {
             let mut feats: Features = yard_res.0.features;
             feats.toggle(f);
-            yard_res.0 = Yard::new(feats, yard_res.0.chest_spot);
+            let spot = yard_res.0.chest_spot;
+            yard_res.0 = match yard_res.0.heist {
+                Some(teams) => Yard::heist(feats, spot, teams),
+                None => Yard::new(feats, spot),
+            };
             changed = true;
         }
     }

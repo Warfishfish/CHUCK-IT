@@ -46,6 +46,8 @@ pub enum Shape {
     Poly(&'static [(f32, f32)]),
     /// `PlaneGeometry(w, h)`: a flat rectangle in the XY plane facing +z, picture 0..1.
     Quad { w: f32, h: f32 },
+    /// `RingGeometry(inner, outer, seg)`: a flat ring in the XY plane facing +z.
+    Ring { inner: f32, outer: f32, seg: u32 },
     /// `IcosahedronGeometry(r, detail)`: the rough balls used for leaves and clouds. Flat shaded.
     Ico { r: f32, detail: u32 },
     /// `CapsuleGeometry(r, len, cap, radial)`: a sausage, lying along y.
@@ -734,12 +736,7 @@ mod tests {
 
     #[test]
     fn dildo_sizes_scale_the_whole_model() {
-        let top = |v: DildoVariant| {
-            dildo(v)
-                .iter()
-                .map(|p| p.pos.y)
-                .fold(f32::MIN, f32::max)
-        };
+        let top = |v: DildoVariant| dildo(v).iter().map(|p| p.pos.y).fold(f32::MIN, f32::max);
         let classic = top(DildoVariant::Classic);
         let jumbo = top(DildoVariant::Jumbo);
         let mini = top(DildoVariant::Mini);
@@ -777,14 +774,23 @@ mod tests {
     #[test]
     fn grouped_parts_are_flattened_correctly() {
         // a part at (1, 0, 0) inside a group turned a quarter about y and scaled by 2
-        let p = Part::new(Shape::Cuboid { w: 1.0, h: 1.0, d: 1.0 }, Surface::matt(0))
-            .at(1.0, 0.0, 0.0)
-            .inside(
-                V3::new(0.0, 5.0, 0.0),
-                Quat::from_axis_angle(V3::new(0.0, 1.0, 0.0), HALF_PI),
-                2.0,
-            );
-        assert!(p.pos.x.abs() < 1e-5 && (p.pos.y - 5.0).abs() < 1e-5 && (p.pos.z + 2.0).abs() < 1e-5);
+        let p = Part::new(
+            Shape::Cuboid {
+                w: 1.0,
+                h: 1.0,
+                d: 1.0,
+            },
+            Surface::matt(0),
+        )
+        .at(1.0, 0.0, 0.0)
+        .inside(
+            V3::new(0.0, 5.0, 0.0),
+            Quat::from_axis_angle(V3::new(0.0, 1.0, 0.0), HALF_PI),
+            2.0,
+        );
+        assert!(
+            p.pos.x.abs() < 1e-5 && (p.pos.y - 5.0).abs() < 1e-5 && (p.pos.z + 2.0).abs() < 1e-5
+        );
         assert!((p.scale.x - 2.0).abs() < 1e-6);
     }
 

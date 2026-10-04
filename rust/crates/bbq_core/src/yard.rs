@@ -24,6 +24,10 @@ pub enum Kind {
     Planter,
     Bar,
     Chest,
+    /// Teddy Heist: a base wall, the stone steps round the oval, or a crate in the middle.
+    HeistWall,
+    Steps,
+    HeistCrate,
 }
 
 /// The four map features the host can switch off.
@@ -191,6 +195,8 @@ pub struct Yard {
     pub colliders: Vec<Collider>,
     pub features: Features,
     pub chest_spot: usize,
+    /// Teddy Heist: how many teams the arena is built for.
+    pub heist: Option<usize>,
 }
 
 impl Yard {
@@ -235,7 +241,29 @@ impl Yard {
             colliders: c,
             features,
             chest_spot,
+            heist: None,
         }
+    }
+
+    /// The yard turned into the Teddy Heist arena: the usual props stay, and the oval of steps,
+    /// the walled bases and the crates in the middle are added.
+    pub fn heist(features: Features, chest_spot: usize, teams: usize) -> Self {
+        let mut y = Self::new(features, chest_spot);
+        y.heist = Some(teams.clamp(2, 4));
+        y.colliders
+            .extend(crate::heist::arena(teams).into_iter().map(|p| p.collider));
+        y
+    }
+
+    /// True when `(x, z)` is at least `r` clear of every Heist wall, step and crate.
+    pub fn heist_clear(&self, x: f32, z: f32, r: f32) -> bool {
+        !self.colliders.iter().any(|c| {
+            matches!(c.kind, Kind::HeistWall | Kind::Steps | Kind::HeistCrate)
+                && x > c.x0 - r
+                && x < c.x1 + r
+                && z > c.z0 - r
+                && z < c.z1 + r
+        })
     }
 
     /// Highest standable top under (x, z) for someone at height `y` (and `prev_y` last step).

@@ -9,7 +9,7 @@ use bbq_core::bots::{
 use bbq_core::drinks;
 use bbq_core::drunk_state::{self, DrunkState, Env};
 use bbq_core::flight::{Item, ItemId, ItemState};
-use bbq_core::hands::{Picker, Slots};
+use bbq_core::hands::Slots;
 use bbq_core::hitting::{self, Catcher};
 use bbq_core::items::{DildoVariant, ItemKind, MEAT_PTS, Melee, SLAP_USES};
 use bbq_core::melee::{self, Candidate};
@@ -96,7 +96,9 @@ pub fn name_of(g: &Game, id: PlayerId) -> String {
         g.dummies
             .iter()
             .position(|d| d.id == id)
-            .map(|i| crate::characters::BLOB_NAMES[i % crate::characters::BLOB_NAMES.len()].to_string())
+            .map(|i| {
+                crate::characters::BLOB_NAMES[i % crate::characters::BLOB_NAMES.len()].to_string()
+            })
             .unwrap_or_else(|| "Somebody".to_string())
     }
 }
@@ -304,7 +306,13 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &Yard) {
             held,
             selected: sel,
         };
-        let heist_goal = None;
+        let (heist_goal, carrying_stolen_teddy) = if mode == GameMode::Heist {
+            crate::heist_app::goal_for_bot(g, i)
+        } else {
+            (None, false)
+        };
+        let d = &g.dummies[i];
+        let _ = d;
         let w = WorldView {
             time: now,
             dt,
@@ -324,7 +332,7 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &Yard) {
             dazza_chasing,
             difficulty: diff,
             heist_goal,
-            carrying_stolen_teddy: false,
+            carrying_stolen_teddy,
         };
         let mut brain = match g.crowd.brains.remove(&id) {
             Some(b) => b,
@@ -354,10 +362,7 @@ fn bot_body_tick(g: &mut Game, i: usize, dt: f32, in_play: bool) {
         can_fall: false, // bots never stack it
         fall_duration: fall_dur,
     };
-    let _ = d
-        .bot
-        .drunk
-        .tick(dt, &env, &mut d.body, false, &mut g.rng);
+    let _ = d.bot.drunk.tick(dt, &env, &mut d.body, false, &mut g.rng);
     if at_smoko {
         d.bot.smoko_t += dt;
         d.bot.drunk.add(drunk_state_smoko_sip() * dt);
@@ -373,7 +378,7 @@ fn drunk_state_smoko_sip() -> f32 {
 
 /// Do what the brain asked for.
 fn act(g: &mut Game, p: &mut Player, yard: &Yard, i: usize, cmd: &Command) {
-    let now = g.now;
+    let _ = g.now;
     let id = g.dummies[i].id;
     g.dummies[i].face = cmd.face;
     g.dummies[i].bot.wish = cmd.wish;
@@ -405,16 +410,13 @@ fn act(g: &mut Game, p: &mut Player, yard: &Yard, i: usize, cmd: &Command) {
     }
     // pick things up as it walks over them
     let d = &g.dummies[i];
-    if d.body.stun <= 0.0 && g.rules.phase != Phase::Countdown && d.seat.is_none() && d.dragged.is_none() {
-        let picker = Picker {
-            id,
-            pos: V3::new(d.mover.x, d.mover.y, d.mover.z),
-            held: d.bot.slots.len(),
-            stunned: d.body.stun > 0.0,
-            frozen: false,
-            is_bot: true,
-        };
-        if let Some(item) = g.world.pickup_for(&picker, now) {
+    if d.body.stun <= 0.0
+        && g.rules.phase != Phase::Countdown
+        && d.seat.is_none()
+        && d.dragged.is_none()
+    {
+        let (pos, held) = (V3::new(d.mover.x, d.mover.y, d.mover.z), d.bot.slots.len());
+        if let Some(item) = crate::heist_app::try_pickup(g, id, pos, held, false, true) {
             g.world.give(item, id);
             g.dummies[i].bot.slots.add(item);
         }
@@ -469,7 +471,11 @@ fn swing(g: &mut Game, p: &mut Player, i: usize, sw: Swing) {
         return; // swung at nothing
     };
     let id = g.dummies[i].id;
-    let apos = V3::new(g.dummies[i].mover.x, g.dummies[i].mover.y, g.dummies[i].mover.z);
+    let apos = V3::new(
+        g.dummies[i].mover.x,
+        g.dummies[i].mover.y,
+        g.dummies[i].mover.z,
+    );
     // must really be in reach and in front of it
     let face = (g.dummies[i].face.sin(), g.dummies[i].face.cos());
     let tpos = if victim == PLAYER_ID {
@@ -505,7 +511,13 @@ fn swing(g: &mut Game, p: &mut Player, i: usize, sw: Swing) {
 }
 
 /// A bot slaps the player.
-fn slap_player(g: &mut Game, p: &mut Player, att: &crate::life::Attacker, kind: ItemKind, variant: Option<DildoVariant>) {
+fn slap_player(
+    g: &mut Game,
+    p: &mut Player,
+    att: &crate::life::Attacker,
+    kind: ItemKind,
+    variant: Option<DildoVariant>,
+) {
     if g.life.seated.is_some() {
         return;
     }
@@ -523,15 +535,25 @@ fn slap_player(g: &mut Game, p: &mut Player, att: &crate::life::Attacker, kind: 
         Melee::Stun => {
             let fx = melee::stun_slap(kind);
             let res = melee::apply(&mut g.me.body, &mut p.mover, dir, &fx);
-            g.board
-                .stun_slap(&g.rules, att.id, PLAYER_ID, MEAT_PTS, att.drunk_bonus, false);
+            g.board.stun_slap(
+                &g.rules,
+                att.id,
+                PLAYER_ID,
+                MEAT_PTS,
+                att.drunk_bonus,
+                false,
+            );
             let verb = match kind {
                 ItemKind::Fish => "fish-slapped",
                 ItemKind::Noodle => "noodled",
                 _ => "steaked",
             };
             g.popup(format!("{} {verb} you!", att.name), true);
-            g.say(format!("{} {verb} you{}", att.name, if res.stunned { "" } else { " (no new stun)" }));
+            g.say(format!(
+                "{} {verb} you{}",
+                att.name,
+                if res.stunned { "" } else { " (no new stun)" }
+            ));
         }
         Melee::Down => {
             let variant = variant.unwrap_or(DildoVariant::Classic);
@@ -556,7 +578,11 @@ fn slap_player(g: &mut Game, p: &mut Player, att: &crate::life::Attacker, kind: 
                 SlapKind::Timber => "TIMBERRR!",
             };
             g.popup(format!("{} slapped you: {pose}", att.name), true);
-            g.say(format!("{} dildo-slapped you{}", att.name, if roll.crit { " CRITICAL!" } else { "" }));
+            g.say(format!(
+                "{} dildo-slapped you{}",
+                att.name,
+                if roll.crit { " CRITICAL!" } else { "" }
+            ));
         }
         Melee::None => {}
     }
@@ -645,7 +671,11 @@ fn do_act(g: &mut Game, p: &mut Player, yard: &Yard, i: usize, a: Act) {
                 }
                 g.world.give(item, id);
                 g.dummies[i].bot.slots.add(item);
-                g.say(format!("{} got a {} from the chest", name_of(g, id), variant.def().label));
+                g.say(format!(
+                    "{} got a {} from the chest",
+                    name_of(g, id),
+                    variant.def().label
+                ));
             }
         }
         Act::HelpUp(target) => {
@@ -658,7 +688,11 @@ fn do_act(g: &mut Game, p: &mut Player, yard: &Yard, i: usize, a: Act) {
                 }
             } else if let Some(j) = g.dummies.iter().position(|d| d.id == target) {
                 g.dummies[j].body.get_up();
-                g.say(format!("{} helped {} up (+{pts})", name_of(g, id), name_of(g, target)));
+                g.say(format!(
+                    "{} helped {} up (+{pts})",
+                    name_of(g, id),
+                    name_of(g, target)
+                ));
             }
         }
     }

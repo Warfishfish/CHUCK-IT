@@ -12,9 +12,9 @@
 //! from straight above (`hemisphere`).
 
 use bevy::camera::Exposure;
+use bevy::core_pipeline::fullscreen_material::FullscreenMaterial;
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::prelude::*;
-use bevy::core_pipeline::fullscreen_material::FullscreenMaterial;
 use bevy::render::extract_component::ExtractComponent;
 use bevy::render::render_resource::ShaderType;
 use bevy::shader::ShaderRef;
@@ -93,7 +93,11 @@ pub fn hemisphere() -> (AmbientLight, DirectionalLight, Transform) {
     let peak = up.iter().cloned().fold(0.0, f32::max);
     (
         AmbientLight {
-            color: Color::linear_rgb(avg[0] / avg[0].max(avg[1]).max(avg[2]), avg[1] / avg[0].max(avg[1]).max(avg[2]), avg[2] / avg[0].max(avg[1]).max(avg[2])),
+            color: Color::linear_rgb(
+                avg[0] / avg[0].max(avg[1]).max(avg[2]),
+                avg[1] / avg[0].max(avg[1]).max(avg[2]),
+                avg[2] / avg[0].max(avg[1]).max(avg[2]),
+            ),
             brightness: avg[0].max(avg[1]).max(avg[2]) * unit() * AMBIENT_FIX,
             ..default()
         },

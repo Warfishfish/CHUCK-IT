@@ -9,8 +9,8 @@ use crate::looks::{self, Part, Shape, Surface, Tex};
 use crate::rng::Rng;
 use crate::vec::{Quat, V3, cross};
 use crate::yard::{
-    BAR, CHEST_SPOTS, MEAT_TABLE, POOL_DEPTH, POOL_X0, POOL_X1, POOL_Z0, POOL_Z1, SMOKO_X,
-    SMOKO_Z, TRAMP_H, TRAMP_R, TRAMP_X, TRAMP_Z, WATER_Y,
+    BAR, CHEST_SPOTS, MEAT_TABLE, POOL_DEPTH, POOL_X0, POOL_X1, POOL_Z0, POOL_Z1, SMOKO_X, SMOKO_Z,
+    TRAMP_H, TRAMP_R, TRAMP_X, TRAMP_Z, WATER_Y,
 };
 use crate::{YARD_HALF_X as W, YARD_HALF_Z as D};
 
@@ -125,7 +125,9 @@ fn recolour(parts: Vec<Part>, color: u32) -> Vec<Part> {
 
 /// The paling fence panel for a run of `len` metres.
 fn fence(len: f32, horizontal: bool, x: f32, z: f32) -> Part {
-    let s = matt(0xffffff).textured(Tex::Paling).repeating(len / 2.0, 1.0);
+    let s = matt(0xffffff)
+        .textured(Tex::Paling)
+        .repeating(len / 2.0, 1.0);
     let (w, d) = if horizontal { (len, 0.1) } else { (0.1, len) };
     cuboid(w, FENCE_H, d, s, x, 0.9, z)
 }
@@ -152,7 +154,10 @@ pub fn chair() -> Vec<Part> {
 pub fn smoko_pad(radius: f32) -> Part {
     Part::new(
         Shape::Disc { r: 1.0, seg: 40 },
-        matt(0xffffff).textured(Tex::SmokoPad).repeating(3.0, 3.0).no_shadow(),
+        matt(0xffffff)
+            .textured(Tex::SmokoPad)
+            .repeating(3.0, 3.0)
+            .no_shadow(),
     )
     .at(SMOKO_X, 0.012, SMOKO_Z)
     .turn(-HALF_PI, 0.0, 0.0)
@@ -183,7 +188,11 @@ fn cloud(rng: &mut Rng) -> (V3, Vec<Part>) {
     let mut puffs = Vec::new();
     for _ in 0..4 {
         let r = rng.range(2.5, 4.5);
-        let (px, py, pz) = (rng.range(-5.0, 5.0), rng.range(-0.6, 0.6), rng.range(-2.0, 2.0));
+        let (px, py, pz) = (
+            rng.range(-5.0, 5.0),
+            rng.range(-0.6, 0.6),
+            rng.range(-2.0, 2.0),
+        );
         puffs.push(
             Part::new(
                 Shape::Ico { r, detail: 1 },
@@ -193,7 +202,11 @@ fn cloud(rng: &mut Rng) -> (V3, Vec<Part>) {
             .stretch(1.0, 0.45, 1.0),
         );
     }
-    let at = V3::new(rng.range(-90.0, 90.0), rng.range(32.0, 46.0), rng.range(-90.0, 60.0));
+    let at = V3::new(
+        rng.range(-90.0, 90.0),
+        rng.range(32.0, 46.0),
+        rng.range(-90.0, 60.0),
+    );
     (at, puffs)
 }
 
@@ -220,7 +233,10 @@ fn clothesline() -> (Vec<Part>, Vec<Part>) {
             head.push(rod(pts[i], pts[(i + 1) % pts.len()], 0.012, line));
         }
     }
-    for (k, c) in [0xf25c54, 0x4cc9f0, 0xffd23f, 0xffffff].into_iter().enumerate() {
+    for (k, c) in [0xf25c54, 0x4cc9f0, 0xffd23f, 0xffffff]
+        .into_iter()
+        .enumerate()
+    {
         let a = k as f32 * HALF_PI;
         head.push(
             Part::new(Shape::Quad { w: 1.1, h: 0.85 }, matt(c).both_sides())
@@ -236,24 +252,56 @@ fn pool() -> Vec<Part> {
     let (pcx, pcz) = ((POOL_X0 + POOL_X1) / 2.0, (POOL_Z0 + POOL_Z1) / 2.0);
     let mut v = Vec::new();
     // the basin: four tiled walls and the floor, facing inwards
-    let wall = |repeat: f32| matt(0xffffff).textured(Tex::PoolWall).repeating(repeat, 1.0).no_shadow();
+    let wall = |repeat: f32| {
+        matt(0xffffff)
+            .textured(Tex::PoolWall)
+            .repeating(repeat, 1.0)
+            .no_shadow()
+    };
     let mid_y = -POOL_DEPTH / 2.0;
     v.push(
-        Part::new(Shape::Quad { w: pd, h: POOL_DEPTH }, wall(pd))
-            .at(POOL_X1, mid_y, pcz)
-            .turn(0.0, -HALF_PI, 0.0),
+        Part::new(
+            Shape::Quad {
+                w: pd,
+                h: POOL_DEPTH,
+            },
+            wall(pd),
+        )
+        .at(POOL_X1, mid_y, pcz)
+        .turn(0.0, -HALF_PI, 0.0),
     );
     v.push(
-        Part::new(Shape::Quad { w: pd, h: POOL_DEPTH }, wall(pd))
-            .at(POOL_X0, mid_y, pcz)
-            .turn(0.0, HALF_PI, 0.0),
+        Part::new(
+            Shape::Quad {
+                w: pd,
+                h: POOL_DEPTH,
+            },
+            wall(pd),
+        )
+        .at(POOL_X0, mid_y, pcz)
+        .turn(0.0, HALF_PI, 0.0),
     );
     v.push(
-        Part::new(Shape::Quad { w: pw, h: POOL_DEPTH }, wall(pw))
-            .at(pcx, mid_y, POOL_Z1)
-            .turn(0.0, PI, 0.0),
+        Part::new(
+            Shape::Quad {
+                w: pw,
+                h: POOL_DEPTH,
+            },
+            wall(pw),
+        )
+        .at(pcx, mid_y, POOL_Z1)
+        .turn(0.0, PI, 0.0),
     );
-    v.push(Part::new(Shape::Quad { w: pw, h: POOL_DEPTH }, wall(pw)).at(pcx, mid_y, POOL_Z0));
+    v.push(
+        Part::new(
+            Shape::Quad {
+                w: pw,
+                h: POOL_DEPTH,
+            },
+            wall(pw),
+        )
+        .at(pcx, mid_y, POOL_Z0),
+    );
     v.push(
         Part::new(
             Shape::Quad { w: pw, h: pd },
@@ -267,9 +315,15 @@ fn pool() -> Vec<Part> {
     );
     // a lane stripe, and the shimmer on the floor
     v.push(
-        Part::new(Shape::Quad { w: pw - 1.2, h: 0.22 }, matt(0x1f4f8a).no_shadow())
-            .at(pcx, -POOL_DEPTH + 0.01, pcz)
-            .turn(-HALF_PI, 0.0, 0.0),
+        Part::new(
+            Shape::Quad {
+                w: pw - 1.2,
+                h: 0.22,
+            },
+            matt(0x1f4f8a).no_shadow(),
+        )
+        .at(pcx, -POOL_DEPTH + 0.01, pcz)
+        .turn(-HALF_PI, 0.0, 0.0),
     );
     v.push(
         Part::new(
@@ -310,8 +364,17 @@ fn pool() -> Vec<Part> {
     }
     for k in 0..3 {
         v.push(
-            cyl(0.025, 0.025, 0.56, 6, chrome, POOL_X1 - 0.14, -0.3 - k as f32 * 0.35, pcz)
-                .turn(HALF_PI, 0.0, 0.0),
+            cyl(
+                0.025,
+                0.025,
+                0.56,
+                6,
+                chrome,
+                POOL_X1 - 0.14,
+                -0.3 - k as f32 * 0.35,
+                pcz,
+            )
+            .turn(HALF_PI, 0.0, 0.0),
         );
     }
     // the white edge round the top
@@ -330,7 +393,9 @@ fn house() -> Vec<Part> {
             40.0,
             4.6,
             8.0,
-            matt(0xffffff).textured(Tex::Weatherboard).repeating(20.0, 3.0),
+            matt(0xffffff)
+                .textured(Tex::Weatherboard)
+                .repeating(20.0, 3.0),
             0.0,
             2.3,
             -29.5,
@@ -352,7 +417,16 @@ fn house() -> Vec<Part> {
 fn props() -> Vec<Part> {
     let mut v = Vec::new();
     // trampoline
-    v.push(cyl(TRAMP_R, TRAMP_R, 0.04, 28, matt(0x1d1f22), TRAMP_X, TRAMP_H, TRAMP_Z));
+    v.push(cyl(
+        TRAMP_R,
+        TRAMP_R,
+        0.04,
+        28,
+        matt(0x1d1f22),
+        TRAMP_X,
+        TRAMP_H,
+        TRAMP_Z,
+    ));
     v.push(
         torus(TRAMP_R + 0.05, 0.12, 8, 28, 2.0 * PI, matt(0x1f6fd1))
             .at(TRAMP_X, TRAMP_H + 0.02, TRAMP_Z)
@@ -384,7 +458,12 @@ fn props() -> Vec<Part> {
     v.push(cuboid(4.4, 0.12, 3.4, matt(0x7f8b85), 22.5, 2.56, -16.5));
     v.push(cuboid(1.3, 2.0, 0.06, matt(0x56645d), 22.5, 1.0, -14.98));
     // eskies
-    for (x, z, r) in [(-7.5f32, -4.5f32, 0.3f32), (9.0, -6.0, -0.2), (-3.0, 18.0, 0.1), (24.0, 6.0, 1.4)] {
+    for (x, z, r) in [
+        (-7.5f32, -4.5f32, 0.3f32),
+        (9.0, -6.0, -0.2),
+        (-3.0, 18.0, 0.1),
+        (24.0, 6.0, 1.4),
+    ] {
         let e = vec![
             cuboid(1.0, 0.5, 0.6, matt(0x1f6fd1), 0.0, 0.25, 0.0),
             cuboid(1.04, 0.12, 0.64, matt(0xf4f6f2), 0.0, 0.56, 0.0),
@@ -394,7 +473,15 @@ fn props() -> Vec<Part> {
     // outdoor table
     v.push(cuboid(2.0, 0.08, 1.0, matt(0xc79a61), 6.0, 0.76, -16.5));
     for (a, b) in [(-0.9, -0.4), (0.9, -0.4), (-0.9, 0.4), (0.9, 0.4)] {
-        v.push(cuboid(0.07, 0.72, 0.07, matt(0x8f6a3e), 6.0 + a, 0.36, -16.5 + b));
+        v.push(cuboid(
+            0.07,
+            0.72,
+            0.07,
+            matt(0x8f6a3e),
+            6.0 + a,
+            0.36,
+            -16.5 + b,
+        ));
     }
     // wheelie bins
     for (x, c) in [(31.1, 0xd63a2f), (31.95, 0xf2c230)] {
@@ -407,7 +494,15 @@ fn props() -> Vec<Part> {
     v.push(cuboid(1.15, 1.15, 1.15, crate_m, -24.9, 0.58, -13.5));
     v.push(cuboid(1.15, 1.15, 1.15, crate_m, -25.5, 1.73, -13.5));
     // hedge
-    v.push(cuboid(1.2, 1.3, 9.0, matt(0x3f7d3a).faceted(), -31.6, 0.65, -3.0));
+    v.push(cuboid(
+        1.2,
+        1.3,
+        9.0,
+        matt(0x3f7d3a).faceted(),
+        -31.6,
+        0.65,
+        -3.0,
+    ));
     // stack of old tyres
     let tyre = matt(0x26282b);
     for (n, (x, z)) in [(12.0f32, 2.0f32), (13.2, 2.4)].into_iter().enumerate() {
@@ -486,7 +581,15 @@ fn bar() -> Vec<Part> {
     }
     // the sign on two posts
     for x in [-1.9, 1.9] {
-        v.push(cuboid(0.1, 2.6, 0.1, matt(0x5e3820), bx + x, 1.3, bz - 0.35));
+        v.push(cuboid(
+            0.1,
+            2.6,
+            0.1,
+            matt(0x5e3820),
+            bx + x,
+            1.3,
+            bz - 0.35,
+        ));
     }
     v.push(cuboid(
         2.6,
@@ -533,7 +636,16 @@ fn bar() -> Vec<Part> {
         let parts = vec![
             cyl(0.04, 0.04, 0.01, 10, glass, 0.0, 0.005, 0.0),
             cyl(0.008, 0.008, 0.08, 6, glass, 0.0, 0.045, 0.0),
-            cyl(0.045, 0.03, 0.08, 10, matt(0x8a1d3a).see_through(0.85), 0.0, 0.12, 0.0),
+            cyl(
+                0.045,
+                0.03,
+                0.08,
+                10,
+                matt(0x8a1d3a).see_through(0.85),
+                0.0,
+                0.12,
+                0.0,
+            ),
         ];
         v.extend(place(parts, V3::new(x, bh, bz + 0.15), Quat::IDENTITY, 1.0));
     }
@@ -589,12 +701,33 @@ fn bbq() -> Vec<Part> {
     let (mx, mz, mw, md, mh) = MEAT_TABLE;
     v.push(cuboid(mw, 0.06, md, matt(0xc79a61), mx, mh - 0.03, mz));
     for (a, b) in [(-0.65, -0.32), (0.65, -0.32), (-0.65, 0.32), (0.65, 0.32)] {
-        v.push(cuboid(0.06, mh - 0.06, 0.06, matt(0x8f6a3e), mx + a, (mh - 0.06) / 2.0, mz + b));
+        v.push(cuboid(
+            0.06,
+            mh - 0.06,
+            0.06,
+            matt(0x8f6a3e),
+            mx + a,
+            (mh - 0.06) / 2.0,
+            mz + b,
+        ));
     }
-    v.push(cuboid(0.62, 0.03, 0.5, matt(0xe8d9b8), mx - 0.38, mh + 0.015, mz));
-    for (k, (a, b)) in [(-0.52f32, -0.1f32), (-0.24, -0.1), (-0.52, 0.12), (-0.24, 0.12)]
-        .into_iter()
-        .enumerate()
+    v.push(cuboid(
+        0.62,
+        0.03,
+        0.5,
+        matt(0xe8d9b8),
+        mx - 0.38,
+        mh + 0.015,
+        mz,
+    ));
+    for (k, (a, b)) in [
+        (-0.52f32, -0.1f32),
+        (-0.24, -0.1),
+        (-0.52, 0.12),
+        (-0.24, 0.12),
+    ]
+    .into_iter()
+    .enumerate()
     {
         v.extend(place(
             looks::steak(),
@@ -603,7 +736,16 @@ fn bbq() -> Vec<Part> {
             1.0,
         ));
     }
-    v.push(cyl(0.36, 0.3, 0.03, 20, matt(0xf4f6f2), mx + 0.38, mh + 0.015, mz));
+    v.push(cyl(
+        0.36,
+        0.3,
+        0.03,
+        20,
+        matt(0xf4f6f2),
+        mx + 0.38,
+        mh + 0.015,
+        mz,
+    ));
     for (a, b, r) in [(0.3f32, -0.06f32, 0.4f32), (0.44, 0.08, -0.3)] {
         v.extend(place(
             looks::fish(),
@@ -626,15 +768,17 @@ fn smoko() -> Vec<Part> {
     let (sx, sz) = (SMOKO_X, SMOKO_Z);
     let mut v = vec![cyl(0.04, 0.04, 2.6, 8, matt(0xd9dfe0), sx, 1.3, sz)];
     // the umbrella: a yellow cone with a red wire frame
-    v.push(Part::new(
-        Shape::Cone {
-            r: 1.7,
-            h: 0.55,
-            seg: 10,
-        },
-        matt(0xf2c230).both_sides(),
-    )
-    .at(sx, 2.55, sz));
+    v.push(
+        Part::new(
+            Shape::Cone {
+                r: 1.7,
+                h: 0.55,
+                seg: 10,
+            },
+            matt(0xf2c230).both_sides(),
+        )
+        .at(sx, 2.55, sz),
+    );
     let red = matt(0xd63a2f).unlit();
     let apex = V3::new(sx, 2.55 + 0.28, sz);
     let ring: Vec<V3> = (0..10)
@@ -650,9 +794,22 @@ fn smoko() -> Vec<Part> {
     // esky and a can on it
     v.push(cuboid(0.7, 0.42, 0.45, matt(0x1f6fd1), sx + 0.35, 0.21, sz));
     v.push(cuboid(0.74, 0.1, 0.49, matt(0xf4f6f2), sx + 0.35, 0.47, sz));
-    v.push(cyl(0.09, 0.07, 0.04, 12, matt(0x8a8f94), sx + 0.35, 0.54, sz));
+    v.push(cyl(
+        0.09,
+        0.07,
+        0.04,
+        12,
+        matt(0x8a8f94),
+        sx + 0.35,
+        0.54,
+        sz,
+    ));
     // the SMOKO sign, both ways
-    let sign = matt(0xffffff).textured(Tex::SignSmoko).unlit().both_sides().no_shadow();
+    let sign = matt(0xffffff)
+        .textured(Tex::SignSmoko)
+        .unlit()
+        .both_sides()
+        .no_shadow();
     v.push(Part::new(Shape::Quad { w: 1.1, h: 0.36 }, sign).at(sx, 1.95, sz + 0.05));
     v.push(
         Part::new(Shape::Quad { w: 1.1, h: 0.36 }, sign)
@@ -672,15 +829,29 @@ pub fn chest() -> (Vec<Part>, Vec<Part>) {
     }
     base.push(cuboid(0.16, 0.18, 0.04, band, 0.0, 0.45, 0.41));
     let mut lid = vec![
-        Part::new(Shape::HalfCylinder { r: 0.4, h: 1.3, seg: 16 }, wood)
-            .at(0.0, 0.0, 0.4)
-            .turn(0.0, 0.0, HALF_PI),
+        Part::new(
+            Shape::HalfCylinder {
+                r: 0.4,
+                h: 1.3,
+                seg: 16,
+            },
+            wood,
+        )
+        .at(0.0, 0.0, 0.4)
+        .turn(0.0, 0.0, HALF_PI),
     ];
     for x in [-0.45, 0.45] {
         lid.push(
-            Part::new(Shape::HalfCylinder { r: 0.41, h: 0.08, seg: 16 }, band)
-                .at(x, 0.0, 0.4)
-                .turn(0.0, 0.0, HALF_PI),
+            Part::new(
+                Shape::HalfCylinder {
+                    r: 0.41,
+                    h: 0.08,
+                    seg: 16,
+                },
+                band,
+            )
+            .at(x, 0.0, 0.4)
+            .turn(0.0, 0.0, HALF_PI),
         );
     }
     (base, lid)
@@ -692,6 +863,141 @@ pub fn chest_toy(k: usize) -> Vec<Part> {
     let toy = looks::dildo(v);
     let rot = Quat::from_euler_xyz(-0.6, 0.0, (k as f32 - 1.0) * 0.35);
     place(toy, V3::new(-0.35 + k as f32 * 0.35, 0.45, 0.0), rot, 0.52)
+}
+
+/// A team's colour (the browser game's `TEAMS` table).
+pub fn team_colour(t: crate::teams::Team) -> u32 {
+    use crate::teams::Team::*;
+    match t {
+        Red => 0xe8443a,
+        Blue => 0x2f7fe0,
+        Green => 0x2e9e4f,
+        Yellow => 0xf2b705,
+        Wildcard => 0xf2c230,
+    }
+}
+
+/// The little flag on a Heist teddy: a pole and a pennant in its team's colour (local to the
+/// teddy; the browser game sets it 0.22 up).
+pub fn teddy_flag(team: crate::teams::Team) -> Vec<Part> {
+    let parts = vec![
+        cyl(0.015, 0.015, 0.32, 6, matt(0x3b2a1a), 0.0, 0.16, 0.0),
+        Part::new(
+            Shape::Cone {
+                r: 0.09,
+                h: 0.14,
+                seg: 4,
+            },
+            matt(team_colour(team)),
+        )
+        .at(0.05, 0.28, 0.0)
+        .turn(0.0, 0.0, HALF_PI),
+    ];
+    place(parts, V3::new(0.0, 0.22, 0.0), Quat::IDENTITY, 1.0)
+}
+
+/// The Teddy Heist arena: walls, steps and crates, and for each base the coloured banking pad,
+/// its ring, a light beam, a flag pole with a flag and a ball on top. The big scoreboard cube is
+/// drawn by the game (its writing changes).
+pub fn heist_look(teams: usize) -> Vec<Part> {
+    use crate::heist::{self, Tint};
+    let mut v = Vec::new();
+    for piece in heist::arena(teams) {
+        let c = piece.collider;
+        let colour = match piece.tint {
+            Tint::Team(t) => team_colour(t),
+            Tint::Stone(light) => {
+                if light {
+                    0x80848b
+                } else {
+                    0x6d7178
+                }
+            }
+            Tint::Crate(small) => {
+                if small {
+                    0x9a6a40
+                } else {
+                    0x8a5a36
+                }
+            }
+        };
+        v.push(cuboid(
+            c.x1 - c.x0,
+            c.h,
+            c.z1 - c.z0,
+            matt(colour),
+            (c.x0 + c.x1) / 2.0,
+            c.h / 2.0,
+            (c.z0 + c.z1) / 2.0,
+        ));
+    }
+    for (def, team) in heist::layout(teams)
+        .into_iter()
+        .zip(heist::team_keys(teams))
+    {
+        let col = team_colour(*team);
+        let flat = |op: f32| matt(col).unlit().see_through(op).both_sides().no_shadow();
+        // the coloured banking pad and its ring
+        v.push(
+            Part::new(
+                Shape::Disc {
+                    r: heist::BASE_RADIUS,
+                    seg: 40,
+                },
+                flat(0.4),
+            )
+            .at(def.x, 0.03, def.z)
+            .turn(-HALF_PI, 0.0, 0.0),
+        );
+        v.push(
+            Part::new(
+                Shape::Ring {
+                    inner: heist::BASE_RADIUS - 0.3,
+                    outer: heist::BASE_RADIUS,
+                    seg: 48,
+                },
+                flat(0.9),
+            )
+            .at(def.x, 0.04, def.z)
+            .turn(-HALF_PI, 0.0, 0.0),
+        );
+        // a light beam you can spot across the yard
+        v.push(
+            Part::new(
+                Shape::Cylinder {
+                    top: 0.95,
+                    bottom: 0.95,
+                    h: 15.0,
+                    seg: 18,
+                    caps: false,
+                },
+                flat(0.16),
+            )
+            .at(def.x, 7.5, def.z),
+        );
+        v.push(cyl(0.13, 0.13, 7.5, 8, matt(0xf2f2f2), def.x, 3.75, def.z));
+        v.push(
+            Part::new(
+                Shape::Quad { w: 2.6, h: 1.5 },
+                matt(col).unlit().both_sides().no_shadow(),
+            )
+            .at(def.x + 1.3, 6.6, def.z),
+        );
+        v.push(
+            Part::new(
+                Shape::Sphere {
+                    r: 0.28,
+                    ws: 10,
+                    hs: 8,
+                },
+                matt(0xffffff),
+            )
+            .at(def.x, 7.6, def.z),
+        );
+    }
+    // the scoreboard's pole (the cube itself is the game's)
+    v.push(cyl(0.3, 0.3, 7.5, 10, matt(0x9aa0a8), 0.0, 3.75, 0.0));
+    v
 }
 
 /// The whole yard. `seed` picks where the gum trees and clouds go.
@@ -777,7 +1083,11 @@ mod tests {
         let mut lo = V3::new(f32::MAX, f32::MAX, f32::MAX);
         let mut hi = V3::new(f32::MIN, f32::MIN, f32::MIN);
         for p in parts {
-            for (l, h, v) in [(&mut lo.x, &mut hi.x, p.pos.x), (&mut lo.y, &mut hi.y, p.pos.y), (&mut lo.z, &mut hi.z, p.pos.z)] {
+            for (l, h, v) in [
+                (&mut lo.x, &mut hi.x, p.pos.x),
+                (&mut lo.y, &mut hi.y, p.pos.y),
+                (&mut lo.z, &mut hi.z, p.pos.z),
+            ] {
                 *l = l.min(v);
                 *h = h.max(v);
             }
@@ -815,7 +1125,11 @@ mod tests {
             .collect();
         assert_eq!(trunks.len(), 34);
         for t in trunks {
-            assert!(!(t.pos.x.abs() < W + 3.0 && t.pos.z.abs() < D + 3.0), "{:?}", t.pos);
+            assert!(
+                !(t.pos.x.abs() < W + 3.0 && t.pos.z.abs() < D + 3.0),
+                "{:?}",
+                t.pos
+            );
             assert!(!(t.pos.x.abs() < 22.0 && t.pos.z < -23.0 && t.pos.z > -36.0));
         }
     }
@@ -830,8 +1144,14 @@ mod tests {
             .collect();
         assert_eq!(fences.len(), 4);
         // two long runs (66.2 m) and two short ones (48 m)
-        let long = fences.iter().filter(|p| (p.surface.repeat.0 - 33.1).abs() < 1e-4).count();
-        let short = fences.iter().filter(|p| (p.surface.repeat.0 - 24.0).abs() < 1e-4).count();
+        let long = fences
+            .iter()
+            .filter(|p| (p.surface.repeat.0 - 33.1).abs() < 1e-4)
+            .count();
+        let short = fences
+            .iter()
+            .filter(|p| (p.surface.repeat.0 - 24.0).abs() < 1e-4)
+            .count();
         assert_eq!((long, short), (2, 2));
         assert!(fences.iter().all(|p| (p.pos.y - 0.9).abs() < 1e-6));
     }
@@ -856,7 +1176,11 @@ mod tests {
         assert_eq!(count(Tex::PoolFloor), 1);
         assert_eq!(count(Tex::PoolWater), 1);
         assert_eq!(count(Tex::Caustics), 1);
-        let water = y.world.iter().find(|p| p.surface.tex == Some(Tex::PoolWater)).unwrap();
+        let water = y
+            .world
+            .iter()
+            .find(|p| p.surface.tex == Some(Tex::PoolWater))
+            .unwrap();
         assert!((water.pos.y - WATER_Y).abs() < 1e-6);
         assert!((water.surface.alpha - 0.74).abs() < 1e-6);
         // walls face inwards: the wall on the +x side points towards -x
@@ -888,22 +1212,36 @@ mod tests {
         // from the sign posts' x (-1.9, 1.9) plus the drinks, all near the bar's z
         assert!(lo.z > BAR.z0 - 1.0 && hi.z < BAR.z1 + 1.0);
         assert!(hi.y > 2.4, "the sign is 2.45 m up");
-        let tags = y.bar.iter().filter(|p| p.surface.unlit && p.surface.tex.is_some()).count();
+        let tags = y
+            .bar
+            .iter()
+            .filter(|p| p.surface.unlit && p.surface.tex.is_some())
+            .count();
         assert_eq!(tags, 3);
     }
 
     #[test]
     fn the_bbq_has_steaks_snags_fish_and_a_sign() {
         let y = yard(1);
-        let snags = y.bbq.iter().filter(|p| matches!(p.shape, Shape::Capsule { .. })).count();
+        let snags = y
+            .bbq
+            .iter()
+            .filter(|p| matches!(p.shape, Shape::Capsule { .. }))
+            .count();
         assert_eq!(snags, 4);
-        let sign = y.bbq.iter().filter(|p| p.surface.tex == Some(Tex::SignHands)).count();
+        let sign = y
+            .bbq
+            .iter()
+            .filter(|p| p.surface.tex == Some(Tex::SignHands))
+            .count();
         assert_eq!(sign, 1);
         // fish are drawn at 0.55 of their (already 3x) size
         let fish_body = y
             .bbq
             .iter()
-            .find(|p| p.surface.tex == Some(Tex::Fish) && matches!(p.shape, Shape::Sphere { ws: 24, .. }))
+            .find(|p| {
+                p.surface.tex == Some(Tex::Fish) && matches!(p.shape, Shape::Sphere { ws: 24, .. })
+            })
             .unwrap();
         assert!((fish_body.scale.x - 2.4 * 3.0 * 0.55).abs() < 1e-4);
         // the grill steaks are the dark colour
@@ -913,9 +1251,17 @@ mod tests {
     #[test]
     fn smoko_has_a_pole_an_umbrella_an_esky_and_two_signs() {
         let y = yard(1);
-        let signs = y.smoko.iter().filter(|p| p.surface.tex == Some(Tex::SignSmoko)).count();
+        let signs = y
+            .smoko
+            .iter()
+            .filter(|p| p.surface.tex == Some(Tex::SignSmoko))
+            .count();
         assert_eq!(signs, 2);
-        assert!(y.smoko.iter().any(|p| matches!(p.shape, Shape::Cone { .. })));
+        assert!(
+            y.smoko
+                .iter()
+                .any(|p| matches!(p.shape, Shape::Cone { .. }))
+        );
         let pad = smoko_pad(3.0);
         assert_eq!(pad.pos, V3::new(SMOKO_X, 0.012, SMOKO_Z));
         assert_eq!(pad.scale, V3::new(3.0, 3.0, 1.0));
@@ -944,7 +1290,12 @@ mod tests {
             _ => panic!(),
         }
         // a sideways rod: its length axis (y) is turned onto x
-        let r = rod(V3::new(-1.0, 0.0, 0.0), V3::new(1.0, 0.0, 0.0), 0.1, matt(0));
+        let r = rod(
+            V3::new(-1.0, 0.0, 0.0),
+            V3::new(1.0, 0.0, 0.0),
+            0.1,
+            matt(0),
+        );
         let axis = r.rot.rotate(V3::new(0.0, 1.0, 0.0));
         assert!((axis.x - 1.0).abs() < 1e-5, "{axis:?}");
         // upside down
@@ -955,10 +1306,59 @@ mod tests {
     #[test]
     fn the_clothesline_has_four_arms_sixteen_cords_and_four_sheets() {
         let y = yard(1);
-        let arms = y.hoist_head.iter().filter(|p| matches!(p.shape, Shape::Cylinder { seg: 6, .. })).count();
+        let arms = y
+            .hoist_head
+            .iter()
+            .filter(|p| matches!(p.shape, Shape::Cylinder { seg: 6, .. }))
+            .count();
         let cords = y.hoist_head.iter().filter(|p| p.surface.unlit).count();
-        let sheets = y.hoist_head.iter().filter(|p| matches!(p.shape, Shape::Quad { .. })).count();
+        let sheets = y
+            .hoist_head
+            .iter()
+            .filter(|p| matches!(p.shape, Shape::Quad { .. }))
+            .count();
         assert_eq!((arms, cords, sheets), (4, 16, 4));
+    }
+
+    #[test]
+    fn the_heist_look_has_walls_pads_beams_and_flags_for_every_team() {
+        for n in 2..=4usize {
+            let v = heist_look(n);
+            let beams = v
+                .iter()
+                .filter(|p| matches!(p.shape, Shape::Cylinder { h, caps: false, .. } if (h - 15.0).abs() < 1e-5))
+                .count();
+            assert_eq!(beams, n);
+            let pads = v
+                .iter()
+                .filter(|p| matches!(p.shape, Shape::Disc { seg: 40, .. }))
+                .count();
+            assert_eq!(pads, n);
+            assert!(v.len() > 60, "steps alone are dozens");
+            // base walls are in the team colours
+            for t in crate::heist::team_keys(n) {
+                let walls = v
+                    .iter()
+                    .filter(|p| {
+                        p.surface.color == team_colour(*t)
+                            && matches!(p.shape, Shape::Cuboid { .. })
+                    })
+                    .count();
+                assert_eq!(walls, 3);
+            }
+        }
+    }
+
+    #[test]
+    fn team_colours_and_the_teddy_flag() {
+        use crate::teams::Team;
+        assert_eq!(team_colour(Team::Red), 0xe8443a);
+        assert_eq!(team_colour(Team::Wildcard), 0xf2c230);
+        let f = teddy_flag(Team::Blue);
+        assert_eq!(f.len(), 2);
+        assert!(f.iter().any(|p| p.surface.color == 0x2f7fe0));
+        // the flag sits 0.22 above the teddy's middle
+        assert!((f[0].pos.y - (0.22 + 0.16)).abs() < 1e-5);
     }
 
     #[test]
@@ -969,4 +1369,3 @@ mod tests {
         }
     }
 }
-

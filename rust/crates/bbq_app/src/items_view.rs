@@ -89,7 +89,11 @@ fn rest_rotation(kind: ItemKind, id: ItemId) -> Quat {
     let yaw = ((id.wrapping_mul(9301).wrapping_add(49297)) % 233_280) as f32 / 233_280.0
         * std::f32::consts::TAU;
     let long = matches!(kind, ItemKind::Stubby | ItemKind::Dildo | ItemKind::Noodle);
-    let z = if long { std::f32::consts::FRAC_PI_2 } else { 0.0 };
+    let z = if long {
+        std::f32::consts::FRAC_PI_2
+    } else {
+        0.0
+    };
     let x = if kind == ItemKind::Fish {
         std::f32::consts::FRAC_PI_2
     } else {
@@ -126,6 +130,17 @@ fn sync_items(
                 Transform::from_xyz(it.pos.x, it.pos.y, it.pos.z),
             );
             commands.entity(e).insert(ItemVisual(*id));
+            // a Heist teddy carries a little flag in its team's colour
+            if let Some(team) = it.team.and_then(crate::heist_app::team_of_index) {
+                let flag = cache.spawn_parts(
+                    &mut commands,
+                    &bbq_core::looks_yard::teddy_flag(team),
+                    &mut meshes,
+                    &mut mats,
+                    Transform::default(),
+                );
+                commands.entity(e).add_child(flag);
+            }
             let ring = commands
                 .spawn((
                     Mesh3d(look.ring.clone()),

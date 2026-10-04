@@ -250,9 +250,9 @@ pub fn triangulate(pts: &[(f32, f32)]) -> Vec<[usize; 3]> {
             if !convex {
                 continue;
             }
-            let blocked = idx.iter().any(|&k| {
-                k != ia && k != ib && k != ic && in_tri(pts[k], a, b, c)
-            });
+            let blocked = idx
+                .iter()
+                .any(|&k| k != ia && k != ib && k != ic && in_tri(pts[k], a, b, c));
             if blocked {
                 continue;
             }
@@ -288,7 +288,14 @@ fn poly(pts: &[(f32, f32)]) -> Buf {
 fn cuboid(w: f32, h: f32, d: f32) -> Buf {
     let mut b = Buf::default();
     // build one face: axes u, v, w are indices 0, 1, 2 (x, y, z)
-    let mut plane = |u: usize, v: usize, wi: usize, udir: f32, vdir: f32, width: f32, height: f32, depth: f32| {
+    let mut plane = |u: usize,
+                     v: usize,
+                     wi: usize,
+                     udir: f32,
+                     vdir: f32,
+                     width: f32,
+                     height: f32,
+                     depth: f32| {
         let (hw, hh) = (width / 2.0, height / 2.0);
         let mut ids = [0u32; 4];
         let mut n = 0;
@@ -334,6 +341,35 @@ fn quad(w: f32, h: f32) -> Buf {
     b
 }
 
+/// `RingGeometry(inner, outer, seg)`: a flat ring in the XY plane facing +z.
+fn ring(inner: f32, outer: f32, seg: u32) -> Buf {
+    let mut b = Buf::default();
+    let n = [0.0, 0.0, 1.0];
+    for j in 0..=seg {
+        let a = j as f32 / seg as f32 * TAU;
+        let (s, c) = a.sin_cos();
+        b.vert(
+            [inner * c, inner * s, 0.0],
+            n,
+            [
+                (c * inner / outer + 1.0) / 2.0,
+                (s * inner / outer + 1.0) / 2.0,
+            ],
+        );
+        b.vert(
+            [outer * c, outer * s, 0.0],
+            n,
+            [(c + 1.0) / 2.0, (s + 1.0) / 2.0],
+        );
+    }
+    for j in 0..seg {
+        let i = j * 2;
+        b.tri(i, i + 1, i + 3);
+        b.tri(i, i + 3, i + 2);
+    }
+    b
+}
+
 /// `CapsuleGeometry(r, len, cap, radial)`: a sausage along y.
 fn capsule(r: f32, len: f32, cap: u32, radial: u32) -> Buf {
     let mut b = Buf::default();
@@ -357,14 +393,23 @@ fn capsule(r: f32, len: f32, cap: u32, radial: u32) -> Buf {
             .iter()
             .enumerate()
             .map(|(k, &(x, y, nx, ny))| {
-                b.vert([x * s, y, x * c], norm([nx * s, ny, nx * c]), [u, k as f32 / total])
+                b.vert(
+                    [x * s, y, x * c],
+                    norm([nx * s, ny, nx * c]),
+                    [u, k as f32 / total],
+                )
             })
             .collect();
         grid.push(col);
     }
     for j in 0..radial as usize {
         for k in 0..prof.len() - 1 {
-            let (a, bb, c, d) = (grid[j][k], grid[j][k + 1], grid[j + 1][k + 1], grid[j + 1][k]);
+            let (a, bb, c, d) = (
+                grid[j][k],
+                grid[j][k + 1],
+                grid[j + 1][k + 1],
+                grid[j + 1][k],
+            );
             b.tri(a, d, bb);
             b.tri(bb, d, c);
         }
@@ -518,6 +563,7 @@ pub fn build_mesh(shape: &Shape) -> Mesh {
         Shape::Disc { r, seg } => disc(r, seg).into_mesh(),
         Shape::Poly(pts) => poly(pts).into_mesh(),
         Shape::Quad { w, h } => quad(w, h).into_mesh(),
+        Shape::Ring { inner, outer, seg } => ring(inner, outer, seg).into_mesh(),
         Shape::Ico { r, detail } => ico(r, detail).into_mesh(),
         Shape::Capsule {
             r,
@@ -525,9 +571,7 @@ pub fn build_mesh(shape: &Shape) -> Mesh {
             cap,
             radial,
         } => capsule(r, len, cap, radial).into_mesh(),
-        Shape::HalfCylinder { r, h, seg } => {
-            cylinder_arc(r, r, h, seg, true, 0.0, PI).into_mesh()
-        }
+        Shape::HalfCylinder { r, h, seg } => cylinder_arc(r, r, h, seg, true, 0.0, PI).into_mesh(),
         Shape::Ground {
             x0,
             x1,
@@ -574,9 +618,10 @@ mod tests {
     #[test]
     fn cylinder_stands_on_y_with_the_right_height() {
         let c = cylinder(0.5, 0.5, 2.0, 12, true);
-        let (lo, hi) = c.pos.iter().fold((f32::MAX, f32::MIN), |a, p| {
-            (a.0.min(p[1]), a.1.max(p[1]))
-        });
+        let (lo, hi) = c
+            .pos
+            .iter()
+            .fold((f32::MAX, f32::MIN), |a, p| (a.0.min(p[1]), a.1.max(p[1])));
         assert!((lo + 1.0).abs() < 1e-6 && (hi - 1.0).abs() < 1e-6);
     }
 
@@ -599,7 +644,11 @@ mod tests {
         assert!(d.nor.iter().all(|n| *n == [0.0, 0.0, 1.0]));
         // winding is counter-clockwise seen from +z
         for t in d.idx.chunks(3) {
-            let (a, b, c) = (d.pos[t[0] as usize], d.pos[t[1] as usize], d.pos[t[2] as usize]);
+            let (a, b, c) = (
+                d.pos[t[0] as usize],
+                d.pos[t[1] as usize],
+                d.pos[t[2] as usize],
+            );
             let cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
             assert!(cross > 0.0);
         }
@@ -645,7 +694,11 @@ mod tests {
         let b = cuboid(2.0, 1.0, 3.0);
         assert_eq!(count(&b), (24, 12));
         for t in b.idx.chunks(3) {
-            let (a, bb, c) = (b.pos[t[0] as usize], b.pos[t[1] as usize], b.pos[t[2] as usize]);
+            let (a, bb, c) = (
+                b.pos[t[0] as usize],
+                b.pos[t[1] as usize],
+                b.pos[t[2] as usize],
+            );
             let e1 = [bb[0] - a[0], bb[1] - a[1], bb[2] - a[2]];
             let e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
             let n = [
@@ -655,7 +708,10 @@ mod tests {
             ];
             // the triangle's own direction agrees with its stored normal and points away from the middle
             let stored = b.nor[t[0] as usize];
-            assert!(n[0] * stored[0] + n[1] * stored[1] + n[2] * stored[2] > 0.0, "wound the wrong way");
+            assert!(
+                n[0] * stored[0] + n[1] * stored[1] + n[2] * stored[2] > 0.0,
+                "wound the wrong way"
+            );
             assert!(a[0] * stored[0] + a[1] * stored[1] + a[2] * stored[2] > 0.0);
         }
         // the front (+z) picture reads left to right and top to bottom: top-left is (0, 0)
@@ -664,7 +720,29 @@ mod tests {
         for i in front {
             let (p, uv) = (b.pos[i], b.uv[i]);
             assert_eq!(uv[0] == 0.0, p[0] < 0.0, "left edge is u = 0");
-            assert_eq!(uv[1] == 0.0, p[1] > 0.0, "top edge is v = 0 (Bevy pictures run downwards)");
+            assert_eq!(
+                uv[1] == 0.0,
+                p[1] > 0.0,
+                "top edge is v = 0 (Bevy pictures run downwards)"
+            );
+        }
+    }
+
+    #[test]
+    fn ring_is_an_annulus_facing_plus_z() {
+        let r = ring(3.0, 4.0, 16);
+        assert_eq!(count(&r), (34, 32));
+        for p in &r.pos {
+            let d = p[0].hypot(p[1]);
+            assert!((d - 3.0).abs() < 1e-5 || (d - 4.0).abs() < 1e-5);
+        }
+        for t in r.idx.chunks(3) {
+            let (a, b, c) = (
+                r.pos[t[0] as usize],
+                r.pos[t[1] as usize],
+                r.pos[t[2] as usize],
+            );
+            assert!((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]) > 0.0);
         }
     }
 
@@ -673,7 +751,11 @@ mod tests {
         let q = quad(2.0, 1.0);
         assert_eq!(count(&q), (4, 2));
         for t in q.idx.chunks(3) {
-            let (a, b, c) = (q.pos[t[0] as usize], q.pos[t[1] as usize], q.pos[t[2] as usize]);
+            let (a, b, c) = (
+                q.pos[t[0] as usize],
+                q.pos[t[1] as usize],
+                q.pos[t[2] as usize],
+            );
             assert!((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]) > 0.0);
         }
     }
@@ -698,15 +780,24 @@ mod tests {
     #[test]
     fn capsule_is_as_long_as_asked_and_stays_inside_its_radius() {
         let c = capsule(0.04, 0.24, 4, 8);
-        let (lo, hi) = c.pos.iter().fold((f32::MAX, f32::MIN), |a, p| (a.0.min(p[1]), a.1.max(p[1])));
-        assert!((lo + 0.16).abs() < 1e-5 && (hi - 0.16).abs() < 1e-5, "{lo} {hi}");
+        let (lo, hi) = c
+            .pos
+            .iter()
+            .fold((f32::MAX, f32::MIN), |a, p| (a.0.min(p[1]), a.1.max(p[1])));
+        assert!(
+            (lo + 0.16).abs() < 1e-5 && (hi - 0.16).abs() < 1e-5,
+            "{lo} {hi}"
+        );
         assert!(c.pos.iter().all(|p| p[0].hypot(p[2]) <= 0.04 + 1e-5));
     }
 
     #[test]
     fn half_cylinder_only_covers_one_side() {
         let h = cylinder_arc(1.0, 1.0, 2.0, 8, true, 0.0, PI);
-        assert!(h.pos.iter().all(|p| p[0] >= -1e-5), "x should stay on the +x side");
+        assert!(
+            h.pos.iter().all(|p| p[0] >= -1e-5),
+            "x should stay on the +x side"
+        );
         assert!(h.pos.iter().any(|p| p[2] > 0.9) && h.pos.iter().any(|p| p[2] < -0.9));
     }
 
@@ -716,13 +807,21 @@ mod tests {
         assert_eq!(count(&g), (16, 8));
         // no triangle's middle falls inside the hole
         for t in g.idx.chunks(3) {
-            let (a, b, c) = (g.pos[t[0] as usize], g.pos[t[1] as usize], g.pos[t[2] as usize]);
+            let (a, b, c) = (
+                g.pos[t[0] as usize],
+                g.pos[t[1] as usize],
+                g.pos[t[2] as usize],
+            );
             let (cx, cz) = ((a[0] + b[0] + c[0]) / 3.0, (a[2] + b[2] + c[2]) / 3.0);
             assert!(!(cx > -2.0 && cx < 2.0 && cz > -1.0 && cz < 1.0));
         }
         // all faces up
         for t in g.idx.chunks(3) {
-            let (a, b, c) = (g.pos[t[0] as usize], g.pos[t[1] as usize], g.pos[t[2] as usize]);
+            let (a, b, c) = (
+                g.pos[t[0] as usize],
+                g.pos[t[1] as usize],
+                g.pos[t[2] as usize],
+            );
             let cross_y = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
             assert!(cross_y > 0.0);
         }

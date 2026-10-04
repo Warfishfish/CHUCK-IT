@@ -279,9 +279,11 @@ Phase 3 result: `bbq_core` gained `flight`, `hands`, `hitting`, `itemworld`, `ve
 - [ ] Phase 6 look and feel check on Marcus's Mac
 
 ### Phase 7: Modes and matches
-- [ ] Free for all, Teams (with Wildcard), friendly fire
-- [ ] Teddy Heist: oval arena, bases, teddies, stealing, banking, returning, big scoreboard, tally bar
-- [ ] Rounds, best of N, results, leader bounty, streaks
+- [x] Free for all, Teams (with Wildcard), friendly fire (`bbq_app/src/round.rs`; teams are dealt, wear sashes, bots never target teammates, teammates pass through each other unless friendly fire is on)
+- [x] Teddy Heist: oval arena, bases with flags and light beams, teddies, stealing, banking for 150, strays sent home, big four-sided scoreboard, bots play the objective (`bbq_core/src/heist.rs`, `bbq_app/src/heist_app.rs`). SIMPLIFIED: the scoreboard shows team-colour bars with plain pixel digits (teddies banked big, points small), no team names or emoji; the teddy drops only when stunned or knocked down; no separate tally bar on the HUD yet (the top-right text line shows the scores)
+- [x] Rounds, best of N, results, leader bounty, streaks (countdown 3.2 s, play, whistle, results panel, best of 1/3/5). Until the Phase 8 menus, keys set it up: Enter starts a round, F12 mode, -/= bots, backslash round length, semicolon best-of, quote friendly fire. `--mode heist|teams|ffa` on the command line starts a round straight away
+- Result: 351 core tests + 103 app tests pass (round flow, Teams, Heist steal/bank/drop/stray/winner, bots stuck check). Checked on screen with screenshots: arena, bases, flags, scoreboard, HUD countdown
+- [ ] Phase 7 look and feel check on Marcus's Mac
 
 ### Phase 8: UI and menus
 - [ ] Main menu (Solo / With mates / How to play), all options, Cheeky mode, FOV

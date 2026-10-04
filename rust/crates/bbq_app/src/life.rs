@@ -150,7 +150,7 @@ fn candidates(g: &Game) -> Vec<Candidate> {
             pos: V3::new(d.mover.x, d.mover.y, d.mover.z),
             down_t: d.body.down_t.max(d.body.fall_t),
             at_smoko: d.seat.is_some(),
-            teammate: false,
+            teammate: g.teams.same_team(PLAYER_ID, d.id),
         })
         .collect()
 }
@@ -190,7 +190,7 @@ pub fn player_slap(g: &mut Game, p: &mut Player) {
     let me = me_pos(p);
     let face = facing(p);
     let cands = candidates(g);
-    if let Some(vid) = melee::pick_target(me, face, &cands, false) {
+    if let Some(vid) = melee::pick_target(me, face, &cands, g.rules.friendly_fire) {
         let Some(i) = g.dummies.iter().position(|d| d.id == vid) else {
             return;
         };
