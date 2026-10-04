@@ -11,7 +11,9 @@
 
 mod characters;
 mod game;
+mod hud_fx;
 mod items_view;
+mod life;
 mod lighting;
 mod models;
 mod player;
@@ -50,6 +52,7 @@ fn main() {
             game::GamePlugin,
             items_view::ItemsViewPlugin,
             characters::CharactersPlugin,
+            hud_fx::HudFxPlugin,
             models::ModelsPlugin,
             bevy::core_pipeline::fullscreen_material::FullscreenMaterialPlugin::<lighting::DisplayRaw>::default(),
         ));

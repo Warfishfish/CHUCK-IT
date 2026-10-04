@@ -117,7 +117,6 @@ impl DazzaAnim {
                 0.0
             },
             arm: (-2.2, 0.0, -0.4),
-            ..Default::default()
         };
         if self.swing_t > 0.0 {
             self.swing_t = (self.swing_t - dt).max(0.0);
@@ -146,7 +145,7 @@ mod tests {
         let peak = (0..300)
             .map(|i| a.tick(DT, DazzaState::Cook, i as f32 * DT, 0.0, 0.0).arm.0)
             .fold(0.0f32, f32::min);
-        assert!(peak < -1.3 && peak >= -1.5 - 1e-3, "{peak}");
+        assert!((-1.5 - 1e-3..-1.3).contains(&peak), "{peak}");
     }
 
     #[test]
@@ -163,8 +162,10 @@ mod tests {
 
     #[test]
     fn angry_at_the_grill_he_stands_still_but_walking_home_he_bobs() {
-        let mut a = DazzaAnim::default();
-        a.walk = 1.0;
+        let mut a = DazzaAnim {
+            walk: 1.0,
+            ..Default::default()
+        };
         let still = a.tick(DT, DazzaState::Angry, 0.0, 0.1, 0.0);
         assert_eq!(still.body_y, 0.0);
         let walking = a.tick(DT, DazzaState::Angry, 0.0, 3.0, 0.0);

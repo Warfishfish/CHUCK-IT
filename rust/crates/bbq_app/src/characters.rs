@@ -7,7 +7,7 @@
 //! Its hands are moved by the animation maths in `bbq_core::pose`.
 
 use bbq_core::character::Character;
-use bbq_core::dazza::{self, DazzaAnim, DazzaState};
+use bbq_core::dazza::{self, DazzaAnim};
 use bbq_core::pose::{Emote, Inputs, SlapKind};
 use bbq_core::teams::Team;
 use bbq_core::vec::{Quat as CQuat, V3};
@@ -78,11 +78,11 @@ struct DazzaBubble;
 
 #[derive(Resource)]
 struct Dazza {
-    state_idx: usize,
     anim: DazzaAnim,
+    say_seen: u32,
+    swing_seen: u32,
     last: Vec3,
     face: f32,
-    line: usize,
     label: Entity,
 }
 
@@ -91,7 +91,7 @@ const BLOB_COLOURS: [Color; 3] = [
     Color::srgb(0.2, 0.7, 0.65),
     Color::srgb(0.95, 0.75, 0.2),
 ];
-const BLOB_NAMES: [&str; 3] = ["Bruce", "Sheila", "Davo"];
+pub const BLOB_NAMES: [&str; 3] = ["Bruce", "Sheila", "Davo"];
 
 pub struct CharactersPlugin;
 
@@ -602,26 +602,26 @@ fn spawn_dazza(
         ))
         .id();
     commands.insert_resource(Dazza {
-        state_idx: 0,
         anim: DazzaAnim::default(),
+        say_seen: 0,
+        swing_seen: 0,
         last: Vec3::new(dazza::HOME.x, 0.0, dazza::HOME.z),
         face: 0.0,
-        line: 0,
         label,
     });
 }
 
 /// Keys to look at each pose (until the real game causes them). Mostly for checking the look.
-fn viewer_keys(
-    keys: Res<ButtonInput<KeyCode>>,
-    mut game: ResMut<Game>,
-    mut dazza: ResMut<Dazza>,
-    mut cast: ResMut<Cast>,
-    mut text: Query<&mut Text2d, With<DazzaBubble>>,
-) {
+fn viewer_keys(keys: Res<ButtonInput<KeyCode>>, mut game: ResMut<Game>, mut cast: ResMut<Cast>) {
     let g = &mut *game;
-    if keys.just_pressed(KeyCode::KeyG) {
+    if keys.just_pressed(KeyCode::F9) {
         cast.mine = cast.mine.next();
+    }
+    if keys.just_pressed(KeyCode::F7) {
+        g.options.adult = !g.options.adult;
+    }
+    if keys.just_pressed(KeyCode::F8) {
+        g.options.naughty = !g.options.naughty;
     }
     let dur = bbq_core::items::DOWN_TIME;
     let kinds = [
@@ -636,9 +636,24 @@ fn viewer_keys(
         }
     }
     if keys.just_pressed(KeyCode::KeyN) {
+        // everyone stacks it, or (if anyone is down) everyone gets up
+        let anyone = g.dummies.iter().any(|d| d.body.fall_t > 0.0);
         for d in &mut g.dummies {
-            d.fallen = !d.fallen;
+            if anyone {
+                d.body.get_up();
+            } else {
+                d.body.start_fall(g.options.fall_duration);
+            }
         }
+    }
+    if keys.just_pressed(KeyCode::F5) {
+        g.options.falls_on = !g.options.falls_on;
+    }
+    if keys.just_pressed(KeyCode::F6) {
+        g.options.drunk_mode = !g.options.drunk_mode;
+    }
+    if keys.just_pressed(KeyCode::KeyP) {
+        g.me.drunk.add(30.0); // a quick way to get drunk without walking to the bar
     }
     if keys.just_pressed(KeyCode::KeyM) {
         let n = g.now as usize;
@@ -676,31 +691,6 @@ fn viewer_keys(
     if keys.just_pressed(KeyCode::KeyX) {
         g.dummies[1].smelly = !g.dummies[1].smelly;
     }
-    if keys.just_pressed(KeyCode::KeyB) {
-        for d in &mut g.dummies {
-            d.body.apply_hit(1.5, None);
-            d.anim.dizzy = 1.5;
-        }
-    }
-    if keys.just_pressed(KeyCode::KeyZ) {
-        dazza.state_idx = (dazza.state_idx + 1) % DazzaState::ALL.len();
-        dazza.line += 1;
-        let (state, line) = match DazzaState::ALL[dazza.state_idx] {
-            DazzaState::Cook => ("Cook", "Snags are nearly done!"),
-            DazzaState::Angry => ("Angry", "OI! Hrmblgrr MY SNAGS!"),
-            DazzaState::Chase => ("Chase", "RAAAAH! COME 'ERE!"),
-            DazzaState::Return => ("Return", "Hrrmph. Perfect sear."),
-            DazzaState::Ko => ("Ko", "Urrrgh..."),
-            DazzaState::Stunned => ("Stunned", "Me EYE! Ya mongrel!"),
-        };
-        dazza.anim.say();
-        if let Ok(mut t) = text.get_mut(dazza.label) {
-            t.0 = format!("[{state}] {line}");
-        }
-    }
-    if keys.just_pressed(KeyCode::KeyH) {
-        dazza.anim.start_swing();
-    }
 }
 
 fn to_bevy(q: CQuat) -> Quat {
@@ -731,6 +721,9 @@ fn compute_poses(
             down_t: d.body.down_t,
             stun: d.body.stun,
             fallen: d.fallen,
+            seated: d.seat.is_some(),
+            naughty: d.naughty_t > 0.0,
+            dragged_by: d.dragged,
             ..Default::default()
         };
         poses.0.push(d.anim.tick(dt, &inputs));
@@ -873,16 +866,34 @@ fn animate_dazza(
     time: Res<Time>,
     game: Res<Game>,
     mut dz: ResMut<Dazza>,
-    mut body: Query<&mut Transform, (With<DazzaBody>, Without<DazzaArm>)>,
-    mut arm: Query<&mut Transform, (With<DazzaArm>, Without<DazzaBody>)>,
+    mut root: Query<&mut Transform, (With<DazzaRoot>, Without<DazzaBody>, Without<DazzaArm>)>,
+    mut body: Query<&mut Transform, (With<DazzaBody>, Without<DazzaArm>, Without<DazzaRoot>)>,
+    mut arm: Query<&mut Transform, (With<DazzaArm>, Without<DazzaBody>, Without<DazzaRoot>)>,
     mut bubble: Query<&mut Visibility, With<DazzaBubble>>,
+    mut text: Query<&mut Text2d, With<DazzaBubble>>,
 ) {
     let dt = time.delta_secs();
-    let state = DazzaState::ALL[dz.state_idx];
-    let pos = Vec3::new(dazza::HOME.x, 0.0, dazza::HOME.z);
+    let brain = &game.life.dazza;
+    let pos = Vec3::new(brain.pos.x, 0.0, brain.pos.z);
+    if game.life.say_seq != dz.say_seen {
+        dz.say_seen = game.life.say_seq;
+        dz.anim.say();
+        if let Ok(mut t) = text.get_mut(dz.label) {
+            t.0 = game.life.say_text.clone();
+        }
+    }
+    if game.life.swing_seq != dz.swing_seen {
+        dz.swing_seen = game.life.swing_seq;
+        dz.anim.start_swing();
+    }
     let moved = pos.distance(dz.last);
     dz.last = pos;
-    let pose = dz.anim.tick(dt, state, game.now, 0.0, moved);
+    let speed = if dt > 0.0 { moved / dt } else { 0.0 };
+    let pose = dz.anim.tick(dt, brain.state, game.now, speed, moved);
+    if let Ok(mut tf) = root.single_mut() {
+        tf.translation = pos;
+        tf.rotation = Quat::from_rotation_y(brain.face);
+    }
     if let Ok(mut tf) = body.single_mut() {
         tf.rotation = Quat::from_euler(EulerRot::XYZ, pose.body_rx, 0.0, pose.body_rz);
         tf.translation = Vec3::new(0.0, pose.body_y, 0.0);

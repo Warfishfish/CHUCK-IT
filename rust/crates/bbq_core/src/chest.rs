@@ -1,161 +1,143 @@
-//! The chest (Cheeky mode, spec section 8): a stock of up to 3 dildos that refills slowly and
-//! moves to a new spot every round.
+//! The mystery chest (Cheeky mode only, spec section 8): holds up to 3 dildos, refills slowly,
+//! and each one you take is a random size.
 
 use crate::items::{DildoVariant, pick_dildo_variant};
 use crate::rng::Rng;
-use crate::yard::CHEST_SPOTS;
 
 pub const MAX_STOCK: u32 = 3;
 pub const START_STOCK: u32 = 2;
-/// Seconds to refill one.
-pub const REFILL: f32 = 12.0;
-/// How close you must be to press R (your own computer's check).
+/// A new one every 12 s, only while it holds fewer than 3.
+pub const REFILL_EVERY: f32 = 12.0;
+/// You can open it within this distance (the host allows 3 m).
 pub const REACH: f32 = 2.0;
-/// How close the host allows.
 pub const HOST_REACH: f32 = 3.0;
-/// You can't use it while higher than this.
-pub const USE_HEIGHT: f32 = 0.5;
+/// You need free hands: fewer than this many things held.
+pub const HANDS_NEEDED: usize = 2;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Refused {
+    Empty,
+    HandsFull,
+    TooFar,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct Chest {
     pub stock: u32,
-    timer: f32,
+    refill_t: f32,
+    /// Which of the 9 spots it is at this round.
     pub spot: usize,
 }
 
 impl Default for Chest {
     fn default() -> Self {
-        Self::new()
+        Chest {
+            stock: START_STOCK,
+            refill_t: 0.0,
+            spot: 0,
+        }
     }
 }
 
 impl Chest {
-    pub fn new() -> Self {
-        Chest {
-            stock: START_STOCK,
-            timer: REFILL,
-            spot: 0,
-        }
-    }
-
-    pub fn position(&self) -> (f32, f32) {
-        let (x, z, _) = CHEST_SPOTS[self.spot % CHEST_SPOTS.len()];
-        (x, z)
-    }
-
-    /// Start of a round: 2 in stock, timer reset, and a different spot.
-    pub fn new_round(&mut self, rng: &mut Rng) {
+    /// New round: back to 2, somewhere new.
+    pub fn new_round(&mut self, spot: usize) {
         self.stock = START_STOCK;
-        self.timer = REFILL;
-        let n = CHEST_SPOTS.len();
-        // any spot but the one it's on now
-        let next = (self.spot + 1 + rng.index(n - 1)) % n;
-        self.spot = next;
+        self.refill_t = 0.0;
+        self.spot = spot;
     }
 
     pub fn tick(&mut self, dt: f32) {
-        if self.stock < MAX_STOCK {
-            self.timer -= dt;
-            if self.timer <= 0.0 {
-                self.stock += 1;
-                self.timer = REFILL;
-            }
+        if self.stock >= MAX_STOCK {
+            self.refill_t = 0.0;
+            return;
+        }
+        self.refill_t += dt;
+        if self.refill_t >= REFILL_EVERY {
+            self.refill_t = 0.0;
+            self.stock += 1;
         }
     }
 
-    /// Seconds until the next dildo appears (for the "restocking" hint).
-    pub fn restock_in(&self) -> Option<f32> {
-        (self.stock < MAX_STOCK).then_some(self.timer.max(0.0))
-    }
-
-    /// Is `(x, z, y)` close enough to use it?
-    pub fn near(&self, x: f32, z: f32, y: f32, reach: f32) -> bool {
-        let (cx, cz) = self.position();
-        y < USE_HEIGHT && (x - cx).hypot(z - cz) < reach
-    }
-
-    /// Take one. Returns the size you got, or `None` if it's empty.
-    pub fn take(&mut self, rng: &mut Rng) -> Option<DildoVariant> {
+    /// Take one: a random size of dildo.
+    pub fn take(
+        &mut self,
+        distance: f32,
+        held: usize,
+        rng: &mut Rng,
+    ) -> Result<DildoVariant, Refused> {
+        if distance > REACH {
+            return Err(Refused::TooFar);
+        }
+        if held >= HANDS_NEEDED {
+            return Err(Refused::HandsFull);
+        }
         if self.stock == 0 {
-            return None;
+            return Err(Refused::Empty);
         }
         self.stock -= 1;
-        if self.stock < MAX_STOCK && self.timer <= 0.0 {
-            self.timer = REFILL;
-        }
-        Some(pick_dildo_variant(rng.f32()))
+        Ok(pick_dildo_variant(rng.f32()))
     }
 }
 
 #[cfg(test)]
+#[allow(clippy::field_reassign_with_default)]
 mod tests {
     use super::*;
 
     #[test]
-    fn starts_with_two_and_refills_to_three_in_12_seconds() {
-        let mut c = Chest::new();
+    fn starts_with_two_and_refills_to_three_then_stops() {
+        let mut c = Chest::default();
         assert_eq!(c.stock, 2);
-        for _ in 0..(11 * 60) {
+        for _ in 0..(11.9 * 60.0) as usize {
             c.tick(1.0 / 60.0);
         }
         assert_eq!(c.stock, 2);
-        for _ in 0..90 {
+        for _ in 0..60 {
             c.tick(1.0 / 60.0);
         }
         assert_eq!(c.stock, 3);
-        // full: no more, and the timer is paused
-        for _ in 0..(30 * 60) {
+        for _ in 0..(60.0 * 60.0) as usize {
             c.tick(1.0 / 60.0);
         }
-        assert_eq!(c.stock, 3);
-        assert_eq!(c.restock_in(), None);
+        assert_eq!(c.stock, 3, "never over 3");
     }
 
     #[test]
-    fn taking_empties_it_and_then_says_no() {
-        let mut c = Chest::new();
+    fn taking_needs_to_be_close_with_a_free_hand_and_stock() {
         let mut rng = Rng::new(1);
-        assert!(c.take(&mut rng).is_some());
-        assert!(c.take(&mut rng).is_some());
+        let mut c = Chest::default();
+        assert_eq!(c.take(2.5, 0, &mut rng), Err(Refused::TooFar));
+        assert_eq!(c.take(1.0, 2, &mut rng), Err(Refused::HandsFull));
+        assert!(c.take(1.0, 1, &mut rng).is_ok());
+        assert!(c.take(1.0, 0, &mut rng).is_ok());
         assert_eq!(c.stock, 0);
-        assert!(c.take(&mut rng).is_none());
-        assert!(c.restock_in().is_some());
+        assert_eq!(c.take(1.0, 0, &mut rng), Err(Refused::Empty));
     }
 
     #[test]
-    fn the_chest_moves_each_round() {
-        let mut c = Chest::new();
-        let mut rng = Rng::new(7);
-        for _ in 0..50 {
-            let before = c.spot;
-            c.new_round(&mut rng);
-            assert_ne!(c.spot, before);
-            assert!(c.spot < CHEST_SPOTS.len());
-            assert_eq!(c.stock, START_STOCK);
+    fn sizes_follow_the_46_28_18_4_weights() {
+        let mut rng = Rng::new(9);
+        let mut counts = [0usize; 4];
+        let n = 20000;
+        for _ in 0..n {
+            let mut c = Chest::default();
+            let v = c.take(0.5, 0, &mut rng).unwrap();
+            let i = DildoVariant::ALL.iter().position(|x| *x == v).unwrap();
+            counts[i] += 1;
+        }
+        let want = [0.479, 0.292, 0.1875, 0.0417];
+        for i in 0..4 {
+            let got = counts[i] as f32 / n as f32;
+            assert!((got - want[i]).abs() < 0.015, "{i}: {got} vs {}", want[i]);
         }
     }
 
     #[test]
-    fn it_has_to_be_close_and_low() {
-        let c = Chest::new();
-        let (x, z) = c.position();
-        assert!(c.near(x + 1.0, z, 0.0, REACH));
-        assert!(!c.near(x + 2.5, z, 0.0, REACH));
-        assert!(c.near(x + 2.5, z, 0.0, HOST_REACH));
-        assert!(!c.near(x, z, 1.0, REACH));
-    }
-
-    #[test]
-    fn variants_follow_the_weights_roughly() {
-        let mut rng = Rng::new(3);
-        let mut gold = 0;
-        for _ in 0..4000 {
-            let mut c = Chest::new();
-            if c.take(&mut rng) == Some(DildoVariant::Gold) {
-                gold += 1;
-            }
-        }
-        // weight 4 out of 96
-        assert!((80..260).contains(&gold), "gold {gold}");
+    fn a_new_round_restocks_and_moves_it() {
+        let mut c = Chest::default();
+        c.stock = 0;
+        c.new_round(5);
+        assert_eq!((c.stock, c.spot), (2, 5));
     }
 }

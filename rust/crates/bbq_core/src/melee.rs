@@ -1,109 +1,234 @@
-//! Slaps: who a swing hits, and what each kind of slap does (spec section 3, "Melee slaps").
+//! Slaps up close (spec section 3, "Melee slaps"): who you can hit, how often, and what each
+//! kind of slap does to the person hit. Steak, fish and noodle give a dizzy stun; the dildo
+//! knocks someone flat in one of three ways; bare hands (Cheeky mode only) give a quick shove.
 
 use crate::PlayerId;
-use crate::items::{CRIT_CHANCE, DildoVariant, ItemKind, MEAT_PTS, MEAT_STUN, Melee};
+use crate::hitting::knock_mover;
+use crate::items::{DildoVariant, ItemKind, MEAT_STUN, Melee};
+use crate::movement::Mover;
 use crate::pose::SlapKind;
 use crate::rng::Rng;
+use crate::stun::Body;
 use crate::vec::V3;
 
-/// Reach of your own swing (horizontal), and how far above or below counts.
+/// Start a slap on someone within this distance (and in front of you).
 pub const REACH: f32 = 2.6;
-pub const REACH_VERTICAL: f32 = 1.6;
-/// You hit people inside a cone: `dot(facing, toTarget) >= CONE`.
+/// ...and no more than this far above or below you.
+pub const VERTICAL: f32 = 1.6;
+/// `dot(facing, direction to them)` must be at least this.
 pub const CONE: f32 = 0.4;
-/// Reach the host allows when it checks a slap.
+/// The host checks armed slaps within this distance, bare-handed ones within 2.9.
 pub const HOST_REACH: f32 = 3.6;
-/// Reach for a bare-handed slap (host check).
-pub const SILLY_REACH: f32 = 2.9;
-/// Cooldown between swings: armed and bare-handed (your own computer).
+pub const BARE_HOST_REACH: f32 = 2.9;
+/// Wait this long between swings (armed / bare-handed).
 pub const COOLDOWN_ARMED: f32 = 0.55;
-pub const COOLDOWN_UNARMED: f32 = 0.9;
-/// The host's own minimum gap between slaps.
+pub const COOLDOWN_BARE: f32 = 0.9;
+/// The host won't allow armed slaps closer together than this.
 pub const HOST_COOLDOWN: f32 = 0.45;
-/// The swing animation.
+/// How long a swing takes.
 pub const SWING_TIME: f32 = 0.28;
-/// A victim who has been down longer than this can't be hit again (you don't see them).
-pub const DOWN_PROTECT: f32 = 0.3;
-/// Knockback of a bare-handed slap, and how far up it lifts, and the stun.
+/// Someone already knocked flat for longer than this can't be slapped down again.
+pub const DOWN_GRACE: f32 = 0.3;
+
+/// Bare-handed slap numbers (Cheeky mode).
 pub const SILLY_KNOCK: f32 = 8.5;
 pub const SILLY_UP: f32 = 3.0;
 pub const SILLY_STUN: f32 = 0.6;
-/// A critical dildo slap knocks back this much harder.
-pub const CRIT_KNOCK_MUL: f32 = 1.9;
-/// Names of the bare-handed slaps.
 pub const SILLY_NAMES: [&str; 3] = ["WET WILLY!", "NOOGIE!", "WEDGIE!"];
-/// Names of the three dildo outcomes, in `SlapKind::ALL` order.
-pub const SLAP_NAMES: [&str; 3] = ["SENT FLYING!", "CARTWHEEL!", "TIMBER!"];
 
-/// Somebody a swing could hit.
+/// Someone who might get slapped.
 #[derive(Clone, Copy, Debug)]
 pub struct Candidate {
     pub id: PlayerId,
     pub pos: V3,
     pub down_t: f32,
     pub at_smoko: bool,
+    pub teammate: bool,
 }
 
-/// The nearest person in front of you inside the cone, or `None`. `facing` is a horizontal
-/// direction. Teammates (unless friendly fire) should be left out of `cands` by the caller.
-pub fn pick_victim(my_pos: V3, facing: (f32, f32), cands: &[Candidate]) -> Option<PlayerId> {
+/// The nearest person within reach, in front of you, who can be slapped.
+/// `facing` is a flat direction (it doesn't have to be a unit vector).
+pub fn pick_target(
+    me: V3,
+    facing: (f32, f32),
+    cands: &[Candidate],
+    friendly_fire: bool,
+) -> Option<PlayerId> {
     let fl = facing.0.hypot(facing.1);
-    let (fx, fz) = if fl < 1e-4 {
-        (0.0, 1.0)
-    } else {
+    let (fx, fz) = if fl > 1e-4 {
         (facing.0 / fl, facing.1 / fl)
+    } else {
+        (0.0, 1.0)
     };
     let mut best: Option<(PlayerId, f32)> = None;
     for c in cands {
-        if c.down_t > DOWN_PROTECT || c.at_smoko {
+        if c.down_t > DOWN_GRACE || c.at_smoko || (c.teammate && !friendly_fire) {
             continue;
         }
-        let (dx, dz) = (c.pos.x - my_pos.x, c.pos.z - my_pos.z);
+        let (dx, dz) = (c.pos.x - me.x, c.pos.z - me.z);
         let l = dx.hypot(dz);
-        if l > REACH || (c.pos.y - my_pos.y).abs() > REACH_VERTICAL {
+        if l > REACH || (c.pos.y - me.y).abs() > VERTICAL {
             continue;
         }
-        if l > 0.01 && (dx / l * fx + dz / l * fz) < CONE {
+        if l > 0.01 && (fx * dx + fz * dz) / l < CONE {
             continue;
         }
-        if best.is_none_or(|(_, bd)| l < bd) {
+        if best.is_none_or(|(_, b)| l < b) {
             best = Some((c.id, l));
         }
     }
     best.map(|b| b.0)
 }
 
-/// Is Dazza (or anything else at `(dx, dz)` from you) in the swing cone?
-pub fn in_cone(my_pos: V3, facing: (f32, f32), target: V3) -> bool {
+/// Is Dazza (or anything else that isn't a player) in reach in front of you?
+pub fn in_front(me: V3, facing: (f32, f32), at: V3) -> bool {
     let fl = facing.0.hypot(facing.1);
-    let (fx, fz) = if fl < 1e-4 {
-        (0.0, 1.0)
-    } else {
+    let (fx, fz) = if fl > 1e-4 {
         (facing.0 / fl, facing.1 / fl)
+    } else {
+        (0.0, 1.0)
     };
-    let (dx, dz) = (target.x - my_pos.x, target.z - my_pos.z);
+    let (dx, dz) = (at.x - me.x, at.z - me.z);
     let l = dx.hypot(dz);
-    l < REACH && (l < 0.01 || (dx / l * fx + dz / l * fz) >= CONE)
+    l < REACH && (l < 0.01 || (fx * dx + fz * dz) / l >= CONE)
 }
 
-/// Unit knock direction from the attacker to the victim (falls back to +z if on top of them).
-pub fn knock_dir(from: V3, to: V3) -> V3 {
-    let (dx, dz) = (to.x - from.x, to.z - from.z);
-    let l = dx.hypot(dz);
-    if l < 1e-2 {
-        V3::new(0.0, 0.0, 1.0)
-    } else {
-        V3::new(dx / l, 0.0, dz / l)
+/// Your swing timer.
+#[derive(Clone, Copy, Debug)]
+pub struct SlapClock {
+    last: f32,
+}
+
+impl Default for SlapClock {
+    fn default() -> Self {
+        SlapClock { last: -9.0 }
     }
 }
 
-/// How smelly a fish slap was.
+impl SlapClock {
+    pub fn ready(&self, now: f32, armed: bool) -> bool {
+        now - self.last >= if armed { COOLDOWN_ARMED } else { COOLDOWN_BARE }
+    }
+    pub fn mark(&mut self, now: f32) {
+        self.last = now;
+    }
+    /// Seconds since the last swing started (for the swing animation).
+    pub fn since(&self, now: f32) -> f32 {
+        now - self.last
+    }
+}
+
+/// What a slap does to the person hit.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SlapEffect {
+    /// Push, along the line from you to them.
+    pub knock: f32,
+    /// At least this much upward speed.
+    pub up: f32,
+    /// Stun length (only if they aren't already stunned or in grace).
+    pub stun: f32,
+    /// Dizzy time (stars and a wobbly view), always applied.
+    pub dizzy: f32,
+    /// `Some(seconds)`: knocked flat, playing this pose.
+    pub down: Option<(SlapKind, f32)>,
+    /// The body spins from the push (stun slaps; the flat ones play a set pose instead).
+    pub tumble: bool,
+}
+
+/// Steak, fish and noodle: dizzy stun, no knockdown. The noodle slaps for 1.2 s, the others 2 s.
+pub fn stun_slap(kind: ItemKind) -> SlapEffect {
+    let d = kind.def();
+    let st = d.slap_stun.unwrap_or(MEAT_STUN);
+    SlapEffect {
+        knock: d.knock,
+        up: d.knock * 0.38,
+        stun: kind.hit_stun().max(st),
+        dizzy: st,
+        down: None,
+        tumble: true,
+    }
+}
+
+/// The three ways a dildo slap can send someone down, picked at random.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DildoRoll {
+    pub pose: SlapKind,
+    pub crit: bool,
+    pub down: f32,
+}
+
+pub fn roll_dildo(rng: &mut Rng, variant: DildoVariant) -> DildoRoll {
+    let r = rng.f32();
+    let pose = if r < 1.0 / 3.0 {
+        SlapKind::SentFlying
+    } else if r < 2.0 / 3.0 {
+        SlapKind::Cartwheel
+    } else {
+        SlapKind::Timber
+    };
+    let crit = rng.chance(crate::items::CRIT_CHANCE);
+    DildoRoll {
+        pose,
+        crit,
+        down: variant.knockdown_time(crit),
+    }
+}
+
+/// What a rolled dildo slap does. A critical pushes 1.9 times as hard.
+pub fn dildo_slap(roll: &DildoRoll) -> SlapEffect {
+    let d = ItemKind::Dildo.def();
+    let (knock, up) = match roll.pose {
+        SlapKind::SentFlying => (13.0, 5.5),
+        SlapKind::Cartwheel => (d.knock, 2.5),
+        SlapKind::Timber => (2.5, 2.5),
+    };
+    let mul = if roll.crit { 1.9 } else { 1.0 };
+    SlapEffect {
+        knock: knock * mul,
+        up,
+        stun: ItemKind::Dildo.hit_stun(),
+        dizzy: 0.0,
+        down: Some((roll.pose, roll.down)),
+        tumble: false,
+    }
+}
+
+/// Wet willy, noogie or wedgie.
+pub fn silly_slap() -> SlapEffect {
+    SlapEffect {
+        knock: SILLY_KNOCK,
+        up: SILLY_UP,
+        stun: SILLY_STUN,
+        dizzy: 0.0,
+        down: None,
+        tumble: false,
+    }
+}
+
+/// What really happened to them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Applied {
+    pub stunned: bool,
+    pub knocked_down: bool,
+}
+
+/// Push and stun (or flatten) someone. Stuns never stack, and a knockdown needs them not
+/// to be down already. `dir` is the flat direction from you to them.
+pub fn apply(body: &mut Body, mover: &mut Mover, dir: V3, fx: &SlapEffect) -> Applied {
+    knock_mover(mover, dir, fx.knock, fx.up);
+    let hit = body.apply_hit(fx.stun, fx.down.map(|d| d.1));
+    Applied {
+        stunned: hit.stunned,
+        knocked_down: hit.knocked_down,
+    }
+}
+
+/// Fish slaps can leave a pong: 10% a rancid cloud for 9 s, otherwise a 33% chance of a mild
+/// one for 5 s.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Smell {
     None,
-    /// "PONG!": a mild cloud for 5 s.
     Mild,
-    /// "THAT FISH WAS OFF!": a bad cloud for 9 s.
     Rancid,
 }
 
@@ -117,7 +242,6 @@ impl Smell {
     }
 }
 
-/// Each fish slap: 10% rancid, otherwise 33% mild, otherwise nothing. Pure joke.
 pub fn fish_smell(rng: &mut Rng) -> Smell {
     if rng.chance(0.1) {
         Smell::Rancid
@@ -128,190 +252,260 @@ pub fn fish_smell(rng: &mut Rng) -> Smell {
     }
 }
 
-/// What a steak, fish or noodle slap does.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct StunSlap {
-    pub stun: f32,
-    pub points: i32,
-    pub knock: f32,
+/// Can this kind of item slap at all, and how?
+pub fn kind_of(item: ItemKind) -> Melee {
+    item.def().melee
 }
 
-/// Stun slap numbers for an item (noodle: 1.2 s and 50; steak and fish: 2 s and 50).
-pub fn stun_slap(kind: ItemKind) -> StunSlap {
-    let d = kind.def();
-    StunSlap {
-        stun: d.slap_stun.unwrap_or(MEAT_STUN),
-        points: d.slap_pts.unwrap_or(MEAT_PTS),
-        knock: d.knock,
+/// A flat unit direction from `a` to `b` (straight ahead if they're on top of each other).
+pub fn direction(a: V3, b: V3) -> V3 {
+    let (dx, dz) = (b.x - a.x, b.z - a.z);
+    let l = dx.hypot(dz);
+    if l < 1e-2 {
+        V3::new(0.0, 0.0, 1.0)
+    } else {
+        V3::new(dx / l, 0.0, dz / l)
     }
-}
-
-/// What a dildo slap does, rolled once so every screen plays the same thing.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct DildoSlap {
-    pub anim: SlapKind,
-    pub crit: bool,
-    pub down_time: f32,
-    pub knock_mul: f32,
-}
-
-pub fn roll_dildo_slap(variant: DildoVariant, rng: &mut Rng) -> DildoSlap {
-    let anim = SlapKind::ALL[rng.index(3)];
-    let crit = rng.chance(CRIT_CHANCE);
-    DildoSlap {
-        anim,
-        crit,
-        down_time: variant.knockdown_time(crit),
-        knock_mul: if crit { CRIT_KNOCK_MUL } else { 1.0 },
-    }
-}
-
-/// Knockback speed and lift for a hit, as the JavaScript `applyKnock` does it. `anim` is the
-/// slap pose, if any; `base_knock` is the item's own knock number.
-pub fn knock_numbers(anim: Option<SlapKind>, base_knock: f32, mul: f32) -> (f32, f32) {
-    let (kn, up) = match anim {
-        Some(SlapKind::SentFlying) => (13.0, 5.5),
-        Some(SlapKind::Cartwheel) => (base_knock, 2.5),
-        Some(SlapKind::Timber) => (2.5, 2.5),
-        None => (base_knock, base_knock * 0.38),
-    };
-    (kn * mul, up)
-}
-
-/// Can this kind of item be swung at all? Returns what sort of swing it is.
-pub fn swing_kind(kind: Option<ItemKind>) -> Melee {
-    kind.map_or(Melee::None, |k| k.def().melee)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn cand(id: PlayerId, x: f32, z: f32) -> Candidate {
+    fn cand(id: u32, x: f32, z: f32) -> Candidate {
         Candidate {
             id,
             pos: V3::new(x, 0.0, z),
             down_t: 0.0,
             at_smoko: false,
+            teammate: false,
         }
     }
 
     #[test]
-    fn the_nearest_person_in_front_is_hit() {
+    fn picks_the_nearest_person_in_front() {
         let me = V3::ZERO;
-        let c = [cand(2, 0.0, 2.0), cand(3, 0.0, 1.0), cand(4, 0.0, -1.0)];
-        assert_eq!(pick_victim(me, (0.0, 1.0), &c), Some(3));
+        let c = [cand(1, 0.0, 2.0), cand(2, 0.0, 1.0), cand(3, 0.0, -1.0)];
+        assert_eq!(pick_target(me, (0.0, 1.0), &c, false), Some(2));
     }
 
     #[test]
-    fn behind_you_or_out_of_reach_is_a_miss() {
+    fn ignores_people_behind_you_or_out_of_reach() {
         let me = V3::ZERO;
-        assert_eq!(pick_victim(me, (0.0, 1.0), &[cand(2, 0.0, -1.5)]), None);
-        assert_eq!(pick_victim(me, (0.0, 1.0), &[cand(2, 0.0, 2.7)]), None);
-        assert_eq!(pick_victim(me, (0.0, 1.0), &[cand(2, 0.0, 2.5)]), Some(2));
-        // way off to the side is outside the cone (dot < 0.4)
-        assert_eq!(pick_victim(me, (0.0, 1.0), &[cand(2, 2.0, 0.5)]), None);
-    }
-
-    #[test]
-    fn someone_right_on_top_of_you_is_always_in_the_cone() {
         assert_eq!(
-            pick_victim(V3::ZERO, (0.0, 1.0), &[cand(2, 0.005, 0.0)]),
-            Some(2)
+            pick_target(me, (0.0, 1.0), &[cand(1, 0.0, -1.0)], false),
+            None
+        );
+        assert_eq!(
+            pick_target(me, (0.0, 1.0), &[cand(1, 0.0, 2.7)], false),
+            None
+        );
+        assert_eq!(
+            pick_target(me, (0.0, 1.0), &[cand(1, 0.0, 2.5)], false),
+            Some(1)
+        );
+        // sideways: 90 degrees is outside the cone (dot 0 < 0.4)
+        assert_eq!(
+            pick_target(me, (0.0, 1.0), &[cand(1, 1.5, 0.0)], false),
+            None
+        );
+        // 60 degrees off is fine (dot 0.5)
+        assert_eq!(
+            pick_target(me, (0.0, 1.0), &[cand(1, 1.3, 0.75)], false),
+            Some(1)
         );
     }
 
     #[test]
-    fn people_down_or_seated_or_at_the_wrong_height_are_skipped() {
+    fn ignores_the_height_gap_down_people_smoko_and_teammates() {
         let me = V3::ZERO;
+        let mut high = cand(1, 0.0, 1.0);
+        high.pos.y = 1.7;
+        assert_eq!(pick_target(me, (0.0, 1.0), &[high], false), None);
         let mut down = cand(2, 0.0, 1.0);
         down.down_t = 0.5;
-        let mut barely = cand(3, 0.0, 1.5);
-        barely.down_t = 0.3;
-        let mut sat = cand(4, 0.0, 1.0);
-        sat.at_smoko = true;
-        let mut high = cand(5, 0.0, 1.0);
-        high.pos.y = 1.7;
-        assert_eq!(pick_victim(me, (0.0, 1.0), &[down, sat, high]), None);
-        assert_eq!(pick_victim(me, (0.0, 1.0), &[down, barely]), Some(3));
+        assert_eq!(pick_target(me, (0.0, 1.0), &[down], false), None);
+        down.down_t = 0.2; // nearly up: still fair game
+        assert_eq!(pick_target(me, (0.0, 1.0), &[down], false), Some(2));
+        let mut smoko = cand(3, 0.0, 1.0);
+        smoko.at_smoko = true;
+        assert_eq!(pick_target(me, (0.0, 1.0), &[smoko], false), None);
+        let mut mate = cand(4, 0.0, 1.0);
+        mate.teammate = true;
+        assert_eq!(pick_target(me, (0.0, 1.0), &[mate], false), None);
+        assert_eq!(pick_target(me, (0.0, 1.0), &[mate], true), Some(4));
     }
 
     #[test]
-    fn stun_slaps() {
-        let steak = stun_slap(ItemKind::Steak);
-        assert_eq!((steak.stun, steak.points), (2.0, 50));
-        let noodle = stun_slap(ItemKind::Noodle);
-        assert_eq!((noodle.stun, noodle.points), (1.2, 50));
-        assert_eq!(noodle.knock, 5.0);
+    fn standing_on_top_of_someone_still_counts() {
+        assert_eq!(
+            pick_target(V3::ZERO, (0.0, 1.0), &[cand(1, 0.0, 0.0)], false),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn in_front_works_for_dazza() {
+        assert!(in_front(V3::ZERO, (0.0, 1.0), V3::new(0.0, 0.0, 2.0)));
+        assert!(!in_front(V3::ZERO, (0.0, 1.0), V3::new(0.0, 0.0, -2.0)));
+        assert!(!in_front(V3::ZERO, (0.0, 1.0), V3::new(0.0, 0.0, 3.0)));
+    }
+
+    #[test]
+    fn swing_clock_is_faster_when_armed() {
+        let mut c = SlapClock::default();
+        assert!(c.ready(0.0, false));
+        c.mark(10.0);
+        assert!(!c.ready(10.4, true));
+        assert!(c.ready(10.6, true));
+        assert!(!c.ready(10.6, false), "bare hands wait 0.9 s");
+        assert!(c.ready(10.95, false));
+    }
+
+    #[test]
+    fn steak_and_fish_stun_for_2_s_and_the_noodle_for_1_2() {
+        for k in [ItemKind::Steak, ItemKind::Fish] {
+            let e = stun_slap(k);
+            assert_eq!(e.dizzy, 2.0);
+            assert!(e.stun >= 2.0);
+            assert!(e.down.is_none() && e.tumble);
+        }
+        let n = stun_slap(ItemKind::Noodle);
+        assert!((n.dizzy - 1.2).abs() < 1e-5, "{}", n.dizzy);
+    }
+
+    #[test]
+    fn dildo_outcomes_are_roughly_even_and_crits_are_15_percent() {
+        let mut rng = Rng::new(3);
+        let (mut fly, mut cart, mut timber, mut crits) = (0, 0, 0, 0);
+        let n = 6000;
+        for _ in 0..n {
+            let r = roll_dildo(&mut rng, DildoVariant::Classic);
+            match r.pose {
+                SlapKind::SentFlying => fly += 1,
+                SlapKind::Cartwheel => cart += 1,
+                SlapKind::Timber => timber += 1,
+            }
+            if r.crit {
+                crits += 1;
+                assert_eq!(r.down, 5.0);
+            } else {
+                assert_eq!(r.down, 3.5);
+            }
+        }
+        for c in [fly, cart, timber] {
+            assert!((c as f32 / n as f32 - 1.0 / 3.0).abs() < 0.03, "{c}");
+        }
+        assert!((crits as f32 / n as f32 - 0.15).abs() < 0.02, "{crits}");
+    }
+
+    #[test]
+    fn variant_changes_the_time_down() {
+        let mut rng = Rng::new(1);
+        let mut seen = std::collections::HashSet::new();
+        for _ in 0..200 {
+            let r = roll_dildo(&mut rng, DildoVariant::Mini);
+            if !r.crit {
+                seen.insert((r.down * 10.0) as i32);
+            }
+        }
+        assert_eq!(seen, [25].into_iter().collect());
+        let mut jumbo = Rng::new(1);
+        let r = (0..100)
+            .map(|_| roll_dildo(&mut jumbo, DildoVariant::Jumbo))
+            .find(|r| !r.crit)
+            .unwrap();
+        assert_eq!(r.down, 4.5);
+    }
+
+    #[test]
+    fn dildo_slap_numbers_follow_the_pose() {
+        let sf = dildo_slap(&DildoRoll {
+            pose: SlapKind::SentFlying,
+            crit: false,
+            down: 3.5,
+        });
+        assert_eq!((sf.knock, sf.up), (13.0, 5.5));
+        let tb = dildo_slap(&DildoRoll {
+            pose: SlapKind::Timber,
+            crit: false,
+            down: 3.5,
+        });
+        assert_eq!((tb.knock, tb.up), (2.5, 2.5));
+        let crit = dildo_slap(&DildoRoll {
+            pose: SlapKind::SentFlying,
+            crit: true,
+            down: 5.0,
+        });
+        assert!((crit.knock - 13.0 * 1.9).abs() < 1e-4);
+        assert_eq!(crit.down, Some((SlapKind::SentFlying, 5.0)));
+    }
+
+    #[test]
+    fn apply_pushes_and_stuns_but_stuns_never_stack() {
+        let mut body = Body::default();
+        let mut m = Mover::new(0.0, 0.0);
+        let dir = V3::new(0.0, 0.0, 1.0);
+        let fx = stun_slap(ItemKind::Steak);
+        let a = apply(&mut body, &mut m, dir, &fx);
+        assert!(a.stunned && !a.knocked_down);
+        assert!(m.vz >= 2.99 && m.vy > 1.0 && !m.grounded);
+        let first = body.stun;
+        let b = apply(&mut body, &mut m, dir, &fx);
+        assert!(!b.stunned, "already stunned");
+        assert_eq!(body.stun, first);
+        assert!(m.vz >= 5.99, "but they still get shoved again");
+    }
+
+    #[test]
+    fn dildo_slap_knocks_flat_unless_already_down() {
+        let mut rng = Rng::new(5);
+        let roll = roll_dildo(&mut rng, DildoVariant::Classic);
+        let fx = dildo_slap(&roll);
+        let mut body = Body::default();
+        let mut m = Mover::new(0.0, 0.0);
+        let a = apply(&mut body, &mut m, V3::new(1.0, 0.0, 0.0), &fx);
+        assert!(a.knocked_down && body.down_t > 3.0);
+        let mut b2 = Body::default();
+        b2.start_fall(10.0);
+        let c = apply(&mut b2, &mut m, V3::new(1.0, 0.0, 0.0), &fx);
+        assert!(
+            !c.knocked_down,
+            "someone who stacked it isn't flattened again"
+        );
+    }
+
+    #[test]
+    fn silly_slap_is_a_quick_shove() {
+        let s = silly_slap();
+        assert_eq!((s.knock, s.up, s.stun), (8.5, 3.0, 0.6));
+        assert!(s.down.is_none());
     }
 
     #[test]
     fn fish_smell_odds() {
         let mut rng = Rng::new(11);
-        let (mut none, mut mild, mut rancid) = (0, 0, 0);
-        for _ in 0..20_000 {
+        let (mut rancid, mut mild, mut none) = (0, 0, 0);
+        let n = 20000;
+        for _ in 0..n {
             match fish_smell(&mut rng) {
-                Smell::None => none += 1,
-                Smell::Mild => mild += 1,
                 Smell::Rancid => rancid += 1,
+                Smell::Mild => mild += 1,
+                Smell::None => none += 1,
             }
         }
-        let n = 20_000.0;
-        assert!((rancid as f32 / n - 0.10).abs() < 0.015);
-        assert!((mild as f32 / n - 0.9 * 0.33).abs() < 0.02);
-        assert!(none > mild);
+        let f = |c: i32| c as f32 / n as f32;
+        assert!((f(rancid) - 0.10).abs() < 0.01, "{}", f(rancid));
+        assert!((f(mild) - 0.9 * 0.33).abs() < 0.015, "{}", f(mild));
+        assert!((f(none) - 0.9 * 0.67).abs() < 0.015);
         assert_eq!(Smell::Rancid.seconds(), 9.0);
         assert_eq!(Smell::Mild.seconds(), 5.0);
     }
 
     #[test]
-    fn dildo_slap_odds_and_times() {
-        let mut rng = Rng::new(5);
-        let (mut crits, mut anims) = (0, [0; 3]);
-        for _ in 0..20_000 {
-            let s = roll_dildo_slap(DildoVariant::Classic, &mut rng);
-            if s.crit {
-                crits += 1;
-                assert_eq!(s.down_time, 5.0);
-                assert_eq!(s.knock_mul, 1.9);
-            } else {
-                assert_eq!(s.down_time, 3.5);
-                assert_eq!(s.knock_mul, 1.0);
-            }
-            anims[SlapKind::ALL.iter().position(|k| *k == s.anim).unwrap()] += 1;
-        }
-        assert!((crits as f32 / 20_000.0 - 0.15).abs() < 0.015);
-        for a in anims {
-            assert!((a as f32 / 20_000.0 - 1.0 / 3.0).abs() < 0.02);
-        }
-        assert_eq!(DildoVariant::Mini.knockdown_time(false), 2.5);
-        assert_eq!(DildoVariant::Jumbo.knockdown_time(false), 4.5);
-        assert_eq!(DildoVariant::Gold.knockdown_time(false), 5.5);
-    }
-
-    #[test]
-    fn knock_numbers_match_the_old_game() {
-        assert_eq!(knock_numbers(Some(SlapKind::SentFlying), 9.0, 1.0), (13.0, 5.5));
-        assert_eq!(knock_numbers(Some(SlapKind::Cartwheel), 9.0, 1.0), (9.0, 2.5));
-        assert_eq!(knock_numbers(Some(SlapKind::Timber), 9.0, 1.0), (2.5, 2.5));
-        let (kn, up) = knock_numbers(None, 7.0, 1.0);
-        assert_eq!(kn, 7.0);
-        assert!((up - 2.66).abs() < 1e-4);
-        assert!((knock_numbers(Some(SlapKind::SentFlying), 9.0, 1.9).0 - 24.7).abs() < 1e-4);
-    }
-
-    #[test]
-    fn knock_direction_points_away_from_the_attacker() {
-        let d = knock_dir(V3::ZERO, V3::new(3.0, 1.0, 4.0));
+    fn direction_is_flat_and_safe_when_on_top() {
+        let d = direction(V3::ZERO, V3::new(3.0, 5.0, 4.0));
         assert!((d.x - 0.6).abs() < 1e-5 && (d.z - 0.8).abs() < 1e-5 && d.y == 0.0);
-        assert_eq!(knock_dir(V3::ZERO, V3::ZERO), V3::new(0.0, 0.0, 1.0));
-    }
-
-    #[test]
-    fn which_items_can_swing() {
-        assert_eq!(swing_kind(None), Melee::None);
-        assert_eq!(swing_kind(Some(ItemKind::Teddy)), Melee::None);
-        assert_eq!(swing_kind(Some(ItemKind::Steak)), Melee::Stun);
-        assert_eq!(swing_kind(Some(ItemKind::Dildo)), Melee::Down);
+        assert_eq!(direction(V3::ZERO, V3::ZERO), V3::new(0.0, 0.0, 1.0));
     }
 }

@@ -147,6 +147,7 @@ impl Quat {
     }
 
     /// `self * o`: apply `o` first, then `self` (same as `quaternion.multiply(o)` in three.js).
+    #[allow(clippy::should_implement_trait)]
     pub fn mul(self, o: Quat) -> Quat {
         Quat {
             x: self.x * o.w + self.w * o.x + self.y * o.z - self.z * o.y,

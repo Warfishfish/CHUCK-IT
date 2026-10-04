@@ -239,7 +239,7 @@ fn sync_viewmodel(
         commands.entity(*cam).add_child(e);
         return;
     };
-    let Some((kind, key)) = selected else {
+    let Some((kind, key)) = selected.filter(|_| !game.me.drunk.is_drinking()) else {
         *vis = Visibility::Hidden;
         *shown = None;
         return;

@@ -136,6 +136,44 @@ fn build_yard(
         FeatureTag(Feature::Smoko),
     ));
 
+    // Smoko chairs: one per person (the game has you plus three dummies for now).
+    let chairs = bbq_core::smoko::chair_count(4);
+    let frame = mats.add(Color::srgb(0.16, 0.16, 0.16));
+    let fabric = mats.add(Color::srgb(0.12, 0.44, 0.82));
+    let seat_mesh = meshes.add(Cuboid::new(0.52, 0.06, 0.46));
+    let back_mesh = meshes.add(Cuboid::new(0.52, 0.5, 0.05));
+    let leg_mesh = meshes.add(Cuboid::new(0.04, 0.44, 0.04));
+    for i in 0..chairs {
+        let (x, z) = bbq_core::smoko::seat_pos(i, chairs);
+        // the chair faces the middle of the pad
+        let facing = bbq_core::smoko::seat_facing(i, chairs);
+        commands
+            .spawn((
+                Transform::from_xyz(x, 0.0, z).with_rotation(Quat::from_rotation_y(facing)),
+                Visibility::default(),
+                FeatureTag(Feature::Smoko),
+            ))
+            .with_children(|c| {
+                c.spawn((
+                    Mesh3d(seat_mesh.clone()),
+                    MeshMaterial3d(fabric.clone()),
+                    Transform::from_xyz(0.0, 0.44, 0.0),
+                ));
+                c.spawn((
+                    Mesh3d(back_mesh.clone()),
+                    MeshMaterial3d(fabric.clone()),
+                    Transform::from_xyz(0.0, 0.72, -0.24),
+                ));
+                for (lx, lz) in [(-0.24, -0.2), (0.24, -0.2), (-0.24, 0.2), (0.24, 0.2)] {
+                    c.spawn((
+                        Mesh3d(leg_mesh.clone()),
+                        MeshMaterial3d(frame.clone()),
+                        Transform::from_xyz(lx, 0.22, lz),
+                    ));
+                }
+            });
+    }
+
     // Every box the rules know about.
     for c in &yard_res.0.colliders {
         spawn_box(&mut commands, &mut meshes, &mut mats, c);
