@@ -297,6 +297,9 @@ pub struct Part {
     pub pos: V3,
     pub rot: Quat,
     pub scale: V3,
+    /// For the floppy things (dildo, noodle): which segment of the chain this part rides on, and
+    /// where that segment's hinge is (in the same frame as `pos`). The game bends the chain.
+    pub seg: Option<(u8, V3)>,
 }
 
 impl Part {
@@ -307,7 +310,14 @@ impl Part {
             pos: V3::ZERO,
             rot: Quat::IDENTITY,
             scale: V3::new(1.0, 1.0, 1.0),
+            seg: None,
         }
+    }
+
+    /// Ride on chain segment `i`, which hinges at `pivot`.
+    pub fn in_seg(mut self, i: usize, pivot: V3) -> Self {
+        self.seg = Some((i as u8, pivot));
+        self
     }
 
     pub fn at(mut self, x: f32, y: f32, z: f32) -> Self {
@@ -332,6 +342,9 @@ impl Part {
         self.pos = at + rot.rotate(self.pos * k);
         self.rot = rot.mul(self.rot);
         self.scale *= k;
+        if let Some((i, pv)) = self.seg {
+            self.seg = Some((i, at + rot.rotate(pv * k)));
+        }
         self
     }
 }
@@ -583,26 +596,31 @@ pub fn fish() -> Vec<Part> {
 pub const NOODLE_COLOURS: [u32; 4] = [0xff5fa8, 0xffd23f, 0x3fd17a, 0x3fa9ff];
 
 /// A pool noodle. `id` picks the colour.
+/// The noodle: the browser's had 7 segments of 0.2 m (1.4 m); this one is longer, 8 of 0.24 m.
+pub const NOODLE_SEGS: usize = 8;
+pub const NOODLE_SEG_LEN: f32 = 0.24;
 pub fn noodle(id: u32) -> Vec<Part> {
     let c = NOODLE_COLOURS[(id % 4) as usize];
     let fm = Surface::matt(c);
     let rib = Surface::matt(shade(c, 0.82));
     let dk = Surface::matt(0x3a2a33);
-    let (n, h, r) = (7usize, 0.2f32, 0.075f32);
+    let (n, h, r) = (NOODLE_SEGS, NOODLE_SEG_LEN, 0.075f32);
     let mut v = Vec::new();
     let mut y = -0.36;
     for i in 0..n {
         if i > 0 {
             y += h;
         }
-        v.push(Part::new(cyl(r, r, h + 0.01, 12), fm).at(0.0, y + h / 2.0, 0.0));
+        let pv = V3::new(0.0, y, 0.0);
+        v.push(Part::new(cyl(r, r, h + 0.01, 12), fm).at(0.0, y + h / 2.0, 0.0).in_seg(i, pv));
         if i < n - 1 {
-            v.push(Part::new(sphere(r, 12, 8), fm).at(0.0, y + h, 0.0));
+            v.push(Part::new(sphere(r, 12, 8), fm).at(0.0, y + h, 0.0).in_seg(i, pv));
         }
         v.push(
             Part::new(torus(r, 0.008, 4, 12, 2.0 * PI), rib)
                 .at(0.0, y + h * 0.5, 0.0)
-                .turn(HALF_PI, 0.0, 0.0),
+                .turn(HALF_PI, 0.0, 0.0)
+                .in_seg(i, pv),
         );
     }
     v.push(
@@ -613,9 +631,33 @@ pub fn noodle(id: u32) -> Vec<Part> {
     v.push(
         Part::new(Shape::Disc { r: 0.03, seg: 10 }, dk)
             .at(0.0, y + h + 0.006, 0.0)
-            .turn(-HALF_PI, 0.0, 0.0),
+            .turn(-HALF_PI, 0.0, 0.0)
+            .in_seg(n - 1, V3::new(0.0, y, 0.0)),
     );
     v
+}
+
+/// How a floppy item bends (the browser's `updateWobble` numbers).
+#[derive(Clone, Copy, Debug)]
+pub struct Floppy {
+    /// Spring strength and damping of the wobble.
+    pub k: f32,
+    pub c: f32,
+    /// The most the whole wobble can lean, in radians.
+    pub limit: f32,
+    /// How much it droops when held.
+    pub droop: f32,
+    /// How hard each footstep flicks it (the dildo is flicked harder).
+    pub step: f32,
+}
+
+pub fn floppy(kind: crate::items::ItemKind) -> Option<Floppy> {
+    use crate::items::ItemKind as K;
+    match kind {
+        K::Noodle => Some(Floppy { k: 110.0, c: 2.6, limit: 0.75, droop: 0.16, step: 1.0 }),
+        K::Dildo => Some(Floppy { k: 90.0, c: 2.1, limit: 0.95, droop: 0.17, step: 1.8 }),
+        _ => None,
+    }
 }
 
 /// The base colour of each dildo size (the "cheeky" items in Cheeky mode).
@@ -653,11 +695,12 @@ pub fn dildo(variant: DildoVariant) -> Vec<Part> {
         if i > 0 {
             y += h;
         }
+        let pv = V3::new(0.0, y, 0.0);
         let r0 = dr - i as f32 * 0.004;
         let r1 = dr - (i as f32 + 1.0) * 0.004;
-        v.push(Part::new(cyl(r1, r0, 0.167, 16), body).at(0.0, y + h / 2.0, 0.0));
+        v.push(Part::new(cyl(r1, r0, 0.167, 16), body).at(0.0, y + h / 2.0, 0.0).in_seg(i, pv));
         if i < 6 {
-            v.push(Part::new(sphere(r1, 14, 8), body).at(0.0, y + h, 0.0));
+            v.push(Part::new(sphere(r1, 14, 8), body).at(0.0, y + h, 0.0).in_seg(i, pv));
         }
         if i <= 4 {
             let r = r0;
@@ -665,7 +708,8 @@ pub fn dildo(variant: DildoVariant) -> Vec<Part> {
             v.push(
                 Part::new(cyl(0.012, 0.012, 0.16, 5), vein)
                     .at(a.cos() * r * 0.93, y + h / 2.0, a.sin() * r * 0.93)
-                    .turn(a.sin() * 0.22, 0.0, -a.cos() * 0.22),
+                    .turn(a.sin() * 0.22, 0.0, -a.cos() * 0.22)
+                    .in_seg(i, pv),
             );
             if i % 2 == 0 {
                 let b = a + 2.4;
@@ -673,21 +717,25 @@ pub fn dildo(variant: DildoVariant) -> Vec<Part> {
                     Part::new(cyl(0.012, 0.012, 0.16, 5), vein)
                         .at(b.cos() * r * 0.93, y + h * 0.55, b.sin() * r * 0.93)
                         .stretch(1.0, 0.7, 1.0)
-                        .turn(-b.sin() * 0.3, 0.0, b.cos() * 0.3),
+                        .turn(-b.sin() * 0.3, 0.0, b.cos() * 0.3)
+                        .in_seg(i, pv),
                 );
             }
         }
     }
     // the head: a rounded tip with a flared rim, on the last segment
+    let last = V3::new(0.0, y, 0.0);
     v.push(
         Part::new(sphere(0.097, 16, 12), body)
             .at(0.0, y + h + 0.08, 0.0)
-            .stretch(1.0, 1.25, 1.0),
+            .stretch(1.0, 1.25, 1.0)
+            .in_seg(6, last),
     );
     v.push(
         Part::new(torus(0.094, 0.022, 8, 18, 2.0 * PI), body)
             .at(0.0, y + h + 0.02, 0.0)
-            .turn(HALF_PI, 0.0, 0.0),
+            .turn(HALF_PI, 0.0, 0.0)
+            .in_seg(6, last),
     );
     scaled(v, dildo_scale(variant))
 }
@@ -733,8 +781,8 @@ mod tests {
         assert_eq!(bum_crack().len(), 3);
         // 5 body parts, then per side: pec, gill, eye white, iris, pupil; plus lip and mouth
         assert_eq!(fish().len(), 5 + 2 * 5 + 2);
-        // 7 segments (cylinder + rib), 6 joints, 2 end caps
-        assert_eq!(noodle(0).len(), 7 * 2 + 6 + 2);
+        // 8 segments (cylinder + rib), 7 joints, 2 end caps
+        assert_eq!(noodle(0).len(), NOODLE_SEGS * 2 + (NOODLE_SEGS - 1) + 2);
         // cup, lip, 7 shafts, 6 joints, 5 + 3 veins, head, rim
         assert_eq!(dildo(DildoVariant::Classic).len(), 2 + 7 + 6 + 8 + 2);
     }

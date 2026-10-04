@@ -68,15 +68,35 @@ pub struct Built {
     pub casts: bool,
     /// Gets shadows on it (see-through water and shimmer do not).
     pub receives: bool,
+    /// Which segment of a floppy chain this rides on, and where that segment hinges.
+    pub seg: Option<(u8, Vec3)>,
+}
+
+/// One link of a floppy item's chain: the item bends by turning these.
+#[derive(Component)]
+pub struct FloppySeg;
+
+/// The links of a floppy item (dildo, noodle) and how it bends.
+#[derive(Component)]
+pub struct FloppyChain {
+    pub segs: Vec<Entity>,
+    pub def: bbq_core::looks::Floppy,
 }
 
 impl Built {
     /// Spawn this part as a child of `parent`.
     pub fn spawn_under(&self, commands: &mut Commands, parent: Entity) -> Entity {
+        self.spawn_under_shifted(commands, parent, Vec3::ZERO)
+    }
+
+    /// Spawn as a child of `parent`, moved by `-shift` (the parent's own place in the model).
+    pub fn spawn_under_shifted(&self, commands: &mut Commands, parent: Entity, shift: Vec3) -> Entity {
+        let mut tf = self.transform;
+        tf.translation -= shift;
         let mut e = commands.spawn((
             Mesh3d(self.mesh.clone()),
             MeshMaterial3d(self.material.clone()),
-            self.transform,
+            tf,
         ));
         if !self.casts {
             e.insert(NotShadowCaster);
@@ -104,6 +124,7 @@ fn build_part(
         transform: transform_of(p),
         casts: !s.no_shadow,
         receives: !(s.no_shadow && (s.additive || s.alpha < 1.0)),
+        seg: p.seg.map(|(i, v)| (i, Vec3::new(v.x, v.y, v.z))),
     }
 }
 
@@ -332,9 +353,47 @@ impl ModelCache {
     ) -> Entity {
         let built = self.built(key, meshes, mats);
         let root = commands.spawn((at, Visibility::default())).id();
+        let floppy = match key {
+            ModelKey::Item(kind, ..) => bbq_core::looks::floppy(kind),
+            _ => None,
+        };
+        let Some(def) = floppy else {
+            for b in &built {
+                b.spawn_under(commands, root);
+            }
+            return root;
+        };
+        // a chain of links, each hinged on the one before: parts ride on their own link
+        let mut pivots: Vec<Vec3> = Vec::new();
         for b in &built {
-            b.spawn_under(commands, root);
+            if let Some((i, pv)) = b.seg {
+                let i = i as usize;
+                if pivots.len() <= i {
+                    pivots.resize(i + 1, pv);
+                }
+                pivots[i] = pv;
+            }
         }
+        let mut segs: Vec<Entity> = Vec::new();
+        for (i, pv) in pivots.iter().enumerate() {
+            let (parent, rel) = if i == 0 { (root, *pv) } else { (segs[i - 1], *pv - pivots[i - 1]) };
+            let e = commands
+                .spawn((Transform::from_translation(rel), Visibility::default(), FloppySeg))
+                .id();
+            commands.entity(parent).add_child(e);
+            segs.push(e);
+        }
+        for b in &built {
+            match b.seg {
+                Some((i, pv)) => {
+                    b.spawn_under_shifted(commands, segs[i as usize], pv);
+                }
+                None => {
+                    b.spawn_under(commands, root);
+                }
+            }
+        }
+        commands.entity(root).insert(FloppyChain { segs, def });
         root
     }
 }

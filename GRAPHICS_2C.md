@@ -39,16 +39,16 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 ## Checklist
 
 ### Characters
-- [ ] Eyes that bob and slide as you walk and run (pupils and eyeballs move on their own springs, a little late and a little overdone), separate for each eye
+- [x] Eyes that bob and slide as you walk and run (eyeballs bob and pop on different beats, pupils slosh on bouncy springs, swirl when stunned, wander when drunk)
 - [ ] Simple expressive faces: brows, a mouth that changes (stunned, drinking, throwing, drunk)
-- [ ] Clothing with folds: a singlet that wrinkles round the tummy, board shorts or stubbies, a cap or hat on some characters
-- [ ] Slight asymmetry per character (one shoulder lower, a wonky grin) and clearly different silhouettes between the four
+- [ ] Clothing with folds: a singlet that wrinkles round the tummy (done on Pear, Egg and Gumdrop: loose shell with a wavy hem and folds), board shorts or stubbies, a cap or hat on some characters
+- [ ] Slight asymmetry per character (head tilt done: -4, +5 and -3 degrees; still to do: one shoulder lower, a wonky grin) and clearly different silhouettes between the four
 - [ ] Dazza: more caricature (big hat, belly, apron, stubby holder, sunnies)
 - [ ] Leader crown, stars, sash and tag still read clearly on the new bodies
 
 ### Character proportions
-- [ ] Slightly oversized heads, larger hands, noticeably large feet (visual only, collision unchanged)
-- [ ] Oversized thongs (flat, chunky, a colour each), skinny lower legs, slightly exaggerated stomachs
+- [x] Slightly oversized heads, larger hands, noticeably large feet (visual only, collision unchanged); feet step as they walk
+- [ ] Oversized thongs (done: flat, chunky, a colour each, with a strap) and slightly exaggerated stomachs (done); skinny lower legs still to do (the blobs have no legs, so this needs a pose change)
 - [ ] Walk, throw, stunned and fall poses re-checked with the bigger feet and hands (no clipping)
 
 ### Environment
@@ -79,6 +79,13 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [ ] Surface: scratches, faded plastic, dirt, stickers, worn corners, slight discoloration
 - [x] Change the four decorative eskies to red, green, orange and grey so only the Chest is bright blue
 - [ ] Check it reads against grass, dirt, the shed and the fence, in shadow and in sun
+
+### Eskies, toys and noodles (added 5 Oct 2026, Marcus)
+- [x] Every esky in the yard is an esky you can open (R near it opens the lid for 3 s; polished look); the old wooden pirate chest is gone. Only one esky holds the toys (the Dildo Chest, at its random spot each round); the other four open onto nothing ("Just ice and an old stubby. Empty!"). Later they can hold other things
+- [x] The toys inside the Chest look larger when you look at the open esky (0.9, was 0.52, standing well out of the esky)
+- [x] Dildos flop around like in the browser game: the same chain of 7 links, spring numbers (K 90, C 2.1), footstep flicks, drooping in the hand, shaking in flight, gentle sway in the chest (`Wobble`, `FloppyChain`; core `looks::floppy`)
+- [x] Pool noodles flop the same way (K 110, C 2.6), and are longer: 8 links of 0.24 m = 1.92 m (the browser's were 7 x 0.2 = 1.4 m)
+- [x] Slapping with a pool noodle works (tap to slap for 50 and a 1.2 s stun, hold to throw; a test checks both) and your own swing is now drawn across the screen like the browser's
 
 ### Animals
 - [ ] A magpie on the fence watching the player: absurdly large head, big beak, small chunky body, simple wings, large eyes, head that tracks you

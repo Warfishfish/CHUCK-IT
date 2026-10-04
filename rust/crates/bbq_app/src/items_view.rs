@@ -5,11 +5,11 @@ use std::collections::HashMap;
 
 use bbq_core::flight::{ITEM_GRAV, ItemId, ItemState};
 use bbq_core::hands;
-use bbq_core::items::ItemKind;
+use bbq_core::items::{ItemKind, Melee};
 use bevy::prelude::*;
 
 use crate::game::{Game, aim_dir, hand_pos};
-use crate::models::{ModelCache, ModelKey};
+use crate::models::{FloppyChain, FloppySeg, ModelCache, ModelKey};
 use crate::player::{EyeCamera, Player};
 
 pub fn kind_name(k: ItemKind) -> &'static str {
@@ -33,6 +33,62 @@ struct GlowRing(ItemId);
 struct PuddleVisual;
 #[derive(Component)]
 struct HeldVm;
+/// The floppy thing drawn in your hand (a child of `HeldVm`).
+#[derive(Component)]
+struct VmFloppy;
+
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum FlopMode {
+    #[default]
+    Ground,
+    Held,
+    Flying,
+    /// Sitting in the chest: a slow gentle sway.
+    Chest,
+}
+
+/// What is shaking a floppy item right now (set by whoever draws it).
+#[derive(Component, Default)]
+pub struct FlopDrive {
+    pub mode: FlopMode,
+    /// How fast the person holding it is walking.
+    pub speed: f32,
+    /// It is in your own hand (the droop hangs the other way, as in the browser).
+    pub mine: bool,
+}
+
+/// The springy state of one floppy item: how far it leans, how fast, and what it saw last frame.
+#[derive(Component)]
+pub struct Wobble {
+    x: f32,
+    z: f32,
+    vx: f32,
+    vz: f32,
+    wx: f32,
+    wz: f32,
+    prev: Quat,
+    phase: f32,
+    step: i32,
+    seed: f32,
+}
+
+impl Wobble {
+    pub fn with_seed(seed: f32) -> Self {
+        Wobble { seed, ..default() }
+    }
+}
+
+impl FlopDrive {
+    pub fn in_chest() -> Self {
+        FlopDrive { mode: FlopMode::Chest, speed: 0.0, mine: false }
+    }
+}
+
+impl Default for Wobble {
+    fn default() -> Self {
+        Wobble { x: 0.0, z: 0.0, vx: 0.0, vz: 0.0, wx: 0.0, wz: 0.0, prev: Quat::IDENTITY, phase: 0.0, step: i32::MIN, seed: 0.0 }
+    }
+}
 
 #[derive(Resource, Default)]
 struct Shown {
@@ -55,7 +111,14 @@ impl Plugin for ItemsViewPlugin {
             .add_systems(Startup, (setup_look, setup_trajectory))
             .add_systems(
                 Update,
-                (sync_items, sync_viewmodel, sync_puddles, draw_trajectory),
+                (
+                    sync_items,
+                    sync_viewmodel,
+                    sync_puddles,
+                    draw_trajectory,
+                    attach_wobble,
+                    wobble_items.after(sync_items).after(sync_viewmodel),
+                ),
             );
     }
 }
@@ -118,6 +181,7 @@ fn sync_items(
     time: Res<Time>,
     mut q: Query<(&ItemVisual, &mut Transform, &mut Visibility), Without<GlowRing>>,
     mut rings: Query<(&GlowRing, &mut Transform, &mut Visibility), Without<ItemVisual>>,
+    mut drives: Query<&mut FlopDrive>,
 ) {
     // spawn visuals for new items
     for (id, it) in &game.world.items {
@@ -172,6 +236,20 @@ fn sync_items(
         let Some(it) = game.world.items.get(&vis.0) else {
             continue;
         };
+        if let Some((e, _)) = shown.items.get(&vis.0)
+            && let Ok(mut d) = drives.get_mut(*e)
+        {
+            d.mode = match it.state {
+                ItemState::Held => FlopMode::Held,
+                ItemState::Flying => FlopMode::Flying,
+                ItemState::Ground => FlopMode::Ground,
+            };
+            d.mine = false;
+            d.speed = it
+                .holder
+                .and_then(|h| game.dummies.iter().find(|x| x.id == h))
+                .map_or(0.0, |x| if x.mover.grounded { x.mover.speed() } else { 0.0 });
+        }
         match it.state {
             ItemState::Held => {
                 // yours is drawn by the viewmodel; a bot's is in its right hand
@@ -261,6 +339,7 @@ fn sync_viewmodel(
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
     mut vm: Query<(Entity, &mut Transform, &mut Visibility), With<HeldVm>>,
+    mut vm_floppy: Query<&mut FlopDrive, With<VmFloppy>>,
     mut shown: Local<Option<(ItemKind, ModelKey)>>,
 ) {
     let selected = game
@@ -283,13 +362,25 @@ fn sync_viewmodel(
     if shown.map(|s| s.1) != Some(key) {
         // a different thing in the hand: swap the parts
         commands.entity(root).despawn_children();
-        let built = cache.built(key, &mut meshes, &mut mats);
-        for b in &built {
-            b.spawn_under(&mut commands, root);
+        if bbq_core::looks::floppy(kind).is_some() {
+            // floppy things hang off a chain of links that the wobble bends
+            let e = cache.spawn(&mut commands, key, &mut meshes, &mut mats, Transform::default());
+            commands.entity(e).insert(VmFloppy);
+            commands.entity(root).add_child(e);
+        } else {
+            let built = cache.built(key, &mut meshes, &mut mats);
+            for b in &built {
+                b.spawn_under(&mut commands, root);
+            }
         }
         *shown = Some((kind, key));
     }
     *vis = Visibility::Inherited;
+    for mut d in &mut vm_floppy {
+        d.mode = FlopMode::Held;
+        d.mine = true;
+        d.speed = if player.mover.grounded { player.mover.speed() } else { 0.0 };
+    }
     let c = if game.wind.charging {
         game.wind.charge
     } else {
@@ -315,6 +406,13 @@ fn sync_viewmodel(
         c * 0.3,
     );
     tf.scale = Vec3::splat(scale);
+    // your own slap: the browser's swing across the screen (right to left, tip whipping through)
+    if game.life.me_swing > 0.0 && bbq_core::items::ItemKind::def(kind).melee != Melee::None {
+        let p = 1.0 - game.life.me_swing / bbq_core::melee::SWING_TIME;
+        let a = (std::f32::consts::PI * p).sin();
+        tf.translation = Vec3::new(0.42 - 0.8 * p, -0.2 + 0.06 * a, -0.55 - 0.2 * a);
+        tf.rotation = Quat::from_euler(EulerRot::XYZ, -0.9 + 0.3 * a, 0.2, -1.3 + 2.2 * p);
+    }
 }
 
 fn sync_puddles(
@@ -459,6 +557,116 @@ fn draw_trajectory(
                 *v = Visibility::Inherited;
             }
             _ => *v = Visibility::Hidden,
+        }
+    }
+}
+
+/// Every floppy chain gets its spring state (a little different each, so they do not move in step).
+fn attach_wobble(
+    mut commands: Commands,
+    q: Query<Entity, (With<FloppyChain>, Without<Wobble>)>,
+) {
+    for (n, e) in q.iter().enumerate() {
+        commands.entity(e).insert((
+            Wobble { seed: (e.index_u32() % 97) as f32 + n as f32, ..default() },
+            FlopDrive::default(),
+        ));
+    }
+}
+
+/// The browser's `updateWobble`: each floppy item is a damped spring driven by how fast whoever
+/// holds it swings it, so the tip lags on the wind-up and whips through on the slap. Every
+/// footstep flicks it, a thrown one shakes, and a held one droops.
+fn wobble_items(
+    time: Res<Time>,
+    mut roots: Query<(&FloppyChain, &mut Wobble, &FlopDrive, &GlobalTransform)>,
+    mut segs: Query<&mut Transform, With<FloppySeg>>,
+) {
+    let dt = time.delta_secs().min(0.05);
+    if dt <= 0.0 {
+        return;
+    }
+    let t = time.elapsed_secs();
+    for (chain, mut w, drive, gt) in &mut roots {
+        let d = chain.def;
+        if drive.mode == FlopMode::Chest {
+            // in the chest: each link sways a little more than the one before
+            for (i, e) in chain.segs.iter().enumerate() {
+                if let Ok(mut tf) = segs.get_mut(*e) {
+                    tf.rotation = Quat::from_rotation_x((t * 2.0 + w.seed).sin() * 0.06 * (i as f32 + 1.0) * 0.5);
+                }
+            }
+            continue;
+        }
+        let q = gt.to_scale_rotation_translation().1;
+        // how fast it is turning, in its own frame
+        let dq = q * w.prev.inverse();
+        let (axis, angle) = dq.to_axis_angle();
+        let angle = if angle > std::f32::consts::PI { angle - std::f32::consts::TAU } else { angle };
+        let omega = q.inverse() * (axis * (angle / dt));
+        let (mut wx, mut wz) = (omega.x, omega.z);
+        if angle.abs() > 1.4 || !omega.is_finite() {
+            wx = 0.0;
+            wz = 0.0;
+            w.wx = 0.0;
+            w.wz = 0.0;
+        }
+        w.prev = q;
+        wx = wx.clamp(-30.0, 30.0);
+        wz = wz.clamp(-30.0, 30.0);
+        let g = 0.5;
+        w.vx -= (wx - w.wx) * g;
+        w.vz -= (wz - w.wz) * g;
+        w.wx = wx;
+        w.wz = wz;
+        let held = drive.mode == FlopMode::Held;
+        if held {
+            let sp = drive.speed;
+            w.phase += sp * dt * 1.7;
+            let ph = w.phase;
+            w.vx += (ph * 2.0).cos() * (sp / 5.0).min(1.0) * dt * 9.0;
+            w.vz += ph.sin() * (sp / 5.0).min(1.0) * dt * 5.0;
+            // every footstep while running gives it a little flop, side to side
+            let step = (ph / std::f32::consts::PI).floor() as i32;
+            if w.step != step {
+                let f = if sp > 1.5 { (sp / 6.0).min(1.3) } else { 0.0 };
+                if f > 0.0 && w.step != i32::MIN {
+                    w.vx -= 1.4 * f * d.step;
+                    w.vz += (if step % 2 != 0 { 1.0 } else { -1.0 }) * 0.8 * f * d.step * 1.5;
+                }
+                w.step = step;
+            }
+        }
+        if drive.mode == FlopMode::Flying {
+            w.vx += (t * 19.0 + w.seed).sin() * dt * 30.0;
+            w.vz += (t * 15.0).cos() * dt * 18.0;
+        }
+        let n = 3;
+        let hd = dt / n as f32;
+        for _ in 0..n {
+            w.vx += (-d.k * w.x - d.c * w.vx) * hd;
+            w.vz += (-d.k * w.z - d.c * w.vz) * hd;
+            w.x += w.vx * hd;
+            w.z += w.vz * hd;
+        }
+        w.x = w.x.clamp(-d.limit, d.limit);
+        w.z = w.z.clamp(-d.limit, d.limit);
+        let dr = if held {
+            (d.droop + 0.02 * (t * 2.1 + w.seed).sin()) * if drive.mine { -0.6 } else { 1.0 }
+        } else {
+            0.0
+        };
+        for (i, e) in chain.segs.iter().enumerate() {
+            if let Ok(mut tf) = segs.get_mut(*e) {
+                let f = 0.35 + i as f32 * 0.11;
+                let extra = if i > 0 { dr } else { 0.0 };
+                tf.rotation = Quat::from_euler(
+                    EulerRot::XYZ,
+                    w.x * f + extra,
+                    0.0,
+                    w.z * f + extra * 0.35,
+                );
+            }
         }
     }
 }

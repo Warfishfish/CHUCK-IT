@@ -160,8 +160,28 @@ fn spawn_gallery(
 
 fn shot_camera(
     cfg: Res<ShotConfig>,
+    game: Res<Game>,
     mut cam: Single<(&mut Transform, &mut Projection), With<EyeCamera>>,
 ) {
+    // `--bot N`: a close-up of bot N from the front (3 m away, `--bot-side` for the profile)
+    let args: Vec<String> = std::env::args().collect();
+    let bot = args
+        .iter()
+        .position(|a| a == "--bot")
+        .and_then(|i| args.get(i + 1))
+        .and_then(|v| v.parse::<usize>().ok());
+    if let Some(d) = bot.and_then(|n| game.dummies.get(n)) {
+        let side = if args.iter().any(|a| a == "--bot-side") { 1.1 } else { 0.0 };
+        let a = d.face + side;
+        let (dx, dz) = (a.sin(), a.cos());
+        let (tf, proj) = &mut *cam;
+        tf.translation = Vec3::new(d.mover.x + dx * 3.0, 1.05, d.mover.z + dz * 3.0);
+        tf.rotation = Quat::from_euler(EulerRot::YXZ, a, -0.05, 0.0);
+        if let Projection::Perspective(p) = &mut **proj {
+            p.fov = 42f32.to_radians();
+        }
+        return;
+    }
     let Some([x, y, z, yaw, pitch, fov]) = cfg.cam else {
         return;
     };

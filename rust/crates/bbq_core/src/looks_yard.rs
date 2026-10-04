@@ -9,7 +9,7 @@ use crate::looks::{self, Part, Shape, Surface, Tex};
 use crate::rng::Rng;
 use crate::vec::{Quat, V3, cross};
 use crate::yard::{
-    BAR, CHEST_SPOTS, MEAT_TABLE, POOL_DEPTH, POOL_X0, POOL_X1, POOL_Z0, POOL_Z1, SMOKO_X, SMOKO_Z,
+    BAR, CHEST_SPOTS, DECOR_ESKIES, MEAT_TABLE, POOL_DEPTH, POOL_X0, POOL_X1, POOL_Z0, POOL_Z1, SMOKO_X, SMOKO_Z,
     TRAMP_H, TRAMP_R, TRAMP_X, TRAMP_Z, WATER_Y,
 };
 use crate::{YARD_HALF_X as W, YARD_HALF_Z as D};
@@ -25,6 +25,15 @@ pub const CHEST_PIVOT: V3 = V3::new(0.0, 0.55, -0.4);
 pub const ESKY_PIVOT: V3 = V3::new(0.0, 0.64, -0.47);
 /// The fence is 1.8 m tall.
 pub const FENCE_H: f32 = 1.8;
+
+/// One of the yard's openable eskies.
+#[derive(Clone, Debug)]
+pub struct Esky {
+    pub at: V3,
+    pub turn: f32,
+    pub base: Vec<Part>,
+    pub lid: Vec<Part>,
+}
 
 /// Everything the yard is made of.
 #[derive(Clone, Debug, Default)]
@@ -45,6 +54,9 @@ pub struct YardLook {
     pub chest_lid: Vec<Part>,
     /// Where the lid hinges (`CHEST_PIVOT` for the old wooden chest, `ESKY_PIVOT` for the esky).
     pub chest_pivot: V3,
+    /// The yard's other eskies (polished look): they open too, but hold nothing yet. Each is
+    /// (spot, turn, base parts, lid parts, hinge).
+    pub eskies: Vec<Esky>,
     /// Clouds: where each one starts, and its puffs (local).
     pub clouds: Vec<(V3, Vec<Part>)>,
 }
@@ -462,15 +474,10 @@ fn props(polished: bool) -> Vec<Part> {
     v.push(cuboid(4.4, 0.12, 3.4, matt(0x7f8b85), 22.5, 2.56, -16.5));
     v.push(cuboid(1.3, 2.0, 0.06, matt(0x56645d), 22.5, 1.0, -14.98));
     // eskies
-    for (n, (x, z, r)) in [
-        (-7.5f32, -4.5f32, 0.3f32),
-        (9.0, -6.0, -0.2),
-        (-3.0, 18.0, 0.1),
-        (24.0, 6.0, 1.4),
-    ]
-    .into_iter()
-    .enumerate()
-    {
+    for (n, (x, z, r)) in DECOR_ESKIES.into_iter().enumerate() {
+        if polished {
+            continue; // these are real openable eskies in the polished look (see `Esky`)
+        }
         // in the polished look the yard's eskies are never the Chest's bright blue
         let body = if polished {
             [0xc9392f, 0x2f8a55, 0xd9822b, 0x7d8a93][n % 4]
@@ -874,8 +881,13 @@ pub fn chest() -> (Vec<Part>, Vec<Part>) {
 /// lid, a chunky arched handle, fat hinges, finger slots and a few stickers. Same footprint as the
 /// chest's collider (about 1.45 x 1.1) and the same lid mechanics, hinged at `ESKY_PIVOT`.
 pub fn chest_esky() -> (Vec<Part>, Vec<Part>) {
-    let blue = matt(0x1b7bf0);
-    let navy = matt(0x0e4aa6);
+    esky_with(0x1b7bf0, 0x0e4aa6)
+}
+
+/// An esky in any colour (`dark` is the darker trim of the same colour).
+pub fn esky_with(body: u32, dark: u32) -> (Vec<Part>, Vec<Part>) {
+    let blue = matt(body);
+    let navy = matt(dark);
     let white = matt(0xf1f3ee);
     let grey = matt(0x4a5057);
     let (hw, hd) = (0.62f32, 0.38f32);
@@ -932,8 +944,23 @@ pub fn chest_esky() -> (Vec<Part>, Vec<Part>) {
 pub fn chest_toy(k: usize) -> Vec<Part> {
     let v = DildoVariant::ALL[k % DildoVariant::ALL.len()];
     let toy = looks::dildo(v);
-    let rot = Quat::from_euler_xyz(-0.6, 0.0, (k as f32 - 1.0) * 0.35);
-    place(toy, V3::new(-0.35 + k as f32 * 0.35, 0.45, 0.0), rot, 0.52)
+    let (at, rot, s) = chest_toy_place(k);
+    place(toy, at, rot, s)
+}
+
+/// Which size is in slot `k`, and where it stands in the chest (local to the chest) and how it is
+/// turned and scaled. They are bigger than before (0.9, was 0.52) so they stick well out of the
+/// esky and read from a distance.
+pub fn chest_toy_variant(k: usize) -> DildoVariant {
+    DildoVariant::ALL[k % DildoVariant::ALL.len()]
+}
+
+pub fn chest_toy_place(k: usize) -> (V3, Quat, f32) {
+    (
+        V3::new(-0.42 + k as f32 * 0.42, 0.62, 0.0),
+        Quat::from_euler_xyz(-0.5, 0.0, (k as f32 - 1.0) * 0.3),
+        0.9,
+    )
 }
 
 /// A team's colour (the browser game's `TEAMS` table).
@@ -1257,7 +1284,21 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
     world.extend(pool());
     world.extend(props(polished));
     let (chest_base, chest_lid) = if polished { chest_esky() } else { chest() };
+    let eskies = if polished {
+        DECOR_ESKIES
+            .into_iter()
+            .enumerate()
+            .map(|(n, (x, z, r))| {
+                let (body, dark) = [(0xc9392f, 0x7d1f19), (0x2f8a55, 0x1b5232), (0xd9822b, 0x8a4c10), (0x7d8a93, 0x4a545c)][n % 4];
+                let (base, lid) = esky_with(body, dark);
+                Esky { at: V3::new(x, 0.0, z), turn: r, base, lid }
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
     YardLook {
+        eskies,
         chest_pivot: if polished { ESKY_PIVOT } else { CHEST_PIVOT },
         world,
         hoist_head,
@@ -1477,9 +1518,11 @@ mod tests {
         let toy0 = chest_toy(0);
         let toy1 = chest_toy(1);
         assert_ne!(toy0[0].surface.color, toy1[0].surface.color);
-        // toys are drawn at about half size
+        // toys are drawn big (0.9), standing well out of the esky
+        let (at, _, scale) = chest_toy_place(0);
+        assert!(scale > 0.7);
         let top = toy0.iter().map(|p| p.pos.y).fold(f32::MIN, f32::max);
-        assert!(top < 0.45 + 0.6 && top > 0.45);
+        assert!(top > at.y && top < at.y + 1.6);
     }
 
     #[test]

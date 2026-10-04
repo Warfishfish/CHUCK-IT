@@ -119,6 +119,15 @@ pub const MEAT_TABLE: (f32, f32, f32, f32, f32) = (-8.7, -18.2, 1.5, 0.8, 0.8);
 pub const SMOKO_X: f32 = -24.0;
 pub const SMOKO_Z: f32 = -3.0;
 
+/// The four eskies standing about the yard, as (x, z, rotation). They open (R) but are empty
+/// for now: only the Dildo Chest has anything in it.
+pub const DECOR_ESKIES: [(f32, f32, f32); 4] = [
+    (-7.5, -4.5, 0.3),
+    (9.0, -6.0, -0.2),
+    (-3.0, 18.0, 0.1),
+    (24.0, 6.0, 1.4),
+];
+
 /// Where the chest can sit, as (x, z, rotation). Each round picks a new one.
 #[allow(clippy::approx_constant)] // 3.14 is the JavaScript game's own number
 pub const CHEST_SPOTS: [(f32, f32, f32); 9] = [
@@ -206,15 +215,10 @@ impl Yard {
         pole.no_top = true;
         c.push(pole); // clothesline pole
         c.push(Collider::centred(22.5, -16.5, 4.0, 3.0, 2.6).of(Kind::Shed)); // shed
-        // Eskies: the box is the axis-aligned bounds of a 1 x 0.6 box turned by r.
-        for (x, z, r) in [
-            (-7.5f32, -4.5f32, 0.3f32),
-            (9.0, -6.0, -0.2),
-            (-3.0, 18.0, 0.1),
-            (24.0, 6.0, 1.4),
-        ] {
+        // Eskies: the box is the axis-aligned bounds of a 1.5 x 1.0 box turned by r.
+        for (x, z, r) in DECOR_ESKIES {
             let (s, co) = (r.sin().abs(), r.cos().abs());
-            c.push(Collider::centred(x, z, co + 0.6 * s, s + 0.6 * co, 0.62).of(Kind::Esky));
+            c.push(Collider::centred(x, z, 1.5 * co + 1.0 * s, 1.5 * s + 1.0 * co, 0.75).of(Kind::Esky));
         }
         c.push(Collider::centred(6.0, -16.5, 2.0, 1.0, 0.8).of(Kind::Table)); // outdoor table
         if features.bbq {
@@ -330,10 +334,10 @@ mod tests {
         let e = y
             .colliders
             .iter()
-            .find(|c| (c.h - 0.62).abs() < 1e-6)
+            .find(|c| (c.h - 0.75).abs() < 1e-6)
             .unwrap();
-        // first esky: rotation 0.3 -> width cos+0.6 sin
-        let w = 0.3f32.cos() + 0.6 * 0.3f32.sin();
+        // first esky: rotation 0.3 -> width 1.5 cos + 1.0 sin
+        let w = 1.5 * 0.3f32.cos() + 0.3f32.sin();
         assert!(((e.x1 - e.x0) - w).abs() < 1e-5);
     }
 

@@ -43,6 +43,8 @@ pub struct Life {
     /// How long your own swing animation has left.
     pub me_swing: f32,
     pub chest: Chest,
+    /// The yard's other eskies: seconds each has left standing open (they hold nothing yet).
+    pub decor_open: [f32; 4],
     /// You, sitting at smoko.
     pub seated: Option<Seated>,
     pub emote_at: f32,
@@ -65,6 +67,7 @@ impl Life {
             slap: SlapClock::default(),
             me_swing: 0.0,
             chest: Chest::default(),
+            decor_open: [0.0; 4],
             seated: None,
             emote_at: -9.0,
             carry: None,
@@ -451,6 +454,17 @@ fn meat_spot(p: &Player, bbq_on: bool) -> Option<ItemKind> {
     })
 }
 
+/// The nearest of the yard's other eskies within reach, and which one it is.
+pub fn near_decor_esky(p: &Player) -> Option<usize> {
+    yard::DECOR_ESKIES
+        .iter()
+        .enumerate()
+        .map(|(i, (x, z, _))| (i, (p.mover.x - x).hypot(p.mover.z - z)))
+        .filter(|(_, d)| *d < chest::REACH + 0.3)
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|(i, _)| i)
+}
+
 fn chest_dist(p: &Player, chest_spot: usize) -> f32 {
     let (cx, cz, _) = CHEST_SPOTS[chest_spot % CHEST_SPOTS.len()];
     (p.mover.x - cx).hypot(p.mover.z - cz)
@@ -486,6 +500,13 @@ pub fn prompt(g: &Game, p: &Player, f: &yard::Features, chest_spot: usize) -> St
             "The chest is empty. It restocks every 12 seconds.".into()
         } else {
             format!("R: open the chest ({} left)", g.life.chest.stock)
+        };
+    }
+    if let Some(i) = near_decor_esky(p) {
+        return if g.life.decor_open[i] > 0.0 {
+            "Nothing in this esky. Not yet.".into()
+        } else {
+            "R: open the esky".into()
         };
     }
     if g.life.carry.is_none() && grab_target(g, p).is_some() {
@@ -551,6 +572,12 @@ pub fn interact(g: &mut Game, p: &mut Player, f: &yard::Features, chest_spot: us
             Err(chest::Refused::HandsFull) => g.popup("Hands full!", false),
             Err(chest::Refused::TooFar) => {}
         }
+        return true;
+    }
+    if let Some(i) = near_decor_esky(p) {
+        // the other eskies open too, but there is nothing in them yet
+        g.life.decor_open[i] = 3.0;
+        g.popup("Just ice and an old stubby. Empty!", false);
         return true;
     }
     false
@@ -870,6 +897,9 @@ pub fn step(g: &mut Game, p: &mut Player, wanted: &mut Wanted, yard: &yard::Yard
     }
     g.life.me_swing = (g.life.me_swing - dt).max(0.0);
     g.life.chest.tick(dt);
+    for t in &mut g.life.decor_open {
+        *t = (*t - dt).max(0.0);
+    }
 
     // you, at smoko
     if g.life.seated.is_some() {

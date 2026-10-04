@@ -2576,4 +2576,47 @@ mod tests {
         assert_eq!(t.again_label, "Play again");
         assert_eq!(t.rows.len(), 4);
     }
+
+    #[test]
+    fn a_tap_with_a_pool_noodle_slaps_and_a_hold_throws_it() {
+        let mut app = app();
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            g.world.clear();
+            let mut rng = Rng::new(9);
+            let id = g.world.spawn(ItemKind::Noodle, 8.0, 0.0, false, &mut rng);
+            g.world.give(id, PLAYER_ID);
+            g.slots.add(id);
+            // a bot right in front of you, within slapping reach
+            g.dummies[0].mover.x = 8.0;
+            g.dummies[0].mover.z = 1.3;
+            g.dummies[0].home = (8.0, 1.3);
+        }
+        app.world_mut().resource_mut::<Wanted>().throw_down = true;
+        ticks(&mut app, 3);
+        app.world_mut().resource_mut::<Wanted>().throw_up = true;
+        ticks(&mut app, 3);
+        {
+            let g = app.world().resource::<Game>();
+            let d = &g.dummies[0];
+            assert!(d.body.stun > 0.0, "the slap should have stunned them");
+            assert_eq!(g.board.score(PLAYER_ID), 50, "a noodle slap pays 50");
+            assert!(g.life.me_swing > 0.0, "and the swing is drawn");
+            // the noodle is still in your hand (it has 6 uses)
+            assert_eq!(g.slots.len(), 1);
+        }
+        // a long hold throws it instead
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            g.dummies[0].mover.z = 7.0;
+            g.dummies[0].home = (8.0, 7.0);
+            g.dummies[0].body = bbq_core::stun::Body::default();
+        }
+        app.world_mut().resource_mut::<Wanted>().throw_down = true;
+        ticks(&mut app, 40);
+        app.world_mut().resource_mut::<Wanted>().throw_up = true;
+        ticks(&mut app, 4);
+        let g = app.world().resource::<Game>();
+        assert_eq!(g.slots.len(), 0, "held for a while it flies");
+    }
 }

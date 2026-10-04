@@ -8,7 +8,7 @@ Shapes and sizes are the same as the JavaScript game's createChar():
 Blender is Z-up; the exporter turns that into the game's Y-up, so a point (x, up, forward)
 is written to Blender as (x, -forward, up).
 """
-import bpy, bmesh, math, os, sys
+import bpy, bmesh, math, os, random, sys
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "crates", "bbq_app", "assets", "models", "blob.glb")
 PREVIEW = sys.argv[sys.argv.index("--preview") + 1] if "--preview" in sys.argv else None
@@ -27,12 +27,18 @@ def mat(name, rgb):
 
 
 # Base colours are plain grey: the game tints body / head / feet / hands per player.
+# (Step 2c: the singlet and the thongs have their own fixed colours and are not tinted.)
 M = {
     "Body": mat("BodyMat", (0.8, 0.8, 0.8)),
     "Head": mat("HeadMat", (0.9, 0.9, 0.9)),
     "Foot": mat("FootMat", (0.5, 0.5, 0.5)),
     "White": mat("EyeWhite", (1, 1, 1)),
     "Black": mat("Pupil", (0.07, 0.07, 0.07)),
+    "Singlet": mat("SingletMat", (0.93, 0.92, 0.86)),
+    "ThongPear": mat("ThongPearMat", (1.0, 0.69, 0.18)),
+    "ThongEgg": mat("ThongEggMat", (0.18, 0.66, 0.85)),
+    "ThongGumdrop": mat("ThongGumdropMat", (0.91, 0.27, 0.23)),
+    "Strap": mat("StrapMat", (0.12, 0.12, 0.12)),
 }
 
 
@@ -48,6 +54,14 @@ SHAPES = {
     "pear": dict(bottom=0.47, top=0.31, height=1.42),     # gentle: round bottom, slimmer shoulders
     "egg": dict(bottom=0.45, top=0.26, height=1.46),      # stronger taper, a bit taller
     "gumdrop": dict(bottom=0.52, top=0.30, height=1.34),  # wide and low, the cutest
+}
+# Step 2c caricature: bigger head, hands and feet, a tummy, thongs, a wonky head. Visual only: the
+# game's hit and catch sizes are fixed in code and do not read this. Classic is left as the
+# original capsule (decision 4 Oct 2026).
+CARICATURE = {
+    "pear": dict(head=0.33, hand=0.125, foot=0.165, belly=0.26, belly_y=0.66, tilt=-0.07, thong="ThongPear"),
+    "egg": dict(head=0.34, hand=0.13, foot=0.17, belly=0.24, belly_y=0.70, tilt=0.09, thong="ThongEgg"),
+    "gumdrop": dict(head=0.34, hand=0.13, foot=0.18, belly=0.30, belly_y=0.58, tilt=-0.05, thong="ThongGumdrop"),
 }
 BODY_BASE = 0.07  # the body's lowest point sits just off the ground (same as the old capsule)
 
@@ -109,6 +123,87 @@ def sphere(name, r, at, material, scale=(1, 1, 1), parent=None, seg=32, rings=17
     return ob
 
 
+def torus(name, major, minor, at, material, tilt=(0.0, 0.0), scale=(1, 1, 1), parent=None):
+    """A thin ring (used for the thong straps). `tilt` leans it (x, y) in radians."""
+    bm = bmesh.new()
+    seg_major, seg_minor = 24, 8
+    for i in range(seg_major):
+        a = 2 * math.pi * i / seg_major
+        for j in range(seg_minor):
+            b = 2 * math.pi * j / seg_minor
+            r = major + minor * math.cos(b)
+            bm.verts.new((r * math.cos(a), r * math.sin(a), minor * math.sin(b)))
+    bm.verts.ensure_lookup_table()
+    for i in range(seg_major):
+        for j in range(seg_minor):
+            v = lambda ii, jj: bm.verts[(ii % seg_major) * seg_minor + (jj % seg_minor)]
+            bm.faces.new((v(i, j), v(i + 1, j), v(i + 1, j + 1), v(i, j + 1)))
+    bm.normal_update()
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    for p_ in me.polygons:
+        p_.use_smooth = True
+    ob = bpy.data.objects.new(name, me)
+    ob.data.materials.append(material)
+    ob.location = pos(*at)
+    ob.rotation_euler = (tilt[0], tilt[1], 0.0)
+    ob.scale = (scale[0], scale[2], scale[1])
+    scn.collection.objects.link(ob)
+    if parent:
+        ob.parent = parent
+        ob.matrix_parent_inverse = parent.matrix_world.inverted()
+    return ob
+
+
+def profile_radius(shape, up):
+    """The real half-width of the torso at height `up` (the sphere narrows towards its ends)."""
+    sh = SHAPES[shape]
+    u = max(0.0, min(1.0, (up - BODY_BASE) / sh["height"]))
+    w = sh["top"] + (sh["bottom"] - sh["top"]) * (1 - u)
+    return w * math.sqrt(max(0.0, 1 - (2 * u - 1) ** 2))
+
+
+def singlet(shape, y0, y1, material, parent, seed=1):
+    """A loose singlet over the chest: a shell a little wider than the torso, with folds, a wavy
+    hem that rides up (so the tummy sticks out below it) and a wonky collar."""
+    rnd = random.Random(seed)
+    ph = [rnd.uniform(0, 6.28) for _ in range(4)]
+    n_a, n_h = 56, 9
+    bm = bmesh.new()
+    rows = []
+    for j in range(n_h + 1):
+        t = j / n_h
+        row = []
+        for i in range(n_a):
+            a = 2 * math.pi * i / n_a
+            hem = 0.035 * math.sin(3 * a + ph[0]) + 0.02 * math.sin(7 * a + ph[1])  # wavy bottom edge
+            collar = 0.03 * math.sin(2 * a + ph[2])
+            y = (y0 + hem * (1 - t)) + t * ((y1 + collar) - (y0 + hem * (1 - t)))
+            r = profile_radius(shape, y) * 1.045 + 0.012
+            # folds: more at the bottom (where it bunches over the tummy)
+            f = (0.014 * math.sin(5 * a + 9 * t + ph[2]) + 0.009 * math.sin(11 * a - 13 * t + ph[3])) * (1.0 - 0.6 * t)
+            r += f
+            fwd = 0.02 * max(0.0, math.cos(a)) * (1 - t)   # it hangs a bit forward over the tummy
+            row.append(bm.verts.new(((r + fwd) * math.sin(a), -(r + fwd) * math.cos(a), y)))
+        rows.append(row)
+    for j in range(n_h):
+        for i in range(n_a):
+            bm.faces.new((rows[j][i], rows[j][(i + 1) % n_a], rows[j + 1][(i + 1) % n_a], rows[j + 1][i]))
+    bm.normal_update()
+    me = bpy.data.meshes.new("Singlet")
+    bm.to_mesh(me)
+    bm.free()
+    for p_ in me.polygons:
+        p_.use_smooth = True
+    ob = bpy.data.objects.new("Singlet", me)
+    ob.data.materials.append(material)
+    scn.collection.objects.link(ob)
+    ob.parent = parent
+    ob.matrix_parent_inverse = parent.matrix_world.inverted()
+    return ob
+
+
 def make_blob(shape, dx=0.0):
     """One whole blob. Parts are named so the game can find them (Torso, Head, HandR, HandL...)."""
     body = bpy.data.objects.new("Body", None)
@@ -118,16 +213,35 @@ def make_blob(shape, dx=0.0):
         sphere("Torso", 0.36, (0, 0.78, 0), M["Body"], parent=body, capsule=0.55)
     else:
         egg_body("Torso", shape, M["Body"], parent=body)
-    sphere("Head", 0.30, (0, 1.50, 0), M["Head"], parent=body)
+    c = CARICATURE.get(shape)
+    k = c["head"] / 0.30 if c else 1.0           # how much bigger the head and eyes are
+    head = sphere("Head", c["head"] if c else 0.30, (0, 1.50 + (0.03 if c else 0.0), 0), M["Head"], parent=body)
+    if c:
+        head.rotation_euler = (0.0, c["tilt"], 0.0)   # a wonky head: leaning to one side
+    hy = 1.56 + (0.03 if c else 0.0) + (0.02 * (k - 1.0) if c else 0.0)
     for side, sg in (("L", -1), ("R", 1)):
-        sphere("Eye" + side, 0.085, (sg * 0.11, 1.56, 0.24), M["White"], parent=body, seg=20, rings=11)
-        sphere("Pupil" + side, 0.042, (sg * 0.11, 1.56, 0.315), M["Black"], parent=body, seg=16, rings=9)
-        sphere("Foot" + side, 0.13, (sg * 0.2, 0.09, 0.05), M["Foot"], scale=(1, 0.6, 1.4), parent=body, seg=24, rings=13)
+        er = 0.085 * (k if c else 1.0)
+        sphere("Eye" + side, er, (sg * 0.11 * k, hy, 0.24 * k), M["White"], parent=body, seg=20, rings=11)
+        sphere("Pupil" + side, 0.042 * (k if c else 1.0), (sg * 0.11 * k, hy, 0.24 * k + er * 0.88), M["Black"], parent=body, seg=16, rings=9)
+        if c:
+            # big feet that stick out the front, and a thong under each (its own colour)
+            fr = c["foot"]
+            sphere("Foot" + side, fr, (sg * 0.2, 0.10, 0.12), M["Foot"], scale=(1, 0.5, 1.7), parent=body, seg=24, rings=13)
+            sphere("Thong" + side, fr * 1.02, (sg * 0.2, 0.035, 0.13), M[c["thong"]], scale=(1.04, 0.16, 1.82), parent=body, seg=24, rings=9)
+            # the strap: a thin dark ring over the toes
+            torus("Strap" + side, 0.075, 0.014, (sg * 0.2, 0.15, 0.2), M["Strap"], tilt=(math.radians(90), 0.0), parent=body)
+        else:
+            sphere("Foot" + side, 0.13, (sg * 0.2, 0.09, 0.05), M["Foot"], scale=(1, 0.6, 1.4), parent=body, seg=24, rings=13)
+    if c:
+        # a tummy that sticks out the front, and the wrinkles of a singlet round it
+        sphere("Belly", c["belly"], (0, c["belly_y"], 0.22), M["Body"], scale=(1.0, 0.95, 0.85), parent=body)
+        singlet(shape, c["belly_y"] + 0.10, 1.22, M["Singlet"], body, seed=len(shape))
     # HandR is the one the game animates (it swings), HandL is the other side.
     # Hands rest just outside the body at arm height (0.88 up).
+    hr = c["hand"] if c else 0.10
     hx = body_radius(shape, 0.88) + 0.1
-    sphere("HandR", 0.10, (-hx, 0.88, 0.05), M["Head"], parent=body, seg=24, rings=13)
-    sphere("HandL", 0.10, (hx, 0.88, 0.05), M["Head"], parent=body, seg=24, rings=13)
+    sphere("HandR", hr, (-hx, 0.88, 0.05), M["Head"], parent=body, seg=24, rings=13)
+    sphere("HandL", hr, (hx, 0.88, 0.05), M["Head"], parent=body, seg=24, rings=13)
     return body
 
 

@@ -45,6 +45,26 @@ struct BlobBody;
 struct HandR;
 #[derive(Component)]
 struct HandL;
+/// An eyeball: it bobs and pops a little as the blob walks, each eye in its own way.
+#[derive(Component)]
+struct EyePart {
+    right: bool,
+    base: Vec3,
+}
+/// A pupil: it sloshes about inside the eye on a bouncy spring.
+#[derive(Component)]
+struct PupilPart {
+    right: bool,
+    base: Vec3,
+    pos: Vec2,
+    vel: Vec2,
+}
+/// A foot (or its thong or strap): it steps as the blob walks.
+#[derive(Component)]
+struct FootPart {
+    right: bool,
+    base: Vec3,
+}
 #[derive(Component)]
 struct Crown;
 #[derive(Component)]
@@ -127,6 +147,7 @@ impl Plugin for CharactersPlugin {
                     apply_roots,
                     apply_bodies,
                     apply_hands,
+                    animate_face_and_feet,
                     apply_crown,
                     apply_stars,
                     apply_sash,
@@ -200,12 +221,13 @@ fn spawn_model(
                   children: Query<&Children>,
                   names: Query<&Name>,
                   has_mat: Query<(), With<MeshMaterial3d<StandardMaterial>>>,
+                  tfs: Query<&Transform>,
                   mut commands: Commands| {
                 // once loaded: tint it for this player and find the hands, which the animation moves
                 for node in children.iter_descendants(ready.entity) {
                     let Ok(name) = names.get(node) else { continue };
                     let tint = match name.as_str() {
-                        "Torso" => Some(bm.clone()),
+                        "Torso" | "Belly" => Some(bm.clone()),
                         "Head" | "HandR" | "HandL" => Some(hm.clone()),
                         "FootL" | "FootR" => Some(fm.clone()),
                         _ => None,
@@ -218,7 +240,31 @@ fn spawn_model(
                             }
                         }
                     }
+                    let base = tfs.get(node).map(|t| t.translation).unwrap_or_default();
                     match name.as_str() {
+                        "EyeL" | "EyeR" => {
+                            commands.entity(node).insert((
+                                EyePart { right: name.as_str() == "EyeR", base },
+                                Blob(i),
+                            ));
+                        }
+                        "PupilL" | "PupilR" => {
+                            commands.entity(node).insert((
+                                PupilPart {
+                                    right: name.as_str() == "PupilR",
+                                    base,
+                                    pos: Vec2::ZERO,
+                                    vel: Vec2::ZERO,
+                                },
+                                Blob(i),
+                            ));
+                        }
+                        "FootL" | "FootR" | "ThongL" | "ThongR" | "StrapL" | "StrapR" => {
+                            commands.entity(node).insert((
+                                FootPart { right: name.as_str().ends_with('R'), base },
+                                Blob(i),
+                            ));
+                        }
                         "HandR" => {
                             commands.entity(node).insert((HandR, Blob(i)));
                             commands.spawn((
@@ -1062,5 +1108,79 @@ fn face_camera(
             tf.translation = Vec3::new(p.x, p.y + f.height, p.z);
             tf.rotation = cam.rotation;
         }
+    }
+}
+
+/// Walking makes the eyeballs bob and pop (each eye on its own beat), the pupils slosh about on
+/// springs and the big feet step. Dizzy blobs get swirling, cross-eyed pupils.
+fn animate_face_and_feet(
+    time: Res<Time>,
+    game: Res<Game>,
+    poses: Res<Poses>,
+    mut phases: Local<Vec<f32>>,
+    mut eyes: Query<(&Blob, &EyePart, &mut Transform), (Without<PupilPart>, Without<FootPart>)>,
+    mut pupils: Query<(&Blob, &mut PupilPart, &mut Transform), (Without<EyePart>, Without<FootPart>)>,
+    mut feet: Query<(&Blob, &FootPart, &mut Transform), (Without<EyePart>, Without<PupilPart>)>,
+) {
+    let dt = time.delta_secs().min(0.05);
+    let t = time.elapsed_secs();
+    let n = game.dummies.len();
+    phases.resize(n, 0.0);
+    // how fast each blob is walking, and its step phase
+    let mut speed = vec![0.0f32; n];
+    for (i, d) in game.dummies.iter().enumerate() {
+        let s = (d.mover.vx * d.mover.vx + d.mover.vz * d.mover.vz).sqrt();
+        speed[i] = if d.mover.grounded { s } else { s * 0.3 };
+        phases[i] += speed[i] * dt * 1.7;
+    }
+    let walk = |i: usize| (speed.get(i).copied().unwrap_or(0.0) / 4.0).clamp(0.0, 1.0);
+    for (b, e, mut tf) in &mut eyes {
+        if b.0 >= n {
+            continue;
+        }
+        let (ph, k) = (phases[b.0], walk(b.0));
+        // the two eyes bob on different beats; the right one also pops in and out
+        let (y, z) = if e.right {
+            ((ph * 2.0 + 1.9).sin() * 0.016 * k, (ph * 2.7).sin() * 0.012 * k)
+        } else {
+            ((ph * 2.0).sin() * 0.020 * k, 0.0)
+        };
+        let idle = (t * 1.3 + if e.right { 1.0 } else { 0.0 }).sin() * 0.004;
+        tf.translation = e.base + Vec3::new(0.0, y + idle, z);
+    }
+    for (b, mut p, mut tf) in &mut pupils {
+        if b.0 >= n {
+            continue;
+        }
+        let d = &game.dummies[b.0];
+        let (ph, k) = (phases[b.0], walk(b.0));
+        let side = if p.right { 1.0 } else { 0.0 };
+        let mut target = Vec2::new(
+            (ph + side * 1.3).sin() * 0.014 * k,
+            -(ph * 2.0 + side).cos() * 0.022 * k,
+        );
+        if d.body.stun > 0.0 {
+            // seeing stars: swirling, one pupil a beat behind the other
+            let a = t * 9.0 + side * 2.2;
+            target = Vec2::new(a.cos(), a.sin()) * 0.024;
+        } else if d.drunk > 40.0 {
+            target += Vec2::new((t * 1.7 + side * 3.0).sin(), (t * 2.3 + side).cos()) * 0.016;
+        }
+        // an underdamped spring: they overshoot and wobble back
+        let acc = (target - p.pos) * 140.0 - p.vel * 7.5;
+        p.vel += acc * dt;
+        let v = p.vel;
+        p.pos += v * dt;
+        p.pos = p.pos.clamp_length_max(0.034);
+        tf.translation = p.base + Vec3::new(p.pos.x, p.pos.y, 0.0);
+    }
+    for (b, f, mut tf) in &mut feet {
+        if b.0 >= n {
+            continue;
+        }
+        let (ph, k) = (phases[b.0], walk(b.0));
+        let a = ph + if f.right { std::f32::consts::PI } else { 0.0 };
+        let _ = &poses;
+        tf.translation = f.base + Vec3::new(0.0, a.cos().max(0.0) * 0.06 * k, a.sin() * 0.11 * k);
     }
 }

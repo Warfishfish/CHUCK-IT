@@ -529,6 +529,26 @@ fn start_from_args(mut game: ResMut<Game>, mut player: ResMut<Player>, mut yard:
         _ => GameMode::FreeForAll,
     };
     start_round(&mut game, &mut player, &mut yard);
+    // `--give noodle|dildo|steak|fish|teddy|stubby|gnome`: start with one in your hand (testing)
+    if let Some(k) = args.iter().position(|a| a == "--give").and_then(|i| args.get(i + 1)) {
+        let kind = match k.as_str() {
+            "noodle" => Some(bbq_core::items::ItemKind::Noodle),
+            "dildo" => Some(bbq_core::items::ItemKind::Dildo),
+            "steak" => Some(bbq_core::items::ItemKind::Steak),
+            "fish" => Some(bbq_core::items::ItemKind::Fish),
+            "teddy" => Some(bbq_core::items::ItemKind::Teddy),
+            "stubby" => Some(bbq_core::items::ItemKind::Stubby),
+            "gnome" => Some(bbq_core::items::ItemKind::Gnome),
+            _ => None,
+        };
+        if let Some(kind) = kind {
+            let (x, z) = (player.mover.x, player.mover.z);
+            let mut rng = game.rng.clone();
+            let id = game.world.spawn(kind, x, z, false, &mut rng);
+            game.world.give(id, crate::player::PLAYER_ID);
+            game.slots.add(id);
+        }
+    }
     if let Some(n) = args
         .iter()
         .position(|a| a == "--chest")

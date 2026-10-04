@@ -37,6 +37,9 @@ struct PoolShimmer;
 struct ChestRoot;
 #[derive(Component)]
 struct ChestLid;
+/// One of the yard's other eskies and its lid.
+#[derive(Component)]
+struct DecorLid(usize);
 #[derive(Component)]
 struct ChestToy(usize);
 
@@ -54,7 +57,7 @@ impl Plugin for YardScenePlugin {
         app.insert_resource(YardRes(Yard::default()))
             .init_resource::<Drift>()
             .add_systems(Startup, build_yard)
-            .add_systems(Update, (toggle_features, animate_yard, sync_chest));
+            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies));
     }
 }
 
@@ -170,15 +173,49 @@ fn build_yard(
     commands.entity(lid).insert(ChestLid);
     commands.entity(root).add_children(&[base, lid]);
     for k in 0..bbq_core::chest::MAX_STOCK as usize {
-        let toy = cache.spawn_parts(
+        let (at, rot, scale) = looks_yard::chest_toy_place(k);
+        let toy = cache.spawn(
             &mut commands,
-            &looks_yard::chest_toy(k),
+            crate::models::ModelKey::item(
+                bbq_core::items::ItemKind::Dildo,
+                Some(looks_yard::chest_toy_variant(k)),
+                0,
+            ),
             &mut meshes,
             &mut mats,
-            Transform::default(),
+            Transform {
+                translation: Vec3::new(at.x, at.y, at.z),
+                rotation: Quat::from_xyzw(rot.x, rot.y, rot.z, rot.w),
+                scale: Vec3::splat(scale),
+            },
         );
-        commands.entity(toy).insert(ChestToy(k));
+        commands.entity(toy).insert((
+            ChestToy(k),
+            crate::items_view::Wobble::with_seed(k as f32),
+            crate::items_view::FlopDrive::in_chest(),
+        ));
         commands.entity(root).add_child(toy);
+    }
+
+    // the yard's other eskies: they open, but hold nothing yet
+    for (i, e) in look.eskies.iter().enumerate() {
+        let root = commands
+            .spawn((
+                Transform::from_xyz(e.at.x, e.at.y, e.at.z).with_rotation(Quat::from_rotation_y(e.turn)),
+                Visibility::default(),
+            ))
+            .id();
+        let base = cache.spawn_parts(&mut commands, &e.base, &mut meshes, &mut mats, Transform::default());
+        let lid = cache.spawn_parts(
+            &mut commands,
+            &e.lid,
+            &mut meshes,
+            &mut mats,
+            Transform::from_xyz(look.chest_pivot.x, look.chest_pivot.y, look.chest_pivot.z)
+                .with_rotation(Quat::from_rotation_x(-0.08)),
+        );
+        commands.entity(lid).insert(DecorLid(i));
+        commands.entity(root).add_children(&[base, lid]);
     }
 
     // the sun, with shadows, and the soft light from the sky
@@ -271,6 +308,20 @@ fn sync_chest(
         } else {
             Visibility::Hidden
         };
+    }
+}
+
+/// The yard's other eskies: the lid eases open for a few seconds after R, then shuts.
+fn sync_decor_eskies(
+    game: Res<Game>,
+    time: Res<Time>,
+    mut lids: Query<(&DecorLid, &mut Transform)>,
+) {
+    let k = 1.0 - (-6.0 * time.delta_secs()).exp();
+    for (l, mut tf) in &mut lids {
+        let want = if game.life.decor_open.get(l.0).copied().unwrap_or(0.0) > 0.0 { -1.15 } else { -0.08 };
+        let (x, _, _) = tf.rotation.to_euler(EulerRot::XYZ);
+        tf.rotation = Quat::from_rotation_x(x + (want - x) * k);
     }
 }
 
