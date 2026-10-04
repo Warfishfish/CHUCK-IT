@@ -72,6 +72,8 @@
 - ✅ Walking up to your own team's teddy auto-returns it home instead of letting you "steal" your own
 - ✅ Heist scoring is all about teddies: banking is the only thing that scores (150 pts each). Hits, throws, streaks, catches and the pool/tramp bonuses pay nothing in this mode, so there's nothing to farm off teammates
 - ✅ Big four-sided scoreboard floating over the middle of the yard shows each team's teddies banked and points, with a crown on the leader — readable from anywhere. The sidebar team headings show teddies too
+- ✅ Thrown-item hits no longer score or cost points in Heist (they used to pay 100+ and take 50 off the victim). Only banking scores now
+- ✅ Each player's own banked-teddy count is tracked: shown as 🧸 next to their score on the live scoreboard, as a 🧸 Banked column in the results, and the results line names the top banker in each team
 - ✅ Win: whoever's banked the most teddies when the clock runs out
 - ✅ Teddy Heist gets its own map layout (not the free-for-all yard): chokepoints and a repositioned obstacle cluster in the middle so there's no straight sprint between bases, scaling cleanly from 2 bases (opposite sides) up to 4 (corners). Free-for-all and Teams keep today's map
 - ✅ Live tally bar during the round shows each team's banked count by colour

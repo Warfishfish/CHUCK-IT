@@ -288,7 +288,7 @@ Taunt (T), dance (G), laugh (B). Durations: dance 2.4 s, laugh 1.7 s, taunt 1.4 
 | KO / berserk / flip Dazza | +75 / +25 / +50 |
 | Bum-Out gnome hit | +15 on top of a normal hit |
 **Streak multiplier:** 3 hits in a row x1.5, 5 hits x2. Resets when you are hit or your throw is caught. Hits on teammates don't add to your streak.
-**Heist:** only banking scores. **Decided by Marcus (4 Oct 2026): the Rust version fixes the JavaScript bug**, so in Heist a thrown-item hit pays the thrower nothing and costs the victim nothing (it still knocks and stuns). The JavaScript game (`authHit`, line 1770) has no Heist check and still pays 100+ and -50; that is a known bug there, not a rule to copy. See section 20, item 3.
+**Heist:** only banking scores. **Decided by Marcus (4 Oct 2026): the Rust version fixes the JavaScript bug**, so in Heist a thrown-item hit pays the thrower nothing and costs the victim nothing (it still knocks and stuns). The JavaScript game paid 100+ and -50 on thrown hits in Heist (`authHit`, line 1770) up to 0.23.1; that was a bug and is fixed in browser version 0.23.2. See section 20, item 3.
 
 ---
 
@@ -434,7 +434,7 @@ Home (-6, 0, -19.3). States: `cook`, `angry`, `chase`, `return`, `ko`, `stunned`
 These are places where what the game says doesn't match what it does. The Rust version should follow the **code** unless Marcus says otherwise.
 1. **Steak and fish stun length:** the in-game item list says "Slap: 3s stun" but the code uses `MEAT_STUN = 2` s (line 1018).
 2. **Friendly fire:** when it's on, a teammate hit gives the thrower nothing, but the victim still loses 50 and a "taken" (lines 1779-1785).
-3. **Thrown-item hits still score in Heist (JavaScript bug).** CHECKLIST.md and CLAUDE.md say Heist scores only from banking teddies, but `authHit` (line 1770) has no Heist check, so a thrown hit pays the thrower (100 plus bonuses) and costs the victim 50. Melee slaps, catches, pool/tramp, help-ups, Dazza stuns and cannonballs are correctly blocked. **Decided: the Rust version follows the rule (no points gained or lost from hits in Heist).** The JavaScript game is unchanged for now.
+3. **Thrown-item hits still score in Heist (JavaScript bug).** CHECKLIST.md and CLAUDE.md say Heist scores only from banking teddies, but `authHit` (line 1770) has no Heist check, so a thrown hit pays the thrower (100 plus bonuses) and costs the victim 50. Melee slaps, catches, pool/tramp, help-ups, Dazza stuns and cannonballs are correctly blocked. **Decided: the Rust version follows the rule (no points gained or lost from hits in Heist).** The JavaScript game was fixed to match in 0.23.2. Players also now have a banked-teddy count (`stats[id].banked`, 9th value in the score rows) so the top banker per team can be shown; the Rust version should keep that stat.
 4. **Fall chance per second** is very low at full drunkenness (`0.028 * da^1.5` per second, roughly one fall every 36 s while walking at max drunkenness), which is much less than the "4% every 2 s" used by Drunk mode.
 5. **Cheeky Dazza lines:** "Keep the Dazza chatter about every 30 s" is implemented as a random 25-35 s.
 6. **Steak "3s stun" text** appears in the in-game How to play too (same as item 1).

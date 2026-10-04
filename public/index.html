@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.23.1</span>
+      <span class="tag">Backyard Brawl · prototype 0.23.2</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -545,7 +545,7 @@ body.touch #cds{display:none}
     <p id="matchLine" class="match-line" hidden></p>
     <p id="lobbyNote" class="match-line" hidden>Game over! Everyone heads back to the lobby in a few seconds.</p>
     <div class="table-wrap"><table>
-      <thead><tr><th>#</th><th>Player</th><th>Score</th><th>Hits</th><th>Got hit</th><th>Catches</th><th>Accuracy</th></tr></thead>
+      <thead><tr><th>#</th><th>Player</th><th>Score</th><th>Hits</th><th>Got hit</th><th>Catches</th><th>Accuracy</th><th id="thBank" hidden>🧸 Banked</th></tr></thead>
       <tbody id="resBody"></tbody>
     </table></div>
     <div class="btn-row">
@@ -1547,7 +1547,7 @@ function removeChar(ch){carryForget(ch.id);dropCharFx(ch);scene.remove(ch.mesh);
 function fwd(ch){return new V3(Math.sin(ch.face),0,Math.cos(ch.face));}
 function heldOf(id){const a=[];for(const it of items.values())if(it.state==='held'&&it.holder===id&&!it.pendingThrow)a.push(it);return a.sort((x,y)=>x.pickT-y.pickT);}
 function selItem(ch){const h=heldOf(ch.id);if(!h.length)return null;let s=h.find(i=>i.id===ch.selId);if(!s){s=h[h.length-1];ch.selId=s.id;}return s;}
-function ensureStats(ch){if(mode==='menu')return;if(!stats[ch.id])stats[ch.id]={name:ch.name,color:ch.color,score:0,hits:0,taken:0,catches:0,throws:0,streak:0};else{stats[ch.id].name=ch.name;stats[ch.id].color=ch.color;}scoreDirty=true;}
+function ensureStats(ch){if(mode==='menu')return;if(!stats[ch.id])stats[ch.id]={name:ch.name,color:ch.color,score:0,hits:0,taken:0,catches:0,throws:0,streak:0,banked:0};else{stats[ch.id].name=ch.name;stats[ch.id].color=ch.color;}scoreDirty=true;}
 function streakMult(n){return n>=5?2:n>=3?1.5:1;}
 
 /* ================= ITEMS ================= */
@@ -1754,7 +1754,7 @@ function authHeistBank(id,it){const ch=chars.get(id);if(!ch||!it||it.holder!==id
   const myT=teamOf.get(id);if(!myT||it.heistTeam===myT)return;
   const base=heistBases[myT];if(!base||Math.hypot(ch.pos.x-base.x,ch.pos.z-base.z)>=HEIST_BASE_R)return;
   removeItem(it);heistBanked[myT]=(heistBanked[myT]||0)+1;
-  const scoring=state==='play';let pts=0;if(scoring&&stats[id]){pts=HEIST_BANK_PTS;stats[id].score+=pts;scoreDirty=true;}
+  const scoring=state==='play';let pts=0;if(scoring&&stats[id]){pts=HEIST_BANK_PTS;stats[id].score+=pts;stats[id].banked=(stats[id].banked||0)+1;scoreDirty=true;}
   scoreDirty=true;fx('heistbank',id,myT,heistBanked[myT],pts);}
 function authDrop(id,it){const ch=chars.get(id);const p=ch?ch.pos:it.pos;it.state='flying';it.holder=null;it.thrower=null;it.live=false;it.flyT=0;
   it.pos.set(p.x+rand(-.5,.5),(ch?ch.pos.y:0)+.8,p.z+rand(-.5,.5));it.vel.set(rand(-1,1),2,rand(-1,1));}
@@ -1773,7 +1773,7 @@ function authHit(victimId,it,kdir,f){
   if(!inAir&&(f.active||elapsed-f.endT>LATE_HIT))return;
   const tk=sameTeam(f.thrower,victimId);if(tk&&!friendlyFire)return;{const vv=chars.get(victimId);if(vv&&vv.smokoSeat>=0)return;}
   f.scored=true;
-  const thrower=f.thrower,scoring=state==='play';const vc=chars.get(victimId);const hp=inAir?it.pos:(vc?vc.pos.clone().setY(vc.pos.y+1.2):new V3());const bounty=leaderId===victimId&&thrower&&thrower!==victimId;
+  const thrower=f.thrower,scoring=state==='play'&&gameMode!=='heist';const vc=chars.get(victimId);const hp=inAir?it.pos:(vc?vc.pos.clone().setY(vc.pos.y+1.2):new V3());const bounty=leaderId===victimId&&thrower&&thrower!==victimId;
   let streak=0,gain=0,db=0,lb=0;
   if(scoring){
     if(thrower&&thrower!==victimId&&stats[thrower]&&!tk){
@@ -2446,7 +2446,7 @@ function botSteer(ch,dt,arrive,urgent,goal){const ai=ch.ai,P=ai.pers;
 const net={room:null,yard:null,code:'',isHost:false,hostId:null,seq:0,out:[],seen:new Map(),idByPeer:new Map(),sendAcc:0,advAcc:0,gotWorld:false,joinTimer:0,unsub:[],lastSc:'',lastPd:'',connected:false,roomDead:false};
 function newId(){const a='abcdefghjkmnpqrstuvwxyz23456789';let s='p';for(let i=0;i<7;i++)s+=a[Math.floor(Math.random()*a.length)];return s;}
 function sendEv(...a){if(!net.yard)return;net.out.push([++net.seq,...a]);if(net.out.length>14)net.out.shift();}
-function boardRows(){if(isAuth)return Object.entries(stats).map(([id,s])=>[id,s.name,s.color,s.score,s.hits,s.taken,s.catches,s.throws]);return hostRows;}
+function boardRows(){if(isAuth)return Object.entries(stats).map(([id,s])=>[id,s.name,s.color,s.score,s.hits,s.taken,s.catches,s.throws,s.banked||0]);return hostRows;}
 function buildWorld(){
   const it=[];for(const i of items.values()){const f=i.state==='flying';it.push([i.id,TYPES.indexOf(i.type),STATES.indexOf(i.state),r2(i.pos.x),r2(i.pos.y),r2(i.pos.z),f?r2(i.vel.x):0,f?r2(i.vel.y):0,f?r2(i.vel.z):0,i.holder||0,i.thrower||0,i.live?1:0,i.flight&&i.flight.active?i.flight.id:0,i.uses||0,i.variant?DILDO_VKEYS.indexOf(i.variant):0,i.bumOut?1:0,i.heistTeam?HEIST_TEAM_KEYS.indexOf(i.heistTeam)+1:0]);}
   const b=[];for(const c of chars.values())if(c.kind==='bot')b.push([c.id,c.name,c.color,r2(c.pos.x),r2(c.pos.y),r2(c.pos.z),r2(c.face),c.stun>0?1:0,c.charging?r2(c.charge):0,(selItem(c)||{}).id||0,r2(c.vel.x),r2(c.vel.y),r2(c.vel.z),r1(c.downT),c.smokoSeat>=0?c.smokoSeat:-1,Math.round(c.drunk||0)]);
@@ -2558,7 +2558,7 @@ function applyWorld(w){
     ch.selId=b[9]||null;ch.netV.set(num(b[10],0),num(b[11],0),num(b[12],0));ch.downT=clamp(num(b[13],0),0,6);ch.smokoSeat=b[14]>=0?b[14]|0:-1;ch.drunk=clamp(num(b[15],0),0,100);ch.netT=performance.now();}
   for(const ch of [...chars.values()])if(ch.isBot&&ch.kind==='proxy'&&!botSeen.has(ch.id))removeChar(ch);
   // scores
-  if(Array.isArray(w.sc)){const s=JSON.stringify(w.sc);if(s!==net.lastSc){net.lastSc=s;hostRows=w.sc.filter(r=>Array.isArray(r)).map(r=>[String(r[0]),cleanName(r[1]),clamp(num(r[2],0xffffff)|0,0,0xffffff),num(r[3],0),num(r[4],0),num(r[5],0),num(r[6],0),num(r[7],0)]);scoreDirty=true;}}
+  if(Array.isArray(w.sc)){const s=JSON.stringify(w.sc);if(s!==net.lastSc){net.lastSc=s;hostRows=w.sc.filter(r=>Array.isArray(r)).map(r=>[String(r[0]),cleanName(r[1]),clamp(num(r[2],0xffffff)|0,0,0xffffff),num(r[3],0),num(r[4],0),num(r[5],0),num(r[6],0),num(r[7],0),num(r[8],0)]);scoreDirty=true;}}
   const ld=typeof w.ld==='string'?w.ld:null;if(ld!==leaderId){leaderId=ld;scoreDirty=true;}
   fallDur=clamp(num(w.fd,20),5,60);
   if(typeof w.fe==='number'&&setFeatMask(w.fe))renderYardPanel();
@@ -2786,7 +2786,7 @@ function updateSlots(){const h=me?heldOf(myId):[];const sel=me?selItem(me):null;
   for(let i=0;i<2;i++){const el=$('#slot'+i),it=h[i];el.className='slot'+(it?'':' empty')+(it&&it===sel?' sel':'');
     el.innerHTML=(touchMode?'':`<kbd>${i+1}</kbd>`)+(it?ICONS[it.type]+`<span>${it.def.melee?it.def.short+' · '+(it.uses||it.def.uses||SLAP_USES)+' slap'+((it.uses||it.def.uses||SLAP_USES)===1?'':'s'):it.def.name}</span>`:'<span>Empty</span>');}}
 function renderBoard(){const rows=boardRows().slice().sort((a,b)=>b[3]-a[3]);
-  const row=r=>`<li class="${r[0]===myId?'me':''}"><span class="dot" style="background:${hex(r[2])}"></span><span>${r[0]===myId?'You':esc(r[1])}${leaderId===r[0]?'<span class="crown">♛</span>':''}</span><span>${r[3]}</span></li>`;
+  const row=r=>`<li class="${r[0]===myId?'me':''}"><span class="dot" style="background:${hex(r[2])}"></span><span>${r[0]===myId?'You':esc(r[1])}${leaderId===r[0]?'<span class="crown">♛</span>':''}</span><span>${gameMode==='heist'?'🧸 '+(r[8]||0)+' · ':''}${r[3]}</span></li>`;
   if(!teamsOn()){boardEl.innerHTML=rows.map(row).join('');return;}
   let html='';for(const t of Object.keys(TEAMS)){const grp=rows.filter(r=>teamOf.get(r[0])===t);if(!grp.length)continue;const tot=grp.reduce((n,r)=>n+r[3],0);
     html+=`<li class="team" style="--tc:${TEAMS[t].css}"><span></span><span>${TEAMS[t].name}${t==='w'?'':' team'}${teamOf.get(myId)===t?' (you)':''}</span><span>${t==='w'?'':(gameMode==='heist'?'🧸 '+(heistBanked[t]||0):tot)}</span></li>`+grp.map(row).join('');}
@@ -2895,7 +2895,8 @@ function showResults(rows){
   $('#winLine').textContent=tie?'Nobody takes the esky home this time.':top[0]===myId?`Top score of ${top[3]}. Your mates are going to want a rematch.`:(mine>=0?`${top[1]} finished on ${top[3]}. You finished #${mine+1} on ${rows[mine][3]}.`:`${top[1]} finished on ${top[3]}.`);
   if(gameMode==='heist'){const keys=heistKeysArr(),win=roundWinnerKey(rows),myT=teamOf.get(myId);
     $('#winTitle').textContent=!win?'Dead heat!':win===myT?'Your team wins!':(TEAMS[win]?TEAMS[win].name+' team wins':'Dead heat!');
-    $('#winLine').textContent=`Teddies banked — ${keys.map(k=>`${TEAMS[k].name} ${heistBanked[k]||0}`).join(', ')}.`;}
+    const topBank=k=>{const g=rows.filter(r=>teamOf.get(r[0])===k&&(r[8]||0)>0).sort((a,b)=>(b[8]||0)-(a[8]||0));if(!g.length)return '';const m=g[0][8],n=g.filter(r=>r[8]===m).map(r=>r[0]===myId?'you':r[1]);return ` (top banker ${n.join(' & ')}, ${m})`;};
+    $('#winLine').textContent=`Teddies banked — ${keys.map(k=>`${TEAMS[k].name} ${heistBanked[k]||0}${topBank(k)}`).join(', ')}.`;}
   else if(teamsOn()){const tot={r:0,b:0,w:0};rows.forEach(r=>{const t=teamOf.get(r[0]);if(t)tot[t]+=r[3];});const myT=teamOf.get(myId),win=tot.r===tot.b?null:tot.r>tot.b?'r':'b';
     $('#winTitle').textContent=!win?'Dead heat!':win===myT?'Your team wins!':TEAMS[win].name+' team wins';
     const wc=rows.find(r=>teamOf.get(r[0])==='w');
@@ -2908,7 +2909,8 @@ function showResults(rows){
       ml.textContent=`Best of ${matchLen} (first to ${matchNeed()}): ${matchStandings()}`;}}
   $('#again').textContent=againLabel();
   const chip=r=>{const t=teamOfId(r[0]);return t?`<span class="tchip" style="background:${TEAMS[t].css}">${TEAMS[t].name}</span>`:'';};
-  $('#resBody').innerHTML=rows.map((r,i)=>`<tr class="${r[0]===myId?'me':''}"><td>${i+1}</td><td><span class="dot" style="background:${hex(r[2])}"></span>${r[0]===myId?'You':esc(r[1])}${chip(r)}</td><td class="score">${r[3]}</td><td>${r[4]}</td><td>${r[5]}</td><td>${r[6]}</td><td>${r[7]?Math.round(r[4]/r[7]*100)+'%':'–'}</td></tr>`).join('');
+  $('#resBody').innerHTML=rows.map((r,i)=>`<tr class="${r[0]===myId?'me':''}"><td>${i+1}</td><td><span class="dot" style="background:${hex(r[2])}"></span>${r[0]===myId?'You':esc(r[1])}${chip(r)}</td><td class="score">${r[3]}</td><td>${r[4]}</td><td>${r[5]}</td><td>${r[6]}</td><td>${r[7]?Math.round(r[4]/r[7]*100)+'%':'–'}</td>${gameMode==='heist'?`<td class="score">${r[8]||0}</td>`:''}</tr>`).join('');
+  $('#thBank').hidden=gameMode!=='heist';
 }
 function clearWorld(){
   flights.clear();clearHeistProps();
