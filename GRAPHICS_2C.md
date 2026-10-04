@@ -66,9 +66,9 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [ ] Small clutter that tells a story: a cricket bat and stumps, a dog bowl, thongs by the door, a washing basket, bottle caps and stubbies on the ground
 
 ### Props
-- [ ] Outdoor table: thick timber planks, slightly warped, nails and bolts, beer rings, scratches, bevelled edges
-- [ ] Plastic chairs: chunky, slightly warped, sun-faded, scratched, a little asymmetric
-- [ ] BBQ: oversized wheels, big rounded lid, stubby knobs, slight asymmetry (see High-detail assets)
+- [x] Outdoor table: thick timber planks in different browns, slightly warped, nail heads, beer rings, a spill, chunky splayed legs and a stretcher (scratches and bevels come with the textures)
+- [x] Plastic chairs: chunky, sun-faded, slatted back, fat arms and legs, each crooked with a bent leg (scratches come with the textures)
+- [x] BBQ: oversized uneven wheels, big rounded red hood propped open, stubby knobs, slight asymmetry
 - [ ] Shed, bar, trampoline, planters, log pile, tyres, tank: bevels, a slight lean, dirt, rust
 - [ ] Items in hand and on the ground get a second look: teddy seams, gnome face, stubby label, steak marbling, fish scales, noodle ends, snag
 - [ ] Red sauce bottle and yellow mustard bottle as bright readable props
@@ -96,7 +96,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] Slapping with a pool noodle works (tap to slap for 50 and a 1.2 s stun, hold to throw; a test checks both) and your own swing is now drawn across the screen like the browser's
 
 ### Animals
-- [ ] A magpie on the fence watching the player: absurdly large head, big beak, small chunky body, simple wings, large eyes, head that tracks you
+- [x] A magpie on the fence watching the player: absurdly big head, big beak, chunky body, wings, tail, big eyes, head that tracks you and cocks now and then (two spots: south fence and west fence)
 - [ ] Magpie extras: hops along the fence, flaps off if something flies close (visual only, no gameplay)
 - [ ] (Later, optional) a dog, a lizard or a kookaburra on the shed
 
@@ -140,7 +140,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [ ] The game loads these models and falls back to the shape-list version if a file is missing
 
 ### High-detail assets
-- [ ] BBQ: oversized wheels, big rounded lid, stubby knobs, grease, heat staining, burn marks, dirty grill plates, bolts, welds, a little rust; cartoon shape, real surface
+- [x] BBQ surface detail: grease and burn marks on the plate, heat staining, bolts, a weld seam, rust patches (shape-built; a Blender hero version with baked textures is still to do)
 - [ ] Dildo Chest esky (see above) as a hero model
 - [ ] Magpie as a hero model
 - [ ] Hills Hoist and the bar's taps and bottles

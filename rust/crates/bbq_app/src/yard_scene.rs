@@ -37,6 +37,17 @@ struct PoolShimmer;
 struct ChestRoot;
 #[derive(Component)]
 struct ChestLid;
+/// A magpie's turning head: it watches you.
+#[derive(Component)]
+struct MagpieHead {
+    /// Which way the body faces (turn about y).
+    body_yaw: f32,
+    seed: f32,
+    yaw: f32,
+    pitch: f32,
+}
+#[derive(Component)]
+struct MagpieBody(f32);
 /// Part of the smoko area: it is moved when the round moves the pad (Teddy Heist).
 #[derive(Component)]
 struct SmokoShift(Vec3);
@@ -60,7 +71,7 @@ impl Plugin for YardScenePlugin {
         app.insert_resource(YardRes(Yard::default()))
             .init_resource::<Drift>()
             .add_systems(Startup, build_yard)
-            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_place));
+            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_place, animate_magpies));
     }
 }
 
@@ -128,7 +139,11 @@ fn build_yard(
         let facing = bbq_core::smoko::seat_facing(i, chairs);
         let e = cache.spawn_parts(
             &mut commands,
-            &looks_yard::chair(),
+            &if *mode == crate::lighting::LookMode::Polished {
+                looks_yard::chair_styled(i)
+            } else {
+                looks_yard::chair()
+            },
             &mut meshes,
             &mut mats,
             Transform::from_xyz(x, 0.0, z).with_rotation(Quat::from_rotation_y(facing)),
@@ -201,6 +216,30 @@ fn build_yard(
             crate::items_view::FlopDrive::in_chest(),
         ));
         commands.entity(root).add_child(toy);
+    }
+
+    // magpies on the fence, watching you
+    for (i, (at, yaw)) in look.magpies.iter().enumerate() {
+        let m = looks_yard::magpie();
+        let root = commands
+            .spawn((
+                Transform::from_xyz(at.x, at.y, at.z)
+                    .with_rotation(Quat::from_rotation_y(*yaw))
+                    .with_scale(Vec3::splat(1.35)),
+                Visibility::default(),
+                MagpieBody(i as f32),
+            ))
+            .id();
+        let body = cache.spawn_parts(&mut commands, &m.body, &mut meshes, &mut mats, Transform::default());
+        let head = cache.spawn_parts(
+            &mut commands,
+            &m.head,
+            &mut meshes,
+            &mut mats,
+            Transform::from_xyz(m.neck.x, m.neck.y, m.neck.z),
+        );
+        commands.entity(head).insert(MagpieHead { body_yaw: *yaw, seed: i as f32 * 3.7, yaw: 0.0, pitch: 0.0 });
+        commands.entity(root).add_children(&[body, head]);
     }
 
     // the yard's other eskies: they open, but hold nothing yet
@@ -328,6 +367,36 @@ fn sync_decor_eskies(
         let want = if game.life.decor_open.get(l.0).copied().unwrap_or(0.0) > 0.0 { -1.15 } else { -0.08 };
         let (x, _, _) = tf.rotation.to_euler(EulerRot::XYZ);
         tf.rotation = Quat::from_rotation_x(x + (want - x) * k);
+    }
+}
+
+/// Magpies turn their heads to follow you, cock them now and then, and bob a little.
+fn animate_magpies(
+    time: Res<Time>,
+    player: Res<crate::player::Player>,
+    mut heads: Query<(&mut MagpieHead, &mut Transform, &GlobalTransform), Without<MagpieBody>>,
+    mut bodies: Query<(&MagpieBody, &mut Transform), Without<MagpieHead>>,
+) {
+    let t = time.elapsed_secs();
+    let k = 1.0 - (-7.0 * time.delta_secs()).exp();
+    for (mut h, mut tf, gt) in &mut heads {
+        let at = gt.translation();
+        let (dx, dz) = (player.mover.x - at.x, player.mover.z - at.z);
+        let dist = dx.hypot(dz).max(0.1);
+        // turn towards you, but only as far as a neck goes
+        let mut want = dx.atan2(dz) - h.body_yaw;
+        want = (want + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+        let want = want.clamp(-1.9, 1.9);
+        let pitch = (-(1.5 - at.y).atan2(dist) * 0.6).clamp(-0.5, 0.5);
+        h.yaw += (want - h.yaw) * k;
+        h.pitch += (pitch - h.pitch) * k;
+        // now and then it cocks its head the way magpies do
+        let cock = ((t * 0.5 + h.seed).sin() - 0.7).max(0.0) * 1.6;
+        let nod = (t * 3.1 + h.seed).sin().max(0.97) - 0.97;
+        tf.rotation = Quat::from_euler(EulerRot::YXZ, h.yaw, h.pitch + nod * 6.0, cock * 0.5);
+    }
+    for (b, mut tf) in &mut bodies {
+        tf.translation.y = bbq_core::looks_yard::FENCE_H + ((t * 1.7 + b.0 * 2.0).sin().max(0.92) - 0.92) * 0.25;
     }
 }
 

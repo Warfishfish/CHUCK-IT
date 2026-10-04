@@ -57,6 +57,8 @@ pub struct YardLook {
     /// The yard's other eskies (polished look): they open too, but hold nothing yet. Each is
     /// (spot, turn, base parts, lid parts, hinge).
     pub eskies: Vec<Esky>,
+    /// Magpies on the fence (polished look): where, which way they face, and the model.
+    pub magpies: Vec<(V3, f32)>,
     /// Clouds: where each one starts, and its puffs (local).
     pub clouds: Vec<(V3, Vec<Part>)>,
 }
@@ -149,6 +151,195 @@ fn fence(len: f32, horizontal: bool, x: f32, z: f32) -> Part {
 }
 
 /// A chair at the smoko pad, facing +z (turn it to face the middle). Local to the chair.
+fn orb(r: f32, s: Surface, x: f32, y: f32, z: f32) -> Part {
+    Part::new(Shape::Sphere { r, ws: 14, hs: 10 }, s).at(x, y, z)
+}
+
+/// A chunky, sun-faded plastic chair (the step 2c look): thick legs that splay a little, a
+/// slatted back, chunky arms, a tilt and a bent leg that differ for every `i`.
+pub fn chair_styled(i: usize) -> Vec<Part> {
+    let fades = [0x5f8fcf, 0x6d97d2, 0x5784c4, 0x7aa0d6];
+    let fab = matt(fades[i % 4]);
+    let frame = matt(0xb8bdc0);
+    let dark = matt(0x8c9296);
+    let f = (i % 5) as f32;
+    let mut v = vec![
+        // seat, with a thick front lip
+        cuboid(0.56, 0.07, 0.52, fab, 0.0, 0.44, 0.0),
+        cuboid(0.56, 0.1, 0.06, fab, 0.0, 0.43, 0.26),
+    ];
+    // a back made of three fat slats, leaning back
+    for k in 0..3 {
+        v.push(cuboid(0.52, 0.12, 0.04, fab, 0.0, 0.62 + k as f32 * 0.15, -0.25 - k as f32 * 0.025).turn(-0.2, 0.0, 0.0));
+    }
+    for x in [-0.25f32, 0.25] {
+        v.push(cuboid(0.05, 0.5, 0.05, frame, x, 0.7, -0.27).turn(-0.2, 0.0, 0.0));
+        // chunky arm rests
+        v.push(cuboid(0.07, 0.05, 0.4, frame, x * 1.12, 0.62, 0.0));
+        v.push(cuboid(0.05, 0.2, 0.05, frame, x * 1.12, 0.52, 0.17));
+    }
+    // fat legs, splayed outwards; one of them is a little bent, differently on each chair
+    for (n, (x, z)) in [(-0.24f32, -0.2f32), (0.24, -0.2), (-0.24, 0.2), (0.24, 0.2)].into_iter().enumerate() {
+        let bend = if n == (i % 4) { 0.05 + f * 0.01 } else { 0.0 };
+        v.push(cyl(0.032, 0.04, 0.44, 8, frame, x * 1.08, 0.22, z * 1.1).turn(z * 0.12 + bend, 0.0, -x * 0.14));
+        v.push(cyl(0.045, 0.045, 0.03, 8, dark, x * 1.15, 0.015, z * 1.2));
+    }
+    // a bit of grime where the seat meets the back
+    v.push(cuboid(0.4, 0.012, 0.1, matt(0x6f7f8a), 0.0, 0.482, -0.2));
+    // each chair sits a little crooked
+    let tilt = ((i * 7 % 9) as f32 - 4.0) * 0.007;
+    place(v, V3::ZERO, Quat::from_euler_xyz(tilt, 0.0, -tilt * 1.4), 1.0)
+}
+
+/// The outdoor table (the step 2c look): fat warped timber planks in slightly different browns,
+/// nail heads, beer rings, a stain, chunky splayed legs and a stretcher. The top is at 0.8 m, like
+/// the old table, so its collider still fits.
+fn table_styled() -> Vec<Part> {
+    let (tx, tz) = (6.0f32, -16.5f32);
+    let woods = [0xb98a52u32, 0xc79a61, 0xb08048, 0xcfa56d, 0xbd8f58];
+    let mut v = Vec::new();
+    for (k, c) in woods.iter().enumerate() {
+        let warp = ((k * 5 % 7) as f32 - 3.0) * 0.004;
+        v.push(
+            cuboid(0.392, 0.1, 1.0, matt(*c), tx - 0.8 + k as f32 * 0.4, 0.75 + warp, tz)
+                .turn(0.0, warp * 2.0, warp * 3.0),
+        );
+        // the planks end a little uneven
+        v.push(cuboid(0.392, 0.1, 0.05, matt(looks::shade(*c, 0.8)), tx - 0.8 + k as f32 * 0.4, 0.75 + warp, tz + 0.5));
+    }
+    // battens under the top, with a nail head in every plank
+    for z in [-0.3f32, 0.3] {
+        v.push(cuboid(1.9, 0.07, 0.1, matt(0x7a5a38), tx, 0.66, tz + z));
+        for k in 0..5 {
+            v.push(cyl(0.013, 0.013, 0.006, 6, matt(0x2b2b2b), tx - 0.8 + k as f32 * 0.4 + 0.07 * (k as f32 - 2.0).signum(), 0.802, tz + z));
+        }
+    }
+    // beer rings and a spill on the top
+    for (x, z) in [(-0.5f32, 0.1f32), (0.3, -0.25), (0.62, 0.3)] {
+        v.push(torus(0.045, 0.004, 4, 16, 2.0 * PI, matt(0x7b5a33)).at(tx + x, 0.803, tz + z).turn(HALF_PI, 0.0, 0.0));
+    }
+    v.push(Part::new(Shape::Disc { r: 0.12, seg: 12 }, matt(0x9a7442)).at(tx - 0.2, 0.803, tz - 0.3).turn(-HALF_PI, 0.0, 0.0).stretch(1.6, 1.0, 1.0));
+    // chunky legs splayed outwards, and a stretcher between the long sides
+    for (a, b) in [(-0.9f32, -0.4f32), (0.9, -0.4), (-0.9, 0.4), (0.9, 0.4)] {
+        v.push(cuboid(0.12, 0.72, 0.12, matt(0x8a6538), tx + a, 0.36, tz + b).turn(b * 0.1, 0.0, -a * 0.06));
+    }
+    v.push(cuboid(1.8, 0.07, 0.07, matt(0x7a5a38), tx, 0.22, tz - 0.4));
+    v.push(cuboid(1.8, 0.07, 0.07, matt(0x7a5a38), tx, 0.2, tz + 0.4));
+    v
+}
+
+/// The BBQ (the step 2c look): chunky and cartoony, with oversized wheels, a big rounded hood,
+/// stubby knobs and a slightly crooked stance, and lots of wear on the surface: grease, burn
+/// marks, bolts and a bit of rust. Same footprint as the old one (the collider is unchanged) and
+/// the same cooking surface height (1.23 m), so the food still sits right.
+fn bbq_styled() -> Vec<Part> {
+    let silver = matt(0xb4bcc0);
+    let steel = matt(0x8a9298);
+    let dark = matt(0x2a2d31);
+    let red = matt(0xc43c2c);
+    let (bx, bz) = (-6.0f32, -18.0f32);
+    let mut v = vec![
+        // cabinet and shelf
+        cuboid(1.3, 0.62, 0.62, silver, bx, 0.5, bz),
+        cuboid(1.18, 0.05, 0.5, dark, bx, 0.3, bz),
+        // the firebox the plate sits on, a little wider at the top
+        cuboid(1.42, 0.34, 0.72, steel, bx, 0.98, bz),
+        cuboid(1.5, 0.08, 0.78, dark, bx, 1.19, bz),
+        // the side tray, a bit too short on one side
+        cuboid(0.5, 0.05, 0.46, dark, bx + 0.98, 0.9, bz + 0.02),
+        cuboid(0.05, 0.4, 0.05, steel, bx + 1.18, 0.7, bz + 0.2),
+        // the gas bottle, with a valve and a stripe
+        cyl(0.16, 0.16, 0.55, 12, matt(0xd9dfe0), -7.05, 0.28, -18.0),
+        cyl(0.07, 0.07, 0.05, 8, matt(0xb33a2c), -7.05, 0.58, -18.0),
+        cyl(0.165, 0.165, 0.06, 12, matt(0x4a7fc0), -7.05, 0.32, -18.0),
+    ];
+    // stubby legs
+    for (x, z) in [(-0.55f32, -0.25f32), (0.55, -0.25), (-0.55, 0.25), (0.55, 0.25)] {
+        v.push(cyl(0.05, 0.065, 0.22, 8, steel, bx + x, 0.12, bz + z));
+    }
+    // oversized wheels at the back (one a touch bigger: nothing is exactly even)
+    for (sx, r) in [(-1.0f32, 0.26f32), (1.0, 0.24)] {
+        v.push(cyl(r, r, 0.1, 16, matt(0x1b1c1e), bx + sx * 0.7, r, bz - 0.3).turn(0.0, 0.0, HALF_PI));
+        v.push(cyl(r * 0.5, r * 0.5, 0.115, 10, steel, bx + sx * 0.7, r, bz - 0.3).turn(0.0, 0.0, HALF_PI));
+        v.push(cyl(0.03, 0.03, 0.13, 6, dark, bx + sx * 0.7, r, bz - 0.3).turn(0.0, 0.0, HALF_PI));
+    }
+    // the big rounded hood, propped open at the back, with a chunky handle
+    v.push(Part::new(Shape::Capsule { r: 0.34, len: 1.0, cap: 6, radial: 12 }, red).at(bx + 0.03, 1.62, bz - 0.4).turn(0.0, 0.0, HALF_PI).stretch(1.0, 1.0, 0.8));
+    v.push(torus(0.12, 0.028, 6, 12, PI, steel).at(bx + 0.03, 1.55, bz - 0.09).turn(0.0, 0.0, 0.0));
+    v.push(cyl(0.05, 0.05, 0.06, 8, steel, bx - 0.66, 1.4, bz - 0.4).turn(0.0, 0.0, HALF_PI));
+    v.push(cyl(0.05, 0.05, 0.06, 8, steel, bx + 0.7, 1.4, bz - 0.4).turn(0.0, 0.0, HALF_PI));
+    // stubby control knobs on the front, each a little different
+    for (k, x) in [-0.42f32, -0.12, 0.18, 0.46].into_iter().enumerate() {
+        v.push(cyl(0.065, 0.075, 0.09, 10, red, bx + x, 0.66 + (k as f32 - 1.5) * 0.008, bz + 0.34).turn(HALF_PI, 0.0, k as f32 * 0.4));
+        v.push(cuboid(0.012, 0.045, 0.012, dark, bx + x, 0.66, bz + 0.395));
+    }
+    // wear: grease and burn marks on the plate, heat staining on the firebox, bolts and rust
+    for (x, z, w, d, c) in [
+        (-0.45f32, 0.12f32, 0.35f32, 0.2f32, 0x4b3a22u32),
+        (0.2, -0.15, 0.5, 0.26, 0x3b2f1c),
+        (0.55, 0.2, 0.22, 0.18, 0x15110c),
+        (-0.15, 0.25, 0.18, 0.1, 0x0c0a08),
+    ] {
+        v.push(cuboid(w, 0.004, d, matt(c), bx + x, 1.234, bz + z));
+    }
+    v.push(cuboid(1.3, 0.2, 0.012, matt(0x57493a), bx, 1.0, bz + 0.364)); // heat stain
+    for (x, y) in [(-0.6f32, 0.26f32), (0.6, 0.26), (-0.6, 0.74), (0.6, 0.74)] {
+        v.push(cyl(0.022, 0.022, 0.015, 6, matt(0x6d747a), bx + x, y, bz + 0.315).turn(HALF_PI, 0.0, 0.0));
+    }
+    for (x, y, w) in [(-0.5f32, 0.22f32, 0.22f32), (0.35, 0.2, 0.3), (0.58, 0.55, 0.12)] {
+        v.push(cuboid(w, 0.1, 0.012, matt(0x9a5a2a), bx + x, y, bz + 0.318)); // rust
+    }
+    // weld seam down the middle of the cabinet
+    v.push(cuboid(0.02, 0.6, 0.012, matt(0x7e868b), bx + 0.1, 0.5, bz + 0.316));
+    v
+}
+
+/// A magpie, absurdly big-headed, built in two pieces so the head can turn to watch you. The body
+/// stands on the origin (its feet at y = 0) facing +z; the head hangs on `neck`.
+pub struct MagpieModel {
+    pub body: Vec<Part>,
+    pub head: Vec<Part>,
+    pub neck: V3,
+}
+
+pub fn magpie() -> MagpieModel {
+    // not pure black: a deep blue-black with a glossy sheen, so the shape reads in shadow
+    let black = Surface::shiny(0x262b35, 0x7a8494, 28.0);
+    let white = matt(0xf6f6f0);
+    let beak = matt(0xdcdcd0);
+    let mut body = vec![
+        orb(0.15, black, 0.0, 0.22, 0.0).stretch(1.0, 0.95, 1.25),
+        orb(0.13, white, 0.0, 0.33, -0.02).stretch(1.0, 0.5, 1.1),
+        // the tail, with a white base
+        cuboid(0.11, 0.03, 0.26, black, 0.0, 0.2, -0.27).turn(0.3, 0.0, 0.0),
+        cuboid(0.12, 0.032, 0.09, white, 0.0, 0.225, -0.17).turn(0.3, 0.0, 0.0),
+    ];
+    for sx in [-1.0f32, 1.0] {
+        body.push(orb(0.1, black, sx * 0.13, 0.25, -0.04).stretch(0.45, 0.9, 1.5));
+        body.push(orb(0.045, white, sx * 0.15, 0.3, -0.06).stretch(0.4, 0.8, 1.6));
+        body.push(cyl(0.012, 0.012, 0.14, 6, black, sx * 0.05, 0.07, 0.02));
+        body.push(cuboid(0.05, 0.015, 0.08, black, sx * 0.05, 0.008, 0.045));
+    }
+    let mut head = vec![
+        orb(0.2, black, 0.0, 0.12, 0.04),
+        orb(0.125, white, 0.0, 0.235, -0.06).stretch(1.0, 0.42, 1.0),
+        // the big beak, with a dark tip
+        Part::new(Shape::Cone { r: 0.055, h: 0.22, seg: 8 }, beak).at(0.0, 0.1, 0.25).turn(HALF_PI, 0.0, 0.0),
+        Part::new(Shape::Cone { r: 0.022, h: 0.06, seg: 6 }, matt(0x2a2a2a)).at(0.0, 0.1, 0.355).turn(HALF_PI, 0.0, 0.0),
+    ];
+    for sx in [-1.0f32, 1.0] {
+        head.push(orb(0.058, white, sx * 0.1, 0.17, 0.14));
+        head.push(orb(0.036, matt(0x7a2e12), sx * 0.108, 0.17, 0.18));
+        head.push(orb(0.019, black, sx * 0.112, 0.17, 0.2));
+        head.push(orb(0.007, white, sx * 0.116 + 0.004, 0.178, 0.212));
+    }
+    MagpieModel { body, head, neck: V3::new(0.0, 0.36, 0.08) }
+}
+
+/// Where the magpies sit on the fence (x, z) and which way they face (a turn about y; they
+/// start off facing into the yard).
+pub const MAGPIE_SPOTS: [(f32, f32, f32); 2] = [(14.0, D + 0.05, PI), (-W - 0.05, 8.0, HALF_PI)];
+
 pub fn chair() -> Vec<Part> {
     let fr = matt(0x2a2a2a);
     let fab = matt(0x1f6fd1);
@@ -491,17 +682,21 @@ fn props(polished: bool) -> Vec<Part> {
         v.extend(place(e, V3::new(x, 0.0, z), turn_y(r), 1.0));
     }
     // outdoor table
-    v.push(cuboid(2.0, 0.08, 1.0, matt(0xc79a61), 6.0, 0.76, -16.5));
-    for (a, b) in [(-0.9, -0.4), (0.9, -0.4), (-0.9, 0.4), (0.9, 0.4)] {
-        v.push(cuboid(
-            0.07,
-            0.72,
-            0.07,
-            matt(0x8f6a3e),
-            6.0 + a,
-            0.36,
-            -16.5 + b,
-        ));
+    if polished {
+        v.extend(table_styled());
+    } else {
+        v.push(cuboid(2.0, 0.08, 1.0, matt(0xc79a61), 6.0, 0.76, -16.5));
+        for (a, b) in [(-0.9, -0.4), (0.9, -0.4), (-0.9, 0.4), (0.9, 0.4)] {
+            v.push(cuboid(
+                0.07,
+                0.72,
+                0.07,
+                matt(0x8f6a3e),
+                6.0 + a,
+                0.36,
+                -16.5 + b,
+            ));
+        }
     }
     // wheelie bins
     for (x, c) in [(31.1, 0xd63a2f), (31.95, 0xf2c230)] {
@@ -685,13 +880,17 @@ fn bar() -> Vec<Part> {
     v
 }
 
-fn bbq() -> Vec<Part> {
-    let mut v = vec![
-        cuboid(1.2, 0.7, 0.6, matt(0x3a3f45), -6.0, 0.35, -18.0),
-        cuboid(1.6, 0.28, 0.8, matt(0x1f2226), -6.0, 0.84, -18.0),
-        cuboid(1.5, 0.24, 0.72, matt(0xb33a2c), -6.0, 1.1, -18.0),
-        cyl(0.16, 0.16, 0.55, 12, matt(0xd9dfe0), -7.05, 0.28, -18.0),
-    ];
+fn bbq(polished: bool) -> Vec<Part> {
+    let mut v = if polished {
+        bbq_styled()
+    } else {
+        vec![
+            cuboid(1.2, 0.7, 0.6, matt(0x3a3f45), -6.0, 0.35, -18.0),
+            cuboid(1.6, 0.28, 0.8, matt(0x1f2226), -6.0, 0.84, -18.0),
+            cuboid(1.5, 0.24, 0.72, matt(0xb33a2c), -6.0, 1.1, -18.0),
+            cyl(0.16, 0.16, 0.55, 12, matt(0xd9dfe0), -7.05, 0.28, -18.0),
+        ]
+    };
     // on the grill: two steaks and four snags
     let top = 1.23;
     for k in 0..2 {
@@ -1359,13 +1558,19 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
     } else {
         Vec::new()
     };
+    let magpies = if polished {
+        MAGPIE_SPOTS.iter().map(|(x, z, yaw)| (V3::new(*x, FENCE_H, *z), *yaw)).collect()
+    } else {
+        Vec::new()
+    };
     YardLook {
+        magpies,
         eskies,
         chest_pivot: if polished { ESKY_PIVOT } else { CHEST_PIVOT },
         world,
         hoist_head,
         bar: bar(),
-        bbq: bbq(),
+        bbq: bbq(polished),
         smoko: smoko(),
         chest_base,
         chest_lid,
