@@ -151,6 +151,13 @@ impl Scoreboard {
         self.stats.get(&id).map_or(0, |s| s.score)
     }
 
+    /// Count a throw (any item thrown, hit or miss).
+    pub fn count_throw(&mut self, id: PlayerId) {
+        if let Some(s) = self.stats.get_mut(&id) {
+            s.throws += 1;
+        }
+    }
+
     /// A thrown item landed on `victim`. Teammate hits when friendly fire is off must be
     /// filtered out before calling this (the item just passes through).
     pub fn thrown_hit(

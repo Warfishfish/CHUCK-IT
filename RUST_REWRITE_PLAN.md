@@ -234,10 +234,12 @@ Phase 1 result: `bbq_core` has 79 unit tests, clippy is clean. Simplified/left o
 Phase 2 result: `bbq_core` gained `yard` and `movement` (111 tests in total, clippy clean). `bbq_app` now draws the yard and lets you walk it. Not checked by me: how it looks and feels on screen, because the cloud machine has no graphics card. Simplified: boxes are plain coloured cuboids, the pool is a flat blue slab (no sinking water yet), no sky dome or clouds, and the camera does not yet lie down when stunned.
 
 ### Phase 3: Items and throwing
-- [ ] Item spawner, pick up, 2 slots, swap, ground glow
-- [ ] Wind-up, throw, holding too long, throw-path preview, power throw
-- [ ] Item flight (small steps, bounce, can smash and puddle, pool float, trampoline, leaving the yard)
-- [ ] Hits, knockback, stun rules (no stacking, 1 s grace), catching, hit scoring
+- [x] Item spawner, pick up, 2 slots, swap, ground glow
+- [x] Wind-up, throw, holding too long, throw-path preview, power throw
+- [x] Item flight (small steps, bounce, can smash and puddle, pool float, trampoline, leaving the yard)
+- [x] Hits, knockback, stun rules (no stacking, 1 s grace), catching, hit scoring
+
+Phase 3 result: `bbq_core` gained `flight`, `hands`, `hitting`, `itemworld`, `vec` (166 tests in all). `bbq_app` has the items, your hands, a throw-path line, puddles and three practice dummies to hit (blue = fine, red = stunned, yellow = in the 1 s grace). The headless tests in `bbq_app` throw a teddy at a dummy and check the score, the over-hold drop, a miss, a swap and a pick-up. Not checked by me: how it looks and feels on screen. Left out for now: melee slaps (steak, fish, noodle, dildo, bare hands) arrive with Dazza and bots; the late-hit window (1.8 s) belongs to online play in Phase 8; hits on the player come when bots can throw (Phase 5).
 
 ### Phase 4: Characters, models and animation
 - [ ] Blob character (keep the design): code-made first, then a rigged glTF from Blender

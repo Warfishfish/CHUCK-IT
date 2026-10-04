@@ -4,7 +4,7 @@
 use bbq_core::movement::{self, FOV_DEFAULT, FOV_MAX, FOV_MIN, Modifiers, MoveInput, Mover};
 use bbq_core::rng::Rng;
 use bbq_core::sim::TICK_HZ;
-use bevy::input::mouse::AccumulatedMouseMotion;
+use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::pbr::{DistanceFog, FogFalloff};
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
@@ -12,30 +12,39 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use crate::yard_scene::YardRes;
 
 #[derive(Resource)]
-struct Player {
-    mover: Mover,
+pub struct Player {
+    pub mover: Mover,
     /// Position at the previous fixed step, for smooth drawing between steps.
-    prev: Vec3,
-    yaw: f32,
-    pitch: f32,
-    walk: f32,
-    shake: f32,
-    fov_base: f32,
-    fov: f32,
-    rng: Rng,
+    pub prev: Vec3,
+    pub yaw: f32,
+    pub pitch: f32,
+    pub walk: f32,
+    pub shake: f32,
+    pub fov_base: f32,
+    pub fov: f32,
+    pub rng: Rng,
 }
 
 /// Input gathered each frame and consumed by the fixed step.
 #[derive(Resource, Default)]
-struct Wanted {
-    wish: (f32, f32),
+pub struct Wanted {
+    pub wish: (f32, f32),
+    /// Left mouse went down / came up since the last fixed step.
+    pub throw_down: bool,
+    pub throw_up: bool,
+    pub catch: bool,
+    /// +1 / -1 from Q, E or the mouse wheel.
+    pub swap: i32,
+    pub slot: Option<usize>,
 }
 
 #[derive(Component)]
-struct EyeCamera;
+pub struct EyeCamera;
 
 #[derive(Component)]
 struct HudText;
+
+pub const PLAYER_ID: u32 = 1;
 
 pub struct PlayerPlugin;
 
@@ -60,7 +69,7 @@ impl Plugin for PlayerPlugin {
                 Update,
                 (grab_mouse, read_input, update_camera, update_hud).chain(),
             )
-            .add_systems(FixedUpdate, step_player);
+            .add_systems(FixedUpdate, step_player.before(crate::game::step_game));
     }
 }
 
@@ -122,6 +131,8 @@ fn grab_mouse(
 
 fn read_input(
     keys: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    wheel: Res<AccumulatedMouseScroll>,
     motion: Res<AccumulatedMouseMotion>,
     cursor: Single<&CursorOptions, With<PrimaryWindow>>,
     mut player: ResMut<Player>,
@@ -155,6 +166,23 @@ fn read_input(
     if keys.just_pressed(KeyCode::ShiftLeft) || keys.just_pressed(KeyCode::ShiftRight) {
         player.mover.try_boost(&Modifiers::default());
     }
+    if grabbed {
+        wanted.throw_down |= mouse.just_pressed(MouseButton::Left);
+        wanted.catch |= mouse.just_pressed(MouseButton::Right);
+    }
+    wanted.throw_up |= mouse.just_released(MouseButton::Left);
+    if keys.just_pressed(KeyCode::KeyQ) || keys.just_pressed(KeyCode::KeyE) {
+        wanted.swap = 1;
+    }
+    if wheel.delta.y != 0.0 {
+        wanted.swap = if wheel.delta.y > 0.0 { 1 } else { -1 };
+    }
+    if keys.just_pressed(KeyCode::Digit1) {
+        wanted.slot = Some(0);
+    }
+    if keys.just_pressed(KeyCode::Digit2) {
+        wanted.slot = Some(1);
+    }
     if keys.just_pressed(KeyCode::BracketLeft) {
         player.fov_base = (player.fov_base - 5.0).max(FOV_MIN);
     }
@@ -163,10 +191,18 @@ fn read_input(
     }
 }
 
-fn step_player(mut player: ResMut<Player>, wanted: Res<Wanted>, yard: Res<YardRes>) {
+fn step_player(
+    mut player: ResMut<Player>,
+    wanted: Res<Wanted>,
+    yard: Res<YardRes>,
+    game: Res<crate::game::Game>,
+) {
     let p = &mut *player;
     p.prev = Vec3::new(p.mover.x, p.mover.y, p.mover.z);
-    let mods = Modifiers::default();
+    let mods = Modifiers {
+        charging: game.wind.charging,
+        ..Default::default()
+    };
     let ev = p.mover.step(
         movement::step_dt(),
         MoveInput { wish: wanted.wish },
@@ -222,7 +258,12 @@ fn update_camera(
     }
 }
 
-fn update_hud(player: Res<Player>, time: Res<Time>, mut text: Single<&mut Text, With<HudText>>) {
+fn update_hud(
+    player: Res<Player>,
+    game: Res<crate::game::Game>,
+    time: Res<Time>,
+    mut text: Single<&mut Text, With<HudText>>,
+) {
     let m = &player.mover;
     let boost = if m.boost_t > 0.0 {
         format!("BOOST {:.1}s", m.boost_t)
@@ -232,21 +273,66 @@ fn update_hud(player: Res<Player>, time: Res<Time>, mut text: Single<&mut Text, 
         "boost ready".to_string()
     };
     let fps = 1.0 / time.delta_secs().max(0.0001);
+    let me = game.board.get(PLAYER_ID).cloned().unwrap_or_default();
+    let held: Vec<String> = game
+        .slots
+        .ids()
+        .iter()
+        .map(|id| {
+            let name = game
+                .world
+                .items
+                .get(id)
+                .map_or("?", |i| crate::items_view::kind_name(i.kind));
+            if Some(*id) == game.slots.selected() {
+                format!("[{name}]")
+            } else {
+                name.to_string()
+            }
+        })
+        .collect();
+    let holding = if held.is_empty() {
+        "nothing (walk over a glowing item)".to_string()
+    } else {
+        held.join(" ")
+    };
+    let charge = if game.wind.charging {
+        let power = if game.wind.charge >= bbq_core::stun::POWER_CHARGE {
+            " POWER"
+        } else {
+            ""
+        };
+        format!(" | charge {:.0}%{power}", game.wind.charge * 100.0)
+    } else {
+        String::new()
+    };
+    let feed: Vec<&str> = game
+        .feed
+        .iter()
+        .rev()
+        .take(5)
+        .map(|(s, _)| s.as_str())
+        .collect();
+    let pool = if m.in_pool { "in pool | " } else { "" };
+    let tramp = if m.tramp_chain {
+        format!("tramp x{} | ", m.tramp_n + 1)
+    } else {
+        String::new()
+    };
     text.0 = format!(
-        "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, [ ] FOV, F1-F4 features\n\
-         pos {:.1}, {:.1}, {:.1} | speed {:.1} m/s | {} | FOV {:.0} | {}{}{:.0} fps",
+        "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw, RMB catch, Q/E/wheel swap, [ ] FOV, F1-F4 features\n\
+         SCORE {} | hits {} | taken {} | catches {} | streak {} | holding: {holding}{charge}\n\
+         pos {:.1}, {:.1}, {:.1} | speed {:.1} m/s | {boost} | FOV {:.0} | {pool}{tramp}{fps:.0} fps\n{}",
+        me.score,
+        me.hits,
+        me.taken,
+        me.catches,
+        me.streak,
         m.x,
         m.y,
         m.z,
         m.speed(),
-        boost,
         player.fov_base,
-        if m.in_pool { "in pool | " } else { "" },
-        if m.tramp_chain {
-            format!("tramp x{} | ", m.tramp_n + 1)
-        } else {
-            String::new()
-        },
-        fps
+        feed.join("\n")
     );
 }
