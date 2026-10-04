@@ -568,6 +568,7 @@ fn setup_round_hud(mut commands: Commands) {
         },
         TextLayout::justify(Justify::Center),
         BannerText,
+        Visibility::Hidden,
     ));
     commands.spawn((
         Text::new(""),

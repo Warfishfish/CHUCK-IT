@@ -35,7 +35,7 @@ pub struct ResultsText {
     pub rows: Vec<Row>,
 }
 
-fn colour_of(g: &Game, id: u32) -> Color {
+pub fn colour_of(g: &Game, id: u32) -> Color {
     if id == PLAYER_ID {
         return crate::models::hex(0xffd23f);
     }

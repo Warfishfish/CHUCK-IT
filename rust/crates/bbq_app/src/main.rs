@@ -13,6 +13,7 @@ mod bots_app;
 mod characters;
 mod game;
 mod heist_app;
+mod hud;
 mod hud_fx;
 mod items_view;
 mod life;
@@ -60,6 +61,7 @@ fn main() {
             items_view::ItemsViewPlugin,
             characters::CharactersPlugin,
             hud_fx::HudFxPlugin,
+            hud::HudPlugin,
             bots_app::BotsPlugin,
             round::RoundPlugin,
             menu::MenuPlugin,

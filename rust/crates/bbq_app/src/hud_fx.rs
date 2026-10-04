@@ -5,7 +5,7 @@
 //! that is simplified: the camera sways and the view breathes in and out (see `player.rs`),
 //! and a warm tint pulses over the screen. A true wobble shader can come in the polish phase.
 
-use bbq_core::drinks::{Drink, Tier};
+use bbq_core::drinks::Drink;
 use bevy::prelude::*;
 use bevy::text::{Justify, TextLayout};
 
@@ -20,8 +20,6 @@ impl Plugin for HudFxPlugin {
             Update,
             (
                 update_popup,
-                update_prompt,
-                update_meter,
                 update_tint,
                 sync_drink_vm,
             ),
@@ -31,14 +29,6 @@ impl Plugin for HudFxPlugin {
 
 #[derive(Component)]
 struct PopupText;
-#[derive(Component)]
-struct PromptText;
-#[derive(Component)]
-struct MeterBox;
-#[derive(Component)]
-struct MeterFill;
-#[derive(Component)]
-struct MeterLabel;
 #[derive(Component)]
 struct Tint;
 #[derive(Component)]
@@ -74,68 +64,6 @@ fn spawn_hud_fx(mut commands: Commands) {
         },
         PopupText,
     ));
-    // "R: grab a cold VP" and friends
-    commands.spawn((
-        Text::new(""),
-        TextFont {
-            font_size: FontSize::Px(20.0),
-            ..default()
-        },
-        TextColor(Color::WHITE),
-        TextLayout::justify(Justify::Center),
-        Node {
-            position_type: PositionType::Absolute,
-            width: Val::Percent(100.0),
-            bottom: Val::Px(150.0),
-            ..default()
-        },
-        PromptText,
-    ));
-    // drunk meter, bottom left
-    commands
-        .spawn((
-            Node {
-                position_type: PositionType::Absolute,
-                left: Val::Px(14.0),
-                bottom: Val::Px(14.0),
-                width: Val::Px(220.0),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(3.0),
-                ..default()
-            },
-            Visibility::Hidden,
-            MeterBox,
-        ))
-        .with_children(|p| {
-            p.spawn((
-                Text::new(""),
-                TextFont {
-                    font_size: FontSize::Px(15.0),
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-                MeterLabel,
-            ));
-            p.spawn((
-                Node {
-                    width: Val::Percent(100.0),
-                    height: Val::Px(14.0),
-                    ..default()
-                },
-                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
-            ))
-            .with_children(|b| {
-                b.spawn((
-                    Node {
-                        width: Val::Percent(0.0),
-                        height: Val::Percent(100.0),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgb(0.9, 0.7, 0.2)),
-                    MeterFill,
-                ));
-            });
-        });
 }
 
 fn update_popup(
@@ -163,51 +91,6 @@ fn update_popup(
         Color::srgb(1.0, 0.97, 0.7)
     };
     col.0 = c.with_alpha(a);
-}
-
-fn update_prompt(game: Res<Game>, mut q: Query<&mut Text, With<PromptText>>) {
-    if let Ok(mut t) = q.single_mut()
-        && t.0 != game.prompt
-    {
-        t.0 = game.prompt.clone();
-    }
-}
-
-fn tier_label(t: Tier) -> &'static str {
-    match t {
-        Tier::Sober => "Sober",
-        Tier::Tipsy => "Tipsy",
-        Tier::Drunk => "Drunk",
-        Tier::Maggot => "Maggot",
-        Tier::AbsolutelyMaggoted => "Absolutely maggoted",
-    }
-}
-
-fn update_meter(
-    game: Res<Game>,
-    mut boxq: Query<&mut Visibility, With<MeterBox>>,
-    mut label: Query<&mut Text, With<MeterLabel>>,
-    mut fill: Query<(&mut Node, &mut BackgroundColor), With<MeterFill>>,
-) {
-    let d = &game.me.drunk;
-    if let Ok(mut v) = boxq.single_mut() {
-        *v = if d.meter > 0.5 || d.is_drinking() {
-            Visibility::Inherited
-        } else {
-            Visibility::Hidden
-        };
-    }
-    if let Ok(mut t) = label.single_mut() {
-        let s = format!("{} ({:.0})", tier_label(d.tier()), d.meter);
-        if t.0 != s {
-            t.0 = s;
-        }
-    }
-    if let Ok((mut n, mut bg)) = fill.single_mut() {
-        n.width = Val::Percent(d.meter.clamp(0.0, 100.0));
-        let x = (d.meter / 100.0).clamp(0.0, 1.0);
-        bg.0 = Color::srgb(0.4 + 0.6 * x, 0.85 - 0.6 * x, 0.25);
-    }
 }
 
 fn update_tint(game: Res<Game>, time: Res<Time>, mut q: Query<&mut BackgroundColor, With<Tint>>) {
