@@ -146,6 +146,8 @@ pub struct Game {
     pub round: crate::round::RoundCtl,
     /// Teddy Heist, when that is the mode.
     pub heist: Option<crate::heist_app::HeistState>,
+    /// The yard behind the menu: the bots wander and ignore you.
+    pub attract: bool,
 }
 
 impl Game {
@@ -229,8 +231,9 @@ impl Plugin for GamePlugin {
             crowd,
             round: crate::round::RoundCtl::new(),
             heist: None,
+            attract: false,
         })
-        .add_systems(FixedUpdate, step_game);
+        .add_systems(FixedUpdate, step_game.run_if(crate::menu::world_runs));
     }
 }
 
@@ -991,7 +994,7 @@ mod tests {
         ticks(&mut app, 2);
         let g = app.world().resource::<Game>();
         assert!(
-            g.feed.iter().any(|(s, _)| s.contains("SHEILA")),
+            g.feed.iter().any(|(s, _)| s.contains("DAVO")),
             "{:?}",
             g.feed
         );
@@ -2484,5 +2487,93 @@ mod tests {
             banked > 0 || carried || hits > 0,
             "bots did nothing about the teddies"
         );
+    }
+
+    // ---------------------------------------------------------------- Phase 8: the screens
+
+    fn run_flow(app: &mut App, f: impl FnOnce(&mut Game, &mut Player, &mut YardRes, &mut crate::characters::Cast)) {
+        app.world_mut().init_resource::<crate::characters::Cast>();
+        app.world_mut().resource_scope(|w, mut g: Mut<Game>| {
+            w.resource_scope(|w, mut p: Mut<Player>| {
+                w.resource_scope(|w, mut y: Mut<YardRes>| {
+                    let mut c = w.resource_mut::<crate::characters::Cast>();
+                    f(&mut g, &mut p, &mut y, &mut c);
+                });
+            });
+        });
+    }
+
+    #[test]
+    fn the_menu_yard_has_three_bots_and_no_clock_and_they_leave_you_alone() {
+        let mut app = app();
+        let s = crate::menu::Settings::default();
+        run_flow(&mut app, |g, p, y, _| crate::menu::attract(&s, g, p, y));
+        app.world_mut().resource_mut::<Game>().options.bots_on = true;
+        ticks(&mut app, 60 * 30);
+        let g = app.world().resource::<Game>();
+        assert!(g.attract);
+        assert!(!g.round.timed);
+        assert_eq!(g.dummies.len(), 3);
+        assert_eq!(g.me.body.stun, 0.0, "nobody hits the player behind the menu");
+        assert_eq!(g.board.get(PLAYER_ID).unwrap().taken, 0);
+    }
+
+    #[test]
+    fn play_starts_a_round_with_the_chosen_options_and_menu_goes_back() {
+        let mut app = app();
+        let mut s = crate::menu::Settings::default();
+        s.mode = GameMode::Teams;
+        s.bots = 2;
+        s.cheeky = true;
+        s.rounds = 3;
+        s.round_len = 60.0;
+        s.friendly_fire = true;
+        s.skill = bbq_core::bots::Difficulty::Spicy;
+        s.falls = false;
+        run_flow(&mut app, |g, p, y, c| crate::menu::begin(&s, g, p, y, c));
+        {
+            let g = app.world().resource::<Game>();
+            assert!(!g.attract);
+            assert!(g.round.timed);
+            assert_eq!(g.rules.phase, Phase::Countdown);
+            assert_eq!(g.rules.mode, GameMode::Teams);
+            assert!(g.rules.friendly_fire);
+            assert_eq!(g.dummies.len(), 2);
+            assert_eq!(g.round.mtch.len, 3);
+            assert!(g.options.adult);
+            assert!(!g.options.falls_on);
+            assert_eq!(g.options.bot_difficulty, bbq_core::bots::Difficulty::Spicy);
+            assert!((g.round.setup.round_len - 60.0).abs() < 0.01);
+        }
+        let s2 = crate::menu::Settings::default();
+        run_flow(&mut app, |g, p, y, _| crate::menu::attract(&s2, g, p, y));
+        let g = app.world().resource::<Game>();
+        assert!(g.attract && !g.round.timed);
+        assert_eq!(g.rules.mode, GameMode::FreeForAll);
+        assert!(g.teams.get(PLAYER_ID).is_none());
+        assert_eq!(g.dummies.len(), 3);
+    }
+
+    #[test]
+    fn the_results_card_words_a_win_a_loss_and_a_draw() {
+        let mut app = app();
+        let s = crate::menu::Settings::default();
+        run_flow(&mut app, |g, p, y, c| crate::menu::begin(&s, g, p, y, c));
+        let rules = Rules { mode: GameMode::FreeForAll, friendly_fire: false, phase: Phase::Play };
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            g.options.bots_on = false;
+            g.board.award(&rules, PLAYER_ID, 300);
+            g.rules.phase = Phase::Play;
+            g.round.time_left = 0.01;
+        }
+        ticks(&mut app, 400);
+        let g = app.world().resource::<Game>();
+        assert!(g.round.results.is_some());
+        let t = crate::results::build(g, &s);
+        assert_eq!(t.title, "You own the yard!");
+        assert_eq!(t.rows[0].name, "You");
+        assert_eq!(t.again_label, "Play again");
+        assert_eq!(t.rows.len(), 4);
     }
 }

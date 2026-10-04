@@ -550,6 +550,7 @@ fn setup_round_hud(mut commands: Commands) {
             ..default()
         },
         StatusText,
+        crate::menu::DevHud,
     ));
     commands.spawn((
         Text::new(""),
@@ -733,14 +734,9 @@ fn update_round_hud(
         .map(|b| b.0.clone())
         .unwrap_or_default();
 
-    let (text, vis) = &mut *results;
-    match &g.round.results {
-        Some(r) if g.rules.phase == Phase::Results && g.round.panel_in <= 0.0 => {
-            text.0 = r.lines.join("\n");
-            **vis = Visibility::Inherited;
-        }
-        _ => **vis = Visibility::Hidden,
-    }
+    // the results card (`menu.rs`) shows the results now
+    let (_, vis) = &mut *results;
+    **vis = Visibility::Hidden;
 }
 
 #[allow(dead_code)]

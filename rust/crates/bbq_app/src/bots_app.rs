@@ -179,7 +179,7 @@ fn others_for(g: &Game, p: &Player, me: usize) -> Vec<OtherView> {
         stun: g.me.body.stun,
         down_t: g.me.body.down_t,
         fall_t: g.me.body.fall_t,
-        at_smoko: g.life.seated.is_some(),
+        at_smoko: g.life.seated.is_some() || g.attract,
         is_bot: false,
         in_pool: p.mover.in_pool,
         teammate: teammate(g, my_id, PLAYER_ID),

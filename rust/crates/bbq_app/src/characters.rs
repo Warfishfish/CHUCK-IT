@@ -90,7 +90,7 @@ struct Dazza {
 }
 
 /// Body colours for the bots, from the browser game's palette (the first one is the player's).
-const BLOB_COLOURS: [Color; 11] = [
+pub const BLOB_COLOURS: [Color; 11] = [
     Color::linear_rgb(1.0, 0.478, 0.349),
     Color::linear_rgb(0.098, 0.702, 0.651),
     Color::linear_rgb(0.549, 0.416, 0.871),
@@ -104,7 +104,7 @@ const BLOB_COLOURS: [Color; 11] = [
     Color::linear_rgb(0.6, 0.6, 0.9),
 ];
 pub const BLOB_NAMES: [&str; 11] = [
-    "Bruce", "Sheila", "Davo", "Shazza", "Kev", "Bazza", "Trish", "Robbo", "Mick", "Nev", "Gaz",
+    "Shazza", "Davo", "Kev", "Bazza", "Trish", "Robbo", "Mick", "Nev", "Gaz", "Bruce", "Sheila",
 ];
 /// The most bots in a yard (you make twelve, one for each spawn spot).
 pub const MAX_BOTS: usize = 11;

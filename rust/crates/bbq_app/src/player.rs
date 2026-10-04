@@ -78,9 +78,19 @@ impl Plugin for PlayerPlugin {
             .add_systems(Startup, setup_camera_and_hud)
             .add_systems(
                 Update,
-                (grab_mouse, read_input, update_camera, update_hud).chain(),
+                (
+                    read_input.run_if(crate::menu::playing),
+                    update_camera.run_if(crate::menu::not_in_menu),
+                    update_hud,
+                )
+                    .chain(),
             )
-            .add_systems(FixedUpdate, step_player.before(crate::game::step_game));
+            .add_systems(
+                FixedUpdate,
+                step_player
+                    .run_if(crate::menu::playing)
+                    .before(crate::game::step_game),
+            );
     }
 }
 
@@ -122,23 +132,8 @@ fn setup_camera_and_hud(mut commands: Commands) {
             ..default()
         },
         HudText,
+        crate::menu::DevHud,
     ));
-}
-
-/// Click to grab the mouse, Esc to let go.
-fn grab_mouse(
-    mouse: Res<ButtonInput<MouseButton>>,
-    keys: Res<ButtonInput<KeyCode>>,
-    mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
-) {
-    if mouse.just_pressed(MouseButton::Left) {
-        cursor.grab_mode = CursorGrabMode::Locked;
-        cursor.visible = false;
-    }
-    if keys.just_pressed(KeyCode::Escape) {
-        cursor.grab_mode = CursorGrabMode::None;
-        cursor.visible = true;
-    }
 }
 
 fn read_input(

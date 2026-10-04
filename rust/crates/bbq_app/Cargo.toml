@@ -7,5 +7,5 @@ license.workspace = true
 
 [dependencies]
 # Pinned to one Bevy release on purpose: Bevy breaks things every few months.
-bevy = "=0.19.1"
+bevy = { version = "=0.19.1", features = ["system_font_discovery"] }
 bbq_core = { path = "../bbq_core" }

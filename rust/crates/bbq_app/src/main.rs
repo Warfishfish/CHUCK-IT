@@ -19,9 +19,12 @@ mod life;
 mod lighting;
 mod models;
 mod player;
+mod menu;
+mod results;
 mod round;
 mod shapes;
 mod shot;
+mod ui;
 mod yard_scene;
 
 use bevy::prelude::*;
@@ -59,6 +62,7 @@ fn main() {
             hud_fx::HudFxPlugin,
             bots_app::BotsPlugin,
             round::RoundPlugin,
+            menu::MenuPlugin,
             heist_app::HeistViewPlugin,
             models::ModelsPlugin,
             bevy::core_pipeline::fullscreen_material::FullscreenMaterialPlugin::<

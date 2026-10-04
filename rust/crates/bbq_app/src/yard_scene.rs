@@ -278,8 +278,10 @@ fn toggle_features(
     keys: Res<ButtonInput<KeyCode>>,
     mut yard_res: ResMut<YardRes>,
     mut tags: Query<(&FeatureTag, &mut Visibility)>,
+    mut last: Local<Option<Features>>,
 ) {
-    let mut changed = false;
+    // the menu changes the features too, not only the F keys
+    let mut changed = *last != Some(yard_res.0.features);
     for (key, f) in [
         (KeyCode::F1, Feature::Bar),
         (KeyCode::F2, Feature::Bbq),
@@ -299,6 +301,7 @@ fn toggle_features(
     }
     if changed {
         let feats = yard_res.0.features;
+        *last = Some(feats);
         for (tag, mut vis) in &mut tags {
             *vis = if feats.get(tag.0) {
                 Visibility::Inherited
