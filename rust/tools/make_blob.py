@@ -40,6 +40,52 @@ def pos(x, up, fwd):
     return (x, -fwd, up)
 
 
+# Body shapes. Radius at the top and at the bottom of the body, plus its height (the old capsule
+# was 0.36 round everywhere and 1.42 tall). The body is egg-shaped: the radius changes smoothly
+# from the bottom value to the top value, and both ends stay round.
+SHAPES = {
+    "pear": dict(bottom=0.47, top=0.31, height=1.42),     # gentle: round bottom, slimmer shoulders
+    "egg": dict(bottom=0.45, top=0.26, height=1.46),      # stronger taper, a bit taller
+    "gumdrop": dict(bottom=0.52, top=0.30, height=1.34),  # wide and low, the cutest
+}
+DEFAULT_SHAPE = "gumdrop"
+BODY_BASE = 0.07  # the body's lowest point sits just off the ground (same as the old capsule)
+
+
+def body_radius(shape, up):
+    """Half-width of the body at height `up` (used to place hands against it)."""
+    sh = SHAPES[shape]
+    u = (up - BODY_BASE) / sh["height"]
+    return sh["top"] + (sh["bottom"] - sh["top"]) * (1 - u)
+
+
+def egg_body(name, shape, material, dx=0.0, parent=None, seg=40, rings=33):
+    sh = SHAPES[shape]
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=seg, v_segments=rings, radius=1.0)
+    for v in bm.verts:
+        y = v.co.z                      # -1 (bottom) .. +1 (top) on the unit sphere
+        u = (y + 1) / 2
+        w = sh["top"] + (sh["bottom"] - sh["top"]) * (1 - u)
+        v.co.x *= w
+        v.co.y *= w
+        v.co.z = BODY_BASE + u * sh["height"]
+    bm.normal_update()
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    for p_ in me.polygons:
+        p_.use_smooth = True
+    ob = bpy.data.objects.new(name, me)
+    ob.data.materials.append(material)
+    ob.location = (dx, 0, 0)
+    scn.collection.objects.link(ob)
+    if parent:
+        ob.parent = parent
+        ob.matrix_parent_inverse = parent.matrix_world.inverted()
+    return ob
+
+
 def sphere(name, r, at, material, scale=(1, 1, 1), parent=None, seg=32, rings=17, capsule=0.0):
     bm = bmesh.new()
     bmesh.ops.create_uvsphere(bm, u_segments=seg, v_segments=rings, radius=r)
@@ -63,18 +109,44 @@ def sphere(name, r, at, material, scale=(1, 1, 1), parent=None, seg=32, rings=17
     return ob
 
 
-body = bpy.data.objects.new("Body", None)
-scn.collection.objects.link(body)
+def make_blob(shape, dx=0.0):
+    """One whole blob. Parts are named so the game can find them (Torso, Head, HandR, HandL...)."""
+    body = bpy.data.objects.new("Body", None)
+    body.location = (dx, 0, 0)
+    scn.collection.objects.link(body)
+    egg_body("Torso", shape, M["Body"], parent=body)
+    sphere("Head", 0.30, (0, 1.50, 0), M["Head"], parent=body)
+    for side, sg in (("L", -1), ("R", 1)):
+        sphere("Eye" + side, 0.085, (sg * 0.11, 1.56, 0.24), M["White"], parent=body, seg=20, rings=11)
+        sphere("Pupil" + side, 0.042, (sg * 0.11, 1.56, 0.315), M["Black"], parent=body, seg=16, rings=9)
+        sphere("Foot" + side, 0.13, (sg * 0.2, 0.09, 0.05), M["Foot"], scale=(1, 0.6, 1.4), parent=body, seg=24, rings=13)
+    # HandR is the one the game animates (it swings), HandL is the other side.
+    # Hands rest just outside the body at arm height (0.88 up).
+    hx = body_radius(shape, 0.88) + 0.1
+    sphere("HandR", 0.10, (-hx, 0.88, 0.05), M["Head"], parent=body, seg=24, rings=13)
+    sphere("HandL", 0.10, (hx, 0.88, 0.05), M["Head"], parent=body, seg=24, rings=13)
+    return body
 
-sphere("Torso", 0.36, (0, 0.78, 0), M["Body"], parent=body, capsule=0.55)
-sphere("Head", 0.30, (0, 1.50, 0), M["Head"], parent=body)
-for side, s in (("L", -1), ("R", 1)):
-    sphere("Eye" + side, 0.085, (s * 0.11, 1.56, 0.24), M["White"], parent=body, seg=20, rings=11)
-    sphere("Pupil" + side, 0.042, (s * 0.11, 1.56, 0.315), M["Black"], parent=body, seg=16, rings=9)
-    sphere("Foot" + side, 0.13, (s * 0.16, 0.09, 0.04), M["Foot"], scale=(1, 0.6, 1.4), parent=body, seg=24, rings=13)
-# HandR is the one the game animates (it swings), HandL is the other side. Same names the Rust code looks for.
-sphere("HandR", 0.10, (-0.47, 0.88, 0.05), M["Head"], parent=body, seg=24, rings=13)
-sphere("HandL", 0.10, (0.47, 0.88, 0.05), M["Head"], parent=body, seg=24, rings=13)
+
+SHAPE = DEFAULT_SHAPE
+if "--shape" in sys.argv:
+    SHAPE = sys.argv[sys.argv.index("--shape") + 1]
+SHEET = "--sheet" in sys.argv
+
+if SHEET:
+    for i, name in enumerate(["old"] + list(SHAPES)):
+        if name == "old":   # the original JS capsule, for comparison
+            SHAPES["old"] = dict(bottom=0.36, top=0.36, height=1.42)
+        b = make_blob(name if name != "old" else "pear", dx=(i - 1.5) * 1.3)
+        if name == "old":   # swap the body for the real capsule
+            bpy.data.objects.remove(next(c for c in b.children if c.name.startswith("Torso")))
+            sphere("Torso", 0.36, (0, 0.78, 0), M["Body"], parent=b, capsule=0.55)
+            for c in b.children:
+                if c.name.startswith("Hand"):
+                    c.location.x = -0.47 if c.name.startswith("HandR") else 0.47
+                    c.location.x += b.location.x
+else:
+    make_blob(SHAPE)
 
 if PREVIEW:
     # a quick picture so the model can be checked without a game window (CPU render)
@@ -92,12 +164,12 @@ if PREVIEW:
     sun.data.energy = 4; sun.rotation_euler = (math.radians(50), 0, math.radians(-30))
     scn.collection.objects.link(sun)
     cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam"))
-    cam.location = (2.0, -3.6, 1.7); scn.collection.objects.link(cam)
+    cam.location = ((0.0, -8.2, 2.2) if SHEET else (2.0, -3.6, 1.7)); scn.collection.objects.link(cam)
     d = cam.constraints.new("TRACK_TO"); d.track_axis = "TRACK_NEGATIVE_Z"; d.up_axis = "UP_Y"
-    t = bpy.data.objects.new("t", None); t.location = (0, 0, 0.8); scn.collection.objects.link(t); d.target = t
+    t = bpy.data.objects.new("t", None); t.location = (0, 0, 0.85); scn.collection.objects.link(t); d.target = t
     scn.camera = cam
     scn.render.engine = "CYCLES"; scn.cycles.device = "CPU"; scn.cycles.samples = 32
-    scn.render.resolution_x = 600; scn.render.resolution_y = 700
+    scn.render.resolution_x, scn.render.resolution_y = ((1400, 560) if SHEET else (600, 700))
     scn.render.filepath = PREVIEW
     bpy.ops.render.render(write_still=True)
     sys.exit(0)

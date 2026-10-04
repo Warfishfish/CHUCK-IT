@@ -25,7 +25,7 @@ Marcus's backyard party game (it used to be called Chuck It / Backyard Brawl). C
 
 ## Rules already decided
 - No trick shots, no wall-bounce bonuses, no voice or speaking sounds. Keep the "+N drunk" pop-up and Dazza chatter about every 30 s.
-- Keep the original blob character design. Dodge is removed.
+- Keep the original blob character design in the JavaScript game. The Rust version has a new body shape, chosen by Marcus on 4 Oct 2026: a gumdrop (wide round bottom, slimmer top), made by `rust/tools/make_blob.py`. Dodge is removed.
 - Controls: Q swaps items, right-click catches, F grabs/drags/throws someone who's down (otherwise it winds up a throw), R interacts.
 - 1v1 with no bots must always work.
 - Heist scores only from banking teddies. Stuns don't stack, and there's a 1 s grace after a stun ends.
