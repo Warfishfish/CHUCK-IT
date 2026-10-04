@@ -86,7 +86,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] Heist: the smoko pad moves beside the pool, clear of every base (`heist::smoko_spot`)
 - [x] Every character has its own eye-bob style (Classic steady, Pear lazy and floaty, Egg nervous and googly, Gumdrop big and cross-eyed), plus small differences between individual blobs
 - [x] Dildos have more surface texture (ribbing rings, raised bumps, a ridge under the head, bumps on the cup)
-- [ ] Choosing your blob shows a rotating preview of the character in a panel beside the menu
+- [x] Choosing your blob shows a rotating preview of the character in a panel beside the menu (second camera drawing into a picture on render layer 1; `preview.rs`)
 
 ### Eskies, toys and noodles (added 5 Oct 2026, Marcus)
 - [x] Every esky in the yard is an esky you can open (R near it opens the lid for 3 s; polished look); the old wooden pirate chest is gone. Only one esky holds the toys (the Dildo Chest, at its random spot each round); the other four open onto nothing ("Just ice and an old stubby. Empty!"). Later they can hold other things

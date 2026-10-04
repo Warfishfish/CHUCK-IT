@@ -215,6 +215,8 @@ struct ResultsRoot;
 #[derive(Component)]
 struct NameText;
 #[derive(Component)]
+struct BlobName;
+#[derive(Component)]
 struct PlayLabel;
 #[derive(Component)]
 struct AmmoNote;
@@ -261,7 +263,7 @@ impl Plugin for MenuPlugin {
 
 // ---------------------------------------------------------------- building the screens
 
-fn spawn_menu(mut commands: Commands, settings: Res<Settings>) {
+fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crate::preview::PreviewImage>) {
     let _ = settings;
     commands
         .spawn((overlay(false), MenuRoot))
@@ -318,6 +320,56 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>) {
                     .with_children(|w| {
                         check(w, CheckId::Sound, "Sound effects");
                     });
+            });
+            // the character preview, in a card beside the menu (Solo tab)
+            o.spawn((
+                Node {
+                    width: px(340.0),
+                    margin: UiRect::left(px(28.0)),
+                    padding: UiRect::all(px(16.0)),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(10.0),
+                    border: UiRect::all(px(3.0)),
+                    border_radius: BorderRadius::all(px(18.0)),
+                    align_self: AlignSelf::FlexStart,
+                    ..default()
+                },
+                BackgroundColor(PAPER),
+                BorderColor::all(INK),
+                BoxShadow(vec![ShadowStyle {
+                    color: INK,
+                    x_offset: px(7.0),
+                    y_offset: px(7.0),
+                    spread_radius: px(0.0),
+                    blur_radius: px(0.0),
+                }]),
+                ShowWhen::Panel(Tab::Solo),
+            ))
+            .with_children(|pv| {
+                pv.spawn(legend("Your blob"));
+                pv.spawn((
+                    Text::new("Gumdrop"),
+                    display_font(28.0),
+                    TextColor(INK),
+                    BlobName,
+                ));
+                pv.spawn((
+                    Node {
+                        width: Val::Percent(100.0),
+                        aspect_ratio: Some(crate::preview::PREVIEW_W as f32 / crate::preview::PREVIEW_H as f32),
+                        border: UiRect::all(px(2.0)),
+                        border_radius: BorderRadius::all(px(12.0)),
+                        ..default()
+                    },
+                    BorderColor::all(INK),
+                    ImageNode::new(preview.0.clone()),
+                ));
+                pv.spawn(text(
+                    "Only the look changes. Every blob has the same speed and the same hit size.",
+                    12.5,
+                    false,
+                    MUTED,
+                ));
             });
         });
 }
@@ -688,7 +740,8 @@ fn paint_widgets(
     )>,
     mut handles: Query<&mut Node, (With<SliderFill>, Without<ShowWhen>)>,
     mut play_label: Query<&Children, With<PlayLabelMarker>>,
-    mut label_text: Query<&mut Text, (Without<NameText>, Without<SliderValue>)>,
+    mut label_text: Query<&mut Text, (Without<NameText>, Without<SliderValue>, Without<BlobName>)>,
+    mut blob_name: Query<&mut Text, (With<BlobName>, Without<NameText>, Without<SliderValue>)>,
 ) {
     let selected = |id: SegId, v: i32| -> bool {
         match id {
@@ -760,6 +813,11 @@ fn paint_widgets(
         } else {
             Display::None
         };
+    }
+    for mut t in &mut blob_name {
+        if t.0 != settings.character.name() {
+            t.0 = settings.character.name().to_string();
+        }
     }
     for mut t in &mut texts.p0() {
         let caret = if ui.name_focus { "|" } else { "" };

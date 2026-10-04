@@ -312,7 +312,7 @@ fn swap_models(
     }
 }
 
-fn lighter(c: Color) -> Color {
+pub fn lighter(c: Color) -> Color {
     let l = c.to_linear();
     Color::linear_rgb(
         l.red + (1.0 - l.red) * 0.35,
@@ -321,7 +321,7 @@ fn lighter(c: Color) -> Color {
     )
 }
 
-fn darker(c: Color) -> Color {
+pub fn darker(c: Color) -> Color {
     let l = c.to_linear();
     Color::linear_rgb(l.red * 0.6, l.green * 0.6, l.blue * 0.6)
 }

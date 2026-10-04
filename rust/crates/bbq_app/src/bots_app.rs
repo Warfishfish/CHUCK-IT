@@ -18,7 +18,7 @@ use bbq_core::pose::SlapKind;
 use bbq_core::scoring::{HitInput, Phase, SlapInput};
 use bbq_core::smoko;
 use bbq_core::vec::V3;
-use bbq_core::yard::{self, BAR, CHEST_SPOTS, SMOKO_X, SMOKO_Z, Yard};
+use bbq_core::yard::{self, BAR, CHEST_SPOTS, Yard};
 use bbq_core::{GameMode, PlayerId};
 use bevy::prelude::*;
 

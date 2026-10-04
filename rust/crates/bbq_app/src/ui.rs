@@ -53,6 +53,7 @@ pub fn card(width: f32) -> impl Bundle {
             width: px(width),
             max_width: Val::Percent(100.0),
             max_height: Val::Percent(100.0),
+            flex_shrink: 0.0,
             flex_direction: FlexDirection::Column,
             row_gap: px(16.0),
             padding: UiRect::axes(px(22.0), px(20.0)),

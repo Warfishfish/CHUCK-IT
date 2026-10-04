@@ -20,6 +20,7 @@ mod life;
 mod lighting;
 mod models;
 mod player;
+mod preview;
 mod menu;
 mod results;
 mod round;
@@ -66,6 +67,7 @@ fn main() {
             bots_app::BotsPlugin,
             round::RoundPlugin,
             ui::FontsPlugin,
+            preview::PreviewPlugin,
             menu::MenuPlugin,
             heist_app::HeistViewPlugin,
             models::ModelsPlugin,
