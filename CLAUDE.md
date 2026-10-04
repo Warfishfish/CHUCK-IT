@@ -32,8 +32,10 @@ Marcus's backyard party game (it used to be called Chuck It / Backyard Brawl). C
 - Sounds or assets must be Steam-safe (CC0, CC-BY, Pixabay, ZapSplat; no NC/ND), with a licence list.
 
 ## Rust rewrite
-Follow RUST_REWRITE_PLAN.md one phase at a time, and don't jump ahead. Phase 0 starts with two decisions Marcus makes:
-1. Desktop only (Steam), or desktop and browser?
-2. A proper server, a player hosting, or both?
+Follow RUST_REWRITE_PLAN.md one phase at a time, and don't jump ahead.
 
-Put the Rust code in a new `rust/` folder (a Cargo workspace) so the browser game keeps working alongside it.
+Decided by Marcus (4 Oct 2026):
+1. Desktop first (Mac/Windows/Steam), browser later. The JavaScript game stays as the browser version in the meantime.
+2. A player hosts online games, like today. No dedicated server for now.
+
+Put the Rust code in the `rust/` folder (a Cargo workspace) so the browser game keeps working alongside it. `BEHAVIOUR_SPEC.md` lists every tuning number from the JavaScript game; port from that.

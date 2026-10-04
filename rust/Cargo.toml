@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = ["crates/bbq_app"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+license = "UNLICENSED"
+
+# Bevy is slow to compile in debug builds, so the game's dependencies are
+# optimised even in dev builds. Our own code stays quick to rebuild.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

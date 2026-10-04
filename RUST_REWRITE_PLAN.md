@@ -210,11 +210,11 @@ australian-bbq/
 Work top to bottom. Every phase ends with something runnable and checked against the JavaScript game.
 
 ### Phase 0: Decisions and freeze
-- [ ] Decide: desktop only (Steam), or desktop **and** browser
-- [ ] Decide: dedicated server, a player hosts, or both
-- [ ] Tag the JavaScript game as the reference (`v0.23.1-js`) and record short gameplay clips of each feature
-- [ ] Write the **behaviour spec**: every tuning number and rule pulled out of `index.html` (speeds, timings, points, chances)
-- [ ] Install Rust and start a Bevy 0.19 project; set up automatic builds for macOS and Windows (and web if chosen)
+- [x] Decided (4 Oct 2026): **desktop first, browser later**. Build for Mac/Windows/Steam; the JavaScript game stays as the browser version for mates until a web build is wanted
+- [x] Decided (4 Oct 2026): **a player hosts**, like today. No dedicated server for now (keep the sim headless-capable so one can be added later)
+- [x] Tagged the JavaScript game as the reference (`v0.23.1-js`). Still to do: record short gameplay clips of each feature (needs Marcus's machine)
+- [x] Wrote the **behaviour spec** (`BEHAVIOUR_SPEC.md`). It lists the places where the code and the written rules disagree (section 20); Marcus needs to decide those
+- [x] Rust 1.99.0 installed on the Mac; Bevy 0.19.1 starter app in `rust/` (compiles); GitHub Actions build for macOS, Windows and Linux in `.github/workflows/rust.yml`. Still to do: run it once on the Mac
 
 ### Phase 1: Core rules (no graphics)
 - [ ] Set up the Cargo workspace and crates
