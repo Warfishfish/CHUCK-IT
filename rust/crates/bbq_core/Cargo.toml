@@ -1,0 +1,8 @@
+[package]
+name = "bbq_core"
+description = "Australian BBQ: pure game rules, no graphics and no engine. Everything here is checked by unit tests against BEHAVIOUR_SPEC.md."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]

@@ -375,6 +375,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "bbq_core"
+version = "0.0.1"
+
+[[package]]
 name = "bevy"
 version = "0.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -217,10 +217,12 @@ Work top to bottom. Every phase ends with something runnable and checked against
 - [x] Rust 1.99.0 installed on the Mac; Bevy 0.19.1 starter app in `rust/` (compiles); GitHub Actions build for macOS, Windows and Linux in `.github/workflows/rust.yml`. Still to do: run it once on the Mac
 
 ### Phase 1: Core rules (no graphics)
-- [ ] Set up the Cargo workspace and crates
-- [ ] `bbq_core`: item, drink and dildo-variant data; scoring (streaks, bounty, drunk bonus, long shot); round and match flow; teams; Heist banking; stun rules; drunk maths; drag rules
-- [ ] Unit tests copied from today's behaviour
-- [ ] Fixed 60 Hz simulation that also runs without a window (for tests and the server)
+- [x] Set up the Cargo workspace and crates
+- [x] `bbq_core`: item, drink and dildo-variant data; scoring (streaks, bounty, drunk bonus, long shot); round and match flow; teams; Heist banking; stun rules; drunk maths; drag rules
+- [x] Unit tests copied from today's behaviour
+- [x] Fixed 60 Hz simulation that also runs without a window (for tests and the server)
+
+Phase 1 result: `bbq_core` has 79 unit tests, clippy is clean. Simplified/left out: the fixed-step `Sim` only runs the round clock (countdown, play, whistle, results panel) and each fighter's body and drunk meter; movement, items and hits join it in Phases 2 and 3. The dildo variant weights add up to 96 (not 100), as in the JavaScript game.
 
 ### Phase 2: The yard and moving around (solo, no bots)
 - [ ] Build the yard layout and colliders from `buildWorld` (simple shapes first), lighting, sky, fog, shadows

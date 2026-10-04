@@ -32,7 +32,13 @@ fn setup(
 ) {
     // The lawn.
     commands.spawn((
-        Mesh3d(meshes.add(Plane3d::default().mesh().size(YARD_HALF_X * 2.0, YARD_HALF_Z * 2.0))),
+        Mesh3d(
+            meshes.add(
+                Plane3d::default()
+                    .mesh()
+                    .size(YARD_HALF_X * 2.0, YARD_HALF_Z * 2.0),
+            ),
+        ),
         MeshMaterial3d(materials.add(Color::srgb(0.37, 0.61, 0.26))),
     ));
 
