@@ -1,4 +1,4 @@
-"""Builds the blob character in Blender (headless) and exports rust/crates/bbq_app/assets/models/blob.glb.
+"""Builds the blob character in Blender (headless) and exports rust/crates/bbq_app/assets/models/blob_<name>.glb, one file each.
 
 Run from the rust/ folder:   python3 tools/make_blob.py
 (needs `pip install bpy`, Blender as a Python module). Open the .glb in Blender to tweak it.
@@ -44,11 +44,11 @@ def pos(x, up, fwd):
 # was 0.36 round everywhere and 1.42 tall). The body is egg-shaped: the radius changes smoothly
 # from the bottom value to the top value, and both ends stay round.
 SHAPES = {
+    "classic": dict(bottom=0.37, top=0.37, height=1.42, capsule=True),  # the original capsule
     "pear": dict(bottom=0.47, top=0.31, height=1.42),     # gentle: round bottom, slimmer shoulders
     "egg": dict(bottom=0.45, top=0.26, height=1.46),      # stronger taper, a bit taller
     "gumdrop": dict(bottom=0.52, top=0.30, height=1.34),  # wide and low, the cutest
 }
-DEFAULT_SHAPE = "gumdrop"
 BODY_BASE = 0.07  # the body's lowest point sits just off the ground (same as the old capsule)
 
 
@@ -114,7 +114,10 @@ def make_blob(shape, dx=0.0):
     body = bpy.data.objects.new("Body", None)
     body.location = (dx, 0, 0)
     scn.collection.objects.link(body)
-    egg_body("Torso", shape, M["Body"], parent=body)
+    if SHAPES[shape].get("capsule"):
+        sphere("Torso", 0.36, (0, 0.78, 0), M["Body"], parent=body, capsule=0.55)
+    else:
+        egg_body("Torso", shape, M["Body"], parent=body)
     sphere("Head", 0.30, (0, 1.50, 0), M["Head"], parent=body)
     for side, sg in (("L", -1), ("R", 1)):
         sphere("Eye" + side, 0.085, (sg * 0.11, 1.56, 0.24), M["White"], parent=body, seg=20, rings=11)
@@ -128,25 +131,16 @@ def make_blob(shape, dx=0.0):
     return body
 
 
-SHAPE = DEFAULT_SHAPE
-if "--shape" in sys.argv:
-    SHAPE = sys.argv[sys.argv.index("--shape") + 1]
 SHEET = "--sheet" in sys.argv
+ORDER = ["classic", "pear", "egg", "gumdrop"]
 
 if SHEET:
-    for i, name in enumerate(["old"] + list(SHAPES)):
-        if name == "old":   # the original JS capsule, for comparison
-            SHAPES["old"] = dict(bottom=0.36, top=0.36, height=1.42)
-        b = make_blob(name if name != "old" else "pear", dx=(i - 1.5) * 1.3)
-        if name == "old":   # swap the body for the real capsule
-            bpy.data.objects.remove(next(c for c in b.children if c.name.startswith("Torso")))
-            sphere("Torso", 0.36, (0, 0.78, 0), M["Body"], parent=b, capsule=0.55)
-            for c in b.children:
-                if c.name.startswith("Hand"):
-                    c.location.x = -0.47 if c.name.startswith("HandR") else 0.47
-                    c.location.x += b.location.x
+    for i, name in enumerate(ORDER):
+        make_blob(name, dx=(i - 1.5) * 1.3)
+elif not PREVIEW:
+    pass  # exporting happens below, one file per character
 else:
-    make_blob(SHAPE)
+    make_blob("gumdrop")
 
 if PREVIEW:
     # a quick picture so the model can be checked without a game window (CPU render)
@@ -174,7 +168,13 @@ if PREVIEW:
     bpy.ops.render.render(write_still=True)
     sys.exit(0)
 
-os.makedirs(os.path.dirname(OUT), exist_ok=True)
-bpy.ops.export_scene.gltf(filepath=os.path.abspath(OUT), export_format="GLB", export_yup=True,
-                          export_apply=True, export_cameras=False, export_lights=False)
-print("wrote", os.path.abspath(OUT))
+out_dir = os.path.dirname(os.path.abspath(OUT))
+os.makedirs(out_dir, exist_ok=True)
+for shape in ORDER:
+    for ob in list(bpy.data.objects):
+        bpy.data.objects.remove(ob)
+    make_blob(shape)
+    path = os.path.join(out_dir, "blob_%s.glb" % shape)
+    bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", export_yup=True,
+                              export_apply=True, export_cameras=False, export_lights=False)
+    print("wrote", path)

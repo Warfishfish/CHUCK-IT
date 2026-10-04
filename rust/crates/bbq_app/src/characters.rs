@@ -6,6 +6,7 @@
 //! The blob itself is a Blender model (`assets/models/blob.glb`, made by `tools/make_blob.py`).
 //! Its hands are moved by the animation maths in `bbq_core::pose`.
 
+use bbq_core::character::Character;
 use bbq_core::dazza::{self, DazzaAnim, DazzaState};
 use bbq_core::pose::{Emote, Inputs, SlapKind};
 use bbq_core::teams::Team;
@@ -98,10 +99,13 @@ impl Plugin for CharactersPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, (spawn_blobs, spawn_dazza))
             .init_resource::<Poses>()
+            .init_resource::<Cast>()
+            .init_resource::<Looks>()
             .add_systems(
                 Update,
                 (
                     viewer_keys,
+                    swap_models,
                     compute_poses,
                     apply_roots,
                     apply_bodies,
@@ -117,6 +121,130 @@ impl Plugin for CharactersPlugin {
                 )
                     .chain(),
             );
+    }
+}
+
+/// Which character the player picked. Everyone you see in the yard is shown in turn from the
+/// four, starting with your pick, so pressing G lets you look at all of them.
+/// (A proper character-select screen comes with the menus in a later phase.)
+#[derive(Resource, Default)]
+pub struct Cast {
+    pub mine: Character,
+}
+
+impl Cast {
+    /// The character shown on practice blob `i`: blob 0 wears your pick, the others the next ones.
+    fn character_of(&self, i: usize) -> Character {
+        let start = Character::ALL
+            .iter()
+            .position(|c| *c == self.mine)
+            .unwrap_or(0);
+        Character::ALL[(start + i) % Character::ALL.len()]
+    }
+}
+
+/// Everything needed to (re)build one blob's model: its tints and where it hangs.
+struct Look {
+    body: Handle<StandardMaterial>,
+    head: Handle<StandardMaterial>,
+    foot: Handle<StandardMaterial>,
+    can_mesh: Handle<Mesh>,
+    can_mat: Handle<StandardMaterial>,
+    body_entity: Entity,
+}
+
+#[derive(Resource, Default)]
+struct Looks(Vec<Look>);
+
+/// Marks the loaded model so it can be thrown away and swapped for another character.
+#[derive(Component)]
+struct BlobModel;
+
+fn spawn_model(
+    commands: &mut Commands,
+    assets: &AssetServer,
+    look: &Look,
+    i: usize,
+    character: Character,
+) {
+    let (bm, hm, fm) = (look.body.clone(), look.head.clone(), look.foot.clone());
+    let (can_mesh, can_mat) = (look.can_mesh.clone(), look.can_mat.clone());
+    commands
+        .spawn((
+            WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset(character.model()))),
+            Transform::default(),
+            BlobModel,
+            Blob(i),
+            ChildOf(look.body_entity),
+        ))
+        .observe(
+            move |ready: On<WorldInstanceReady>,
+                  children: Query<&Children>,
+                  names: Query<&Name>,
+                  has_mat: Query<(), With<MeshMaterial3d<StandardMaterial>>>,
+                  mut commands: Commands| {
+                // once loaded: tint it for this player and find the hands, which the animation moves
+                for node in children.iter_descendants(ready.entity) {
+                    let Ok(name) = names.get(node) else { continue };
+                    let tint = match name.as_str() {
+                        "Torso" => Some(bm.clone()),
+                        "Head" | "HandR" | "HandL" => Some(hm.clone()),
+                        "FootL" | "FootR" => Some(fm.clone()),
+                        _ => None,
+                    };
+                    if let Some(m) = tint {
+                        let parts = std::iter::once(node).chain(children.iter_descendants(node));
+                        for e in parts {
+                            if has_mat.contains(e) {
+                                commands.entity(e).insert(MeshMaterial3d(m.clone()));
+                            }
+                        }
+                    }
+                    match name.as_str() {
+                        "HandR" => {
+                            commands.entity(node).insert((HandR, Blob(i)));
+                            commands.spawn((
+                                Mesh3d(can_mesh.clone()),
+                                MeshMaterial3d(can_mat.clone()),
+                                Transform::from_xyz(0.0, 0.12, 0.08),
+                                Visibility::Hidden,
+                                SmokoCan,
+                                Blob(i),
+                                ChildOf(node),
+                            ));
+                        }
+                        "HandL" => {
+                            commands.entity(node).insert((HandL, Blob(i)));
+                        }
+                        _ => {}
+                    }
+                }
+            },
+        );
+}
+
+/// When the pick changes, swap every blob's model for its new character.
+fn swap_models(
+    mut commands: Commands,
+    assets: Res<AssetServer>,
+    cast: Res<Cast>,
+    looks: Res<Looks>,
+    mut shown: Local<Option<Character>>,
+    old: Query<Entity, With<BlobModel>>,
+) {
+    if *shown == Some(cast.mine) {
+        return;
+    }
+    if shown.is_none() {
+        *shown = Some(cast.mine); // the first models were spawned at startup
+        return;
+    }
+    *shown = Some(cast.mine);
+    for e in &old {
+        commands.entity(e).despawn();
+    }
+    for (i, look) in looks.0.iter().enumerate() {
+        spawn_model(&mut commands, &assets, look, i, cast.character_of(i));
     }
 }
 
@@ -139,6 +267,8 @@ fn spawn_blobs(
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
     assets: Res<AssetServer>,
+    cast: Res<Cast>,
+    mut looks: ResMut<Looks>,
     game: Res<Game>,
 ) {
     let gold = mats.add(StandardMaterial {
@@ -188,60 +318,17 @@ fn spawn_blobs(
             ))
             .id();
 
-        // the blob model from Blender (assets/models/blob.glb); once it has loaded we tint it
-        // for this player and find the hands, which the animation moves
-        let (bm, hm, fm) = (body_mat.clone(), head_mat.clone(), foot_mat.clone());
-        let (can_mesh, can_mat) = (can.clone(), mats.add(Color::srgb(0.85, 0.6, 0.1)));
-        commands
-            .spawn((
-                WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/blob.glb"))),
-                Transform::default(),
-                ChildOf(body),
-            ))
-            .observe(
-                move |ready: On<WorldInstanceReady>,
-                      children: Query<&Children>,
-                      names: Query<&Name>,
-                      has_mat: Query<(), With<MeshMaterial3d<StandardMaterial>>>,
-                      mut commands: Commands| {
-                    for node in children.iter_descendants(ready.entity) {
-                        let Ok(name) = names.get(node) else { continue };
-                        let tint = match name.as_str() {
-                            "Torso" => Some(bm.clone()),
-                            "Head" | "HandR" | "HandL" => Some(hm.clone()),
-                            "FootL" | "FootR" => Some(fm.clone()),
-                            _ => None,
-                        };
-                        if let Some(m) = tint {
-                            let parts =
-                                std::iter::once(node).chain(children.iter_descendants(node));
-                            for e in parts {
-                                if has_mat.contains(e) {
-                                    commands.entity(e).insert(MeshMaterial3d(m.clone()));
-                                }
-                            }
-                        }
-                        match name.as_str() {
-                            "HandR" => {
-                                commands.entity(node).insert((HandR, Blob(i)));
-                                commands.spawn((
-                                    Mesh3d(can_mesh.clone()),
-                                    MeshMaterial3d(can_mat.clone()),
-                                    Transform::from_xyz(0.0, 0.12, 0.08),
-                                    Visibility::Hidden,
-                                    SmokoCan,
-                                    Blob(i),
-                                    ChildOf(node),
-                                ));
-                            }
-                            "HandL" => {
-                                commands.entity(node).insert((HandL, Blob(i)));
-                            }
-                            _ => {}
-                        }
-                    }
-                },
-            );
+        // the blob model from Blender: which of the four depends on the pick (see `Cast`)
+        let look = Look {
+            body: body_mat,
+            head: head_mat,
+            foot: foot_mat,
+            can_mesh: can.clone(),
+            can_mat: mats.add(Color::srgb(0.85, 0.6, 0.1)),
+            body_entity: body,
+        };
+        spawn_model(&mut commands, &assets, &look, i, cast.character_of(i));
+        looks.0.push(look);
 
         // leader crown
         let crown = commands
@@ -529,9 +616,13 @@ fn viewer_keys(
     keys: Res<ButtonInput<KeyCode>>,
     mut game: ResMut<Game>,
     mut dazza: ResMut<Dazza>,
+    mut cast: ResMut<Cast>,
     mut text: Query<&mut Text2d, With<DazzaBubble>>,
 ) {
     let g = &mut *game;
+    if keys.just_pressed(KeyCode::KeyG) {
+        cast.mine = cast.mine.next();
+    }
     let dur = bbq_core::items::DOWN_TIME;
     let kinds = [
         (KeyCode::KeyJ, SlapKind::SentFlying),
@@ -673,16 +764,19 @@ fn apply_bodies(poses: Res<Poses>, mut q: Query<(&Blob, &mut Transform), With<Bl
 
 fn apply_hands(
     poses: Res<Poses>,
+    cast: Res<Cast>,
     mut right: Query<(&Blob, &mut Transform), (With<HandR>, Without<HandL>)>,
     mut left: Query<(&Blob, &mut Transform), (With<HandL>, Without<HandR>)>,
 ) {
     for (b, mut tf) in &mut right {
         let h = poses.0[b.0].hand_r;
-        tf.translation = Vec3::new(h.x, h.y, h.z);
+        let dx = cast.character_of(b.0).hand_x() - 0.47; // sit against this body shape
+        tf.translation = Vec3::new(h.x - dx, h.y, h.z);
     }
     for (b, mut tf) in &mut left {
         let h = poses.0[b.0].hand_l;
-        tf.translation = Vec3::new(h.x, h.y, h.z);
+        let dx = cast.character_of(b.0).hand_x() - 0.47;
+        tf.translation = Vec3::new(h.x + dx, h.y, h.z);
     }
 }
 

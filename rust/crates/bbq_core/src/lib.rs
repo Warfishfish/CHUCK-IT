@@ -5,6 +5,7 @@
 //! The section numbers in the comments point at that file.
 
 pub mod carry;
+pub mod character;
 pub mod dazza;
 pub mod drinks;
 pub mod flight;
