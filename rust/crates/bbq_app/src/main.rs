@@ -52,6 +52,7 @@ fn main() {
         primary_window: Some(window),
         ..default()
     }))
+    .insert_resource(lighting::LookMode::from_args(&args))
     .insert_resource(ClearColor(models::hex(0x9fd8f2)))
     .add_plugins(
         (

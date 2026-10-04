@@ -70,6 +70,17 @@ pub enum Shape {
         hole: (f32, f32, f32, f32),
         per_m: f32,
     },
+    /// The same lawn cut into `cell` metre squares (and along the hole's edges) with a colour on
+    /// every corner from `looks_yard::lawn_tint`: dry yellow areas and stubborn green patches.
+    PatchyLawn {
+        x0: f32,
+        x1: f32,
+        z0: f32,
+        z1: f32,
+        hole: (f32, f32, f32, f32),
+        per_m: f32,
+        cell: f32,
+    },
 }
 
 /// Pictures drawn in code by the browser game, saved as PNG files for the Rust version.
@@ -109,6 +120,8 @@ pub enum Tex {
     SignSmoko,
     /// "HANDS OFF", on the meat table.
     SignHands,
+    /// A white soft-edged dot (alpha falls off to the rim): dirt patches and worn paths.
+    SoftDot,
 }
 
 impl Tex {
@@ -133,10 +146,11 @@ impl Tex {
             Tex::SmokoPad => "smoko_pad.png",
             Tex::SignSmoko => "sign_smoko.png",
             Tex::SignHands => "sign_hands.png",
+            Tex::SoftDot => "soft_dot.png",
         }
     }
 
-    pub const ALL: [Tex; 18] = [
+    pub const ALL: [Tex; 19] = [
         Tex::VpLabel,
         Tex::Fish,
         Tex::Lawn,
@@ -155,6 +169,7 @@ impl Tex {
         Tex::SmokoPad,
         Tex::SignSmoko,
         Tex::SignHands,
+        Tex::SoftDot,
     ];
 }
 

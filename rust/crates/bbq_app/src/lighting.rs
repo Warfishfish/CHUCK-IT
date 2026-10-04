@@ -21,6 +21,89 @@ use bevy::shader::ShaderRef;
 
 use crate::models::hex;
 
+/// Which look the game has: the browser game's exact lights (for the comparison toolkit), or the
+/// sun-baked, warmer-and-moodier look of step 2c (`GRAPHICS_2C.md`).
+#[derive(Resource, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum LookMode {
+    Browser,
+    Polished,
+}
+
+impl LookMode {
+    /// `--look browser|polished`. Screenshots default to `browser` so old comparisons still
+    /// work; playing defaults to `polished`.
+    pub fn from_args(args: &[String]) -> LookMode {
+        let asked = args
+            .iter()
+            .position(|a| a == "--look")
+            .and_then(|i| args.get(i + 1))
+            .map(String::as_str);
+        match asked {
+            Some("browser") => LookMode::Browser,
+            Some("polished") => LookMode::Polished,
+            _ if args.iter().any(|a| a == "--shot") => LookMode::Browser,
+            _ => LookMode::Polished,
+        }
+    }
+
+    /// The lights for this look.
+    pub fn rig(self) -> Rig {
+        match self {
+            LookMode::Browser => Rig {
+                sky: SKY,
+                ground: GROUND,
+                hemi: HEMI_INTENSITY,
+                sun: SUN,
+                sun_intensity: SUN_INTENSITY,
+                grade: Grade::NONE,
+            },
+            // warm hard sun, cooler and a little dimmer sky fill, dry dusty ground bounce
+            LookMode::Polished => Rig {
+                sky: 0xbfd6f2,
+                ground: 0x8a7a48,
+                hemi: 0.50,
+                sun: 0xffe3b0,
+                sun_intensity: 1.0,
+                grade: Grade {
+                    saturation: 1.08,
+                    warmth: 0.05,
+                    contrast: 1.07,
+                    vignette: 0.28,
+                },
+            },
+        }
+    }
+}
+
+/// Everything that differs between the looks.
+#[derive(Clone, Copy, Debug)]
+pub struct Rig {
+    pub sky: u32,
+    pub ground: u32,
+    pub hemi: f32,
+    pub sun: u32,
+    pub sun_intensity: f32,
+    pub grade: Grade,
+}
+
+/// The finishing touches the display shader puts on the picture.
+#[derive(Clone, Copy, Debug)]
+pub struct Grade {
+    pub saturation: f32,
+    pub warmth: f32,
+    pub contrast: f32,
+    pub vignette: f32,
+}
+
+impl Grade {
+    pub const NONE: Grade = Grade {
+        saturation: 1.0,
+        warmth: 0.0,
+        contrast: 1.0,
+        vignette: 0.0,
+    };
+}
+
 /// The browser game's lights.
 pub const SKY: u32 = 0xe6f6ff;
 pub const GROUND: u32 = 0x4f6e30;
@@ -54,11 +137,27 @@ pub fn lux(intensity: f32) -> f32 {
 pub struct DisplayRaw {
     /// 1 = on, 0 = off (pass the picture through untouched).
     pub on: f32,
+    pub saturation: f32,
+    /// Warm (positive) or cool tint, around 0.05.
+    pub warmth: f32,
+    pub contrast: f32,
+    /// How much the corners darken, 0 to 1.
+    pub vignette: f32,
 }
 
 impl DisplayRaw {
     pub fn on() -> Self {
-        DisplayRaw { on: 1.0 }
+        Self::with_grade(Grade::NONE)
+    }
+
+    pub fn with_grade(g: Grade) -> Self {
+        DisplayRaw {
+            on: 1.0,
+            saturation: g.saturation,
+            warmth: g.warmth,
+            contrast: g.contrast,
+            vignette: g.vignette,
+        }
     }
 }
 
@@ -70,8 +169,12 @@ impl FullscreenMaterial for DisplayRaw {
 
 /// The camera parts that go with `DisplayRaw`. Not HDR on purpose: three clamps each colour to
 /// 0..1 before see-through things are blended, and an ordinary 8-bit picture does the same.
-pub fn camera_style() -> (Tonemapping, Exposure, DisplayRaw) {
-    (Tonemapping::None, Exposure::default(), DisplayRaw::on())
+pub fn camera_style(look: LookMode) -> (Tonemapping, Exposure, DisplayRaw) {
+    (
+        Tonemapping::None,
+        Exposure::default(),
+        DisplayRaw::with_grade(look.rig().grade),
+    )
 }
 
 fn channels(c: u32) -> [f32; 3] {
@@ -86,10 +189,11 @@ fn channels(c: u32) -> [f32; 3] {
 /// For a surface facing along `n` three gives `ground + (sky - ground) * (0.5 + 0.5 * n.y)`.
 /// We give the average everywhere and add half the difference from above, which is exact for
 /// anything facing up or sideways (undersides come out a little bright).
-pub fn hemisphere() -> (AmbientLight, DirectionalLight, Transform) {
-    let (s, g) = (channels(SKY), channels(GROUND));
-    let avg = [0, 1, 2].map(|i| (s[i] + g[i]) / 2.0 * HEMI_INTENSITY);
-    let up = [0, 1, 2].map(|i| (s[i] - g[i]) / 2.0 * HEMI_INTENSITY);
+pub fn hemisphere(look: LookMode) -> (AmbientLight, DirectionalLight, Transform) {
+    let r = look.rig();
+    let (s, g) = (channels(r.sky), channels(r.ground));
+    let avg = [0, 1, 2].map(|i| (s[i] + g[i]) / 2.0 * r.hemi);
+    let up = [0, 1, 2].map(|i| (s[i] - g[i]) / 2.0 * r.hemi);
     let peak = up.iter().cloned().fold(0.0, f32::max);
     (
         AmbientLight {
@@ -112,11 +216,12 @@ pub fn hemisphere() -> (AmbientLight, DirectionalLight, Transform) {
 }
 
 /// The sun, with shadows.
-pub fn sun() -> (DirectionalLight, Transform) {
+pub fn sun(look: LookMode) -> (DirectionalLight, Transform) {
+    let r = look.rig();
     (
         DirectionalLight {
-            color: hex(SUN),
-            illuminance: lux(SUN_INTENSITY) * SUN_FIX,
+            color: hex(r.sun),
+            illuminance: lux(r.sun_intensity) * SUN_FIX,
             shadow_maps_enabled: true,
             ..default()
         },
@@ -136,7 +241,7 @@ mod tests {
 
     #[test]
     fn hemisphere_averages_sky_and_ground() {
-        let (amb, up, _) = hemisphere();
+        let (amb, up, _) = hemisphere(LookMode::Browser);
         // green is the brightest channel of the pair: (0xf6 + 0x6e) / 2, at 62%
         let green = ((0xf6 as f32 + 0x6e as f32) / 2.0 / 255.0) * HEMI_INTENSITY;
         let brightest = amb.brightness / unit() / AMBIENT_FIX;

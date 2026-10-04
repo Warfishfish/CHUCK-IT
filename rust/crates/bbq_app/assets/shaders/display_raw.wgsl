@@ -10,6 +10,10 @@
 @group(0) @binding(1) var texture_sampler: sampler;
 struct Settings {
     on: f32,
+    saturation: f32,
+    warmth: f32,
+    contrast: f32,
+    vignette: f32,
 }
 @group(0) @binding(2) var<uniform> settings: Settings;
 
@@ -25,5 +29,13 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     if settings.on < 0.5 {
         return c;
     }
-    return vec4<f32>(srgb_to_linear(clamp(c.rgb, vec3<f32>(0.0), vec3<f32>(1.0))), c.a);
+    var rgb = clamp(c.rgb, vec3<f32>(0.0), vec3<f32>(1.0));
+    // finishing touches (all 1 / 0 for the browser look, so nothing changes there)
+    let lum = dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
+    rgb = mix(vec3<f32>(lum), rgb, settings.saturation);
+    rgb = rgb * vec3<f32>(1.0 + settings.warmth, 1.0 + settings.warmth * 0.3, 1.0 - settings.warmth * 0.9);
+    rgb = (rgb - vec3<f32>(0.5)) * settings.contrast + vec3<f32>(0.5);
+    let d = length((in.uv - vec2<f32>(0.5)) * vec2<f32>(1.0, 0.85));
+    rgb = rgb * (1.0 - settings.vignette * smoothstep(0.45, 0.95, d));
+    return vec4<f32>(srgb_to_linear(clamp(rgb, vec3<f32>(0.0), vec3<f32>(1.0))), c.a);
 }

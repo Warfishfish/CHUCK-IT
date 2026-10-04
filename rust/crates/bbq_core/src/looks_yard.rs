@@ -1000,23 +1000,152 @@ pub fn heist_look(teams: usize) -> Vec<Part> {
     v
 }
 
-/// The whole yard. `seed` picks where the gum trees and clouds go.
+/// A repeatable pseudo-random number from a grid corner (no state, so a rebuild gives the same).
+fn hash2(ix: i32, iz: i32, salt: u32) -> f32 {
+    let mut h = (ix as u32).wrapping_mul(0x9E37_79B1)
+        ^ (iz as u32).wrapping_mul(0x85EB_CA77)
+        ^ salt.wrapping_mul(0xC2B2_AE3D);
+    h ^= h >> 15;
+    h = h.wrapping_mul(0x2C1B_3C6D);
+    h ^= h >> 12;
+    h = h.wrapping_mul(0x297A_2D39);
+    h ^= h >> 15;
+    (h & 0xFFFF) as f32 / 65535.0
+}
+
+/// Smooth value noise, 0 to 1, with features about `scale` metres across.
+fn value_noise(x: f32, z: f32, scale: f32, salt: u32) -> f32 {
+    let (fx, fz) = (x / scale, z / scale);
+    let (ix, iz) = (fx.floor() as i32, fz.floor() as i32);
+    let (tx, tz) = (fx - ix as f32, fz - iz as f32);
+    let ease = |t: f32| t * t * (3.0 - 2.0 * t);
+    let (ux, uz) = (ease(tx), ease(tz));
+    let a = hash2(ix, iz, salt);
+    let b = hash2(ix + 1, iz, salt);
+    let c = hash2(ix, iz + 1, salt);
+    let d = hash2(ix + 1, iz + 1, salt);
+    (a + (b - a) * ux) + ((c + (d - c) * ux) - (a + (b - a) * ux)) * uz
+}
+
+/// How dry (0 = lush, 1 = bleached) the lawn is at a spot: big slow patches, drier towards the
+/// edges and the sunny middle, with a few stubborn green patches that stay lush.
+pub fn lawn_dryness(x: f32, z: f32) -> f32 {
+    let big = value_noise(x, z, 17.0, 1);
+    let mid = value_noise(x, z, 6.0, 2);
+    let edge = (x.abs() / W).max(z.abs() / D).clamp(0.0, 1.0);
+    let base = 0.38 + 0.55 * big + 0.25 * (mid - 0.5) + 0.20 * edge * edge;
+    // a handful of green patches (round the pool and the hose spot, plus noise-picked ones)
+    let green = value_noise(x + 40.0, z - 17.0, 9.0, 3);
+    let patch = ((green - 0.62) * 6.0).clamp(0.0, 1.0);
+    (base * (1.0 - 0.85 * patch)).clamp(0.0, 1.0)
+}
+
+/// The colour a lawn corner is multiplied by (over the green lawn picture).
+pub fn lawn_tint(x: f32, z: f32) -> [f32; 3] {
+    let d = lawn_dryness(x, z);
+    let lush = [0.72, 0.90, 0.58];
+    let dry = [1.38, 1.10, 0.50];
+    [0, 1, 2].map(|i| lush[i] + (dry[i] - lush[i]) * d)
+}
+
+/// Worn dirt: patches and the paths people walk (back door to the bar, the BBQ, the Hills Hoist,
+/// and on to smoko). Each is a soft disc `(x, z, radius)`, flat on the lawn.
+pub fn dirt_spots(seed: u64) -> Vec<(f32, f32, f32)> {
+    let mut rng = Rng::new(seed ^ 0xD127);
+    let paths: [&[(f32, f32)]; 3] = [
+        &[(3.0, -23.8), (1.0, -20.0), (-4.0, -17.0), (-8.7, -16.4)],
+        &[(3.0, -23.8), (3.2, -16.0), (1.5, -8.0), (0.4, 2.2)],
+        &[(-8.7, -16.4), (-16.0, -10.0), (-22.6, -4.4)],
+    ];
+    let mut v = Vec::new();
+    for pts in paths {
+        for w in pts.windows(2) {
+            let (a, b) = (w[0], w[1]);
+            let len = ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt();
+            let n = (len / 1.1).ceil() as usize;
+            for k in 0..n {
+                let t = k as f32 / n as f32;
+                v.push((
+                    a.0 + (b.0 - a.0) * t + rng.range(-0.35, 0.35),
+                    a.1 + (b.1 - a.1) * t + rng.range(-0.35, 0.35),
+                    rng.range(0.85, 1.3),
+                ));
+            }
+        }
+    }
+    // worn round the bar and the BBQ, under the hoist and the trampoline
+    for (x, z, r) in [
+        (0.0, -18.8, 2.6),
+        (-8.7, -16.8, 2.4),
+        (0.0, 3.0, 2.0),
+        (TRAMP_X, TRAMP_Z, TRAMP_R + 0.9),
+        (-24.0, -3.0, 3.0),
+    ] {
+        v.push((x, z, r));
+    }
+    // some bare patches that are just there
+    for _ in 0..9 {
+        let (x, z) = (rng.range(-W + 4.0, W - 4.0), rng.range(-D + 4.0, D - 4.0));
+        if (POOL_X0 - 3.0..POOL_X1 + 3.0).contains(&x) && (POOL_Z0 - 3.0..POOL_Z1 + 3.0).contains(&z) {
+            continue;
+        }
+        v.push((x, z, rng.range(1.2, 2.6)));
+    }
+    v
+}
+
+/// The whole yard in the browser game's look. `seed` picks where the gum trees and clouds go.
 pub fn yard(seed: u64) -> YardLook {
+    yard_styled(seed, false)
+}
+
+/// The whole yard. `polished` is the step 2c look (patchy dry lawn, worn dirt).
+pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
     let mut rng = Rng::new(seed);
     let mut world = Vec::new();
     // lawn and the paddock beyond, both with the pool cut out
     let hole = (POOL_X0, POOL_X1, POOL_Z0, POOL_Z1);
-    world.push(Part::new(
-        Shape::Ground {
-            x0: -W,
-            x1: W,
-            z0: -D,
-            z1: D,
-            hole,
-            per_m: 1.0 / 16.0,
-        },
-        matt(0xffffff).textured(Tex::Lawn).no_shadow().ground(),
-    ));
+    if polished {
+        world.push(Part::new(
+            Shape::PatchyLawn {
+                x0: -W,
+                x1: W,
+                z0: -D,
+                z1: D,
+                hole,
+                per_m: 1.0 / 16.0,
+                cell: 1.0,
+            },
+            matt(0xffffff).textured(Tex::Lawn).no_shadow().ground(),
+        ));
+        // bare earth on top, soft at the edges so it blends into the grass
+        for (x, z, r) in dirt_spots(seed) {
+            world.push(
+                Part::new(
+                    Shape::Disc { r: 1.0, seg: 12 },
+                    matt(0x8f7650)
+                        .textured(Tex::SoftDot)
+                        .see_through(0.97)
+                        .no_shadow(),
+                )
+                .at(x, 0.012, z)
+                .turn(-HALF_PI, 0.0, 0.0)
+                .stretch(r * 1.15, r * 1.15, 1.0),
+            );
+        }
+    } else {
+        world.push(Part::new(
+            Shape::Ground {
+                x0: -W,
+                x1: W,
+                z0: -D,
+                z1: D,
+                hole,
+                per_m: 1.0 / 16.0,
+            },
+            matt(0xffffff).textured(Tex::Lawn).no_shadow().ground(),
+        ));
+    }
     world.push(
         Part::new(
             Shape::Ground {

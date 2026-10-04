@@ -17,6 +17,8 @@ struct Buf {
     pos: Vec<[f32; 3]>,
     nor: Vec<[f32; 3]>,
     uv: Vec<[f32; 2]>,
+    /// Colour on each corner, when the shape has any (the patchy lawn).
+    col: Vec<[f32; 4]>,
     idx: Vec<u32>,
 }
 
@@ -34,14 +36,18 @@ impl Buf {
     }
 
     fn into_mesh(self) -> Mesh {
-        Mesh::new(
+        let mut m = Mesh::new(
             PrimitiveTopology::TriangleList,
             RenderAssetUsages::default(),
         )
         .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, self.pos)
         .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, self.nor)
         .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, self.uv)
-        .with_inserted_indices(Indices::U32(self.idx))
+        .with_inserted_indices(Indices::U32(self.idx));
+        if !self.col.is_empty() {
+            m.insert_attribute(Mesh::ATTRIBUTE_COLOR, self.col);
+        }
+        m
     }
 }
 
@@ -540,6 +546,45 @@ fn ground(x0: f32, x1: f32, z0: f32, z1: f32, hole: (f32, f32, f32, f32), per_m:
     b
 }
 
+/// The lawn cut into squares (and along the hole's edges), each corner coloured by
+/// `looks_yard::lawn_tint`. The hole is skipped cell by cell, so the cut lines up with the pool.
+fn patchy_lawn(x0: f32, x1: f32, z0: f32, z1: f32, hole: (f32, f32, f32, f32), per_m: f32, cell: f32) -> Buf {
+    let (hx0, hx1, hz0, hz1) = hole;
+    let lines = |a: f32, b: f32, extra: [f32; 2]| -> Vec<f32> {
+        let n = ((b - a) / cell).ceil() as i32;
+        let mut v: Vec<f32> = (0..=n).map(|i| (a + i as f32 * cell).min(b)).collect();
+        v.extend(extra.into_iter().filter(|e| *e > a && *e < b));
+        v.sort_by(|p, q| p.total_cmp(q));
+        v.dedup_by(|p, q| (*p - *q).abs() < 1e-4);
+        v
+    };
+    let xs = lines(x0, x1, [hx0, hx1]);
+    let zs = lines(z0, z1, [hz0, hz1]);
+    let mut b = Buf::default();
+    let n = [0.0, 1.0, 0.0];
+    for zw in zs.windows(2) {
+        for xw in xs.windows(2) {
+            let (cx, cz) = ((xw[0] + xw[1]) / 2.0, (zw[0] + zw[1]) / 2.0);
+            if cx > hx0 && cx < hx1 && cz > hz0 && cz < hz1 {
+                continue;
+            }
+            let mut corner = |x: f32, z: f32, b: &mut Buf| {
+                let t = bbq_core::looks_yard::lawn_tint(x, z);
+                let i = b.vert([x, 0.0, z], n, [x * per_m, -z * per_m]);
+                b.col.push([t[0], t[1], t[2], 1.0]);
+                i
+            };
+            let a = corner(xw[0], zw[0], &mut b);
+            let bb = corner(xw[1], zw[0], &mut b);
+            let c = corner(xw[1], zw[1], &mut b);
+            let d = corner(xw[0], zw[1], &mut b);
+            b.tri(a, d, c);
+            b.tri(a, c, bb);
+        }
+    }
+    b
+}
+
 /// Build the mesh for a shape.
 pub fn build_mesh(shape: &Shape) -> Mesh {
     match *shape {
@@ -580,6 +625,15 @@ pub fn build_mesh(shape: &Shape) -> Mesh {
             hole,
             per_m,
         } => ground(x0, x1, z0, z1, hole, per_m).into_mesh(),
+        Shape::PatchyLawn {
+            x0,
+            x1,
+            z0,
+            z1,
+            hole,
+            per_m,
+            cell,
+        } => patchy_lawn(x0, x1, z0, z1, hole, per_m, cell).into_mesh(),
     }
 }
 
@@ -824,6 +878,29 @@ mod tests {
             );
             let cross_y = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
             assert!(cross_y > 0.0);
+        }
+    }
+
+    #[test]
+    fn the_patchy_lawn_covers_the_yard_except_the_pool_and_every_corner_has_a_colour() {
+        let hole = (-6.0, -2.0, -3.0, 1.0);
+        let g = patchy_lawn(-10.0, 10.0, -10.0, 10.0, hole, 1.0 / 16.0, 1.0);
+        assert_eq!(g.pos.len(), g.col.len());
+        let area: f32 = g
+            .idx
+            .chunks(3)
+            .map(|t| {
+                let (a, b, c) = (g.pos[t[0] as usize], g.pos[t[1] as usize], g.pos[t[2] as usize]);
+                ((b[0] - a[0]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[0] - a[0])).abs() / 2.0
+            })
+            .sum();
+        assert!((area - (400.0 - 16.0)).abs() < 0.01, "area {area}");
+        for t in g.idx.chunks(3) {
+            let (a, b, c) = (g.pos[t[0] as usize], g.pos[t[1] as usize], g.pos[t[2] as usize]);
+            let (cx, cz) = ((a[0] + b[0] + c[0]) / 3.0, (a[2] + b[2] + c[2]) / 3.0);
+            assert!(!(cx > -6.0 && cx < -2.0 && cz > -3.0 && cz < 1.0));
+            let cross_y = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+            assert!(cross_y > 0.0, "faces up");
         }
     }
 

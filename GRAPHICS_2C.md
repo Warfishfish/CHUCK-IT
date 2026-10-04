@@ -52,8 +52,8 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [ ] Walk, throw, stunned and fall poses re-checked with the bigger feet and hands (no clipping)
 
 ### Environment
-- [ ] Lawn: dry yellow grass, stubborn bright-green patches, bare dirt, uneven coverage, mow stripes still visible (a large low-res colour map plus the existing tile)
-- [ ] Worn pathways from the back door to the BBQ, bar and Hills Hoist; dirt round the BBQ and bar
+- [x] Lawn: dry yellow grass, stubborn bright-green patches, bare dirt, uneven coverage, mow stripes still visible (done as a 1 m grid of vertex colours over the lawn tile, `PatchyLawn` + `lawn_tint`; soft dirt decals on top; polished look only)
+- [x] Worn pathways from the back door to the BBQ, bar and Hills Hoist; dirt round the BBQ and bar (`dirt_spots`, soft `soft_dot.png` discs)
 - [ ] Sun-baked palette pass on every flat colour (dry yellow, dusty orange, faded green, weathered brown, washed-out blue, faded red, cream, galvanised grey)
 - [ ] Sky and fog a little warmer near the horizon, a hazy heat feel
 - [ ] Fence leans a little, boards of slightly different heights and shades, some gaps
@@ -104,15 +104,15 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [ ] Stronger, cleaner colours on gameplay objects (Chest, bin, sauce bottles, items) than on the background
 
 ### Lighting
-- [ ] Warm sun, cooler shadows (a blue-ish ambient), a stronger sun and slightly lower ambient for depth
+- [x] Warm sun, cooler shadows (a blue-ish ambient), a stronger sun and slightly lower ambient for depth (first pass; tune on Marcus's Mac)
 - [ ] Softer shadow edges (filter and cascade tuning), shadow range that keeps characters crisp
 - [ ] A rim or back light so characters separate from the lawn
 - [ ] Contact shadows or ambient occlusion so things sit on the ground
 - [ ] Inside-the-shed and under-the-veranda get a darker feel
 
 ### Rendering
-- [ ] The look switch: `--look browser|polished` (and a menu option later); `browser` keeps today's maths for the compare toolkit
-- [ ] Colour grading in `display_raw.wgsl`: gentle warm curve, a little more saturation, a soft vignette
+- [x] The look switch: `--look browser|polished` (screenshots default to browser, playing to polished; a menu option comes with the Phase 8 settings); `browser` keeps today's maths for the compare toolkit
+- [x] Colour grading in `display_raw.wgsl`: gentle warm curve, a little more saturation, more contrast, a soft vignette (polished look only)
 - [ ] Screen-space ambient occlusion and either SMAA or the existing MSAA
 - [ ] Mild bloom on emissive and very bright things only
 - [ ] Texture filtering: anisotropy 8 for ground and fences

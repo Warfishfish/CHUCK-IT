@@ -94,7 +94,7 @@ impl Plugin for PlayerPlugin {
     }
 }
 
-fn setup_camera_and_hud(mut commands: Commands) {
+fn setup_camera_and_hud(mut commands: Commands, look: Res<crate::lighting::LookMode>) {
     commands.spawn((
         Camera3d::default(),
         Projection::from(PerspectiveProjection {
@@ -114,8 +114,8 @@ fn setup_camera_and_hud(mut commands: Commands) {
             },
             ..default()
         },
-        crate::lighting::camera_style(),
-        crate::lighting::hemisphere().0,
+        crate::lighting::camera_style(*look),
+        crate::lighting::hemisphere(*look).0,
         EyeCamera,
     ));
     commands.spawn((

@@ -67,8 +67,9 @@ fn build_yard(
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
     mut cache: ResMut<ModelCache>,
+    mode: Res<crate::lighting::LookMode>,
 ) {
-    let look = looks_yard::yard(LOOK_SEED);
+    let look = looks_yard::yard_styled(LOOK_SEED, *mode == crate::lighting::LookMode::Polished);
 
     // everything that is always there (lawn, fence, house, trees, pool, props)
     let (_, kids) = cache.spawn_parts_with_children(
@@ -181,8 +182,8 @@ fn build_yard(
     }
 
     // the sun, with shadows, and the soft light from the sky
-    commands.spawn(crate::lighting::sun());
-    let (_, sky, sky_at) = crate::lighting::hemisphere();
+    commands.spawn(crate::lighting::sun(*mode));
+    let (_, sky, sky_at) = crate::lighting::hemisphere(*mode);
     commands.spawn((sky, sky_at));
 }
 
