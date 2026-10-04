@@ -5,6 +5,7 @@
 //! The section numbers in the comments point at that file.
 
 pub mod carry;
+pub mod dazza;
 pub mod drinks;
 pub mod flight;
 pub mod hands;
@@ -14,6 +15,7 @@ pub mod items;
 pub mod itemworld;
 pub mod matchflow;
 pub mod movement;
+pub mod pose;
 pub mod rng;
 pub mod scoring;
 pub mod sim;

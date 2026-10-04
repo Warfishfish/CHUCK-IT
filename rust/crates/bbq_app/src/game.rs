@@ -25,6 +25,13 @@ pub struct Dummy {
     pub mover: Mover,
     pub body: Body,
     pub home: (f32, f32),
+    pub anim: bbq_core::pose::Animator,
+    /// Viewer settings so you can look at each pose (keys listed on screen).
+    pub drunk: f32,
+    pub fallen: bool,
+    pub crown: bool,
+    pub team: Option<bbq_core::teams::Team>,
+    pub smelly: bool,
 }
 
 #[derive(Resource)]
@@ -72,6 +79,12 @@ impl Plugin for GamePlugin {
                     mover: Mover::new(s.0, s.1),
                     body: Body::default(),
                     home: *s,
+                    anim: bbq_core::pose::Animator::new(i as f32 * 2.1),
+                    drunk: 0.0,
+                    fallen: false,
+                    crown: false,
+                    team: None,
+                    smelly: false,
                 }
             })
             .collect();
@@ -295,6 +308,8 @@ pub fn step_game(
                 let item = bbq_core::flight::Item::new(0, kind, V3::ZERO);
                 let d = &mut g.dummies[di];
                 let res = hitting::apply_item_hit(&mut d.body, &mut d.mover, &item, dir, flatten);
+                let sign = if g.rng.chance(0.5) { -1.0 } else { 1.0 };
+                d.anim.tumble(dir, kind.def().knock, sign);
                 let out = g.board.thrown_hit(
                     &g.rules,
                     thrower,

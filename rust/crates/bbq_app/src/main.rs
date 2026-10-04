@@ -1,5 +1,5 @@
-//! Australian BBQ, Rust version. Phases 2 and 3: the yard, walking, items and throwing (solo,
-//! with three practice dummies to hit; real bots come in Phase 5).
+//! Australian BBQ, Rust version. Phases 2 to 4: the yard, walking, items and throwing, and the blob
+//! characters and Dazza (solo, with three practice blobs to hit; real bots come in Phase 5).
 //!
 //! Click the window to grab the mouse. WASD walk, mouse looks, Space jumps, Shift boosts,
 //! hold and release the left button to throw, right button catches, Q/E/wheel swap items,
@@ -9,6 +9,7 @@
 // Bevy systems take many parameters by design.
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
+mod characters;
 mod game;
 mod items_view;
 mod player;
@@ -20,7 +21,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Australian BBQ (Rust, Phase 2)".into(),
+                title: "Australian BBQ (Rust, Phase 4)".into(),
                 ..default()
             }),
             ..default()
@@ -31,6 +32,7 @@ fn main() {
             player::PlayerPlugin,
             game::GamePlugin,
             items_view::ItemsViewPlugin,
+            characters::CharactersPlugin,
         ))
         .run();
 }

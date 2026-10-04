@@ -321,6 +321,7 @@ fn update_hud(
     };
     text.0 = format!(
         "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw, RMB catch, Q/E/wheel swap, [ ] FOV, F1-F4 features\n\
+         Look at the blobs: J/K/L slapped (fly/cartwheel/timber), N stacked it + HELP, M emote, Y drunk, C crown, V sash, X stink, B stars, Z/H Dazza\n\
          SCORE {} | hits {} | taken {} | catches {} | streak {} | holding: {holding}{charge}\n\
          pos {:.1}, {:.1}, {:.1} | speed {:.1} m/s | {boost} | FOV {:.0} | {pool}{tramp}{fps:.0} fps\n{}",
         me.score,

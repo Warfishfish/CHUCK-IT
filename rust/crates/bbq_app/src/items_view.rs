@@ -29,8 +29,6 @@ struct ItemVisual(ItemId);
 #[derive(Component)]
 struct GlowRing(ItemId);
 #[derive(Component)]
-struct DummyVisual(usize);
-#[derive(Component)]
 struct PuddleVisual;
 #[derive(Component)]
 struct HeldVm;
@@ -56,13 +54,7 @@ impl Plugin for ItemsViewPlugin {
             .add_systems(Startup, setup_look)
             .add_systems(
                 Update,
-                (
-                    sync_items,
-                    sync_viewmodel,
-                    sync_dummies,
-                    sync_puddles,
-                    draw_trajectory,
-                ),
+                (sync_items, sync_viewmodel, sync_puddles, draw_trajectory),
             );
     }
 }
@@ -298,53 +290,6 @@ fn sync_viewmodel(
     );
     tf.rotation = Quat::from_euler(EulerRot::XYZ, 0.15 - c * 0.6, 0.3, c * 0.3);
     tf.scale = Vec3::splat(scale);
-}
-
-fn sync_dummies(
-    mut commands: Commands,
-    game: Res<Game>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut mats: ResMut<Assets<StandardMaterial>>,
-    mut q: Query<(
-        &DummyVisual,
-        &mut Transform,
-        &MeshMaterial3d<StandardMaterial>,
-    )>,
-    mut made: Local<bool>,
-) {
-    if !*made {
-        *made = true;
-        for (i, _) in game.dummies.iter().enumerate() {
-            commands.spawn((
-                Mesh3d(meshes.add(Capsule3d::new(0.35, 1.1))),
-                MeshMaterial3d(mats.add(Color::srgb(0.3, 0.55, 0.9))),
-                Transform::default(),
-                DummyVisual(i),
-            ));
-        }
-        return;
-    }
-    for (d, mut tf, mat) in &mut q {
-        let dm = &game.dummies[d.0];
-        let down = dm.body.is_down();
-        // standing: capsule centre 0.9 above the feet; lying: on its side
-        if down {
-            tf.translation = Vec3::new(dm.mover.x, dm.mover.y + 0.35, dm.mover.z);
-            tf.rotation = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2);
-        } else {
-            tf.translation = Vec3::new(dm.mover.x, dm.mover.y + 0.9, dm.mover.z);
-            tf.rotation = Quat::IDENTITY;
-        }
-        if let Some(mut m) = mats.get_mut(&mat.0) {
-            m.base_color = if dm.body.stun > 0.0 {
-                Color::srgb(0.95, 0.35, 0.3)
-            } else if dm.body.stun_grace > 0.0 {
-                Color::srgb(0.95, 0.85, 0.3) // grace: can't be stunned again yet
-            } else {
-                Color::srgb(0.3, 0.55, 0.9)
-            };
-        }
-    }
 }
 
 fn sync_puddles(

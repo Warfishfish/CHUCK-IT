@@ -242,10 +242,12 @@ Phase 2 result: `bbq_core` gained `yard` and `movement` (111 tests in total, cli
 Phase 3 result: `bbq_core` gained `flight`, `hands`, `hitting`, `itemworld`, `vec` (166 tests in all). `bbq_app` has the items, your hands, a throw-path line, puddles and three practice dummies to hit (blue = fine, red = stunned, yellow = in the 1 s grace). The headless tests in `bbq_app` throw a teddy at a dummy and check the score, the over-hold drop, a miss, a swap and a pick-up. Not checked by me: how it looks and feels on screen. Left out for now: melee slaps (steak, fish, noodle, dildo, bare hands) arrive with Dazza and bots; the late-hit window (1.8 s) belongs to online play in Phase 8; hits on the player come when bots can throw (Phase 5).
 
 ### Phase 4: Characters, models and animation
-- [ ] Blob character (keep the design): code-made first, then a rigged glTF from Blender
-- [ ] Animations: idle, walk, throw swing, Sent Flying, Cartwheel, Timber, knocked flat, stacked it, seated, drag (both people), emotes, drunk sway
-- [ ] Name tags, speech bubbles, leader crown, stun stars, team sash, HELP ME sign, stink cloud
-- [ ] Dazza model and his 6 states
+- [x] Blob character (keep the design): code-made shapes (capsule body, head, eyes, feet, hands). The rigged Blender glTF is NOT done (can't be made in the cloud); do it later if wanted.
+- [x] Animations (procedural, numbers ported from the JS): idle, walk, throw swing, Sent Flying, Cartwheel, Timber, knocked flat, stacked it, seated, drag, emotes (taunt, laugh, dance), drunk sway. Logic is in `bbq_core/src/pose.rs` with tests.
+- [x] Name tags, speech bubbles, leader crown, stun stars, team sash, HELP ME sign, stink cloud (simple Text2d / shape versions)
+- [x] Dazza model and his 6 states (look and states only; his behaviour is Phase 5). Logic in `bbq_core/src/dazza.rs`.
+- Result: 199 core tests + 5 app tests pass. Left out or simplified: the player's own body is hidden (first person); `slap_cam` camera effects are written but not wired to the camera; the look and animations have NOT been seen on a screen yet (no GPU in the cloud). Marcus: run `cargo run` and use the viewer keys (J/K/L slap, N stacked, M emote, Y drunk, C crown, V sash, X stink, B stars, Z/H Dazza), then tick "looks right" here.
+- [ ] Phase 4 look check on Marcus's Mac
 
 ### Phase 5: Yard life
 - [ ] Bar, drinks, drunk meter and levels, drunk camera and screen shader
