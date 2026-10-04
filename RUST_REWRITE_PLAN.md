@@ -233,6 +233,15 @@ Phase 1 result: `bbq_core` has 79 unit tests, clippy is clean. Simplified/left o
 
 Phase 2 result: `bbq_core` gained `yard` and `movement` (111 tests in total, clippy clean). `bbq_app` now draws the yard and lets you walk it. Not checked by me: how it looks and feels on screen, because the cloud machine has no graphics card. Simplified: boxes are plain coloured cuboids, the pool is a flat blue slab (no sinking water yet), no sky dome or clouds, and the camera does not yet lie down when stunned.
 
+### Phase 2b: Match the browser look (added 4 Oct 2026, Marcus)
+The Rust version still draws items and props as plain shapes and does not look like the browser game. This phase fixes that before any more gameplay. Rule: every object is written as **plain data** (a list of shapes with size, position and colour) so the same list can later drive a Blender script that makes `.glb` models, with no rewrite.
+- [ ] Items, copied from `MAKERS` (`index.html` line ~935): teddy, VP can, gnome, steak, fish, pool noodle, snag, and the four dildo sizes
+- [ ] Yard props, copied from `buildWorld`: fence, house, shed, water tank, Hills Hoist, eskies, table, bins, crates, hedge, tyres, woodpile, brick wall, planter, bar (with drinks), BBQ and meat table, smoko pad and chairs, chest
+- [ ] Textures drawn in code in the browser (grass, paving, bricks, signs): redo as generated images
+- [ ] Sky, clouds, gum trees, pool water, trampoline, sun and shadows
+- [ ] Side-by-side check: same camera spot in the browser game and the Rust game, screenshots compared, differences fixed. Needs Marcus's Mac to run the Rust game
+- [ ] Later and optional: make nicer Blender versions from the same data lists
+
 ### Phase 3: Items and throwing
 - [x] Item spawner, pick up, 2 slots, swap, ground glow
 - [x] Wind-up, throw, holding too long, throw-path preview, power throw
