@@ -64,6 +64,7 @@ fn main() {
             hud::HudPlugin,
             bots_app::BotsPlugin,
             round::RoundPlugin,
+            ui::FontsPlugin,
             menu::MenuPlugin,
             heist_app::HeistViewPlugin,
             models::ModelsPlugin,

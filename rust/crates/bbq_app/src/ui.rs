@@ -2,10 +2,9 @@
 //! outline and a hard shadow, yellow "selected" buttons, a red Play button, pill-shaped chips.
 //! The widgets here only draw and report clicks; what they mean lives in `menu.rs`.
 //!
-//! Fonts: the browser uses Bowlby One (display) and Figtree (text) with `Arial Black` and the
-//! system font as fall-backs. Here the same fall-back names are asked of the operating system
-//! (Bevy's `system_font_discovery`), so the look follows the browser's fall-back look until the
-//! real font files are added to the assets folder.
+//! Fonts: Bowlby One (display) and Figtree (text), the same as the browser page. Both are free
+//! under the SIL Open Font Licence (copies in `assets/fonts/`, from the Google Fonts repository).
+//! `FontsPlugin` loads the files so the names below resolve.
 
 use bevy::prelude::*;
 use bevy::text::{FontSource, FontWeight};
@@ -26,7 +25,7 @@ pub const BAD: Color = Color::srgb(1.0, 0.816, 0.792);
 /// Display text (the big yellow title, buttons, headings).
 pub fn display_font(size: f32) -> TextFont {
     TextFont {
-        font: FontSource::Family("Arial Black".into()),
+        font: FontSource::Family("Bowlby One".into()),
         font_size: FontSize::Px(size),
         ..default()
     }
@@ -35,7 +34,7 @@ pub fn display_font(size: f32) -> TextFont {
 /// Normal text; `bold` is the browser's weight 800.
 pub fn body_font(size: f32, bold: bool) -> TextFont {
     TextFont {
-        font: FontSource::SansSerif,
+        font: FontSource::Family("Figtree".into()),
         font_size: FontSize::Px(size),
         weight: if bold { FontWeight(800) } else { FontWeight(500) },
         ..default()
@@ -488,4 +487,22 @@ pub fn chip(s: &str, bg: Color) -> impl Bundle {
         BorderColor::all(INK),
         children![text(s, 12.5, true, INK)],
     )
+}
+
+/// Keeps the two font files loaded so `FontSource::Family` can find them.
+#[derive(Resource)]
+pub struct Fonts(#[allow(dead_code)] Vec<Handle<Font>>);
+
+pub struct FontsPlugin;
+
+impl Plugin for FontsPlugin {
+    fn build(&self, app: &mut App) {
+        // built in (about 120 KB) and added at once, so the first menu layout already knows them
+        let mut fonts = app.world_mut().resource_mut::<Assets<Font>>();
+        let handles = vec![
+            fonts.add(Font::from_bytes(include_bytes!("../assets/fonts/BowlbyOne-Regular.ttf").to_vec())),
+            fonts.add(Font::from_bytes(include_bytes!("../assets/fonts/Figtree.ttf").to_vec())),
+        ];
+        app.insert_resource(Fonts(handles));
+    }
 }

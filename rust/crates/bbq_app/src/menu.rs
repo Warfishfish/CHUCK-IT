@@ -273,11 +273,12 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>) {
                     align_items: AlignItems::FlexStart,
                     row_gap: px(10.0),
                     padding: UiRect::top(px(4.0)),
+                    flex_shrink: 0.0,
                     ..default()
                 })
                 .with_children(|b| {
                     b.spawn(tag_pill("Backyard Brawl · Rust prototype"));
-                    outlined_title(b, "Australian\nBBQ", 62.0);
+                    outlined_title(b, "Australian\nBBQ", 54.0);
                     b.spawn(Node { max_width: px(360.0), ..default() }).with_child(text(
                         "Chuck stuff at your mates in the backyard. Hit them before they hit you!",
                         15.0,
