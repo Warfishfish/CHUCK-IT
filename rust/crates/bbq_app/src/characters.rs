@@ -51,6 +51,9 @@ struct Crown;
 struct Stars;
 #[derive(Component)]
 struct Sash;
+/// The see-through bubble round a blob in their team's colour.
+#[derive(Component)]
+struct Balloon;
 #[derive(Component)]
 struct SmokoCan;
 /// A thing that floats above a blob and faces the camera.
@@ -127,6 +130,7 @@ impl Plugin for CharactersPlugin {
                     apply_crown,
                     apply_stars,
                     apply_sash,
+                    apply_balloon,
                     apply_can,
                     apply_help_signs,
                     apply_clouds,
@@ -370,6 +374,7 @@ fn build_blobs(
     });
     let star = meshes.add(Sphere::new(0.07).mesh().ico(1).unwrap());
     let sash = meshes.add(Torus::new(0.32, 0.43));
+    let balloon = meshes.add(Sphere::new(1.0).mesh().uv(32, 20));
     let can = meshes.add(Cylinder::new(0.035, 0.12));
     let tag_font = TextFont {
         font_size: FontSize::Px(34.0),
@@ -455,6 +460,23 @@ fn build_blobs(
                 ChildOf(stars),
             ));
         }
+        // team balloon: a see-through bubble in the team colour (not on the body, so it does
+        // not tumble when the blob falls over)
+        commands.spawn((
+            Mesh3d(balloon.clone()),
+            MeshMaterial3d(mats.add(StandardMaterial {
+                base_color: Color::linear_rgba(1.0, 1.0, 1.0, BALLOON_ALPHA),
+                unlit: true,
+                alpha_mode: AlphaMode::Blend,
+                ..default()
+            })),
+            Transform::from_xyz(0.0, 0.92, 0.0).with_scale(Vec3::splat(BALLOON_RADIUS)),
+            Visibility::Hidden,
+            bevy::light::NotShadowCaster,
+            Balloon,
+            Blob(i),
+            ChildOf(root),
+        ));
         // team sash
         commands.spawn((
             Mesh3d(sash.clone()),
@@ -892,6 +914,27 @@ fn apply_stars(
         };
         if on {
             tf.rotate_y(time.delta_secs() * 6.0);
+        }
+    }
+}
+
+const BALLOON_RADIUS: f32 = 1.05;
+const BALLOON_ALPHA: f32 = 0.42;
+
+fn apply_balloon(
+    game: Res<Game>,
+    mut mats: ResMut<Assets<StandardMaterial>>,
+    mut q: Query<(&Blob, &mut Visibility, &MeshMaterial3d<StandardMaterial>), With<Balloon>>,
+) {
+    for (b, mut v, m) in &mut q {
+        match game.dummies.get(b.0).and_then(|d| d.team) {
+            Some(t) => {
+                *v = Visibility::Inherited;
+                if let Some(mut mat) = mats.get_mut(&m.0) {
+                    mat.base_color = team_colour(t).with_alpha(BALLOON_ALPHA);
+                }
+            }
+            None => *v = Visibility::Hidden,
         }
     }
 }

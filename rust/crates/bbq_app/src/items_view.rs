@@ -52,7 +52,7 @@ pub struct ItemsViewPlugin;
 impl Plugin for ItemsViewPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Shown>()
-            .add_systems(Startup, setup_look)
+            .add_systems(Startup, (setup_look, setup_trajectory))
             .add_systems(
                 Update,
                 (sync_items, sync_viewmodel, sync_puddles, draw_trajectory),
@@ -336,17 +336,78 @@ fn sync_puddles(
     }
 }
 
-/// While winding up, draw where the throw would go (ignoring things in the way).
-fn draw_trajectory(mut gizmos: Gizmos, game: Res<Game>, player: Res<Player>) {
-    if !game.wind.charging {
-        return;
+/// The browser's throw-path preview: 48 small white dots a little over a hundredth of a
+/// second apart (two 0.018 s steps each) that stop at the ground or the first thing in the
+/// way, and a white ring where it would land.
+const TRAJ_DOTS: usize = 48;
+
+#[derive(Component)]
+struct TrajDot(usize);
+#[derive(Component)]
+struct TrajRing;
+
+fn setup_trajectory(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut mats: ResMut<Assets<StandardMaterial>>,
+) {
+    let dot = meshes.add(Rectangle::new(0.11, 0.11));
+    let dot_mat = mats.add(StandardMaterial {
+        base_color: Color::linear_rgba(1.0, 1.0, 1.0, 0.85),
+        unlit: true,
+        alpha_mode: AlphaMode::Blend,
+        cull_mode: None,
+        ..default()
+    });
+    for i in 0..TRAJ_DOTS {
+        commands.spawn((
+            Mesh3d(dot.clone()),
+            MeshMaterial3d(dot_mat.clone()),
+            Transform::default(),
+            Visibility::Hidden,
+            TrajDot(i),
+        ));
     }
-    let Some(kind) = game
-        .slots
-        .selected()
-        .and_then(|id| game.world.items.get(&id))
-        .map(|i| i.kind)
-    else {
+    commands.spawn((
+        Mesh3d(meshes.add(Annulus::new(0.3, 0.42))),
+        MeshMaterial3d(mats.add(StandardMaterial {
+            base_color: Color::linear_rgba(1.0, 1.0, 1.0, 0.8),
+            unlit: true,
+            alpha_mode: AlphaMode::Blend,
+            cull_mode: None,
+            ..default()
+        })),
+        Transform::default(),
+        Visibility::Hidden,
+        TrajRing,
+    ));
+}
+
+/// While winding up, show where the throw would go.
+fn draw_trajectory(
+    game: Res<Game>,
+    player: Res<Player>,
+    yard: Res<crate::yard_scene::YardRes>,
+    mut dots: Query<(&TrajDot, &mut Transform, &mut Visibility), Without<TrajRing>>,
+    mut ring: Query<(&mut Transform, &mut Visibility), (With<TrajRing>, Without<TrajDot>)>,
+) {
+    let kind = game
+        .wind
+        .charging
+        .then(|| {
+            game.slots
+                .selected()
+                .and_then(|id| game.world.items.get(&id))
+                .map(|i| i.kind)
+        })
+        .flatten();
+    let Some(kind) = kind else {
+        for (_, _, mut v) in &mut dots {
+            *v = Visibility::Hidden;
+        }
+        for (_, mut v) in &mut ring {
+            *v = Visibility::Hidden;
+        }
         return;
     };
     let def = kind.def();
@@ -357,21 +418,47 @@ fn draw_trajectory(mut gizmos: Gizmos, game: Res<Game>, player: Res<Player>) {
         bbq_core::vec::V3::new(player.mover.vx, 0.0, player.mover.vz),
     );
     let mut pos = hand_pos(&player);
-    let mut pts = vec![Vec3::new(pos.x, pos.y, pos.z)];
-    let h = 0.03;
-    for _ in 0..100 {
-        vel.y -= ITEM_GRAV * def.grav * h;
-        pos += vel * h;
-        pts.push(Vec3::new(pos.x, pos.y.max(0.02), pos.z));
+    let mut pts: Vec<Vec3> = Vec::with_capacity(TRAJ_DOTS);
+    let mut hit_y = None;
+    'dots: for _ in 0..TRAJ_DOTS {
+        for _ in 0..2 {
+            vel.y -= ITEM_GRAV * def.grav * 0.018;
+            pos += vel * 0.018;
+        }
+        pts.push(Vec3::new(pos.x, pos.y, pos.z));
         if pos.y <= 0.0 {
+            hit_y = Some(0.0);
+            break;
+        }
+        for c in &yard.0.colliders {
+            if pos.y < c.h && pos.x > c.x0 && pos.x < c.x1 && pos.z > c.z0 && pos.z < c.z1 {
+                hit_y = Some(c.h);
+                break 'dots;
+            }
+        }
+        if pos.x.abs() > bbq_core::YARD_HALF_X + 1.0 || pos.z.abs() > bbq_core::YARD_HALF_Z + 1.0 {
             break;
         }
     }
-    let power = game.wind.charge >= bbq_core::stun::POWER_CHARGE;
-    let colour = if power {
-        Color::linear_rgb(1.0, 0.3, 0.2)
-    } else {
-        Color::linear_rgb(1.0, 1.0, 1.0)
-    };
-    gizmos.linestrip(pts, colour);
+    // the dots are flat squares that face the camera
+    let face = Quat::from_euler(EulerRot::YXZ, player.yaw, player.pitch, 0.0);
+    for (d, mut tf, mut v) in &mut dots {
+        if let Some(p) = pts.get(d.0) {
+            tf.translation = *p;
+            tf.rotation = face;
+            *v = Visibility::Inherited;
+        } else {
+            *v = Visibility::Hidden;
+        }
+    }
+    for (mut tf, mut v) in &mut ring {
+        match (hit_y, pts.last()) {
+            (Some(y), Some(p)) => {
+                tf.translation = Vec3::new(p.x, y + 0.03, p.z);
+                tf.rotation = Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2);
+                *v = Visibility::Inherited;
+            }
+            _ => *v = Visibility::Hidden,
+        }
+    }
 }
