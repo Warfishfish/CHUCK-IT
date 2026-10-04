@@ -225,11 +225,13 @@ Work top to bottom. Every phase ends with something runnable and checked against
 Phase 1 result: `bbq_core` has 79 unit tests, clippy is clean. Simplified/left out: the fixed-step `Sim` only runs the round clock (countdown, play, whistle, results panel) and each fighter's body and drunk meter; movement, items and hits join it in Phases 2 and 3. The dildo variant weights add up to 96 (not 100), as in the JavaScript game.
 
 ### Phase 2: The yard and moving around (solo, no bots)
-- [ ] Build the yard layout and colliders from `buildWorld` (simple shapes first), lighting, sky, fog, shadows
-- [ ] Feature switches (bar, BBQ, chest, smoko)
-- [ ] First-person camera, mouse look and pointer lock, FOV slider, sprint FOV, bob, shake
-- [ ] Port the character movement: grip, jump buffer and coyote time, boost, trampoline chain, pool, puddles, slide, yard edges, stepping onto objects
-- [ ] Side-by-side feel check against the JavaScript game
+- [x] Build the yard layout and colliders from `buildWorld` (simple shapes first), lighting, sky, fog, shadows
+- [x] Feature switches (bar, BBQ, chest, smoko) (F1-F4 for now; menu comes later)
+- [x] First-person camera, mouse look and pointer lock, FOV slider, sprint FOV, bob, shake (FOV is `[` and `]` for now; a real slider comes with Settings in Phase 11)
+- [x] Port the character movement: grip, jump buffer and coyote time, boost, trampoline chain, pool, puddles, slide, yard edges, stepping onto objects (puddles and slide are in the maths as inputs; the puddles themselves arrive with stubbies in Phase 3)
+- [ ] Side-by-side feel check against the JavaScript game (needs Marcus: `cd rust && cargo run`)
+
+Phase 2 result: `bbq_core` gained `yard` and `movement` (111 tests in total, clippy clean). `bbq_app` now draws the yard and lets you walk it. Not checked by me: how it looks and feels on screen, because the cloud machine has no graphics card. Simplified: boxes are plain coloured cuboids, the pool is a flat blue slab (no sinking water yet), no sky dome or clouds, and the camera does not yet lie down when stunned.
 
 ### Phase 3: Items and throwing
 - [ ] Item spawner, pick up, 2 slots, swap, ground glow

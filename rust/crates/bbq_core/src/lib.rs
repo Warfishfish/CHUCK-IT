@@ -9,11 +9,13 @@ pub mod drinks;
 pub mod heist;
 pub mod items;
 pub mod matchflow;
+pub mod movement;
 pub mod rng;
 pub mod scoring;
 pub mod sim;
 pub mod stun;
 pub mod teams;
+pub mod yard;
 
 /// Who someone is. Players and bots share one id space.
 pub type PlayerId = u32;
