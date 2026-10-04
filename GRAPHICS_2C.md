@@ -80,6 +80,14 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] Change the four decorative eskies to red, green, orange and grey so only the Chest is bright blue
 - [ ] Check it reads against grass, dirt, the shed and the fence, in shadow and in sun
 
+### More from Marcus (5 Oct 2026)
+- [x] Dirt patches look more naturally placed (irregular clusters of overlapping soft ellipses in different earthy tones, worn where people walk and gather, not random round dots)
+- [x] Dildos are much floppier (softer spring, less damping, a bigger lean, a stronger droop and a bendier tip)
+- [x] Heist: the smoko pad moves beside the pool, clear of every base (`heist::smoko_spot`)
+- [x] Every character has its own eye-bob style (Classic steady, Pear lazy and floaty, Egg nervous and googly, Gumdrop big and cross-eyed), plus small differences between individual blobs
+- [x] Dildos have more surface texture (ribbing rings, raised bumps, a ridge under the head, bumps on the cup)
+- [ ] Choosing your blob shows a rotating preview of the character in a panel beside the menu
+
 ### Eskies, toys and noodles (added 5 Oct 2026, Marcus)
 - [x] Every esky in the yard is an esky you can open (R near it opens the lid for 3 s; polished look); the old wooden pirate chest is gone. Only one esky holds the toys (the Dildo Chest, at its random spot each round); the other four open onto nothing ("Just ice and an old stubby. Empty!"). Later they can hold other things
 - [x] The toys inside the Chest look larger when you look at the open esky (0.9, was 0.52, standing well out of the esky)

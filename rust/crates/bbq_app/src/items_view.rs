@@ -658,7 +658,7 @@ fn wobble_items(
         };
         for (i, e) in chain.segs.iter().enumerate() {
             if let Ok(mut tf) = segs.get_mut(*e) {
-                let f = 0.35 + i as f32 * 0.11;
+                let f = d.base + i as f32 * d.per_link;
                 let extra = if i > 0 { dr } else { 0.0 };
                 tf.rotation = Quat::from_euler(
                     EulerRot::XYZ,

@@ -1146,48 +1146,101 @@ pub fn lawn_tint(x: f32, z: f32) -> [f32; 3] {
     [0, 1, 2].map(|i| lush[i] + (dry[i] - lush[i]) * d)
 }
 
-/// Worn dirt: patches and the paths people walk (back door to the bar, the BBQ, the Hills Hoist,
-/// and on to smoko). Each is a soft disc `(x, z, radius)`, flat on the lawn.
-pub fn dirt_spots(seed: u64) -> Vec<(f32, f32, f32)> {
+/// One soft patch of bare earth: a squashed, turned ellipse in one of a few earthy tones.
+#[derive(Clone, Copy, Debug)]
+pub struct DirtSpot {
+    pub x: f32,
+    pub z: f32,
+    pub rx: f32,
+    pub rz: f32,
+    pub turn: f32,
+    /// 0 = pale dust, 1 = dark damp earth.
+    pub tone: f32,
+}
+
+/// Worn dirt, placed the way it really wears: along the paths people walk (back door to the bar,
+/// the BBQ, the Hills Hoist, then on to smoko), in a wider scuffed patch where people stand (bar,
+/// BBQ, hoist, under the trampoline, smoko), and a few ragged bare patches that creep in from the
+/// fence lines. Each patch is a cluster of overlapping ellipses of different sizes and tones so no
+/// edge is a neat circle.
+pub fn dirt_spots(seed: u64) -> Vec<DirtSpot> {
     let mut rng = Rng::new(seed ^ 0xD127);
+    let mut v = Vec::new();
+    let mut spot = |rng: &mut Rng, x: f32, z: f32, r: f32, tone: f32| {
+        v.push(DirtSpot {
+            x,
+            z,
+            rx: r * rng.range(0.8, 1.35),
+            rz: r * rng.range(0.6, 1.0),
+            turn: rng.range(0.0, PI),
+            tone: (tone + rng.range(-0.2, 0.2)).clamp(0.0, 1.0),
+        });
+    };
+    // paths: a wandering line of small overlaps, widest and darkest in the middle of each leg
     let paths: [&[(f32, f32)]; 3] = [
         &[(3.0, -23.8), (1.0, -20.0), (-4.0, -17.0), (-8.7, -16.4)],
         &[(3.0, -23.8), (3.2, -16.0), (1.5, -8.0), (0.4, 2.2)],
         &[(-8.7, -16.4), (-16.0, -10.0), (-22.6, -4.4)],
     ];
-    let mut v = Vec::new();
     for pts in paths {
         for w in pts.windows(2) {
             let (a, b) = (w[0], w[1]);
             let len = ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt();
-            let n = (len / 1.1).ceil() as usize;
+            let n = (len / 0.9).ceil() as usize;
             for k in 0..n {
                 let t = k as f32 / n as f32;
-                v.push((
-                    a.0 + (b.0 - a.0) * t + rng.range(-0.35, 0.35),
-                    a.1 + (b.1 - a.1) * t + rng.range(-0.35, 0.35),
-                    rng.range(0.85, 1.3),
-                ));
+                // the line wanders a little, side to side
+                let wob = (t * 6.0 + a.0).sin() * 0.3;
+                let (nx, nz) = ((b.1 - a.1) / len, -(b.0 - a.0) / len);
+                let mid = 1.0 - (2.0 * t - 1.0).abs() * 0.4;
+                let (j1, j2, rr) = (rng.range(-0.3, 0.3), rng.range(-0.3, 0.3), rng.range(0.6, 1.0));
+                spot(
+                    &mut rng,
+                    a.0 + (b.0 - a.0) * t + nx * (wob + j1),
+                    a.1 + (b.1 - a.1) * t + nz * (wob + j2),
+                    rr * mid,
+                    0.5,
+                );
             }
         }
     }
-    // worn round the bar and the BBQ, under the hoist and the trampoline
+    // where people stand about: a core of dark earth with scuffed pale dust round it
     for (x, z, r) in [
-        (0.0, -18.8, 2.6),
-        (-8.7, -16.8, 2.4),
-        (0.0, 3.0, 2.0),
-        (TRAMP_X, TRAMP_Z, TRAMP_R + 0.9),
-        (-24.0, -3.0, 3.0),
+        (0.0, -18.8, 2.4),
+        (-8.7, -16.8, 2.2),
+        (0.0, 3.0, 1.8),
+        (TRAMP_X, TRAMP_Z, TRAMP_R + 0.6),
+        (-24.0, -3.0, 2.6),
     ] {
-        v.push((x, z, r));
+        for _ in 0..4 {
+            let a = rng.range(0.0, 2.0 * PI);
+            let d = rng.range(0.3, 1.0) * r * 0.5;
+            let rr = r * rng.range(0.45, 0.75);
+            spot(&mut rng, x + a.cos() * d, z + a.sin() * d, rr, 0.7);
+        }
+        for _ in 0..5 {
+            let a = rng.range(0.0, 2.0 * PI);
+            let d = r * rng.range(0.7, 1.2);
+            let rr = r * rng.range(0.25, 0.5);
+            spot(&mut rng, x + a.cos() * d, z + a.sin() * d, rr, 0.2);
+        }
     }
-    // some bare patches that are just there
-    for _ in 0..9 {
-        let (x, z) = (rng.range(-W + 4.0, W - 4.0), rng.range(-D + 4.0, D - 4.0));
+    // ragged bare patches creeping in from the fence lines and a couple out in the open
+    for _ in 0..7 {
+        let side = rng.index(4);
+        let (x, z) = match side {
+            0 => (rng.range(-W + 3.0, W - 3.0), -D + rng.range(1.0, 3.5)),
+            1 => (rng.range(-W + 3.0, W - 3.0), D - rng.range(1.0, 3.5)),
+            2 => (-W + rng.range(1.0, 3.5), rng.range(-D + 3.0, D - 3.0)),
+            _ => (W - rng.range(1.0, 3.5), rng.range(-D + 3.0, D - 3.0)),
+        };
         if (POOL_X0 - 3.0..POOL_X1 + 3.0).contains(&x) && (POOL_Z0 - 3.0..POOL_Z1 + 3.0).contains(&z) {
             continue;
         }
-        v.push((x, z, rng.range(1.2, 2.6)));
+        for _ in 0..rng.index(3) + 3 {
+            let (dx, dz, rr) = (rng.range(-1.6, 1.6), rng.range(-1.6, 1.6), rng.range(0.5, 1.4));
+            spot(&mut rng, x + dx, z + dz, rr, 0.35);
+        }
     }
     v
 }
@@ -1217,18 +1270,27 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
             matt(0xffffff).textured(Tex::Lawn).no_shadow().ground(),
         ));
         // bare earth on top, soft at the edges so it blends into the grass
-        for (x, z, r) in dirt_spots(seed) {
+        let (pale, dark) = ([0xb09a6c_u32, 0x8a6f48_u32], 0.0);
+        let _ = dark;
+        for d in dirt_spots(seed) {
+            // mix pale dust and dark earth by tone
+            let mix = |a: u32, b: u32, t: f32| {
+                let ch = |s: u32| {
+                    let (x, y) = (((a >> s) & 0xff) as f32, ((b >> s) & 0xff) as f32);
+                    (x + (y - x) * t).round() as u32
+                };
+                (ch(16) << 16) | (ch(8) << 8) | ch(0)
+            };
+            let c = mix(pale[0], 0x6a5236, d.tone);
+            let _ = pale[1];
             world.push(
                 Part::new(
                     Shape::Disc { r: 1.0, seg: 12 },
-                    matt(0x8f7650)
-                        .textured(Tex::SoftDot)
-                        .see_through(0.97)
-                        .no_shadow(),
+                    matt(c).textured(Tex::SoftDot).see_through(0.96).no_shadow(),
                 )
-                .at(x, 0.012, z)
-                .turn(-HALF_PI, 0.0, 0.0)
-                .stretch(r * 1.15, r * 1.15, 1.0),
+                .at(d.x, 0.012, d.z)
+                .turn(-HALF_PI, 0.0, d.turn)
+                .stretch(d.rx * 1.15, d.rz * 1.15, 1.0),
             );
         }
     } else {

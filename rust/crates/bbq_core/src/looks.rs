@@ -649,13 +649,18 @@ pub struct Floppy {
     pub droop: f32,
     /// How hard each footstep flicks it (the dildo is flicked harder).
     pub step: f32,
+    /// How much of the wobble the first link takes, and how much more each next link takes (the
+    /// browser uses 0.35 and 0.11): bigger numbers bend more, especially at the tip.
+    pub base: f32,
+    pub per_link: f32,
 }
 
 pub fn floppy(kind: crate::items::ItemKind) -> Option<Floppy> {
     use crate::items::ItemKind as K;
     match kind {
-        K::Noodle => Some(Floppy { k: 110.0, c: 2.6, limit: 0.75, droop: 0.16, step: 1.0 }),
-        K::Dildo => Some(Floppy { k: 90.0, c: 2.1, limit: 0.95, droop: 0.17, step: 1.8 }),
+        K::Noodle => Some(Floppy { k: 110.0, c: 2.6, limit: 0.75, droop: 0.16, step: 1.0, base: 0.35, per_link: 0.11 }),
+        // much floppier than the browser's (K 90, C 2.1, droop 0.17): softer, less damped, bendier
+        K::Dildo => Some(Floppy { k: 52.0, c: 1.2, limit: 1.3, droop: 0.30, step: 2.6, base: 0.5, per_link: 0.19 }),
         _ => None,
     }
 }
