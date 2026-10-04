@@ -117,6 +117,7 @@
 - ⬜ Pick your look: colour, one accessory (cap / bucket hat / sunnies / headband), optional shirt pattern (original blob style)
 - ⬜ All host settings in one panel (rounds, teams, friendly fire, yard features, smoko mode)
 - ✅ Simpler setup screen (tabs, big Play button, More options)
+- ✅ 🎥 Field of view slider (60 to 105, default 85) under your name on the menu, and also in the Smoko pause screen and the yard panel. Remembered on each player's own device. Sprinting still widens it a little
 - ✅ Ticking or unticking things in "What's in the yard" (and Cheeky mode for the chest) adds or removes them from the yard behind the menu straight away, for whichever tab you're on
 - ⬜ Rules on their own screen, in short pages, only showing what's switched on
 
