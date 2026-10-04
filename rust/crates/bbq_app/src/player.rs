@@ -42,7 +42,7 @@ pub struct Wanted {
 pub struct EyeCamera;
 
 #[derive(Component)]
-struct HudText;
+pub struct HudText;
 
 pub const PLAYER_ID: u32 = 1;
 
@@ -89,11 +89,8 @@ fn setup_camera_and_hud(mut commands: Commands) {
             },
             ..default()
         },
-        AmbientLight {
-            color: Color::srgb(0.8, 0.88, 1.0),
-            brightness: 350.0,
-            ..default()
-        },
+        crate::lighting::camera_style(),
+        crate::lighting::hemisphere().0,
         EyeCamera,
     ));
     commands.spawn((
@@ -218,7 +215,7 @@ fn step_player(
     );
 }
 
-fn update_camera(
+pub fn update_camera(
     time: Res<Time>,
     fixed: Res<Time<Fixed>>,
     mut player: ResMut<Player>,

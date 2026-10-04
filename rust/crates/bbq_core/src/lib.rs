@@ -16,6 +16,7 @@ pub mod heist;
 pub mod hitting;
 pub mod items;
 pub mod itemworld;
+pub mod looks;
 pub mod matchflow;
 pub mod melee;
 pub mod movement;

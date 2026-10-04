@@ -1027,7 +1027,7 @@ mod tests {
 
     #[test]
     fn a_ko_lasts_8_seconds_then_he_wakes_and_walks_home() {
-        let mut d = Dazza::new();
+        let mut d;
         let mut rng = Rng::new(16);
         // force a KO
         loop {

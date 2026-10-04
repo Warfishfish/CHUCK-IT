@@ -141,15 +141,10 @@ fn build_yard(
         spawn_box(&mut commands, &mut meshes, &mut mats, c);
     }
 
-    // The sun, with shadows.
-    commands.spawn((
-        DirectionalLight {
-            shadow_maps_enabled: true,
-            illuminance: 12_000.0,
-            ..default()
-        },
-        Transform::from_xyz(24.0, 40.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
-    ));
+    // The sun, with shadows, and the soft light from the sky.
+    commands.spawn(crate::lighting::sun());
+    let (_, sky, sky_at) = crate::lighting::hemisphere();
+    commands.spawn((sky, sky_at));
 }
 
 /// F1 bar, F2 BBQ, F3 chest, F4 smoko.

@@ -1,5 +1,5 @@
 //! Draws the items, what you're holding, the practice dummies and puddles, and the
-//! throw-path preview. Simple shapes for now; real models come in Phase 4.
+//! throw-path preview. The items are drawn from the shape lists in `bbq_core::looks`.
 
 use std::collections::HashMap;
 
@@ -9,6 +9,7 @@ use bbq_core::items::ItemKind;
 use bevy::prelude::*;
 
 use crate::game::{Game, aim_dir, hand_pos};
+use crate::models::{ModelCache, ModelKey};
 use crate::player::{EyeCamera, Player};
 
 pub fn kind_name(k: ItemKind) -> &'static str {
@@ -82,46 +83,24 @@ fn setup_look(
     });
 }
 
-fn item_mesh(kind: ItemKind, meshes: &mut Assets<Mesh>) -> Handle<Mesh> {
-    let r = kind.def().radius;
-    match kind {
-        ItemKind::Teddy => meshes.add(Sphere::new(r)),
-        ItemKind::Stubby => meshes.add(Cylinder::new(0.045, 0.24)),
-        ItemKind::Gnome => meshes.add(Cone {
-            radius: 0.2,
-            height: 0.55,
-        }),
-        ItemKind::Noodle => meshes.add(Cylinder::new(0.06, 1.2)),
-        ItemKind::Steak | ItemKind::Fish => meshes.add(Cuboid::new(0.3, 0.05, 0.2)),
-        ItemKind::Dildo | ItemKind::Snag => meshes.add(Capsule3d::new(0.05, 0.3)),
-    }
-}
-
-pub fn item_colour(kind: ItemKind) -> Color {
-    match kind {
-        ItemKind::Teddy => Color::srgb(0.62, 0.42, 0.25),
-        ItemKind::Stubby => Color::srgb(0.85, 0.6, 0.1),
-        ItemKind::Gnome => Color::srgb(0.85, 0.15, 0.12),
-        ItemKind::Noodle => Color::srgb(0.95, 0.4, 0.7),
-        ItemKind::Steak => Color::srgb(0.7, 0.12, 0.12),
-        ItemKind::Fish => Color::srgb(0.6, 0.7, 0.8),
-        ItemKind::Dildo => Color::srgb(0.64, 0.3, 0.88),
-        ItemKind::Snag => Color::srgb(0.6, 0.3, 0.2),
-    }
-}
-
-/// How an item lies when resting: long things lie flat.
+/// How an item lies when resting, as the browser game does it (`orientRest`): a random turn,
+/// long things on their side, the fish flat.
 fn rest_rotation(kind: ItemKind, id: ItemId) -> Quat {
     let yaw = ((id.wrapping_mul(9301).wrapping_add(49297)) % 233_280) as f32 / 233_280.0
         * std::f32::consts::TAU;
-    let base = Quat::from_rotation_y(yaw);
-    match kind {
-        ItemKind::Stubby | ItemKind::Dildo | ItemKind::Noodle => {
-            base * Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)
-        }
-        ItemKind::Gnome => base * Quat::from_rotation_x(std::f32::consts::PI), // cone point up looks like a hat: flip so it stands
-        _ => base,
-    }
+    let long = matches!(kind, ItemKind::Stubby | ItemKind::Dildo | ItemKind::Noodle);
+    let z = if long { std::f32::consts::FRAC_PI_2 } else { 0.0 };
+    let x = if kind == ItemKind::Fish {
+        std::f32::consts::FRAC_PI_2
+    } else {
+        0.0
+    };
+    Quat::from_euler(EulerRot::XYZ, x, yaw, z)
+}
+
+/// The dildo and the noodle flop about; the others are stiff.
+fn is_floppy(kind: ItemKind) -> bool {
+    matches!(kind, ItemKind::Dildo | ItemKind::Noodle)
 }
 
 fn sync_items(
@@ -129,6 +108,7 @@ fn sync_items(
     game: Res<Game>,
     look: Res<Look>,
     mut shown: ResMut<Shown>,
+    mut cache: ResMut<ModelCache>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
     time: Res<Time>,
@@ -138,15 +118,14 @@ fn sync_items(
     // spawn visuals for new items
     for (id, it) in &game.world.items {
         if !shown.items.contains_key(id) {
-            let mesh = item_mesh(it.kind, &mut meshes);
-            let e = commands
-                .spawn((
-                    Mesh3d(mesh),
-                    MeshMaterial3d(mats.add(item_colour(it.kind))),
-                    Transform::from_xyz(it.pos.x, it.pos.y, it.pos.z),
-                    ItemVisual(*id),
-                ))
-                .id();
+            let e = cache.spawn(
+                &mut commands,
+                ModelKey::item(it.kind, it.variant, *id),
+                &mut meshes,
+                &mut mats,
+                Transform::from_xyz(it.pos.x, it.pos.y, it.pos.z),
+            );
+            commands.entity(e).insert(ItemVisual(*id));
             let ring = commands
                 .spawn((
                     Mesh3d(look.ring.clone()),
@@ -193,13 +172,25 @@ fn sync_items(
                 *v = Visibility::Inherited;
                 let floating =
                     it.ground_y < 0.1 && bbq_core::yard::in_pool_rect(it.pos.x, it.pos.z);
-                let bob = if floating {
-                    (t * 2.0 + it.pos.x).sin() * 0.03
-                } else {
-                    0.0
-                };
-                tf.translation = Vec3::new(it.pos.x, it.pos.y + bob, it.pos.z);
                 tf.rotation = rest_rotation(it.kind, it.id);
+                if floating {
+                    // bobbing on the water, as in the browser game
+                    let y = bbq_core::yard::WATER_Y + 0.04 + (t * 2.0 + it.pos.x).sin() * 0.03;
+                    tf.translation = Vec3::new(it.pos.x, y, it.pos.z);
+                    let (_, yaw, _) = tf.rotation.to_euler(EulerRot::XYZ);
+                    tf.rotation = Quat::from_euler(
+                        EulerRot::XYZ,
+                        (t * 1.3 + it.id as f32).sin() * 0.08,
+                        yaw,
+                        if matches!(it.kind, ItemKind::Noodle) {
+                            std::f32::consts::FRAC_PI_2
+                        } else {
+                            0.0
+                        },
+                    );
+                } else {
+                    tf.translation = Vec3::new(it.pos.x, it.pos.y, it.pos.z);
+                }
             }
         }
     }
@@ -230,46 +221,39 @@ fn sync_viewmodel(
     game: Res<Game>,
     player: Res<Player>,
     cam: Single<Entity, With<EyeCamera>>,
+    mut cache: ResMut<ModelCache>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
-    mut vm: Query<
-        (
-            &mut Mesh3d,
-            &mut MeshMaterial3d<StandardMaterial>,
-            &mut Transform,
-            &mut Visibility,
-        ),
-        With<HeldVm>,
-    >,
-    mut last_kind: Local<Option<ItemKind>>,
+    mut vm: Query<(Entity, &mut Transform, &mut Visibility), With<HeldVm>>,
+    mut shown: Local<Option<(ItemKind, ModelKey)>>,
 ) {
     let selected = game
         .slots
         .selected()
         .and_then(|id| game.world.items.get(&id))
-        .map(|i| i.kind);
-    let Ok((mut mesh, mut mat, mut tf, mut vis)) = vm.single_mut() else {
+        .map(|i| (i.kind, ModelKey::item(i.kind, i.variant, i.id)));
+    let Ok((root, mut tf, mut vis)) = vm.single_mut() else {
         let e = commands
-            .spawn((
-                Mesh3d(meshes.add(Sphere::new(0.1))),
-                MeshMaterial3d(mats.add(Color::WHITE)),
-                Transform::default(),
-                Visibility::Hidden,
-                HeldVm,
-            ))
+            .spawn((Transform::default(), Visibility::Hidden, HeldVm))
             .id();
         commands.entity(*cam).add_child(e);
         return;
     };
-    let Some(kind) = selected else {
+    let Some((kind, key)) = selected else {
         *vis = Visibility::Hidden;
-        *last_kind = None;
+        *shown = None;
         return;
     };
-    if *last_kind != Some(kind) {
-        mesh.0 = item_mesh(kind, &mut meshes);
-        mat.0 = mats.add(item_colour(kind));
-        *last_kind = Some(kind);
+    if shown.map(|s| s.1) != Some(key) {
+        // a different thing in the hand: swap the parts
+        commands.entity(root).despawn_children();
+        let built = cache.built(key, &mut meshes, &mut mats);
+        commands.entity(root).with_children(|p| {
+            for b in built {
+                p.spawn((Mesh3d(b.mesh), MeshMaterial3d(b.material), b.transform));
+            }
+        });
+        *shown = Some((kind, key));
     }
     *vis = Visibility::Inherited;
     let c = if game.wind.charging {
@@ -278,17 +262,24 @@ fn sync_viewmodel(
         0.0
     };
     let sw = (player.walk).sin() * 0.02;
+    let flop = is_floppy(kind);
     let scale = match kind {
         ItemKind::Noodle | ItemKind::Fish => 0.36,
         ItemKind::Dildo => 0.5,
         _ => 0.8,
     };
+    let fl = if flop { 0.04 } else { 0.0 };
     tf.translation = Vec3::new(
-        0.3 + c * 0.08 + sw,
-        -0.3 + c * 0.12 + sw.abs(),
+        0.3 + c * 0.08 + sw + fl,
+        -0.3 + c * 0.12 + sw.abs() - fl,
         -0.62 + c * 0.2,
     );
-    tf.rotation = Quat::from_euler(EulerRot::XYZ, 0.15 - c * 0.6, 0.3, c * 0.3);
+    tf.rotation = Quat::from_euler(
+        EulerRot::XYZ,
+        (if flop { -0.45 } else { 0.15 }) - c * 0.6,
+        0.3,
+        c * 0.3,
+    );
     tf.scale = Vec3::splat(scale);
 }
 

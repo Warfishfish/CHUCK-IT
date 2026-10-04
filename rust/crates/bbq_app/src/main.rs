@@ -12,27 +12,49 @@
 mod characters;
 mod game;
 mod items_view;
+mod lighting;
+mod models;
 mod player;
+mod shapes;
+mod shot;
 mod yard_scene;
 
 use bevy::prelude::*;
 
 fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Australian BBQ (Rust, Phase 4)".into(),
-                ..default()
-            }),
+    let args: Vec<String> = std::env::args().collect();
+    let shot = shot::parse(&args);
+    // Screenshot mode uses an 800 x 600 window at normal pixel size so pictures can be compared.
+    let window = if shot.is_some() {
+        Window {
+            title: "Australian BBQ (screenshot)".into(),
+            resolution: bevy::window::WindowResolution::new(800, 600)
+                .with_scale_factor_override(1.0),
+            ..default()
+        }
+    } else {
+        Window {
+            title: "Australian BBQ (Rust, Phase 4)".into(),
+            ..default()
+        }
+    };
+    let mut app = App::new();
+    app.add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(window),
             ..default()
         }))
-        .insert_resource(ClearColor(Color::srgb(0.55, 0.78, 0.95)))
+        .insert_resource(ClearColor(models::hex(0x9fd8f2)))
         .add_plugins((
             yard_scene::YardScenePlugin,
             player::PlayerPlugin,
             game::GamePlugin,
             items_view::ItemsViewPlugin,
             characters::CharactersPlugin,
-        ))
-        .run();
+            models::ModelsPlugin,
+            bevy::core_pipeline::fullscreen_material::FullscreenMaterialPlugin::<lighting::DisplayRaw>::default(),
+        ));
+    if let Some(cfg) = shot {
+        app.add_plugins(shot::ShotPlugin(cfg));
+    }
+    app.run();
 }
