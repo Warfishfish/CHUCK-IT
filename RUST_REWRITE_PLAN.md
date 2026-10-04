@@ -242,7 +242,7 @@ Phase 2 result: `bbq_core` gained `yard` and `movement` (111 tests in total, cli
 Phase 3 result: `bbq_core` gained `flight`, `hands`, `hitting`, `itemworld`, `vec` (166 tests in all). `bbq_app` has the items, your hands, a throw-path line, puddles and three practice dummies to hit (blue = fine, red = stunned, yellow = in the 1 s grace). The headless tests in `bbq_app` throw a teddy at a dummy and check the score, the over-hold drop, a miss, a swap and a pick-up. Not checked by me: how it looks and feels on screen. Left out for now: melee slaps (steak, fish, noodle, dildo, bare hands) arrive with Dazza and bots; the late-hit window (1.8 s) belongs to online play in Phase 8; hits on the player come when bots can throw (Phase 5).
 
 ### Phase 4: Characters, models and animation
-- [x] Blob characters (keep the design): four selectable Blender models in `rust/crates/bbq_app/assets/models/` (`blob_classic`, `blob_pear`, `blob_egg`, `blob_gumdrop`.glb), built by `rust/tools/make_blob.py`. Classic is the original capsule; the other three are Marcus's new body shapes. Looks only: speed and hit sizes are the same for all. They are separate parts, not a skinned skeleton: the game moves the body and hands from the animation code. In the Rust test yard, G cycles your pick and the three practice blobs wear the other three. A proper character-select screen comes with the menus (Phase 9).
+- [x] Blob characters (keep the design): four selectable Blender models in `rust/crates/bbq_app/assets/models/` (`blob_classic`, `blob_pear`, `blob_egg`, `blob_gumdrop`.glb), built by `rust/tools/make_blob.py`. Classic is the original capsule; the other three are Marcus's new body shapes. Looks only: speed and hit sizes are the same for all. They are separate parts, not a skinned skeleton: the game moves the body and hands from the animation code. In the Rust test yard, G cycles your pick and the three practice blobs wear the other three. A proper character-select screen comes with the menus (Phase 8).
 - [x] Animations (procedural, numbers ported from the JS): idle, walk, throw swing, Sent Flying, Cartwheel, Timber, knocked flat, stacked it, seated, drag, emotes (taunt, laugh, dance), drunk sway. Logic is in `bbq_core/src/pose.rs` with tests.
 - [x] Name tags, speech bubbles, leader crown, stun stars, team sash, HELP ME sign, stink cloud (simple Text2d / shape versions)
 - [x] Dazza model and his 6 states (look and states only; his behaviour is Phase 5). Logic in `bbq_core/src/dazza.rs`.
@@ -270,6 +270,7 @@ Phase 3 result: `bbq_core` gained `flight`, `hands`, `hitting`, `itemworld`, `ve
 
 ### Phase 8: UI and menus
 - [ ] Main menu (Solo / With mates / How to play), all options, Cheeky mode, FOV
+- [ ] Character select: pick Classic, Pear, Egg or Gumdrop (other players see your pick online)
 - [ ] HUD: scoreboard, clock, slots, drunk meter, wind-up bar, hints, banners, alerts, feed, floating text, hit marker, Heist bar, prompts
 - [ ] Pause, results, settings saved on the device; gamepad support (new)
 
