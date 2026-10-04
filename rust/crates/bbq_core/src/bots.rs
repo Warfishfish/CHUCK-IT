@@ -290,6 +290,8 @@ pub struct WorldView<'a> {
     pub chest_at: (f32, f32),
     /// Which smoko chairs are free.
     pub free_seats: &'a [bool],
+    /// The middle of the smoko pad (moved in Teddy Heist).
+    pub smoko_at: (f32, f32),
     pub dazza_chasing: bool,
     pub difficulty: Difficulty,
     /// Heist: where this bot should go (raid, guard, chase, bank), if anything.
@@ -643,7 +645,7 @@ impl BotBrain {
                     .filter(|i| w.free_seats[*i])
                     .collect();
                 e.seat = free[rng.index(free.len())];
-                let (x, z) = smoko::seat_pos(e.seat, w.free_seats.len());
+                let (x, z) = smoko::seat_pos_at(w.smoko_at, e.seat, w.free_seats.len());
                 e.x = x;
                 e.z = z;
                 e.sit = rng.range(5.0, 9.0);
@@ -703,7 +705,7 @@ impl BotBrain {
             }
             ErrandKind::Smoko => {
                 let n = w.free_seats.len();
-                let centre_face = (SMOKO_X - me.pos.x).atan2(SMOKO_Z - me.pos.z);
+                let centre_face = (w.smoko_at.0 - me.pos.x).atan2(w.smoko_at.1 - me.pos.z);
                 if e.ph == 0 {
                     if e.t <= 0.0 || e.seat >= n || !w.free_seats[e.seat] {
                         out = Step::Done;
@@ -1454,6 +1456,7 @@ mod tests {
                 chest_stock: 2,
                 chest_at: (-29.0, -21.0),
                 free_seats: &self.seats,
+                smoko_at: (SMOKO_X, SMOKO_Z),
                 dazza_chasing: false,
                 difficulty: Difficulty::Fair,
                 heist_goal: None,

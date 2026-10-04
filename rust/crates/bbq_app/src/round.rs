@@ -228,6 +228,12 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
         Yard::new(features, spot)
     };
     g.life.chest.new_round(spot);
+    // Teddy Heist moves the smoko pad out of the red base's way, next to the pool
+    g.life.smoko_at = if setup.mode == GameMode::Heist {
+        heist::smoko_spot(setup.heist_teams)
+    } else {
+        bbq_core::smoko::DEFAULT_CENTRE
+    };
     g.life.dazza.reset();
     g.life.carry = None;
     g.life.f_down = None;

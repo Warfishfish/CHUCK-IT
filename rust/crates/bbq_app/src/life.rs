@@ -45,6 +45,8 @@ pub struct Life {
     pub chest: Chest,
     /// The yard's other eskies: seconds each has left standing open (they hold nothing yet).
     pub decor_open: [f32; 4],
+    /// The middle of the smoko pad (moved in Teddy Heist).
+    pub smoko_at: (f32, f32),
     /// You, sitting at smoko.
     pub seated: Option<Seated>,
     pub emote_at: f32,
@@ -68,6 +70,7 @@ impl Life {
             me_swing: 0.0,
             chest: Chest::default(),
             decor_open: [0.0; 4],
+            smoko_at: smoko::DEFAULT_CENTRE,
             seated: None,
             emote_at: -9.0,
             carry: None,
@@ -471,7 +474,7 @@ fn chest_dist(p: &Player, chest_spot: usize) -> f32 {
 }
 
 fn in_smoko_zone(g: &Game, p: &Player) -> bool {
-    g.options.smoko_on && smoko::in_zone(p.mover.x, p.mover.y, p.mover.z, people_count(g))
+    g.options.smoko_on && smoko::in_zone_at(g.life.smoko_at, p.mover.x, p.mover.y, p.mover.z, people_count(g))
 }
 
 /// What R would do here, as a line of text (empty if nothing).
@@ -599,25 +602,25 @@ fn taken_seats(g: &Game) -> Vec<bool> {
 fn sit_down(g: &mut Game, p: &mut Player) {
     let n = smoko::chair_count(people_count(g));
     let taken = taken_seats(g);
-    let Some(seat) = smoko::nearest_free_seat(p.mover.x, p.mover.z, n, &taken) else {
+    let Some(seat) = smoko::nearest_free_seat_at(g.life.smoko_at, p.mover.x, p.mover.z, n, &taken) else {
         g.popup("No free chairs. Wait for someone to finish.", false);
         return;
     };
     g.life.seated = Some(Seated::new(seat));
     g.wind.cancel();
     g.me.drunk.cancel_drink();
-    let (x, z) = smoko::seat_pos(seat, n);
+    let (x, z) = smoko::seat_pos_at(g.life.smoko_at, seat, n);
     p.mover.x = x;
     p.mover.z = z;
     p.mover.vx = 0.0;
     p.mover.vz = 0.0;
-    p.yaw = smoko::seat_facing(seat, n) + std::f32::consts::PI;
+    p.yaw = smoko::seat_facing_at(g.life.smoko_at, seat, n) + std::f32::consts::PI;
     p.pitch = -0.12;
 }
 
 fn stand_up(g: &mut Game, p: &mut Player, msg: Option<&str>) {
     if g.life.seated.take().is_some() {
-        let (x, z) = smoko::stand_pos(p.mover.x, p.mover.z);
+        let (x, z) = smoko::stand_pos_at(g.life.smoko_at, p.mover.x, p.mover.z);
         p.mover.x = x;
         p.mover.z = z;
         if let Some(m) = msg {
@@ -708,7 +711,8 @@ fn release_carry(g: &mut Game, p: &Player, how: Drop, held: f32) {
         Drop::PutDown => {
             if g.options.naughty
                 && g.options.smoko_on
-                && smoko::in_zone(
+                && smoko::in_zone_at(
+                    g.life.smoko_at,
                     g.dummies[i].mover.x,
                     g.dummies[i].mover.y,
                     g.dummies[i].mover.z,
@@ -732,7 +736,7 @@ fn send_to_corner(g: &mut Game, i: usize) {
     let n = smoko::chair_count(people_count(g));
     let taken = taken_seats(g);
     let (x, z) = (g.dummies[i].mover.x, g.dummies[i].mover.z);
-    let Some(seat) = smoko::nearest_free_seat(x, z, n, &taken) else {
+    let Some(seat) = smoko::nearest_free_seat_at(g.life.smoko_at, x, z, n, &taken) else {
         return;
     };
     let d = &mut g.dummies[i];
@@ -836,7 +840,7 @@ fn thrown_step(g: &mut Game) {
         };
         if g.options.naughty
             && g.options.smoko_on
-            && smoko::naughty_lands(since, grounded, smoko::in_zone(x, y, z, people_count(g)))
+            && smoko::naughty_lands(since, grounded, smoko::in_zone_at(g.life.smoko_at, x, y, z, people_count(g)))
         {
             g.dummies[i].thrown_at = None;
             send_to_corner(g, i);
@@ -916,7 +920,7 @@ pub fn step(g: &mut Game, p: &mut Player, wanted: &mut Wanted, yard: &yard::Yard
                 _ => {
                     let n = smoko::chair_count(people_count(g));
                     let seat = g.life.seated.map(|s| s.seat).unwrap_or(0);
-                    let (x, z) = smoko::seat_pos(seat.min(n - 1), n);
+                    let (x, z) = smoko::seat_pos_at(g.life.smoko_at, seat.min(n - 1), n);
                     p.mover.x = x;
                     p.mover.z = z;
                     p.mover.vx = 0.0;
@@ -938,20 +942,20 @@ pub fn step(g: &mut Game, p: &mut Player, wanted: &mut Wanted, yard: &yard::Yard
             && d.sat_by_choice
         {
             // a bot having a smoko: pinned in its chair until its own brain stands it up
-            let (x, z) = smoko::seat_pos(seat.min(n - 1), n);
+            let (x, z) = smoko::seat_pos_at(g.life.smoko_at, seat.min(n - 1), n);
             d.mover.x = x;
             d.mover.z = z;
             d.mover.vx = 0.0;
             d.mover.vz = 0.0;
         } else if let Some(seat) = d.seat {
             d.naughty_t = (d.naughty_t - dt).max(0.0);
-            let (x, z) = smoko::seat_pos(seat.min(n - 1), n);
+            let (x, z) = smoko::seat_pos_at(g.life.smoko_at, seat.min(n - 1), n);
             d.mover.x = x;
             d.mover.z = z;
             d.mover.vx = 0.0;
             d.mover.vz = 0.0;
             if d.naughty_t <= 0.0 {
-                let (sx, sz) = smoko::stand_pos(x, z);
+                let (sx, sz) = smoko::stand_pos_at(g.life.smoko_at, x, z);
                 d.mover.x = sx;
                 d.mover.z = sz;
                 d.seat = None;

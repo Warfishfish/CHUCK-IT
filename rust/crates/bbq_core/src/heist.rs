@@ -65,6 +65,12 @@ pub fn layout(teams: usize) -> Vec<BaseDef> {
     }
 }
 
+/// Where the smoko pad goes in Teddy Heist: next to the pool's east end, clear of every base
+/// (the default spot is right in the red base's doorway). It is the same for 2, 3 or 4 teams.
+pub fn smoko_spot(_teams: usize) -> (f32, f32) {
+    (-8.0, 9.0)
+}
+
 /// Teddies in each base: 2 to start, plus 1 for every couple of players sharing a team, max 4.
 pub fn teddy_count(players: usize, teams: usize) -> usize {
     (2 + (players / teams.max(1)) / 2).clamp(2, 4)
@@ -451,6 +457,24 @@ pub fn bot_goal(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_heist_smoko_is_clear_of_every_base_and_beside_the_pool() {
+        for teams in 2..=4 {
+            let (sx, sz) = smoko_spot(teams);
+            // the pad (radius about 4) and chairs must not touch any base's walls
+            for b in layout(teams) {
+                let (dx, dz) = ((sx - b.x).abs() - BASE_HALF, (sz - b.z).abs() - BASE_HALF);
+                assert!(dx.max(dz) > 4.5, "teams {teams}: too close to base at {},{}", b.x, b.z);
+            }
+            // beside the pool: its east edge is 5 m or less away
+            assert!(sx - crate::yard::POOL_X1 > -1.0 && sx - crate::yard::POOL_X1 < 6.0);
+            assert!(sz > crate::yard::POOL_Z0 - 2.0 && sz < crate::yard::POOL_Z1 + 2.0);
+        }
+        // and the old spot is in the red base's way
+        let b = layout(2)[0];
+        assert!(((crate::yard::SMOKO_X - b.x).abs() - BASE_HALF).max((crate::yard::SMOKO_Z - b.z).abs() - BASE_HALF) < 4.5);
+    }
+
     use super::*;
 
     #[test]

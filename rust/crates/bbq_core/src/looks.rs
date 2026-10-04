@@ -681,6 +681,9 @@ pub fn dildo(variant: DildoVariant) -> Vec<Part> {
     let body = mk(1.0, 0x9a70b0, 55.0);
     let vein = mk(0.88, 0x9a70b0, 40.0);
     let base = mk(0.72, 0x604070, 50.0);
+    // surface texture (step 2c): darker ribbing rings and lighter raised bumps
+    let rib = mk(0.8, 0x9a70b0, 40.0);
+    let bump = mk(1.14, 0xc8a0d8, 70.0);
 
     let dr = 0.1f32;
     let h = 0.155f32;
@@ -701,6 +704,26 @@ pub fn dildo(variant: DildoVariant) -> Vec<Part> {
         v.push(Part::new(cyl(r1, r0, 0.167, 16), body).at(0.0, y + h / 2.0, 0.0).in_seg(i, pv));
         if i < 6 {
             v.push(Part::new(sphere(r1, 14, 8), body).at(0.0, y + h, 0.0).in_seg(i, pv));
+        }
+        // ribbing: two thin rings round every link, a little wider than the shaft
+        for f in [0.3f32, 0.72] {
+            v.push(
+                Part::new(torus(r0 - 0.0015, 0.0085, 5, 18, 2.0 * PI), rib)
+                    .at(0.0, y + h * f, 0.0)
+                    .turn(HALF_PI, 0.0, 0.0)
+                    .in_seg(i, pv),
+            );
+        }
+        // little raised bumps scattered round the shaft (the same every time)
+        for k in 0..5usize {
+            let a = (i * 5 + k) as f32 * 2.399 + 0.5; // golden-angle spread
+            let f = 0.18 + 0.64 * ((k * 3 + i * 2) % 5) as f32 / 4.0;
+            v.push(
+                Part::new(sphere(0.0125, 6, 4), bump)
+                    .at(a.cos() * (r0 + 0.002), y + h * f, a.sin() * (r0 + 0.002))
+                    .stretch(1.0, 0.8, 1.0)
+                    .in_seg(i, pv),
+            );
         }
         if i <= 4 {
             let r = r0;
@@ -737,6 +760,17 @@ pub fn dildo(variant: DildoVariant) -> Vec<Part> {
             .turn(HALF_PI, 0.0, 0.0)
             .in_seg(6, last),
     );
+    // a second ridge under the head and a ring of bumps on the cup (more texture)
+    v.push(
+        Part::new(torus(0.1, 0.012, 5, 18, 2.0 * PI), rib)
+            .at(0.0, y + h - 0.02, 0.0)
+            .turn(HALF_PI, 0.0, 0.0)
+            .in_seg(6, last),
+    );
+    for k in 0..8usize {
+        let a = k as f32 / 8.0 * 2.0 * PI;
+        v.push(Part::new(sphere(0.014, 6, 4), bump).at(a.cos() * 0.155, -0.176, a.sin() * 0.155));
+    }
     scaled(v, dildo_scale(variant))
 }
 
@@ -784,7 +818,8 @@ mod tests {
         // 8 segments (cylinder + rib), 7 joints, 2 end caps
         assert_eq!(noodle(0).len(), NOODLE_SEGS * 2 + (NOODLE_SEGS - 1) + 2);
         // cup, lip, 7 shafts, 6 joints, 5 + 3 veins, head, rim
-        assert_eq!(dildo(DildoVariant::Classic).len(), 2 + 7 + 6 + 8 + 2);
+        // plus per link 2 ribs and 5 bumps, a head ridge and 8 bumps on the cup
+        assert_eq!(dildo(DildoVariant::Classic).len(), 2 + 7 + 6 + 8 + 2 + 7 * 7 + 1 + 8);
     }
 
     #[test]

@@ -37,6 +37,9 @@ struct PoolShimmer;
 struct ChestRoot;
 #[derive(Component)]
 struct ChestLid;
+/// Part of the smoko area: it is moved when the round moves the pad (Teddy Heist).
+#[derive(Component)]
+struct SmokoShift(Vec3);
 /// One of the yard's other eskies and its lid.
 #[derive(Component)]
 struct DecorLid(usize);
@@ -57,7 +60,7 @@ impl Plugin for YardScenePlugin {
         app.insert_resource(YardRes(Yard::default()))
             .init_resource::<Drift>()
             .add_systems(Startup, build_yard)
-            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies));
+            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_place));
     }
 }
 
@@ -103,6 +106,9 @@ fn build_yard(
             Transform::default(),
         );
         commands.entity(e).insert(FeatureTag(feature));
+        if feature == Feature::Smoko {
+            commands.entity(e).insert(SmokoShift(Vec3::ZERO));
+        }
     }
 
     // the smoko pad and its chairs (one per person; the game has you plus three dummies for now)
@@ -116,7 +122,7 @@ fn build_yard(
         &mut mats,
         Transform::default(),
     );
-    commands.entity(e).insert(FeatureTag(Feature::Smoko));
+    commands.entity(e).insert((FeatureTag(Feature::Smoko), SmokoShift(Vec3::ZERO)));
     for i in 0..chairs {
         let (x, z) = bbq_core::smoko::seat_pos(i, chairs);
         let facing = bbq_core::smoko::seat_facing(i, chairs);
@@ -127,7 +133,7 @@ fn build_yard(
             &mut mats,
             Transform::from_xyz(x, 0.0, z).with_rotation(Quat::from_rotation_y(facing)),
         );
-        commands.entity(e).insert(FeatureTag(Feature::Smoko));
+        commands.entity(e).insert((FeatureTag(Feature::Smoko), SmokoShift(Vec3::new(x, 0.0, z))));
     }
 
     // the clothesline head
@@ -322,6 +328,20 @@ fn sync_decor_eskies(
         let want = if game.life.decor_open.get(l.0).copied().unwrap_or(0.0) > 0.0 { -1.15 } else { -0.08 };
         let (x, _, _) = tf.rotation.to_euler(EulerRot::XYZ);
         tf.rotation = Quat::from_rotation_x(x + (want - x) * k);
+    }
+}
+
+/// Slide the smoko pad, chairs and umbrella to wherever the round put the pad.
+fn sync_smoko_place(game: Res<Game>, mut q: Query<(&SmokoShift, &mut Transform)>) {
+    let (dx, dz) = (
+        game.life.smoko_at.0 - bbq_core::yard::SMOKO_X,
+        game.life.smoko_at.1 - bbq_core::yard::SMOKO_Z,
+    );
+    for (s, mut tf) in &mut q {
+        let want = Vec3::new(s.0.x + dx, tf.translation.y, s.0.z + dz);
+        if tf.translation != want {
+            tf.translation = want;
+        }
     }
 }
 

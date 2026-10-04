@@ -1111,12 +1111,46 @@ fn face_camera(
     }
 }
 
-/// Walking makes the eyeballs bob and pop (each eye on its own beat), the pupils slosh about on
-/// springs and the big feet step. Dizzy blobs get swirling, cross-eyed pupils.
+/// How a character's eyes move: every character has its own style.
+#[derive(Clone, Copy)]
+struct EyeStyle {
+    /// How fast the bob goes, compared with the walk.
+    rate: f32,
+    /// How far each eyeball bobs up and down (left, right).
+    bob: (f32, f32),
+    /// How far the right eyeball pops in and out.
+    pop: f32,
+    /// How far the pupils wander in the eye, sideways and up and down.
+    drift: (f32, f32),
+    /// Pupil spring: stiffness and damping (low damping = more wobble).
+    k: f32,
+    c: f32,
+    /// Pupils swing opposite ways (cross-eyed) instead of together.
+    cross: f32,
+    /// Quick nervous jitter on top.
+    jitter: f32,
+}
+
+fn eye_style(c: Character) -> EyeStyle {
+    match c {
+        // steady and cheerful
+        Character::Classic => EyeStyle { rate: 1.0, bob: (0.020, 0.016), pop: 0.012, drift: (0.014, 0.022), k: 140.0, c: 7.5, cross: 0.0, jitter: 0.0 },
+        // lazy and floaty: slow big sloshes, both eyes drifting together
+        Character::Pear => EyeStyle { rate: 0.65, bob: (0.026, 0.026), pop: 0.0, drift: (0.026, 0.020), k: 60.0, c: 3.0, cross: 0.0, jitter: 0.0 },
+        // nervous and googly: fast little bobs, eyes popping, twitchy pupils
+        Character::Egg => EyeStyle { rate: 1.7, bob: (0.011, 0.013), pop: 0.022, drift: (0.016, 0.014), k: 230.0, c: 9.0, cross: 0.0, jitter: 0.010 },
+        // big bouncy cartoon: huge alternating bounces and cross-eyed pupils
+        Character::Gumdrop => EyeStyle { rate: 1.0, bob: (0.036, 0.030), pop: 0.016, drift: (0.024, 0.026), k: 95.0, c: 3.8, cross: 1.0, jitter: 0.0 },
+    }
+}
+
+/// Walking makes the eyeballs bob and pop (each character in its own style, each eye on its own
+/// beat), the pupils slosh about on springs and the big feet step. Dizzy blobs get swirling,
+/// cross-eyed pupils.
 fn animate_face_and_feet(
     time: Res<Time>,
     game: Res<Game>,
-    poses: Res<Poses>,
+    cast: Res<Cast>,
     mut phases: Local<Vec<f32>>,
     mut eyes: Query<(&Blob, &EyePart, &mut Transform), (Without<PupilPart>, Without<FootPart>)>,
     mut pupils: Query<(&Blob, &mut PupilPart, &mut Transform), (Without<EyePart>, Without<FootPart>)>,
@@ -1134,18 +1168,21 @@ fn animate_face_and_feet(
         phases[i] += speed[i] * dt * 1.7;
     }
     let walk = |i: usize| (speed.get(i).copied().unwrap_or(0.0) / 4.0).clamp(0.0, 1.0);
+    // each blob also has its own small quirks on top of its character's style
+    let quirk = |i: usize| 1.0 + ((i * 37 % 11) as f32 - 5.0) * 0.03;
     for (b, e, mut tf) in &mut eyes {
         if b.0 >= n {
             continue;
         }
-        let (ph, k) = (phases[b.0], walk(b.0));
+        let st = eye_style(cast.character_of(b.0));
+        let (ph, k) = (phases[b.0] * st.rate * quirk(b.0), walk(b.0));
         // the two eyes bob on different beats; the right one also pops in and out
         let (y, z) = if e.right {
-            ((ph * 2.0 + 1.9).sin() * 0.016 * k, (ph * 2.7).sin() * 0.012 * k)
+            ((ph * 2.0 + 1.9).sin() * st.bob.1 * k, (ph * 2.7).sin() * st.pop * k)
         } else {
-            ((ph * 2.0).sin() * 0.020 * k, 0.0)
+            ((ph * 2.0).sin() * st.bob.0 * k, 0.0)
         };
-        let idle = (t * 1.3 + if e.right { 1.0 } else { 0.0 }).sin() * 0.004;
+        let idle = (t * 1.3 * st.rate + if e.right { 1.0 } else { 0.0 } + b.0 as f32).sin() * 0.004;
         tf.translation = e.base + Vec3::new(0.0, y + idle, z);
     }
     for (b, mut p, mut tf) in &mut pupils {
@@ -1153,12 +1190,19 @@ fn animate_face_and_feet(
             continue;
         }
         let d = &game.dummies[b.0];
-        let (ph, k) = (phases[b.0], walk(b.0));
+        let st = eye_style(cast.character_of(b.0));
+        let (ph, k) = (phases[b.0] * st.rate * quirk(b.0), walk(b.0));
         let side = if p.right { 1.0 } else { 0.0 };
+        // cross-eyed characters send the two pupils opposite ways
+        let dir = if p.right && st.cross > 0.0 { -1.0 } else { 1.0 };
         let mut target = Vec2::new(
-            (ph + side * 1.3).sin() * 0.014 * k,
-            -(ph * 2.0 + side).cos() * 0.022 * k,
+            (ph + side * 1.3).sin() * st.drift.0 * k * dir,
+            -(ph * 2.0 + side).cos() * st.drift.1 * k,
         );
+        if st.jitter > 0.0 {
+            // twitchy: quick little random-looking flicks while moving
+            target += Vec2::new((t * 31.0 + side * 5.0 + b.0 as f32).sin(), (t * 27.0 + side * 3.0).cos()) * st.jitter * (0.3 + k);
+        }
         if d.body.stun > 0.0 {
             // seeing stars: swirling, one pupil a beat behind the other
             let a = t * 9.0 + side * 2.2;
@@ -1167,7 +1211,7 @@ fn animate_face_and_feet(
             target += Vec2::new((t * 1.7 + side * 3.0).sin(), (t * 2.3 + side).cos()) * 0.016;
         }
         // an underdamped spring: they overshoot and wobble back
-        let acc = (target - p.pos) * 140.0 - p.vel * 7.5;
+        let acc = (target - p.pos) * st.k - p.vel * st.c;
         p.vel += acc * dt;
         let v = p.vel;
         p.pos += v * dt;
@@ -1180,7 +1224,6 @@ fn animate_face_and_feet(
         }
         let (ph, k) = (phases[b.0], walk(b.0));
         let a = ph + if f.right { std::f32::consts::PI } else { 0.0 };
-        let _ = &poses;
         tf.translation = f.base + Vec3::new(0.0, a.cos().max(0.0) * 0.06 * k, a.sin() * 0.11 * k);
     }
 }

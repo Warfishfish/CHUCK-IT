@@ -314,6 +314,7 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &Yard) {
         let d = &g.dummies[i];
         let _ = d;
         let w = WorldView {
+            smoko_at: g.life.smoko_at,
             time: now,
             dt,
             yard,
@@ -618,7 +619,7 @@ fn do_act(g: &mut Game, p: &mut Player, yard: &Yard, i: usize, a: Act) {
             if seat >= n || taken_seats(g)[seat] || !yard.features.smoko {
                 return;
             }
-            let (x, z) = smoko::seat_pos(seat, n);
+            let (x, z) = smoko::seat_pos_at(g.life.smoko_at, seat, n);
             let d = &mut g.dummies[i];
             d.seat = Some(seat);
             d.sat_by_choice = true;
@@ -630,7 +631,7 @@ fn do_act(g: &mut Game, p: &mut Player, yard: &Yard, i: usize, a: Act) {
             d.mover.z = z;
             d.mover.vx = 0.0;
             d.mover.vz = 0.0;
-            d.face = (SMOKO_X - x).atan2(SMOKO_Z - z);
+            d.face = (g.life.smoko_at.0 - x).atan2(g.life.smoko_at.1 - z);
         }
         Act::StandUp => stand_bot(g, i),
         Act::TakeMeat(kind) => {
@@ -703,8 +704,8 @@ pub fn stand_bot(g: &mut Game, i: usize) {
     let d = &mut g.dummies[i];
     if let Some(seat) = d.seat.take() {
         let n = smoko::chair_count(1 + g.dummies.len());
-        let (x, z) = smoko::seat_pos(seat.min(n - 1), n);
-        let (sx, sz) = smoko::stand_pos(x, z);
+        let (x, z) = smoko::seat_pos_at(g.life.smoko_at, seat.min(n - 1), n);
+        let (sx, sz) = smoko::stand_pos_at(g.life.smoko_at, x, z);
         let d = &mut g.dummies[i];
         d.mover.x = sx;
         d.mover.z = sz;

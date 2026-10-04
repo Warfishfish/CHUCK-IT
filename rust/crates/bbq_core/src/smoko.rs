@@ -35,32 +35,53 @@ pub fn zone_radius(players: usize) -> f32 {
     ring(chair_count(players)) + 1.3
 }
 
+/// The middle of the smoko pad. Normally `(SMOKO_X, SMOKO_Z)`; Teddy Heist moves it out of the
+/// red base's way (`heist::smoko_spot`).
+pub type Centre = (f32, f32);
+pub const DEFAULT_CENTRE: Centre = (SMOKO_X, SMOKO_Z);
+
 /// Where chair `i` of `n` stands.
 pub fn seat_pos(i: usize, n: usize) -> (f32, f32) {
+    seat_pos_at(DEFAULT_CENTRE, i, n)
+}
+
+pub fn seat_pos_at(c: Centre, i: usize, n: usize) -> (f32, f32) {
     let r = ring(n);
     let a = i as f32 / n as f32 * std::f32::consts::TAU + 0.4;
-    (SMOKO_X + a.cos() * r, SMOKO_Z + a.sin() * r)
+    (c.0 + a.cos() * r, c.1 + a.sin() * r)
 }
 
 /// Which way chair `i` faces: towards the middle.
 pub fn seat_facing(i: usize, n: usize) -> f32 {
-    let (x, z) = seat_pos(i, n);
-    (SMOKO_X - x).atan2(SMOKO_Z - z)
+    seat_facing_at(DEFAULT_CENTRE, i, n)
+}
+
+pub fn seat_facing_at(c: Centre, i: usize, n: usize) -> f32 {
+    let (x, z) = seat_pos_at(c, i, n);
+    (c.0 - x).atan2(c.1 - z)
 }
 
 /// On the ground and inside the zone.
 pub fn in_zone(x: f32, y: f32, z: f32, players: usize) -> bool {
-    y < 0.5 && (x - SMOKO_X).hypot(z - SMOKO_Z) < zone_radius(players)
+    in_zone_at(DEFAULT_CENTRE, x, y, z, players)
+}
+
+pub fn in_zone_at(c: Centre, x: f32, y: f32, z: f32, players: usize) -> bool {
+    y < 0.5 && (x - c.0).hypot(z - c.1) < zone_radius(players)
 }
 
 /// The free chair nearest to (x, z).
 pub fn nearest_free_seat(x: f32, z: f32, n: usize, taken: &[bool]) -> Option<usize> {
+    nearest_free_seat_at(DEFAULT_CENTRE, x, z, n, taken)
+}
+
+pub fn nearest_free_seat_at(c: Centre, x: f32, z: f32, n: usize, taken: &[bool]) -> Option<usize> {
     let mut best: Option<(usize, f32)> = None;
     for i in 0..n {
         if taken.get(i).copied().unwrap_or(false) {
             continue;
         }
-        let (sx, sz) = seat_pos(i, n);
+        let (sx, sz) = seat_pos_at(c, i, n);
         let d = (sx - x).hypot(sz - z);
         if best.is_none_or(|(_, b)| d < b) {
             best = Some((i, d));
@@ -71,7 +92,11 @@ pub fn nearest_free_seat(x: f32, z: f32, n: usize, taken: &[bool]) -> Option<usi
 
 /// Where you end up standing after getting up: 0.6 m further from the middle.
 pub fn stand_pos(x: f32, z: f32) -> (f32, f32) {
-    let (dx, dz) = (x - SMOKO_X, z - SMOKO_Z);
+    stand_pos_at(DEFAULT_CENTRE, x, z)
+}
+
+pub fn stand_pos_at(c: Centre, x: f32, z: f32) -> (f32, f32) {
+    let (dx, dz) = (x - c.0, z - c.1);
     let l = dx.hypot(dz).max(1e-3);
     (x + dx / l * 0.6, z + dz / l * 0.6)
 }
