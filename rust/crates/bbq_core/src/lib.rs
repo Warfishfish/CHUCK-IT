@@ -6,7 +6,9 @@
 
 pub mod carry;
 pub mod character;
+pub mod chest;
 pub mod dazza;
+pub mod dazza_brain;
 pub mod drinks;
 pub mod flight;
 pub mod hands;
@@ -15,11 +17,13 @@ pub mod hitting;
 pub mod items;
 pub mod itemworld;
 pub mod matchflow;
+pub mod melee;
 pub mod movement;
 pub mod pose;
 pub mod rng;
 pub mod scoring;
 pub mod sim;
+pub mod smoko;
 pub mod stun;
 pub mod teams;
 pub mod vec;
