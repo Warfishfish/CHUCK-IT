@@ -49,7 +49,7 @@ pub fn ang_diff(a: f32, b: f32) -> f32 {
 pub fn slap_pose(kind: SlapKind, t: f32, dur: f32, face_slapper_ry: f32) -> SlapPose {
     let g = ((dur - t) / 0.45).clamp(0.0, 1.0);
     let (mut rx, mut ry, mut rz, mut sx, mut sy) = (0.0f32, 0.0f32, 0.0f32, 1.0f32, 1.0f32);
-    let mut y;
+    let y;
     match kind {
         SlapKind::SentFlying => {
             ry = face_slapper_ry;

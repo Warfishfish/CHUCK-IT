@@ -3,14 +3,15 @@
 //! name tags, leader crown, stun stars, team sash, HELP ME sign, stink cloud and speech
 //! bubbles. Also Dazza the BBQ cook with his six states.
 //!
-//! Code-made shapes for now; a rigged model from Blender can replace them later without
-//! changing the animation maths in `bbq_core::pose`.
+//! The blob itself is a Blender model (`assets/models/blob.glb`, made by `tools/make_blob.py`).
+//! Its hands are moved by the animation maths in `bbq_core::pose`.
 
 use bbq_core::dazza::{self, DazzaAnim, DazzaState};
 use bbq_core::pose::{Emote, Inputs, SlapKind};
 use bbq_core::teams::Team;
 use bbq_core::vec::{Quat as CQuat, V3};
 use bevy::prelude::*;
+use bevy::world_serialization::WorldInstanceReady;
 
 use crate::game::Game;
 use crate::player::{EyeCamera, Player};
@@ -137,10 +138,9 @@ fn spawn_blobs(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
+    assets: Res<AssetServer>,
     game: Res<Game>,
 ) {
-    let white = mats.add(Color::WHITE);
-    let black = mats.add(Color::srgb(0.07, 0.07, 0.07));
     let gold = mats.add(StandardMaterial {
         base_color: Color::srgb(1.0, 0.81, 0.2),
         emissive: LinearRgba::new(0.27, 0.2, 0.0, 1.0),
@@ -152,12 +152,6 @@ fn spawn_blobs(
         emissive: LinearRgba::new(0.53, 0.4, 0.0, 1.0),
         ..default()
     });
-    let eye = meshes.add(Sphere::new(0.085));
-    let pupil = meshes.add(Sphere::new(0.042));
-    let foot = meshes.add(Sphere::new(0.13));
-    let hand = meshes.add(Sphere::new(0.1));
-    let torso = meshes.add(Capsule3d::new(0.36, 0.55));
-    let head = meshes.add(Sphere::new(0.3));
     let crown_ring = meshes.add(Cylinder::new(0.21, 0.13));
     let crown_pt = meshes.add(Cone {
         radius: 0.05,
@@ -194,65 +188,60 @@ fn spawn_blobs(
             ))
             .id();
 
-        commands.spawn((
-            Mesh3d(torso.clone()),
-            MeshMaterial3d(body_mat),
-            Transform::from_xyz(0.0, 0.78, 0.0),
-            ChildOf(body),
-        ));
-        commands.spawn((
-            Mesh3d(head.clone()),
-            MeshMaterial3d(head_mat.clone()),
-            Transform::from_xyz(0.0, 1.5, 0.0),
-            ChildOf(body),
-        ));
-        for s in [-1.0f32, 1.0] {
-            commands.spawn((
-                Mesh3d(eye.clone()),
-                MeshMaterial3d(white.clone()),
-                Transform::from_xyz(s * 0.11, 1.56, 0.24),
-                ChildOf(body),
-            ));
-            commands.spawn((
-                Mesh3d(pupil.clone()),
-                MeshMaterial3d(black.clone()),
-                Transform::from_xyz(s * 0.11, 1.56, 0.315),
-                ChildOf(body),
-            ));
-            commands.spawn((
-                Mesh3d(foot.clone()),
-                MeshMaterial3d(foot_mat.clone()),
-                Transform::from_xyz(s * 0.16, 0.09, 0.04).with_scale(Vec3::new(1.0, 0.6, 1.4)),
-                ChildOf(body),
-            ));
-        }
-        let hand_r = commands
+        // the blob model from Blender (assets/models/blob.glb); once it has loaded we tint it
+        // for this player and find the hands, which the animation moves
+        let (bm, hm, fm) = (body_mat.clone(), head_mat.clone(), foot_mat.clone());
+        let (can_mesh, can_mat) = (can.clone(), mats.add(Color::srgb(0.85, 0.6, 0.1)));
+        commands
             .spawn((
-                Mesh3d(hand.clone()),
-                MeshMaterial3d(head_mat.clone()),
-                Transform::from_xyz(-0.47, 0.88, 0.05),
-                HandR,
-                Blob(i),
+                WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/blob.glb"))),
+                Transform::default(),
                 ChildOf(body),
             ))
-            .id();
-        commands.spawn((
-            Mesh3d(can.clone()),
-            MeshMaterial3d(mats.add(Color::srgb(0.85, 0.6, 0.1))),
-            Transform::from_xyz(0.0, 0.12, 0.08),
-            Visibility::Hidden,
-            SmokoCan,
-            Blob(i),
-            ChildOf(hand_r),
-        ));
-        commands.spawn((
-            Mesh3d(hand.clone()),
-            MeshMaterial3d(head_mat.clone()),
-            Transform::from_xyz(0.47, 0.88, 0.05),
-            HandL,
-            Blob(i),
-            ChildOf(body),
-        ));
+            .observe(
+                move |ready: On<WorldInstanceReady>,
+                      children: Query<&Children>,
+                      names: Query<&Name>,
+                      has_mat: Query<(), With<MeshMaterial3d<StandardMaterial>>>,
+                      mut commands: Commands| {
+                    for node in children.iter_descendants(ready.entity) {
+                        let Ok(name) = names.get(node) else { continue };
+                        let tint = match name.as_str() {
+                            "Torso" => Some(bm.clone()),
+                            "Head" | "HandR" | "HandL" => Some(hm.clone()),
+                            "FootL" | "FootR" => Some(fm.clone()),
+                            _ => None,
+                        };
+                        if let Some(m) = tint {
+                            let parts =
+                                std::iter::once(node).chain(children.iter_descendants(node));
+                            for e in parts {
+                                if has_mat.contains(e) {
+                                    commands.entity(e).insert(MeshMaterial3d(m.clone()));
+                                }
+                            }
+                        }
+                        match name.as_str() {
+                            "HandR" => {
+                                commands.entity(node).insert((HandR, Blob(i)));
+                                commands.spawn((
+                                    Mesh3d(can_mesh.clone()),
+                                    MeshMaterial3d(can_mat.clone()),
+                                    Transform::from_xyz(0.0, 0.12, 0.08),
+                                    Visibility::Hidden,
+                                    SmokoCan,
+                                    Blob(i),
+                                    ChildOf(node),
+                                ));
+                            }
+                            "HandL" => {
+                                commands.entity(node).insert((HandL, Blob(i)));
+                            }
+                            _ => {}
+                        }
+                    }
+                },
+            );
 
         // leader crown
         let crown = commands
