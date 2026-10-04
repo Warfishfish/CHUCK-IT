@@ -899,7 +899,9 @@ fn apply_roots(
     mut q: Query<(&Blob, &mut Transform), With<BlobRoot>>,
 ) {
     for (b, mut tf) in &mut q {
-        let (d, p) = (&game.dummies[b.0], &poses.0[b.0]);
+        let (Some(d), Some(p)) = (game.dummies.get(b.0), poses.0.get(b.0)) else {
+            continue;
+        };
         tf.translation = Vec3::new(
             d.mover.x + p.offset.0,
             d.mover.y - d.mover.sink,
@@ -911,7 +913,9 @@ fn apply_roots(
 
 fn apply_bodies(poses: Res<Poses>, mut q: Query<(&Blob, &mut Transform), With<BlobBody>>) {
     for (b, mut tf) in &mut q {
-        let p = &poses.0[b.0];
+        let Some(p) = poses.0.get(b.0) else {
+            continue;
+        };
         tf.rotation = to_bevy(p.body_rot);
         tf.translation = Vec3::new(0.0, p.body_y, 0.0);
         tf.scale = Vec3::new(p.body_scale.0, p.body_scale.1, p.body_scale.0);
@@ -925,12 +929,18 @@ fn apply_hands(
     mut left: Query<(&Blob, &mut Transform), (With<HandL>, Without<HandR>)>,
 ) {
     for (b, mut tf) in &mut right {
-        let h = poses.0[b.0].hand_r;
+        let Some(pp) = poses.0.get(b.0) else {
+            continue;
+        };
+        let h = pp.hand_r;
         let dx = cast.character_of(b.0).hand_x() - 0.47; // sit against this body shape
         tf.translation = Vec3::new(h.x - dx, h.y, h.z);
     }
     for (b, mut tf) in &mut left {
-        let h = poses.0[b.0].hand_l;
+        let Some(pp) = poses.0.get(b.0) else {
+            continue;
+        };
+        let h = pp.hand_l;
         let dx = cast.character_of(b.0).hand_x() - 0.47;
         tf.translation = Vec3::new(h.x + dx, h.y, h.z);
     }
@@ -938,7 +948,10 @@ fn apply_hands(
 
 fn apply_crown(game: Res<Game>, mut q: Query<(&Blob, &mut Visibility), With<Crown>>) {
     for (b, mut v) in &mut q {
-        *v = if game.dummies[b.0].crown {
+        let Some(dd) = game.dummies.get(b.0) else {
+            continue;
+        };
+        *v = if dd.crown {
             Visibility::Inherited
         } else {
             Visibility::Hidden
@@ -952,7 +965,10 @@ fn apply_stars(
     mut q: Query<(&Blob, &mut Visibility, &mut Transform), With<Stars>>,
 ) {
     for (b, mut v, mut tf) in &mut q {
-        let on = poses.0[b.0].stars;
+        let Some(pp) = poses.0.get(b.0) else {
+            continue;
+        };
+        let on = pp.stars;
         *v = if on {
             Visibility::Inherited
         } else {
@@ -991,7 +1007,10 @@ fn apply_sash(
     mut q: Query<(&Blob, &mut Visibility, &MeshMaterial3d<StandardMaterial>), With<Sash>>,
 ) {
     for (b, mut v, m) in &mut q {
-        match game.dummies[b.0].team {
+        let Some(dd) = game.dummies.get(b.0) else {
+            continue;
+        };
+        match dd.team {
             Some(t) => {
                 *v = Visibility::Inherited;
                 if let Some(mut mat) = mats.get_mut(&m.0) {
@@ -1008,7 +1027,9 @@ fn apply_can(
     mut q: Query<(&Blob, &mut Visibility, &mut Transform), With<SmokoCan>>,
 ) {
     for (b, mut v, mut tf) in &mut q {
-        let p = &poses.0[b.0];
+        let Some(p) = poses.0.get(b.0) else {
+            continue;
+        };
         *v = if p.can_visible {
             Visibility::Inherited
         } else {
@@ -1020,7 +1041,10 @@ fn apply_can(
 
 fn apply_help_signs(game: Res<Game>, mut q: Query<(&Blob, &mut Visibility), With<HelpSign>>) {
     for (b, mut v) in &mut q {
-        *v = if game.dummies[b.0].fallen {
+        let Some(dd) = game.dummies.get(b.0) else {
+            continue;
+        };
+        *v = if dd.fallen {
             Visibility::Inherited
         } else {
             Visibility::Hidden
@@ -1034,7 +1058,9 @@ fn apply_clouds(
     mut q: Query<(&Blob, &mut Visibility, &mut Transform), With<StinkCloud>>,
 ) {
     for (b, mut v, mut tf) in &mut q {
-        let d = &game.dummies[b.0];
+        let Some(d) = game.dummies.get(b.0) else {
+            continue;
+        };
         *v = if d.smelly {
             Visibility::Inherited
         } else {
@@ -1189,7 +1215,9 @@ fn animate_face_and_feet(
         if b.0 >= n {
             continue;
         }
-        let d = &game.dummies[b.0];
+        let Some(d) = game.dummies.get(b.0) else {
+            continue;
+        };
         let st = eye_style(cast.character_of(b.0));
         let (ph, k) = (phases[b.0] * st.rate * quirk(b.0), walk(b.0));
         let side = if p.right { 1.0 } else { 0.0 };

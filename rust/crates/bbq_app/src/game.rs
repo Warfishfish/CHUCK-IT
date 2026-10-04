@@ -2619,4 +2619,21 @@ mod tests {
         let g = app.world().resource::<Game>();
         assert_eq!(g.slots.len(), 0, "held for a while it flies");
     }
+
+    #[test]
+    fn pressing_play_after_the_menu_yard_starts_round_one_and_any_bot_count_is_fine() {
+        for bots in [0usize, 1, 2, 3] {
+            let mut app = app();
+            let mut s = crate::menu::Settings::default();
+            s.bots = bots;
+            run_flow(&mut app, |g, p, y, _| crate::menu::attract(&s, g, p, y));
+            run_flow(&mut app, |g, p, y, c| crate::menu::begin(&s, g, p, y, c));
+            ticks(&mut app, 30);
+            let g = app.world().resource::<Game>();
+            assert_eq!(g.round.mtch.no, 1, "the first round after the menu is round 1");
+            assert_eq!(g.dummies.len(), bots);
+            assert_eq!(g.board.iter().count(), bots + 1);
+            assert_eq!(g.crowd.brains.len(), bots);
+        }
+    }
 }

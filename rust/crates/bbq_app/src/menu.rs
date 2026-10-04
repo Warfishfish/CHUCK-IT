@@ -913,6 +913,8 @@ pub fn attract(settings: &Settings, g: &mut Game, p: &mut Player, yard: &mut Yar
     g.round.setup.bots = 3;
     // reuse the round set-up to get a clean yard and bots, then turn the clock off again
     start_round(g, p, yard);
+    // the menu yard is not a round: the real match starts fresh when you press Play
+    g.round.mtch = bbq_core::matchflow::Match::new(1);
     g.round.timed = false;
     g.rules.phase = bbq_core::scoring::Phase::Play;
     g.round.banner = None;
@@ -931,16 +933,28 @@ pub fn attract(settings: &Settings, g: &mut Game, p: &mut Player, yard: &mut Yar
 fn run_requests(
     mut ui: ResMut<MenuUi>,
     mut screen: ResMut<Screen>,
-    settings: Res<Settings>,
+    mut settings: ResMut<Settings>,
     mut game: ResMut<Game>,
     mut player: ResMut<Player>,
     mut yard: ResMut<YardRes>,
     mut cast: ResMut<Cast>,
     mut started: Local<bool>,
+    mut frames: Local<u32>,
 ) {
+    // `--autoplay` presses Play for you after a moment (testing); `--bots N` sets the bot count
+    *frames += 1;
+    if *frames == 15 && *screen == Screen::Menu && std::env::args().any(|a| a == "--autoplay") {
+        ui.request = Some(Request::Play);
+    }
     // the first frame: the yard behind the menu
     if !*started {
         *started = true;
+        {
+            let args: Vec<String> = std::env::args().collect();
+            if let Some(n) = args.iter().position(|a| a == "--bots").and_then(|i| args.get(i + 1)).and_then(|v| v.parse::<usize>().ok()) {
+                settings.bots = n.min(3);
+            }
+        }
         if *screen == Screen::Menu {
             attract(&settings, &mut game, &mut player, &mut yard);
         }
