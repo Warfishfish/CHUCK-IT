@@ -5,7 +5,12 @@ use std::collections::HashMap;
 
 use bbq_core::items::{DildoVariant, ItemKind};
 use bbq_core::looks::{Part, Surface, Tex};
+use bevy::light::{NotShadowCaster, NotShadowReceiver};
+use bevy::image::{
+    ImageAddressMode, ImageFilterMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor,
+};
 use bevy::prelude::*;
+use bevy::render::render_resource::TextureFormat;
 
 use crate::shapes::build_mesh;
 
@@ -19,15 +24,17 @@ pub fn hex(c: u32) -> Color {
     )
 }
 
-/// The same colour as plain sRGB, for things drawn without lighting (the sky behind everything).
-pub fn hex_srgb(c: u32) -> Color {
-    Color::srgb_u8(((c >> 16) & 0xff) as u8, ((c >> 8) & 0xff) as u8, (c & 0xff) as u8)
-}
+/// The roughness that makes a matt surface look most like three.js's Lambert.
+pub const MATT_ROUGHNESS: f32 = 0.5;
+/// The lawn is seen at a glancing angle, where Bevy lights rough things up; this brings it back.
+pub const GROUND_ROUGHNESS: f32 = 0.0;
 
 /// What to look up: an item (and which size or colour), or a one-off by name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ModelKey {
     Item(ItemKind, Option<DildoVariant>, u32),
+    /// The crack on the Bum-Out gnome (not drawn yet).
+    #[allow(dead_code)]
     BumCrack,
 }
 
@@ -57,12 +64,47 @@ pub struct Built {
     pub mesh: Handle<Mesh>,
     pub material: Handle<StandardMaterial>,
     pub transform: Transform,
+    /// Throws a shadow.
+    pub casts: bool,
+    /// Gets shadows on it (see-through water and shimmer do not).
+    pub receives: bool,
+}
+
+impl Built {
+    /// Spawn this part as a child of `parent`.
+    pub fn spawn_under(&self, commands: &mut Commands, parent: Entity) -> Entity {
+        let mut e = commands.spawn((
+            Mesh3d(self.mesh.clone()),
+            MeshMaterial3d(self.material.clone()),
+            self.transform,
+        ));
+        if !self.casts {
+            e.insert(NotShadowCaster);
+        }
+        if !self.receives {
+            e.insert(NotShadowReceiver);
+        }
+        let id = e.id();
+        commands.entity(parent).add_child(id);
+        id
+    }
+}
+
+/// Make one finished part from a part description.
+fn build_part(p: &Part, cache: &ModelCache, meshes: &mut Assets<Mesh>, mats: &mut Assets<StandardMaterial>) -> Built {
+    let s = &p.surface;
+    Built {
+        mesh: meshes.add(build_mesh(&p.shape)),
+        material: mats.add(material(s, cache)),
+        transform: transform_of(p),
+        casts: !s.no_shadow,
+        receives: !(s.no_shadow && (s.additive || s.alpha < 1.0)),
+    }
 }
 
 #[derive(Resource, Default)]
 pub struct ModelCache {
-    vp_label: Handle<Image>,
-    fish: Handle<Image>,
+    textures: HashMap<Tex, Handle<Image>>,
     built: HashMap<ModelKey, Vec<Built>>,
 }
 
@@ -70,36 +112,134 @@ pub struct ModelsPlugin;
 
 impl Plugin for ModelsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ModelCache>().add_systems(Startup, load_textures);
+        app.init_resource::<ModelCache>()
+            .add_systems(Startup, load_textures)
+            .add_systems(Update, add_mipmaps);
     }
 }
 
 fn load_textures(mut cache: ResMut<ModelCache>, assets: Res<AssetServer>) {
-    // Pictures are used as they are, with no sRGB step, like the browser game does.
-    let raw = |s: &mut bevy::image::ImageLoaderSettings| s.is_srgb = false;
-    cache.vp_label = assets.load_builder().with_settings(raw).load("textures/vp_label.png");
-    cache.fish = assets.load_builder().with_settings(raw).load("textures/fish.png");
+    // Pictures are used as they are, with no sRGB step, like the browser game does. They repeat
+    // (fences, tiles) and blend smoothly at a distance, as three.js does.
+    let load = |s: &mut ImageLoaderSettings| {
+        s.is_srgb = false;
+        s.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+            address_mode_u: ImageAddressMode::Repeat,
+            address_mode_v: ImageAddressMode::Repeat,
+            mag_filter: ImageFilterMode::Linear,
+            min_filter: ImageFilterMode::Linear,
+            mipmap_filter: ImageFilterMode::Linear,
+            anisotropy_clamp: 4,
+            ..default()
+        });
+    };
+    for t in Tex::ALL {
+        let h = assets
+            .load_builder()
+            .with_settings(load)
+            .load(format!("textures/{}", t.file()));
+        cache.textures.insert(t, h);
+    }
+}
+
+/// How many levels of smaller pictures a texture of this size has.
+pub fn mip_count(w: u32, h: u32) -> u32 {
+    32 - w.max(h).max(1).leading_zeros()
+}
+
+/// Make the chain of smaller copies of an RGBA picture (each half the size, averaged, with
+/// transparent pixels counting for less), laid out one after another as the GPU wants them.
+/// Bevy does not do this by itself, and without it far-away fences and lawn shimmer.
+pub fn build_mips(w: u32, h: u32, base: &[u8]) -> Vec<u8> {
+    let mut out = base.to_vec();
+    let (mut cw, mut ch) = (w as usize, h as usize);
+    let mut prev = base.to_vec();
+    while cw > 1 || ch > 1 {
+        let (nw, nh) = ((cw / 2).max(1), (ch / 2).max(1));
+        let mut next = vec![0u8; nw * nh * 4];
+        for y in 0..nh {
+            for x in 0..nw {
+                let (mut r, mut g, mut b, mut a) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+                let mut n = 0.0;
+                for dy in 0..(ch / nh).max(1) {
+                    for dx in 0..(cw / nw).max(1) {
+                        let i = (((y * (ch / nh) + dy).min(ch - 1)) * cw + (x * (cw / nw) + dx).min(cw - 1)) * 4;
+                        let al = prev[i + 3] as f32;
+                        r += prev[i] as f32 * al;
+                        g += prev[i + 1] as f32 * al;
+                        b += prev[i + 2] as f32 * al;
+                        a += al;
+                        n += 1.0;
+                    }
+                }
+                let o = (y * nw + x) * 4;
+                if a > 0.0 {
+                    next[o] = (r / a).round() as u8;
+                    next[o + 1] = (g / a).round() as u8;
+                    next[o + 2] = (b / a).round() as u8;
+                }
+                next[o + 3] = (a / n).round() as u8;
+            }
+        }
+        out.extend_from_slice(&next);
+        prev = next;
+        cw = nw;
+        ch = nh;
+    }
+    out
+}
+
+/// When one of our pictures finishes loading, give it its smaller copies.
+fn add_mipmaps(mut events: MessageReader<AssetEvent<Image>>, mut images: ResMut<Assets<Image>>) {
+    for ev in events.read() {
+        let AssetEvent::LoadedWithDependencies { id } = ev else {
+            continue;
+        };
+        let Some(mut img) = images.get_mut(*id) else {
+            continue;
+        };
+        let (w, h) = (img.width(), img.height());
+        if img.texture_descriptor.mip_level_count > 1
+            || img.texture_descriptor.format != TextureFormat::Rgba8Unorm
+        {
+            continue;
+        }
+        let Some(data) = img.data.as_ref() else {
+            continue;
+        };
+        if data.len() != (w * h * 4) as usize || (w <= 1 && h <= 1) {
+            continue;
+        }
+        let mips = build_mips(w, h, data);
+        img.texture_descriptor.mip_level_count = mip_count(w, h);
+        img.data = Some(mips);
+    }
 }
 
 /// Turn a browser-style surface into a Bevy material. A matt "Lambert" surface is fully rough;
 /// a shiny "Phong" one gets a tighter highlight the higher its shininess.
 pub fn material(s: &Surface, cache: &ModelCache) -> StandardMaterial {
+    // Bevy's diffuse light is brighter at glancing angles the rougher a surface is, which three's
+    // flat "Lambert" never is. A roughness of about 0.7 keeps it close to Lambert (see compare.md).
     let rough = if s.shine > 0.0 {
         (2.0 / (s.shine + 2.0)).sqrt()
+    } else if s.ground {
+        GROUND_ROUGHNESS
     } else {
-        1.0
+        MATT_ROUGHNESS
     };
     let emissive = hex(s.emissive).to_linear();
     StandardMaterial {
         base_color: hex(s.color).with_alpha(s.alpha),
-        base_color_texture: s.tex.map(|t| match t {
-            Tex::VpLabel => cache.vp_label.clone(),
-            Tex::Fish => cache.fish.clone(),
-        }),
+        base_color_texture: s.tex.and_then(|t| cache.textures.get(&t).cloned()),
+        uv_transform: bevy::math::Affine2::from_scale(Vec2::new(s.repeat.0, s.repeat.1)),
         emissive,
         perceptual_roughness: rough,
         reflectance: if s.shine > 0.0 { 0.5 } else { 0.0 },
-        alpha_mode: if s.alpha < 1.0 {
+        unlit: s.unlit,
+        alpha_mode: if s.additive {
+            AlphaMode::Add
+        } else if s.alpha < 1.0 {
             AlphaMode::Blend
         } else {
             AlphaMode::Opaque
@@ -134,16 +274,39 @@ impl ModelCache {
             return b.clone();
         }
         let parts = key.parts();
-        let built: Vec<Built> = parts
-            .iter()
-            .map(|p| Built {
-                mesh: meshes.add(build_mesh(&p.shape)),
-                material: mats.add(material(&p.surface, self)),
-                transform: transform_of(p),
-            })
-            .collect();
+        let built: Vec<Built> = parts.iter().map(|p| build_part(p, self, meshes, mats)).collect();
         self.built.insert(key, built.clone());
         built
+    }
+
+    /// Spawn a list of parts as a group (an empty parent with one child per part).
+    pub fn spawn_parts(
+        &mut self,
+        commands: &mut Commands,
+        parts: &[Part],
+        meshes: &mut Assets<Mesh>,
+        mats: &mut Assets<StandardMaterial>,
+        at: Transform,
+    ) -> Entity {
+        self.spawn_parts_with_children(commands, parts, meshes, mats, at).0
+    }
+
+    /// Like `spawn_parts`, but also hands back each part's own entity (in the order of `parts`),
+    /// so a few of them can be animated.
+    pub fn spawn_parts_with_children(
+        &mut self,
+        commands: &mut Commands,
+        parts: &[Part],
+        meshes: &mut Assets<Mesh>,
+        mats: &mut Assets<StandardMaterial>,
+        at: Transform,
+    ) -> (Entity, Vec<Entity>) {
+        let root = commands.spawn((at, Visibility::default())).id();
+        let kids: Vec<Entity> = parts
+            .iter()
+            .map(|p| build_part(p, self, meshes, mats).spawn_under(commands, root))
+            .collect();
+        (root, kids)
     }
 
     /// Spawn a model as a group (an empty parent with one child per part). Put the returned
@@ -157,18 +320,11 @@ impl ModelCache {
         at: Transform,
     ) -> Entity {
         let built = self.built(key, meshes, mats);
-        commands
-            .spawn((at, Visibility::default()))
-            .with_children(|p| {
-                for b in built {
-                    p.spawn((
-                        Mesh3d(b.mesh),
-                        MeshMaterial3d(b.material),
-                        b.transform,
-                    ));
-                }
-            })
-            .id()
+        let root = commands.spawn((at, Visibility::default())).id();
+        for b in &built {
+            b.spawn_under(commands, root);
+        }
+        root
     }
 }
 
@@ -180,9 +336,6 @@ mod tests {
     fn hex_colours_go_in_as_linear_numbers() {
         let c = hex(0xff8000).to_linear();
         assert!((c.red - 1.0).abs() < 1e-5 && (c.green - 128.0 / 255.0).abs() < 1e-5 && c.blue == 0.0);
-        // the sky is the one thing drawn as a proper sRGB colour
-        let s = hex_srgb(0x9fd8f2).to_srgba();
-        assert!((s.red - 159.0 / 255.0).abs() < 1e-3);
     }
 
     #[test]
@@ -205,11 +358,36 @@ mod tests {
     }
 
     #[test]
+    fn mip_chains_cover_every_size_down_to_one_pixel() {
+        assert_eq!(mip_count(256, 256), 9);
+        assert_eq!(mip_count(256, 64), 9);
+        assert_eq!(mip_count(1, 1), 1);
+        assert_eq!(mip_count(64, 32), 7);
+        // 4x2 -> 2x1 -> 1x1
+        let base = vec![255u8; 4 * 2 * 4];
+        let all = build_mips(4, 2, &base);
+        assert_eq!(all.len(), (4 * 2 + 2 + 1) * 4);
+        assert!(all.iter().all(|v| *v == 255));
+    }
+
+    #[test]
+    fn mips_average_colours_and_respect_transparency() {
+        // two pixels side by side: white solid and black solid -> grey
+        let base = [255, 255, 255, 255, 0, 0, 0, 255];
+        let m = build_mips(2, 1, &base);
+        assert_eq!(&m[8..12], &[128, 128, 128, 255]);
+        // a transparent pixel does not drag the colour towards black
+        let base = [255, 255, 255, 255, 0, 0, 0, 0];
+        let m = build_mips(2, 1, &base);
+        assert_eq!(&m[8..12], &[255, 255, 255, 128]);
+    }
+
+    #[test]
     fn shiny_surfaces_are_less_rough_than_matt() {
         let cache = ModelCache::default();
         let matt = material(&Surface::matt(0xffffff), &cache);
         let shiny = material(&Surface::shiny(0xffffff, 0xffffff, 70.0), &cache);
-        assert_eq!(matt.perceptual_roughness, 1.0);
+        assert_eq!(matt.perceptual_roughness, MATT_ROUGHNESS);
         assert!(shiny.perceptual_roughness < 0.2);
         assert!(!matt.double_sided);
     }

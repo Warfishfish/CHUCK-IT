@@ -91,6 +91,12 @@ fn sphere(r: f32, ws: u32, hs: u32) -> Buf {
 
 /// `CylinderGeometry(top, bottom, h, seg)` (and `ConeGeometry`, with `top = 0`).
 fn cylinder(top: f32, bottom: f32, h: f32, seg: u32, caps: bool) -> Buf {
+    cylinder_arc(top, bottom, h, seg, caps, 0.0, TAU)
+}
+
+/// A cylinder that only goes part of the way round: from angle `start` for `len` radians
+/// (`thetaStart` and `thetaLength` in three.js).
+fn cylinder_arc(top: f32, bottom: f32, h: f32, seg: u32, caps: bool, start: f32, len: f32) -> Buf {
     let mut b = Buf::default();
     let half = h / 2.0;
     let slope = (bottom - top) / h;
@@ -98,7 +104,7 @@ fn cylinder(top: f32, bottom: f32, h: f32, seg: u32, caps: bool) -> Buf {
     let mut grid: Vec<[u32; 2]> = Vec::new();
     for x in 0..=seg {
         let u = x as f32 / seg as f32;
-        let th = u * TAU;
+        let th = u * len + start;
         let (s, c) = th.sin_cos();
         let mut col = [0u32; 2];
         for (y, slot) in col.iter_mut().enumerate() {
@@ -133,7 +139,7 @@ fn cylinder(top: f32, bottom: f32, h: f32, seg: u32, caps: bool) -> Buf {
             let ring: Vec<u32> = (0..=seg)
                 .map(|x| {
                     let u = x as f32 / seg as f32;
-                    let th = u * TAU;
+                    let th = u * len + start;
                     let (s, c) = th.sin_cos();
                     b.vert(
                         [radius * s, half * sign, radius * c],
@@ -277,6 +283,218 @@ fn poly(pts: &[(f32, f32)]) -> Buf {
     b
 }
 
+/// `BoxGeometry(w, h, d)`, with three.js's own face order and picture directions (so signs read
+/// the right way round and planks run up and down).
+fn cuboid(w: f32, h: f32, d: f32) -> Buf {
+    let mut b = Buf::default();
+    // build one face: axes u, v, w are indices 0, 1, 2 (x, y, z)
+    let mut plane = |u: usize, v: usize, wi: usize, udir: f32, vdir: f32, width: f32, height: f32, depth: f32| {
+        let (hw, hh) = (width / 2.0, height / 2.0);
+        let mut ids = [0u32; 4];
+        let mut n = 0;
+        for iy in 0..2 {
+            let y = iy as f32 * height - hh;
+            for ix in 0..2 {
+                let x = ix as f32 * width - hw;
+                let mut p = [0.0f32; 3];
+                p[u] = x * udir;
+                p[v] = y * vdir;
+                p[wi] = depth / 2.0;
+                let mut nr = [0.0f32; 3];
+                nr[wi] = if depth > 0.0 { 1.0 } else { -1.0 };
+                ids[n] = b.vert(p, nr, [ix as f32, 1.0 - iy as f32]);
+                n += 1;
+            }
+        }
+        // ids: 0 = (ix0,iy0), 1 = (ix1,iy0), 2 = (ix0,iy1), 3 = (ix1,iy1)
+        let (a, bb, c, dd) = (ids[0], ids[2], ids[3], ids[1]);
+        b.tri(a, bb, dd);
+        b.tri(bb, c, dd);
+    };
+    plane(2, 1, 0, -1.0, -1.0, d, h, w); // +x
+    plane(2, 1, 0, 1.0, -1.0, d, h, -w); // -x
+    plane(0, 2, 1, 1.0, 1.0, w, d, h); // +y
+    plane(0, 2, 1, 1.0, -1.0, w, d, -h); // -y
+    plane(0, 1, 2, 1.0, -1.0, w, h, d); // +z
+    plane(0, 1, 2, -1.0, -1.0, w, h, -d); // -z
+    b
+}
+
+/// `PlaneGeometry(w, h)`: a rectangle in the XY plane facing +z.
+fn quad(w: f32, h: f32) -> Buf {
+    let mut b = Buf::default();
+    let (hw, hh) = (w / 2.0, h / 2.0);
+    let n = [0.0, 0.0, 1.0];
+    let a = b.vert([-hw, hh, 0.0], n, [0.0, 1.0]);
+    let bb = b.vert([-hw, -hh, 0.0], n, [0.0, 0.0]);
+    let c = b.vert([hw, -hh, 0.0], n, [1.0, 0.0]);
+    let d = b.vert([hw, hh, 0.0], n, [1.0, 1.0]);
+    b.tri(a, bb, d);
+    b.tri(bb, c, d);
+    b
+}
+
+/// `CapsuleGeometry(r, len, cap, radial)`: a sausage along y.
+fn capsule(r: f32, len: f32, cap: u32, radial: u32) -> Buf {
+    let mut b = Buf::default();
+    // the outline from the bottom pole up the side to the top pole: (distance out, height)
+    let mut prof: Vec<(f32, f32, f32, f32)> = Vec::new(); // x, y, nx, ny
+    for i in 0..=cap {
+        let a = -std::f32::consts::FRAC_PI_2 + i as f32 / cap as f32 * std::f32::consts::FRAC_PI_2;
+        prof.push((r * a.cos(), -len / 2.0 + r * a.sin(), a.cos(), a.sin()));
+    }
+    for i in 0..=cap {
+        let a = i as f32 / cap as f32 * std::f32::consts::FRAC_PI_2;
+        prof.push((r * a.cos(), len / 2.0 + r * a.sin(), a.cos(), a.sin()));
+    }
+    let total = prof.len() as f32 - 1.0;
+    let mut grid: Vec<Vec<u32>> = Vec::new();
+    for j in 0..=radial {
+        let u = j as f32 / radial as f32;
+        let th = u * TAU;
+        let (s, c) = th.sin_cos();
+        let col: Vec<u32> = prof
+            .iter()
+            .enumerate()
+            .map(|(k, &(x, y, nx, ny))| {
+                b.vert([x * s, y, x * c], norm([nx * s, ny, nx * c]), [u, k as f32 / total])
+            })
+            .collect();
+        grid.push(col);
+    }
+    for j in 0..radial as usize {
+        for k in 0..prof.len() - 1 {
+            let (a, bb, c, d) = (grid[j][k], grid[j][k + 1], grid[j + 1][k + 1], grid[j + 1][k]);
+            b.tri(a, d, bb);
+            b.tri(bb, d, c);
+        }
+    }
+    b
+}
+
+/// The twelve corners of an icosahedron and its twenty faces.
+fn icosahedron() -> (Vec<[f32; 3]>, Vec<[usize; 3]>) {
+    let t = (1.0 + 5f32.sqrt()) / 2.0;
+    let v = [
+        [-1.0, t, 0.0],
+        [1.0, t, 0.0],
+        [-1.0, -t, 0.0],
+        [1.0, -t, 0.0],
+        [0.0, -1.0, t],
+        [0.0, 1.0, t],
+        [0.0, -1.0, -t],
+        [0.0, 1.0, -t],
+        [t, 0.0, -1.0],
+        [t, 0.0, 1.0],
+        [-t, 0.0, -1.0],
+        [-t, 0.0, 1.0],
+    ];
+    let f = [
+        [0, 11, 5],
+        [0, 5, 1],
+        [0, 1, 7],
+        [0, 7, 10],
+        [0, 10, 11],
+        [1, 5, 9],
+        [5, 11, 4],
+        [11, 10, 2],
+        [10, 7, 6],
+        [7, 1, 8],
+        [3, 9, 4],
+        [3, 4, 2],
+        [3, 2, 6],
+        [3, 6, 8],
+        [3, 8, 9],
+        [4, 9, 5],
+        [2, 4, 11],
+        [6, 2, 10],
+        [8, 6, 7],
+        [9, 8, 1],
+    ];
+    (v.to_vec(), f.to_vec())
+}
+
+/// `IcosahedronGeometry(r, detail)`, with flat faces. Each face is cut into `(detail + 1)^2`
+/// triangles and pushed out onto the sphere.
+fn ico(r: f32, detail: u32) -> Buf {
+    let (verts, faces) = icosahedron();
+    let on_sphere = |p: [f32; 3]| {
+        let n = norm(p);
+        [n[0] * r, n[1] * r, n[2] * r]
+    };
+    let n = detail + 1;
+    let mut b = Buf::default();
+    let tri = |b: &mut Buf, p: [[f32; 3]; 3]| {
+        let q = [on_sphere(p[0]), on_sphere(p[1]), on_sphere(p[2])];
+        let e1 = [q[1][0] - q[0][0], q[1][1] - q[0][1], q[1][2] - q[0][2]];
+        let e2 = [q[2][0] - q[0][0], q[2][1] - q[0][1], q[2][2] - q[0][2]];
+        let nrm = norm([
+            e1[1] * e2[2] - e1[2] * e2[1],
+            e1[2] * e2[0] - e1[0] * e2[2],
+            e1[0] * e2[1] - e1[1] * e2[0],
+        ]);
+        let ids: Vec<u32> = q.iter().map(|p| b.vert(*p, nrm, [0.0, 0.0])).collect();
+        b.tri(ids[0], ids[1], ids[2]);
+    };
+    let lerp = |a: [f32; 3], c: [f32; 3], t: f32| {
+        [
+            a[0] + (c[0] - a[0]) * t,
+            a[1] + (c[1] - a[1]) * t,
+            a[2] + (c[2] - a[2]) * t,
+        ]
+    };
+    for f in faces {
+        let (a, bb, c) = (verts[f[0]], verts[f[1]], verts[f[2]]);
+        // the point at row i, column j of the cut-up face
+        let pt = |i: u32, j: u32| {
+            let ab = lerp(a, bb, i as f32 / n as f32);
+            let ac = lerp(a, c, i as f32 / n as f32);
+            if i == 0 {
+                a
+            } else {
+                lerp(ab, ac, j as f32 / i as f32)
+            }
+        };
+        for i in 0..n {
+            for j in 0..=i {
+                tri(&mut b, [pt(i, j), pt(i + 1, j), pt(i + 1, j + 1)]);
+                if j < i {
+                    tri(&mut b, [pt(i, j), pt(i + 1, j + 1), pt(i, j + 1)]);
+                }
+            }
+        }
+    }
+    b
+}
+
+/// A flat rectangle on the ground with a rectangular hole, picture laid by world position.
+fn ground(x0: f32, x1: f32, z0: f32, z1: f32, hole: (f32, f32, f32, f32), per_m: f32) -> Buf {
+    let mut b = Buf::default();
+    let (hx0, hx1, hz0, hz1) = hole;
+    let n = [0.0, 1.0, 0.0];
+    // four rectangles round the hole: back, front, left, right
+    let rects = [
+        (x0, x1, z0, hz0),
+        (x0, x1, hz1, z1),
+        (x0, hx0, hz0, hz1),
+        (hx1, x1, hz0, hz1),
+    ];
+    for (ax, bx, az, bz) in rects {
+        if bx <= ax || bz <= az {
+            continue;
+        }
+        let p = |x: f32, z: f32, b: &mut Buf| b.vert([x, 0.0, z], n, [x * per_m, -z * per_m]);
+        let a = p(ax, az, &mut b);
+        let bb = p(bx, az, &mut b);
+        let c = p(bx, bz, &mut b);
+        let d = p(ax, bz, &mut b);
+        // counter-clockwise seen from above
+        b.tri(a, d, c);
+        b.tri(a, c, bb);
+    }
+    b
+}
+
 /// Build the mesh for a shape.
 pub fn build_mesh(shape: &Shape) -> Mesh {
     match *shape {
@@ -288,7 +506,7 @@ pub fn build_mesh(shape: &Shape) -> Mesh {
             seg,
             caps,
         } => cylinder(top, bottom, h, seg, caps).into_mesh(),
-        Shape::Cuboid { w, h, d } => Mesh::from(Cuboid::new(w, h, d)),
+        Shape::Cuboid { w, h, d } => cuboid(w, h, d).into_mesh(),
         Shape::Cone { r, h, seg } => cylinder(0.0, r, h, seg, true).into_mesh(),
         Shape::Torus {
             r,
@@ -299,6 +517,25 @@ pub fn build_mesh(shape: &Shape) -> Mesh {
         } => torus(r, tube, radial, tubular, arc).into_mesh(),
         Shape::Disc { r, seg } => disc(r, seg).into_mesh(),
         Shape::Poly(pts) => poly(pts).into_mesh(),
+        Shape::Quad { w, h } => quad(w, h).into_mesh(),
+        Shape::Ico { r, detail } => ico(r, detail).into_mesh(),
+        Shape::Capsule {
+            r,
+            len,
+            cap,
+            radial,
+        } => capsule(r, len, cap, radial).into_mesh(),
+        Shape::HalfCylinder { r, h, seg } => {
+            cylinder_arc(r, r, h, seg, true, 0.0, PI).into_mesh()
+        }
+        Shape::Ground {
+            x0,
+            x1,
+            z0,
+            z1,
+            hole,
+            per_m,
+        } => ground(x0, x1, z0, z1, hole, per_m).into_mesh(),
     }
 }
 
@@ -401,6 +638,94 @@ mod tests {
         let cw: &[(f32, f32)] = &[(0.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, 0.0)];
         let tris = triangulate(cw);
         assert_eq!(tris.len(), 2);
+    }
+
+    #[test]
+    fn box_has_six_faces_all_facing_outwards() {
+        let b = cuboid(2.0, 1.0, 3.0);
+        assert_eq!(count(&b), (24, 12));
+        for t in b.idx.chunks(3) {
+            let (a, bb, c) = (b.pos[t[0] as usize], b.pos[t[1] as usize], b.pos[t[2] as usize]);
+            let e1 = [bb[0] - a[0], bb[1] - a[1], bb[2] - a[2]];
+            let e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+            let n = [
+                e1[1] * e2[2] - e1[2] * e2[1],
+                e1[2] * e2[0] - e1[0] * e2[2],
+                e1[0] * e2[1] - e1[1] * e2[0],
+            ];
+            // the triangle's own direction agrees with its stored normal and points away from the middle
+            let stored = b.nor[t[0] as usize];
+            assert!(n[0] * stored[0] + n[1] * stored[1] + n[2] * stored[2] > 0.0, "wound the wrong way");
+            assert!(a[0] * stored[0] + a[1] * stored[1] + a[2] * stored[2] > 0.0);
+        }
+        // the front (+z) picture reads left to right and top to bottom: top-left is (0, 0)
+        let front: Vec<usize> = (0..24).filter(|i| b.nor[*i] == [0.0, 0.0, 1.0]).collect();
+        assert_eq!(front.len(), 4);
+        for i in front {
+            let (p, uv) = (b.pos[i], b.uv[i]);
+            assert_eq!(uv[0] == 0.0, p[0] < 0.0, "left edge is u = 0");
+            assert_eq!(uv[1] == 0.0, p[1] > 0.0, "top edge is v = 0 (Bevy pictures run downwards)");
+        }
+    }
+
+    #[test]
+    fn quad_faces_plus_z_and_is_counter_clockwise() {
+        let q = quad(2.0, 1.0);
+        assert_eq!(count(&q), (4, 2));
+        for t in q.idx.chunks(3) {
+            let (a, b, c) = (q.pos[t[0] as usize], q.pos[t[1] as usize], q.pos[t[2] as usize]);
+            assert!((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]) > 0.0);
+        }
+    }
+
+    #[test]
+    fn icosahedron_counts_and_flat_normals() {
+        // detail 0: 20 faces; detail 1: 80 faces; each triangle has its own three vertices
+        assert_eq!(count(&ico(1.0, 0)), (60, 20));
+        assert_eq!(count(&ico(1.0, 1)), (240, 80));
+        let b = ico(2.0, 1);
+        for p in &b.pos {
+            assert!(((p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt() - 2.0).abs() < 1e-4);
+        }
+        // faces point away from the middle
+        for t in b.idx.chunks(3) {
+            let n = b.nor[t[0] as usize];
+            let c = b.pos[t[0] as usize];
+            assert!(n[0] * c[0] + n[1] * c[1] + n[2] * c[2] > 0.0);
+        }
+    }
+
+    #[test]
+    fn capsule_is_as_long_as_asked_and_stays_inside_its_radius() {
+        let c = capsule(0.04, 0.24, 4, 8);
+        let (lo, hi) = c.pos.iter().fold((f32::MAX, f32::MIN), |a, p| (a.0.min(p[1]), a.1.max(p[1])));
+        assert!((lo + 0.16).abs() < 1e-5 && (hi - 0.16).abs() < 1e-5, "{lo} {hi}");
+        assert!(c.pos.iter().all(|p| p[0].hypot(p[2]) <= 0.04 + 1e-5));
+    }
+
+    #[test]
+    fn half_cylinder_only_covers_one_side() {
+        let h = cylinder_arc(1.0, 1.0, 2.0, 8, true, 0.0, PI);
+        assert!(h.pos.iter().all(|p| p[0] >= -1e-5), "x should stay on the +x side");
+        assert!(h.pos.iter().any(|p| p[2] > 0.9) && h.pos.iter().any(|p| p[2] < -0.9));
+    }
+
+    #[test]
+    fn ground_leaves_a_hole() {
+        let g = ground(-10.0, 10.0, -10.0, 10.0, (-2.0, 2.0, -1.0, 1.0), 1.0 / 16.0);
+        assert_eq!(count(&g), (16, 8));
+        // no triangle's middle falls inside the hole
+        for t in g.idx.chunks(3) {
+            let (a, b, c) = (g.pos[t[0] as usize], g.pos[t[1] as usize], g.pos[t[2] as usize]);
+            let (cx, cz) = ((a[0] + b[0] + c[0]) / 3.0, (a[2] + b[2] + c[2]) / 3.0);
+            assert!(!(cx > -2.0 && cx < 2.0 && cz > -1.0 && cz < 1.0));
+        }
+        // all faces up
+        for t in g.idx.chunks(3) {
+            let (a, b, c) = (g.pos[t[0] as usize], g.pos[t[1] as usize], g.pos[t[2] as usize]);
+            let cross_y = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+            assert!(cross_y > 0.0);
+        }
     }
 
     #[test]

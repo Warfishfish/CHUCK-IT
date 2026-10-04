@@ -11,7 +11,7 @@
 //! Three's hemisphere light has no Bevy twin, so it is a flat ambient light plus a soft light
 //! from straight above (`hemisphere`).
 
-use bevy::camera::{Exposure, Hdr};
+use bevy::camera::Exposure;
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::prelude::*;
 use bevy::core_pipeline::fullscreen_material::FullscreenMaterial;
@@ -33,9 +33,9 @@ pub const SUN_AT: Vec3 = Vec3::new(24.0, 40.0, 20.0);
 /// Bevy's lighting comes out a little different from three's for the same numbers. These
 /// were measured with the white-ball test (`--calib`, `rust/tools/fit_light.py`) and bring
 /// each light to what the browser game shows.
-pub const AMBIENT_FIX: f32 = 1.65;
-pub const UP_FIX: f32 = 1.85;
-pub const SUN_FIX: f32 = 1.035;
+pub const AMBIENT_FIX: f32 = 2.22;
+pub const UP_FIX: f32 = 1.03;
+pub const SUN_FIX: f32 = 1.0;
 
 /// What one unit of "browser light" is worth in Bevy's own units (the camera's exposure undone).
 pub fn unit() -> f32 {
@@ -68,10 +68,10 @@ impl FullscreenMaterial for DisplayRaw {
     }
 }
 
-/// The camera parts that go with `DisplayRaw`. HDR keeps the maths in floating point, so
-/// nothing is clamped until the shader does it, the same as three.
-pub fn camera_style() -> (Hdr, Tonemapping, Exposure, DisplayRaw) {
-    (Hdr, Tonemapping::None, Exposure::default(), DisplayRaw::on())
+/// The camera parts that go with `DisplayRaw`. Not HDR on purpose: three clamps each colour to
+/// 0..1 before see-through things are blended, and an ordinary 8-bit picture does the same.
+pub fn camera_style() -> (Tonemapping, Exposure, DisplayRaw) {
+    (Tonemapping::None, Exposure::default(), DisplayRaw::on())
 }
 
 fn channels(c: u32) -> [f32; 3] {

@@ -19,6 +19,7 @@ pub mod hitting;
 pub mod items;
 pub mod itemworld;
 pub mod looks;
+pub mod looks_yard;
 pub mod matchflow;
 pub mod melee;
 pub mod movement;

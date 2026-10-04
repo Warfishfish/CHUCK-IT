@@ -13,6 +13,7 @@ use bevy::app::AppExit;
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 
+use crate::game::Game;
 use crate::models::{ModelCache, ModelKey};
 use crate::player::{EyeCamera, HudText, update_camera};
 
@@ -21,8 +22,12 @@ use crate::player::{EyeCamera, HudText, update_camera};
 pub struct ShotConfig {
     pub out: String,
     pub gallery: bool,
-    /// One white ball against the sky, for measuring the lighting.
+    /// One grey ball against the sky, for measuring the lighting.
     pub calib: bool,
+    /// Only the yard: no people, items or Dazza.
+    pub bare: bool,
+    /// Switch the sun's shadows off (to see how much they change things).
+    pub no_shadows: bool,
     /// Keep only one of the lights: "ambient", "up" (the sky light from above) or "sun".
     pub only: Option<String>,
     /// x, y, z, yaw degrees, pitch degrees, field of view degrees.
@@ -35,6 +40,8 @@ pub const GALLERY_CAM: [f32; 6] = [0.0, 30.0, 2.0, 0.0, 0.0, 45.0];
 /// The white ball used to measure the lighting.
 pub const CALIB_AT: Vec3 = Vec3::new(0.0, 30.0, -1.0);
 pub const CALIB_RADIUS: f32 = 0.8;
+/// A mid grey, so that nothing is washed out to white while measuring.
+pub const CALIB_COLOUR: u32 = 0x666666;
 
 /// Read `--shot`, `--gallery` and `--cam` from the arguments.
 pub fn parse(args: &[String]) -> Option<ShotConfig> {
@@ -42,6 +49,8 @@ pub fn parse(args: &[String]) -> Option<ShotConfig> {
     let out = args.get(at + 1)?.clone();
     let gallery = args.iter().any(|a| a == "--gallery");
     let calib = args.iter().any(|a| a == "--calib");
+    let bare = args.iter().any(|a| a == "--bare");
+    let no_shadows = args.iter().any(|a| a == "--no-shadows");
     let cam = args
         .iter()
         .position(|a| a == "--cam")
@@ -60,6 +69,8 @@ pub fn parse(args: &[String]) -> Option<ShotConfig> {
         out,
         gallery,
         calib,
+        bare,
+        no_shadows,
         cam: cam.or((gallery || calib).then_some(GALLERY_CAM)),
     })
 }
@@ -101,10 +112,11 @@ pub struct ShotPlugin(pub ShotConfig);
 impl Plugin for ShotPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(self.0.clone())
+            .add_systems(PreStartup, bare_start)
             .add_systems(Startup, spawn_gallery)
             .add_systems(
                 Update,
-                (shot_camera.after(update_camera), hide_hud, take_shot, only_light),
+                (shot_camera.after(update_camera), hide_hud, take_shot, only_light, keep_bare),
             );
     }
 }
@@ -120,7 +132,7 @@ fn spawn_gallery(
         commands.spawn((
             Mesh3d(meshes.add(Sphere::new(CALIB_RADIUS).mesh().uv(64, 48))),
             MeshMaterial3d(mats.add(crate::models::material(
-                &bbq_core::looks::Surface::matt(0xffffff),
+                &bbq_core::looks::Surface::matt(CALIB_COLOUR),
                 &cache,
             ))),
             Transform::from_translation(CALIB_AT),
@@ -155,12 +167,34 @@ fn shot_camera(
     }
 }
 
+/// `--bare`: start with nobody in the yard.
+fn bare_start(cfg: Res<ShotConfig>, mut game: ResMut<Game>) {
+    if cfg.bare || cfg.gallery || cfg.calib {
+        game.dummies.clear();
+        game.world.items.clear();
+    }
+}
+
+/// `--bare`: keep the yard empty (items spawn on their own) and send Dazza away, knocked out.
+fn keep_bare(cfg: Res<ShotConfig>, mut game: ResMut<Game>) {
+    if cfg.bare || cfg.gallery || cfg.calib {
+        game.world.items.clear();
+        game.life.dazza.state = bbq_core::dazza::DazzaState::Ko;
+        game.life.dazza.pos = bbq_core::vec::V3::new(1000.0, 0.0, 1000.0);
+    }
+}
+
 /// `--only`: switch off every light but one, to measure each on its own.
 fn only_light(
     cfg: Res<ShotConfig>,
     mut ambient: Query<&mut AmbientLight>,
     mut dirs: Query<&mut DirectionalLight>,
 ) {
+    if cfg.no_shadows {
+        for mut d in &mut dirs {
+            d.shadow_maps_enabled = false;
+        }
+    }
     let Some(only) = cfg.only.as_deref() else {
         return;
     };
@@ -219,7 +253,7 @@ mod tests {
     fn gallery_uses_its_own_camera() {
         let c = parse(&args("bbq_app --shot a.png --gallery")).unwrap();
         assert_eq!(c.out, "a.png");
-        assert!(c.gallery && !c.calib);
+        assert!(c.gallery && !c.calib && !c.bare);
         assert_eq!(c.cam, Some(GALLERY_CAM));
         let k = parse(&args("bbq_app --shot a.png --calib")).unwrap();
         assert!(k.calib && !k.gallery);
@@ -233,6 +267,7 @@ mod tests {
         assert_eq!(c.cam, Some([1.0, 2.0, 3.0, 4.0, 5.0, 60.0]));
         // a short list is ignored rather than guessed at
         assert_eq!(parse(&args("bbq_app --shot a.png --cam 1,2,3")).unwrap().cam, None);
+        assert!(parse(&args("bbq_app --shot a.png --bare")).unwrap().bare);
     }
 
     #[test]

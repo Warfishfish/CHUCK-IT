@@ -236,11 +236,11 @@ Phase 2 result: `bbq_core` gained `yard` and `movement` (111 tests in total, cli
 ### Phase 2b: Match the browser look (added 4 Oct 2026, Marcus)
 The Rust version still draws items and props as plain shapes and does not look like the browser game. This phase fixes that before any more gameplay. Rule: every object is written as **plain data** (a list of shapes with size, position and colour) so the same list can later drive a Blender script that makes `.glb` models, with no rewrite.
 - [x] Items, copied from `MAKERS` (`index.html` line ~935): teddy, VP can, gnome, steak, fish, pool noodle, snag, and the four dildo sizes. Shapes are in `bbq_core/src/looks.rs` (data only), meshes in `bbq_app/src/shapes.rs`. Same shapes and places as the browser; the picture differs by about 11/255 on average, mostly highlights. The dildo and noodle do not flop about yet (the browser game bends them)
-- [ ] Yard props, copied from `buildWorld`: fence, house, shed, water tank, Hills Hoist, eskies, table, bins, crates, hedge, tyres, woodpile, brick wall, planter, bar (with drinks), BBQ and meat table, smoko pad and chairs, chest
-- [ ] Textures drawn in code in the browser (grass, paving, bricks, signs): redo as generated images
-- [ ] Sky, clouds, gum trees, pool water, trampoline, sun and shadows
-- [x] Colours and lighting match the browser (measured with a white ball, see `rust/tools/compare.md`): tools `rust_shot.sh`, `pngtool.py`, `fit_light.py`
-- [ ] Side-by-side check: same camera spot in the browser game and the Rust game, screenshots compared, differences fixed. Needs Marcus's Mac to run the Rust game
+- [x] Yard props, copied from `buildWorld`: fence, house, shed, water tank, Hills Hoist (it turns), eskies, table, bins, crates, hedge, tyres, woodpile, brick wall, planter, bar (with drinks and signs), BBQ and meat table, smoko pad, pole, umbrella, esky and chairs, chest (box, hinged lid, toys). Shapes in `bbq_core/src/looks_yard.rs`
+- [x] Textures: 17 pictures exported from the browser game as PNG (`bbq_app/assets/textures/`), with smaller copies made for distance
+- [x] Sky colour, clouds (they drift), gum trees (same positions as the browser game when `make_ref.py` seeds it), pool water (slides) and shimmer, trampoline, sun and shadows, fog
+- [x] Side-by-side check: six camera spots compared with the browser game on Marcus's Mac, average difference 4 to 9 out of 255 (`rust/tools/compare_views.sh`). Lit lawn, fence and house match within about 4%
+- Still different (small): the water's green is about 7% low; fog is a straight line where three's is an S-curve; surfaces facing down are a little bright (no real hemisphere light); the smoko pad and chair count follow the number of people (the browser comparison page has none); the chest and the Heist arena are not compared yet
 - [ ] Later and optional: make nicer Blender versions from the same data lists
 
 ### Phase 3: Items and throwing

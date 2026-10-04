@@ -44,15 +44,116 @@ pub enum Shape {
     Disc { r: f32, seg: u32 },
     /// `ShapeGeometry`: a flat outline in the XY plane facing +z. Points go round the edge.
     Poly(&'static [(f32, f32)]),
+    /// `PlaneGeometry(w, h)`: a flat rectangle in the XY plane facing +z, picture 0..1.
+    Quad { w: f32, h: f32 },
+    /// `IcosahedronGeometry(r, detail)`: the rough balls used for leaves and clouds. Flat shaded.
+    Ico { r: f32, detail: u32 },
+    /// `CapsuleGeometry(r, len, cap, radial)`: a sausage, lying along y.
+    Capsule {
+        r: f32,
+        len: f32,
+        cap: u32,
+        radial: u32,
+    },
+    /// A cylinder cut in half lengthways (`CylinderGeometry` with a theta length of pi): the lid
+    /// of the chest. It spans the angles 0 to pi round y, so the round side faces +z.
+    HalfCylinder { r: f32, h: f32, seg: u32 },
+    /// A flat rectangle on the ground (facing up) with a rectangular hole, like the lawn with
+    /// the pool cut out. The picture is laid by world position: `per_m` repeats per metre.
+    Ground {
+        x0: f32,
+        x1: f32,
+        z0: f32,
+        z1: f32,
+        hole: (f32, f32, f32, f32),
+        per_m: f32,
+    },
 }
 
 /// Pictures drawn in code by the browser game, saved as PNG files for the Rust version.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Tex {
     /// The VP can's green label.
     VpLabel,
     /// Fish scales.
     Fish,
+    /// Mown lawn with stripes (one tile is 16 m).
+    Lawn,
+    /// Paling fence.
+    Paling,
+    /// The house's weatherboards.
+    Weatherboard,
+    /// The shed's corrugated iron.
+    Corrugated,
+    /// Rippling pool water.
+    PoolWater,
+    /// Pool floor tiles.
+    PoolFloor,
+    /// Pool wall tiles, with the blue mosaic band at the top.
+    PoolWall,
+    /// Bright wobbly rings on the pool floor.
+    Caustics,
+    /// The low garden wall.
+    Brick,
+    /// "THE BAR".
+    SignBar,
+    /// The little drink tags on the bar front.
+    TagVp,
+    TagWine,
+    TagRum,
+    /// The smoko pad's paving.
+    SmokoPad,
+    /// "SMOKO".
+    SignSmoko,
+    /// "HANDS OFF", on the meat table.
+    SignHands,
+}
+
+impl Tex {
+    /// The PNG file (in `assets/textures/`) exported from the browser game.
+    pub fn file(self) -> &'static str {
+        match self {
+            Tex::VpLabel => "vp_label.png",
+            Tex::Fish => "fish.png",
+            Tex::Lawn => "lawn.png",
+            Tex::Paling => "paling.png",
+            Tex::Weatherboard => "weatherboard.png",
+            Tex::Corrugated => "corrugated.png",
+            Tex::PoolWater => "pool_water.png",
+            Tex::PoolFloor => "pool_floor.png",
+            Tex::PoolWall => "pool_wall.png",
+            Tex::Caustics => "caustics.png",
+            Tex::Brick => "brick.png",
+            Tex::SignBar => "sign_bar.png",
+            Tex::TagVp => "tag_vp.png",
+            Tex::TagWine => "tag_wine.png",
+            Tex::TagRum => "tag_rum.png",
+            Tex::SmokoPad => "smoko_pad.png",
+            Tex::SignSmoko => "sign_smoko.png",
+            Tex::SignHands => "sign_hands.png",
+        }
+    }
+
+    pub const ALL: [Tex; 18] = [
+        Tex::VpLabel,
+        Tex::Fish,
+        Tex::Lawn,
+        Tex::Paling,
+        Tex::Weatherboard,
+        Tex::Corrugated,
+        Tex::PoolWater,
+        Tex::PoolFloor,
+        Tex::PoolWall,
+        Tex::Caustics,
+        Tex::Brick,
+        Tex::SignBar,
+        Tex::TagVp,
+        Tex::TagWine,
+        Tex::TagRum,
+        Tex::SmokoPad,
+        Tex::SignSmoko,
+        Tex::SignHands,
+    ];
 }
 
 /// How a surface looks. `shine == 0` is the browser's matt "Lambert"; above that it is the shiny
@@ -66,6 +167,18 @@ pub struct Surface {
     pub alpha: f32,
     pub double_sided: bool,
     pub tex: Option<Tex>,
+    /// How many times the picture repeats across the shape (`texture.repeat`).
+    pub repeat: (f32, f32),
+    /// Drawn flat, with no lighting (`MeshBasicMaterial`).
+    pub unlit: bool,
+    /// Added on top of what is behind it (the pool's shimmer).
+    pub additive: bool,
+    /// Faceted look: every flat face is shaded on its own.
+    pub flat: bool,
+    /// Does not throw a shadow (the lawn, clouds, water, signs).
+    pub no_shadow: bool,
+    /// Flat ground, which is seen at a glancing angle and so needs its own roughness.
+    pub ground: bool,
 }
 
 impl Surface {
@@ -79,6 +192,12 @@ impl Surface {
             alpha: 1.0,
             double_sided: false,
             tex: None,
+            repeat: (1.0, 1.0),
+            unlit: false,
+            additive: false,
+            flat: false,
+            no_shadow: false,
+            ground: false,
         }
     }
 
@@ -92,6 +211,12 @@ impl Surface {
             alpha: 1.0,
             double_sided: false,
             tex: None,
+            repeat: (1.0, 1.0),
+            unlit: false,
+            additive: false,
+            flat: false,
+            no_shadow: false,
+            ground: false,
         }
     }
 
@@ -112,6 +237,37 @@ impl Surface {
 
     pub const fn both_sides(mut self) -> Self {
         self.double_sided = true;
+        self
+    }
+
+    /// Repeat the picture `x` times across and `y` times up.
+    pub const fn repeating(mut self, x: f32, y: f32) -> Self {
+        self.repeat = (x, y);
+        self
+    }
+
+    pub const fn unlit(mut self) -> Self {
+        self.unlit = true;
+        self
+    }
+
+    pub const fn adding(mut self) -> Self {
+        self.additive = true;
+        self
+    }
+
+    pub const fn faceted(mut self) -> Self {
+        self.flat = true;
+        self
+    }
+
+    pub const fn no_shadow(mut self) -> Self {
+        self.no_shadow = true;
+        self
+    }
+
+    pub const fn ground(mut self) -> Self {
+        self.ground = true;
         self
     }
 }
@@ -155,7 +311,7 @@ impl Part {
 
     /// Put this part inside a group that is moved by `at`, turned by `rot` and scaled by `k`
     /// (the same on every axis).
-    fn inside(mut self, at: V3, rot: Quat, k: f32) -> Self {
+    pub fn inside(mut self, at: V3, rot: Quat, k: f32) -> Self {
         self.pos = at + rot.rotate(self.pos * k);
         self.rot = rot.mul(self.rot);
         self.scale *= k;

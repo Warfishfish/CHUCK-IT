@@ -248,11 +248,9 @@ fn sync_viewmodel(
         // a different thing in the hand: swap the parts
         commands.entity(root).despawn_children();
         let built = cache.built(key, &mut meshes, &mut mats);
-        commands.entity(root).with_children(|p| {
-            for b in built {
-                p.spawn((Mesh3d(b.mesh), MeshMaterial3d(b.material), b.transform));
-            }
-        });
+        for b in &built {
+            b.spawn_under(&mut commands, root);
+        }
         *shown = Some((kind, key));
     }
     *vis = Visibility::Inherited;

@@ -1,10 +1,14 @@
-//! Draws the yard from the same data the rules use (`bbq_core::yard`): lawn, fence, pool,
-//! trampoline, every box, the sun, sky colour and fog. Simple shapes for now; real models
-//! come in Phase 4.
+//! Draws the yard from the shape lists in `bbq_core::looks_yard`, which are copied from the
+//! browser game. The rules' own view of the yard (`YardRes`, from `bbq_core::yard`) is separate:
+//! this file only draws.
 
-use bbq_core::yard::{self, Collider, Feature, Features, Kind, Yard};
-use bbq_core::{YARD_HALF_X, YARD_HALF_Z};
+use bbq_core::looks::{Part, Tex};
+use bbq_core::looks_yard::{self, CHEST_PIVOT, HOIST_AT};
+use bbq_core::yard::{Feature, Features, Yard};
 use bevy::prelude::*;
+
+use crate::game::Game;
+use crate::models::ModelCache;
 
 /// The rules' view of the yard. Rebuilt whenever a feature is switched.
 #[derive(Resource)]
@@ -14,175 +18,252 @@ pub struct YardRes(pub Yard);
 #[derive(Component)]
 pub struct FeatureTag(pub Feature);
 
-/// Marks the boxes drawn from colliders, so they can be rebuilt with the chest in a new spot.
+/// Where the trees and clouds go. Any number gives a believable yard.
+const LOOK_SEED: u64 = 0xBB0;
+
+/// The clothesline's turning head (it turns 0.12 radians a second).
 #[derive(Component)]
-struct BoxProp;
+struct HoistHead;
+/// A cloud drifting along +x at 1.2 m/s, wrapping round at 110.
+#[derive(Component)]
+struct Cloud;
+/// The water, whose picture slides along, and the shimmer on the pool floor.
+#[derive(Component)]
+struct PoolWater;
+#[derive(Component)]
+struct PoolShimmer;
+/// The chest as a whole, its lid, and one of its toys.
+#[derive(Component)]
+struct ChestRoot;
+#[derive(Component)]
+struct ChestLid;
+#[derive(Component)]
+struct ChestToy(usize);
+
+/// How far the clothesline, water and shimmer have moved.
+#[derive(Resource, Default)]
+struct Drift {
+    water: Vec2,
+    shimmer_y: f32,
+}
 
 pub struct YardScenePlugin;
 
 impl Plugin for YardScenePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(YardRes(Yard::default()))
+            .init_resource::<Drift>()
             .add_systems(Startup, build_yard)
-            .add_systems(Update, toggle_features);
+            .add_systems(Update, (toggle_features, animate_yard, sync_chest));
     }
 }
 
-fn box_look(kind: Kind) -> Color {
-    match kind {
-        Kind::Plain => Color::srgb(0.6, 0.6, 0.6),
-        Kind::Pole => Color::srgb(0.7, 0.7, 0.72),
-        Kind::Shed => Color::srgb(0.55, 0.42, 0.3),
-        Kind::Esky => Color::srgb(0.12, 0.44, 0.82),
-        Kind::Table => Color::srgb(0.65, 0.5, 0.33),
-        Kind::Grill => Color::srgb(0.2, 0.2, 0.22),
-        Kind::MeatTable => Color::srgb(0.8, 0.8, 0.8),
-        Kind::Bins => Color::srgb(0.1, 0.45, 0.2),
-        Kind::Crates => Color::srgb(0.7, 0.55, 0.25),
-        Kind::Hedge => Color::srgb(0.12, 0.4, 0.14),
-        Kind::Tyres => Color::srgb(0.1, 0.1, 0.1),
-        Kind::Woodpile => Color::srgb(0.5, 0.33, 0.18),
-        Kind::Wall => Color::srgb(0.7, 0.35, 0.25),
-        Kind::Planter => Color::srgb(0.4, 0.28, 0.2),
-        Kind::Bar => Color::srgb(0.45, 0.28, 0.12),
-        Kind::Chest => Color::srgb(0.9, 0.7, 0.1),
-    }
-}
-
-fn spawn_box(
-    commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    mats: &mut Assets<StandardMaterial>,
-    c: &Collider,
-) {
-    let (w, d) = (c.x1 - c.x0, c.z1 - c.z0);
-    let mut e = commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(w, c.h, d))),
-        MeshMaterial3d(mats.add(box_look(c.kind))),
-        Transform::from_xyz((c.x0 + c.x1) / 2.0, c.h / 2.0, (c.z0 + c.z1) / 2.0),
-        BoxProp,
-    ));
-    if let Some(f) = c.kind.feature() {
-        e.insert(FeatureTag(f));
-    }
+fn find(parts: &[Part], tex: Tex) -> Option<usize> {
+    parts.iter().position(|p| p.surface.tex == Some(tex))
 }
 
 fn build_yard(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
-    yard_res: Res<YardRes>,
+    mut cache: ResMut<ModelCache>,
 ) {
-    // Lawn.
-    commands.spawn((
-        Mesh3d(
-            meshes.add(
-                Plane3d::default()
-                    .mesh()
-                    .size(YARD_HALF_X * 2.0, YARD_HALF_Z * 2.0),
-            ),
-        ),
-        MeshMaterial3d(mats.add(Color::srgb(0.37, 0.61, 0.26))),
-    ));
+    let look = looks_yard::yard(LOOK_SEED);
 
-    // Fence: four low planks around the edge (the rules treat the edge as a wall).
-    let fence = mats.add(Color::srgb(0.85, 0.82, 0.74));
-    for (x, z, w, d) in [
-        (0.0, -YARD_HALF_Z - 0.1, YARD_HALF_X * 2.0, 0.2),
-        (0.0, YARD_HALF_Z + 0.1, YARD_HALF_X * 2.0, 0.2),
-        (-YARD_HALF_X - 0.1, 0.0, 0.2, YARD_HALF_Z * 2.0),
-        (YARD_HALF_X + 0.1, 0.0, 0.2, YARD_HALF_Z * 2.0),
-    ] {
-        commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(w, 2.0, d))),
-            MeshMaterial3d(fence.clone()),
-            Transform::from_xyz(x, 1.0, z),
-        ));
+    // everything that is always there (lawn, fence, house, trees, pool, props)
+    let (_, kids) = cache.spawn_parts_with_children(
+        &mut commands,
+        &look.world,
+        &mut meshes,
+        &mut mats,
+        Transform::default(),
+    );
+    if let Some(i) = find(&look.world, Tex::PoolWater) {
+        commands.entity(kids[i]).insert(PoolWater);
+    }
+    if let Some(i) = find(&look.world, Tex::Caustics) {
+        commands.entity(kids[i]).insert(PoolShimmer);
     }
 
-    // Pool: a blue slab just above the lawn, sitting at the water level's footprint.
-    let (pw, pd) = (yard::POOL_X1 - yard::POOL_X0, yard::POOL_Z1 - yard::POOL_Z0);
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(pw, 0.04, pd))),
-        MeshMaterial3d(mats.add(StandardMaterial {
-            base_color: Color::srgba(0.25, 0.7, 0.95, 0.9),
-            alpha_mode: AlphaMode::Blend,
-            ..default()
-        })),
-        Transform::from_xyz(
-            (yard::POOL_X0 + yard::POOL_X1) / 2.0,
-            0.03,
-            (yard::POOL_Z0 + yard::POOL_Z1) / 2.0,
-        ),
-    ));
+    // the switchable parts
+    for (parts, feature) in [
+        (&look.bar, Feature::Bar),
+        (&look.bbq, Feature::Bbq),
+        (&look.smoko, Feature::Smoko),
+    ] {
+        let e = cache.spawn_parts(
+            &mut commands,
+            parts,
+            &mut meshes,
+            &mut mats,
+            Transform::default(),
+        );
+        commands.entity(e).insert(FeatureTag(feature));
+    }
 
-    // Trampoline: a blue pad on a ring.
-    commands.spawn((
-        Mesh3d(meshes.add(Cylinder::new(yard::TRAMP_R, 0.1))),
-        MeshMaterial3d(mats.add(Color::srgb(0.1, 0.1, 0.12))),
-        Transform::from_xyz(yard::TRAMP_X, yard::TRAMP_H - 0.05, yard::TRAMP_Z),
-    ));
-    commands.spawn((
-        Mesh3d(meshes.add(Torus::new(yard::TRAMP_R - 0.05, yard::TRAMP_R + 0.1))),
-        MeshMaterial3d(mats.add(Color::srgb(0.12, 0.43, 0.82))),
-        Transform::from_xyz(yard::TRAMP_X, yard::TRAMP_H, yard::TRAMP_Z),
-    ));
-
-    // Smoko pad.
-    commands.spawn((
-        Mesh3d(meshes.add(Cylinder::new(2.2, 0.03))),
-        MeshMaterial3d(mats.add(Color::srgb(0.6, 0.55, 0.45))),
-        Transform::from_xyz(yard::SMOKO_X, 0.02, yard::SMOKO_Z),
-        FeatureTag(Feature::Smoko),
-    ));
-
-    // Smoko chairs: one per person (the game has you plus three dummies for now).
+    // the smoko pad and its chairs (one per person; the game has you plus three dummies for now)
     let chairs = bbq_core::smoko::chair_count(4);
-    let frame = mats.add(Color::srgb(0.16, 0.16, 0.16));
-    let fabric = mats.add(Color::srgb(0.12, 0.44, 0.82));
-    let seat_mesh = meshes.add(Cuboid::new(0.52, 0.06, 0.46));
-    let back_mesh = meshes.add(Cuboid::new(0.52, 0.5, 0.05));
-    let leg_mesh = meshes.add(Cuboid::new(0.04, 0.44, 0.04));
+    let r = bbq_core::smoko::zone_radius(4);
+    let pad = looks_yard::smoko_pad(r);
+    let e = cache.spawn_parts(
+        &mut commands,
+        &[pad],
+        &mut meshes,
+        &mut mats,
+        Transform::default(),
+    );
+    commands.entity(e).insert(FeatureTag(Feature::Smoko));
     for i in 0..chairs {
         let (x, z) = bbq_core::smoko::seat_pos(i, chairs);
-        // the chair faces the middle of the pad
         let facing = bbq_core::smoko::seat_facing(i, chairs);
-        commands
-            .spawn((
-                Transform::from_xyz(x, 0.0, z).with_rotation(Quat::from_rotation_y(facing)),
-                Visibility::default(),
-                FeatureTag(Feature::Smoko),
-            ))
-            .with_children(|c| {
-                c.spawn((
-                    Mesh3d(seat_mesh.clone()),
-                    MeshMaterial3d(fabric.clone()),
-                    Transform::from_xyz(0.0, 0.44, 0.0),
-                ));
-                c.spawn((
-                    Mesh3d(back_mesh.clone()),
-                    MeshMaterial3d(fabric.clone()),
-                    Transform::from_xyz(0.0, 0.72, -0.24),
-                ));
-                for (lx, lz) in [(-0.24, -0.2), (0.24, -0.2), (-0.24, 0.2), (0.24, 0.2)] {
-                    c.spawn((
-                        Mesh3d(leg_mesh.clone()),
-                        MeshMaterial3d(frame.clone()),
-                        Transform::from_xyz(lx, 0.22, lz),
-                    ));
-                }
-            });
+        let e = cache.spawn_parts(
+            &mut commands,
+            &looks_yard::chair(),
+            &mut meshes,
+            &mut mats,
+            Transform::from_xyz(x, 0.0, z).with_rotation(Quat::from_rotation_y(facing)),
+        );
+        commands.entity(e).insert(FeatureTag(Feature::Smoko));
     }
 
-    // Every box the rules know about.
-    for c in &yard_res.0.colliders {
-        spawn_box(&mut commands, &mut meshes, &mut mats, c);
+    // the clothesline head
+    let e = cache.spawn_parts(
+        &mut commands,
+        &look.hoist_head,
+        &mut meshes,
+        &mut mats,
+        Transform::from_xyz(HOIST_AT.x, HOIST_AT.y, HOIST_AT.z),
+    );
+    commands.entity(e).insert(HoistHead);
+
+    // clouds
+    for (at, puffs) in &look.clouds {
+        let e = cache.spawn_parts(
+            &mut commands,
+            puffs,
+            &mut meshes,
+            &mut mats,
+            Transform::from_xyz(at.x, at.y, at.z),
+        );
+        commands.entity(e).insert(Cloud);
     }
 
-    // The sun, with shadows, and the soft light from the sky.
+    // the chest: a box, a lid on a hinge, and up to three toys inside
+    let root = commands
+        .spawn((Transform::default(), Visibility::Hidden, ChestRoot))
+        .id();
+    let base = cache.spawn_parts(
+        &mut commands,
+        &look.chest_base,
+        &mut meshes,
+        &mut mats,
+        Transform::default(),
+    );
+    let lid = cache.spawn_parts(
+        &mut commands,
+        &look.chest_lid,
+        &mut meshes,
+        &mut mats,
+        Transform::from_xyz(CHEST_PIVOT.x, CHEST_PIVOT.y, CHEST_PIVOT.z),
+    );
+    commands.entity(lid).insert(ChestLid);
+    commands.entity(root).add_children(&[base, lid]);
+    for k in 0..bbq_core::chest::MAX_STOCK as usize {
+        let toy = cache.spawn_parts(
+            &mut commands,
+            &looks_yard::chest_toy(k),
+            &mut meshes,
+            &mut mats,
+            Transform::default(),
+        );
+        commands.entity(toy).insert(ChestToy(k));
+        commands.entity(root).add_child(toy);
+    }
+
+    // the sun, with shadows, and the soft light from the sky
     commands.spawn(crate::lighting::sun());
     let (_, sky, sky_at) = crate::lighting::hemisphere();
     commands.spawn((sky, sky_at));
+}
+
+/// The clothesline turns, the pool water slides and the clouds drift.
+fn animate_yard(
+    time: Res<Time>,
+    mut drift: ResMut<Drift>,
+    mut head: Query<&mut Transform, (With<HoistHead>, Without<Cloud>)>,
+    mut clouds: Query<&mut Transform, (With<Cloud>, Without<HoistHead>)>,
+    water: Query<&MeshMaterial3d<StandardMaterial>, (With<PoolWater>, Without<PoolShimmer>)>,
+    shimmer: Query<&MeshMaterial3d<StandardMaterial>, (With<PoolShimmer>, Without<PoolWater>)>,
+    mut mats: ResMut<Assets<StandardMaterial>>,
+) {
+    let dt = time.delta_secs();
+    let t = time.elapsed_secs();
+    for mut tf in &mut head {
+        tf.rotate_y(dt * 0.12);
+    }
+    for mut tf in &mut clouds {
+        tf.translation.x += dt * 1.2;
+        if tf.translation.x > 110.0 {
+            tf.translation.x = -110.0;
+        }
+    }
+    drift.water += Vec2::new(dt * 0.02, dt * 0.013);
+    drift.shimmer_y += dt * 0.018;
+    for h in &water {
+        if let Some(mut m) = mats.get_mut(&h.0) {
+            m.uv_transform = bevy::math::Affine2::from_scale_angle_translation(
+                Vec2::new(2.0, 1.3),
+                0.0,
+                drift.water,
+            );
+        }
+    }
+    let (pw, pd) = (
+        bbq_core::yard::POOL_X1 - bbq_core::yard::POOL_X0,
+        bbq_core::yard::POOL_Z1 - bbq_core::yard::POOL_Z0,
+    );
+    for h in &shimmer {
+        if let Some(mut m) = mats.get_mut(&h.0) {
+            m.uv_transform = bevy::math::Affine2::from_scale_angle_translation(
+                Vec2::new(pw / 2.5, pd / 2.5),
+                0.0,
+                Vec2::new((t * 0.35).sin() * 0.12, drift.shimmer_y),
+            );
+        }
+    }
+}
+
+/// Put the chest at its spot, open the lid when there is something in it, show the toys.
+fn sync_chest(
+    game: Res<Game>,
+    yard: Res<YardRes>,
+    time: Res<Time>,
+    mut root: Query<(&mut Transform, &mut Visibility), (With<ChestRoot>, Without<ChestLid>, Without<ChestToy>)>,
+    mut lid: Query<&mut Transform, (With<ChestLid>, Without<ChestRoot>, Without<ChestToy>)>,
+    mut toys: Query<(&ChestToy, &mut Visibility), (Without<ChestRoot>, Without<ChestLid>)>,
+) {
+    let stock = game.life.chest.stock as usize;
+    let on = yard.0.features.chest && game.options.adult;
+    let (at, turn) = looks_yard::chest_place(yard.0.chest_spot);
+    for (mut tf, mut vis) in &mut root {
+        tf.translation = Vec3::new(at.x, 0.0, at.z);
+        tf.rotation = Quat::from_rotation_y(turn);
+        *vis = if on { Visibility::Inherited } else { Visibility::Hidden };
+    }
+    // the lid eases open (-1.15 radians) when there is stock, shut (-0.08) when empty
+    let want = if stock > 0 { -1.15 } else { -0.08 };
+    let k = 1.0 - (-6.0 * time.delta_secs()).exp();
+    for mut tf in &mut lid {
+        let (x, _, _) = tf.rotation.to_euler(EulerRot::XYZ);
+        tf.rotation = Quat::from_rotation_x(x + (want - x) * k);
+    }
+    for (toy, mut vis) in &mut toys {
+        *vis = if toy.0 < stock {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+    }
 }
 
 /// F1 bar, F2 BBQ, F3 chest, F4 smoko.

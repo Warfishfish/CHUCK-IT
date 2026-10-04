@@ -89,13 +89,17 @@ fn setup_camera_and_hud(mut commands: Commands) {
         Camera3d::default(),
         Projection::from(PerspectiveProjection {
             fov: FOV_DEFAULT.to_radians(),
+            near: 0.05,
+            far: 220.0,
             ..default()
         }),
         Transform::from_xyz(0.0, movement::EYE_HEIGHT, 0.0),
         DistanceFog {
-            color: Color::srgb(0.62, 0.8, 0.93),
+            color: crate::models::hex(0x9fd8f2),
             falloff: FogFalloff::Linear {
-                start: 40.0,
+                // three's fog eases in along an S-curve from 60 m to 150 m; a straight line from
+                // 75 m to 140 m stays within 7% of it
+                start: 75.0,
                 end: 140.0,
             },
             ..default()
