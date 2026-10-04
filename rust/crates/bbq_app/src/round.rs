@@ -519,6 +519,9 @@ fn start_from_args(mut game: ResMut<Game>, mut player: ResMut<Player>, mut yard:
     else {
         return;
     };
+    if args.iter().any(|a| a == "--cheeky") {
+        game.options.adult = true;
+    }
     let s = &mut game.round.setup;
     s.mode = match mode.as_str() {
         "heist" => GameMode::Heist,
@@ -526,6 +529,16 @@ fn start_from_args(mut game: ResMut<Game>, mut player: ResMut<Player>, mut yard:
         _ => GameMode::FreeForAll,
     };
     start_round(&mut game, &mut player, &mut yard);
+    if let Some(n) = args
+        .iter()
+        .position(|a| a == "--chest")
+        .and_then(|i| args.get(i + 1))
+        .and_then(|v| v.parse::<usize>().ok())
+    {
+        let feats = yard.0.features;
+        yard.0 = bbq_core::yard::Yard::new(feats, n);
+        game.life.chest.new_round(n);
+    }
 }
 
 #[derive(Component)]

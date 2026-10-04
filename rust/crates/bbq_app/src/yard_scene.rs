@@ -3,7 +3,7 @@
 //! this file only draws.
 
 use bbq_core::looks::{Part, Tex};
-use bbq_core::looks_yard::{self, CHEST_PIVOT, HOIST_AT};
+use bbq_core::looks_yard::{self, HOIST_AT};
 use bbq_core::yard::{Feature, Features, Yard};
 use bevy::prelude::*;
 
@@ -165,7 +165,7 @@ fn build_yard(
         &look.chest_lid,
         &mut meshes,
         &mut mats,
-        Transform::from_xyz(CHEST_PIVOT.x, CHEST_PIVOT.y, CHEST_PIVOT.z),
+        Transform::from_xyz(look.chest_pivot.x, look.chest_pivot.y, look.chest_pivot.z),
     );
     commands.entity(lid).insert(ChestLid);
     commands.entity(root).add_children(&[base, lid]);

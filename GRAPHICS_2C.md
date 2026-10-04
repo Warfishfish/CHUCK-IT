@@ -74,10 +74,10 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [ ] Red sauce bottle and yellow mustard bottle as bright readable props
 
 ### Dildo Chest
-- [ ] Rebuild it as a big, chunky, bright-blue esky (bigger than a normal esky, strong silhouette, easy to see from far away at all 9 spots)
-- [ ] Chunky hinges, a large handle, an exaggerated lid that still opens and eases shut as now (same lid pivot)
+- [x] Rebuild it as a big, chunky, bright-blue esky (bigger than a normal esky, strong silhouette, easy to see from far away at all 9 spots) — first pass done in shapes (`chest_esky`, polished look only); check all 9 spots on Marcus's Mac
+- [x] Chunky hinges, a large handle, an exaggerated lid that still opens and eases shut as now (hinge at `ESKY_PIVOT`)
 - [ ] Surface: scratches, faded plastic, dirt, stickers, worn corners, slight discoloration
-- [ ] Change the four decorative eskies to red, white and green variants so only the Chest is bright blue
+- [x] Change the four decorative eskies to red, green, orange and grey so only the Chest is bright blue
 - [ ] Check it reads against grass, dirt, the shed and the fence, in shadow and in sun
 
 ### Animals

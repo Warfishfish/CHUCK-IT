@@ -21,6 +21,8 @@ const Y: V3 = V3::new(0.0, 1.0, 0.0);
 /// Where the clothesline's turning head sits, and where the chest lid hinges (local to the chest).
 pub const HOIST_AT: V3 = V3::new(0.0, 2.2, 3.0);
 pub const CHEST_PIVOT: V3 = V3::new(0.0, 0.55, -0.4);
+/// The esky's hinge: the back edge of its rim.
+pub const ESKY_PIVOT: V3 = V3::new(0.0, 0.64, -0.47);
 /// The fence is 1.8 m tall.
 pub const FENCE_H: f32 = 1.8;
 
@@ -39,8 +41,10 @@ pub struct YardLook {
     pub smoko: Vec<Part>,
     /// The chest box (local to the chest's own spot and turn).
     pub chest_base: Vec<Part>,
-    /// The lid, local to `CHEST_PIVOT`.
+    /// The lid, local to `chest_pivot`.
     pub chest_lid: Vec<Part>,
+    /// Where the lid hinges (`CHEST_PIVOT` for the old wooden chest, `ESKY_PIVOT` for the esky).
+    pub chest_pivot: V3,
     /// Clouds: where each one starts, and its puffs (local).
     pub clouds: Vec<(V3, Vec<Part>)>,
 }
@@ -414,7 +418,7 @@ fn house() -> Vec<Part> {
     v
 }
 
-fn props() -> Vec<Part> {
+fn props(polished: bool) -> Vec<Part> {
     let mut v = Vec::new();
     // trampoline
     v.push(cyl(
@@ -458,14 +462,23 @@ fn props() -> Vec<Part> {
     v.push(cuboid(4.4, 0.12, 3.4, matt(0x7f8b85), 22.5, 2.56, -16.5));
     v.push(cuboid(1.3, 2.0, 0.06, matt(0x56645d), 22.5, 1.0, -14.98));
     // eskies
-    for (x, z, r) in [
+    for (n, (x, z, r)) in [
         (-7.5f32, -4.5f32, 0.3f32),
         (9.0, -6.0, -0.2),
         (-3.0, 18.0, 0.1),
         (24.0, 6.0, 1.4),
-    ] {
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        // in the polished look the yard's eskies are never the Chest's bright blue
+        let body = if polished {
+            [0xc9392f, 0x2f8a55, 0xd9822b, 0x7d8a93][n % 4]
+        } else {
+            0x1f6fd1
+        };
         let e = vec![
-            cuboid(1.0, 0.5, 0.6, matt(0x1f6fd1), 0.0, 0.25, 0.0),
+            cuboid(1.0, 0.5, 0.6, matt(body), 0.0, 0.25, 0.0),
             cuboid(1.04, 0.12, 0.64, matt(0xf4f6f2), 0.0, 0.56, 0.0),
         ];
         v.extend(place(e, V3::new(x, 0.0, z), turn_y(r), 1.0));
@@ -857,6 +870,64 @@ pub fn chest() -> (Vec<Part>, Vec<Part>) {
     (base, lid)
 }
 
+/// The Dildo Chest as a big bright-blue esky (the step 2c look): rounded corners, a white rim and
+/// lid, a chunky arched handle, fat hinges, finger slots and a few stickers. Same footprint as the
+/// chest's collider (about 1.45 x 1.1) and the same lid mechanics, hinged at `ESKY_PIVOT`.
+pub fn chest_esky() -> (Vec<Part>, Vec<Part>) {
+    let blue = matt(0x1b7bf0);
+    let navy = matt(0x0e4aa6);
+    let white = matt(0xf1f3ee);
+    let grey = matt(0x4a5057);
+    let (hw, hd) = (0.62f32, 0.38f32);
+    let mut base = vec![
+        // the body is two overlapping boxes plus four round corners
+        cuboid(1.24, 0.6, 0.92, blue, 0.0, 0.32, 0.0),
+        cuboid(1.46, 0.6, 0.7, blue, 0.0, 0.32, 0.0),
+        // a dark foot band and a white rim
+        cuboid(1.48, 0.09, 0.94, navy, 0.0, 0.05, 0.0),
+        cuboid(1.5, 0.05, 0.98, white, 0.0, 0.625, 0.0),
+    ];
+    for (sx, sz) in [(-1.0f32, -1.0f32), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
+        base.push(cyl(0.11, 0.11, 0.6, 10, blue, sx * hw, 0.32, sz * hd));
+    }
+    // finger slots on the ends
+    for sx in [-1.0f32, 1.0] {
+        base.push(cuboid(0.05, 0.12, 0.36, navy, sx * 0.745, 0.42, 0.0));
+    }
+    // the fat hinges at the back
+    for sx in [-1.0f32, 1.0] {
+        base.push(
+            cyl(0.055, 0.055, 0.2, 8, grey, sx * 0.45, 0.64, -0.47).turn(0.0, 0.0, HALF_PI),
+        );
+    }
+    // stickers on the front (z is the front face)
+    let z = 0.468;
+    base.push(cuboid(0.36, 0.2, 0.012, matt(0xe8443a), -0.4, 0.38, z));
+    base.push(cuboid(0.2, 0.2, 0.012, matt(0xf2c230), 0.12, 0.3, z).turn(0.0, 0.0, 0.5));
+    base.push(cuboid(0.3, 0.12, 0.012, matt(0x2e9e4f), 0.42, 0.44, z));
+    base.push(cuboid(0.22, 0.1, 0.012, white, 0.45, 0.22, z).turn(0.0, 0.0, -0.12));
+    // the lid, local to ESKY_PIVOT: a slab with a raised blue plate and an arched handle
+    let mut lid = vec![
+        cuboid(1.5, 0.12, 0.98, white, 0.0, 0.06, 0.49),
+        cuboid(1.12, 0.07, 0.62, blue, 0.0, 0.14, 0.49),
+        cuboid(1.5, 0.06, 0.08, navy, 0.0, 0.03, 0.97),
+    ];
+    lid.push(
+        Part::new(
+            Shape::Torus {
+                r: 0.2,
+                tube: 0.045,
+                radial: 6,
+                tubular: 12,
+                arc: PI,
+            },
+            navy,
+        )
+        .at(0.0, 0.17, 0.49),
+    );
+    (base, lid)
+}
+
 /// The toy in slot `k` of the chest (the sizes cycle: classic, mini, jumbo).
 pub fn chest_toy(k: usize) -> Vec<Part> {
     let v = DildoVariant::ALL[k % DildoVariant::ALL.len()];
@@ -1184,9 +1255,10 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
     let (pole, hoist_head) = clothesline();
     world.extend(pole);
     world.extend(pool());
-    world.extend(props());
-    let (chest_base, chest_lid) = chest();
+    world.extend(props(polished));
+    let (chest_base, chest_lid) = if polished { chest_esky() } else { chest() };
     YardLook {
+        chest_pivot: if polished { ESKY_PIVOT } else { CHEST_PIVOT },
         world,
         hoist_head,
         bar: bar(),
