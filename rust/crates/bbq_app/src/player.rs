@@ -40,6 +40,13 @@ pub struct Wanted {
     pub interact_pressed: bool,
     /// R is being held right now (helping someone up).
     pub interact_held: bool,
+    /// F went down / came up (grab, drag, throw someone who's down).
+    pub grab_pressed: bool,
+    pub grab_released: bool,
+    /// Space went down (wriggle, or stand up from smoko).
+    pub jump_pressed: bool,
+    /// T, G or B was pressed.
+    pub emote: Option<bbq_core::pose::Emote>,
 }
 
 #[derive(Component)]
@@ -165,10 +172,28 @@ fn read_input(
     wanted.wish = movement::wish_dir(player.yaw, mx, my);
 
     let stunned = game.me.body.stun > 0.0;
+    let sitting = game.life.seated.is_some();
     if keys.just_pressed(KeyCode::Space) {
-        player.mover.try_jump(stunned);
+        wanted.jump_pressed = true;
+        if !sitting {
+            player.mover.try_jump(stunned);
+        }
     }
-    if keys.just_pressed(KeyCode::ShiftLeft) || keys.just_pressed(KeyCode::ShiftRight) {
+    wanted.grab_pressed |= keys.just_pressed(KeyCode::KeyF);
+    wanted.grab_released |= keys.just_released(KeyCode::KeyF);
+    for (k, e) in [
+        (KeyCode::KeyT, bbq_core::pose::Emote::Taunt),
+        (KeyCode::KeyG, bbq_core::pose::Emote::Dance),
+        (KeyCode::KeyB, bbq_core::pose::Emote::Laugh),
+    ] {
+        if keys.just_pressed(k) {
+            wanted.emote = Some(e);
+        }
+    }
+    if (keys.just_pressed(KeyCode::ShiftLeft) || keys.just_pressed(KeyCode::ShiftRight))
+        && !sitting
+        && game.life.carry.is_none()
+    {
         player.mover.try_boost(&Modifiers {
             stunned,
             ..Default::default()
@@ -224,6 +249,8 @@ fn step_player(
         charging: g.wind.charging,
         stunned: g.me.body.stun > 0.0,
         drinking: g.me.drunk.is_drinking(),
+        at_smoko: g.life.seated.is_some(),
+        carrying: g.life.carry.is_some(),
         gait,
         ..Default::default()
     };
@@ -359,10 +386,12 @@ fn update_hud(
         String::new()
     };
     text.0 = format!(
-        "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw, RMB catch, Q/E/wheel swap, [ ] FOV, R bar/help up, P pour a drink, F1-F4 features, F5 falls, F6 Drunk mode\n\
-         Character: {} (G changes it; the blobs wear all four) | J/K/L slapped (fly/cartwheel/timber), N stacked it + HELP, M emote, Y drunk, C crown, V sash, X stink, B stars, Z/H Dazza\n\
+        "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw (tap = slap), RMB catch, Q/E/wheel swap, R bar/meat/chest/smoko/help up, F grab someone who's down (tap put down, hold chuck), T taunt, G dance, B laugh\n\
+         F1-F4 features, F5 falls, F6 Drunk mode, F7 Cheeky mode ({}), F8 Naughty Corner ({}), F9 character ({}) | viewer: J/K/L slapped, N stacked it, M emote, Y drunk, C crown, V sash, X stink, P +30 drunk\n\
          SCORE {} | hits {} | taken {} | catches {} | streak {} | holding: {holding}{charge}\n\
          pos {:.1}, {:.1}, {:.1} | speed {:.1} m/s | {boost} | FOV {:.0} | {pool}{tramp}{fps:.0} fps\n{}",
+        if game.options.adult { "on" } else { "off" },
+        if game.options.naughty { "on" } else { "off" },
         cast.mine.name(),
         me.score,
         me.hits,

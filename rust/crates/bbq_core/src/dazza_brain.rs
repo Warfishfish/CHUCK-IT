@@ -560,6 +560,7 @@ fn line(kind: Kind, adult: bool, rng: &mut Rng) -> &'static str {
 }
 
 #[cfg(test)]
+#[allow(clippy::field_reassign_with_default)]
 mod tests {
     use super::*;
     use crate::yard::Yard;

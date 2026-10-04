@@ -11,6 +11,7 @@ pub mod dazza;
 pub mod dazza_brain;
 pub mod drinks;
 pub mod drunk_state;
+pub mod emotes;
 pub mod flight;
 pub mod hands;
 pub mod heist;

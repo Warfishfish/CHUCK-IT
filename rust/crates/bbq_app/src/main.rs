@@ -13,6 +13,7 @@ mod characters;
 mod game;
 mod hud_fx;
 mod items_view;
+mod life;
 mod player;
 mod yard_scene;
 

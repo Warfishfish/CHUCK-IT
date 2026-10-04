@@ -3,6 +3,7 @@
 
 use bbq_core::drinks::{self, Drink};
 use bbq_core::drunk_state::{self, DrunkState, Env, Event as DrunkEvent, HelpHold};
+use bbq_core::emotes::Place;
 use bbq_core::flight::ItemState;
 use bbq_core::hands::{self, Picker, Press, Release, Situation, Slots, Wind};
 use bbq_core::hitting::{self, Catcher, Context, Target};
@@ -34,6 +35,20 @@ pub struct Dummy {
     pub crown: bool,
     pub team: Option<bbq_core::teams::Team>,
     pub smelly: bool,
+    /// Seconds of fish pong left.
+    pub smell_t: f32,
+    /// Sitting on a smoko chair (the Naughty Corner puts people there).
+    pub seat: Option<usize>,
+    /// Seconds left in the Naughty Corner.
+    pub naughty_t: f32,
+    /// Being dragged by the player (their facing and walk phase feed the pose).
+    pub dragged: Option<bbq_core::pose::DraggerInfo>,
+    /// Who last hit them and when (for the pool / trampoline bonus).
+    pub last_hit: Option<(PlayerId, f32)>,
+    /// When they were thrown (for the human cannonball).
+    pub thrown_at: Option<f32>,
+    /// Hit someone with this throw already.
+    pub thrown_hit: bool,
 }
 
 /// The player's own body: stuns and falls, the drunk meter, and helping mates up.
@@ -51,6 +66,12 @@ pub struct Options {
     pub drunk_mode: bool,
     /// How long a fall lasts (10 s; the host can pick 20 or 30).
     pub fall_duration: f32,
+    /// Cheeky mode: bare-handed slaps, the chest, rude Dazza lines, gnomes in Dazza's bum.
+    pub adult: bool,
+    /// The Naughty Corner (needs smoko).
+    pub naughty: bool,
+    /// Smoko is switched on in the yard (kept in step with the F4 toggle).
+    pub smoko_on: bool,
 }
 
 /// A line of big text in the middle of the screen that fades ("+18 drunk", "STACKED IT!").
@@ -79,6 +100,7 @@ pub struct Game {
     pub popups: Vec<Popup>,
     /// The line at the bottom of the screen telling you what R does right now.
     pub prompt: String,
+    pub life: crate::life::Life,
 }
 
 impl Game {
@@ -127,6 +149,13 @@ impl Plugin for GamePlugin {
                     crown: false,
                     team: None,
                     smelly: false,
+                    smell_t: 0.0,
+                    seat: None,
+                    naughty_t: 0.0,
+                    dragged: None,
+                    last_hit: None,
+                    thrown_at: None,
+                    thrown_hit: false,
                 }
             })
             .collect();
@@ -156,9 +185,13 @@ impl Plugin for GamePlugin {
                 falls_on: true,
                 drunk_mode: false,
                 fall_duration: drinks::FALL_DURATION_DEFAULT,
+                adult: false,
+                naughty: true,
+                smoko_on: true,
             },
             popups: Vec::new(),
             prompt: String::new(),
+            life: crate::life::Life::new(),
         })
         .add_systems(FixedUpdate, step_game);
     }
@@ -205,16 +238,21 @@ pub fn step_game(
     let p = &mut *player;
 
     // ---- the player's body: drinking, falling over, helping mates up ----
+    g.options.smoko_on = yard.0.features.smoko;
+    if !yard.0.features.smoko && g.life.seated.is_some() {
+        g.life.seated = None; // smoko switched off while you were sitting
+    }
+    let seated = g.life.seated.is_some();
     let moving = wanted.wish.0 != 0.0 || wanted.wish.1 != 0.0;
     let env = Env {
         in_play: g.rules.in_play(),
-        at_smoko: false,
+        at_smoko: seated,
         grounded: p.mover.grounded,
         in_pool: p.mover.in_pool,
         moving,
         falls_on: g.options.falls_on,
         drunk_mode: g.options.drunk_mode,
-        can_fall: true,
+        can_fall: !seated,
         fall_duration: g.options.fall_duration,
     };
     let tick = g.me.body.tick(dt);
@@ -278,11 +316,13 @@ pub fn step_game(
     } else {
         None
     };
-    if std::mem::take(&mut wanted.interact_pressed)
-        && help_target.is_none()
-        && g.me.drunk.start_drink(spot, &g.me.body, &env)
-    {
-        g.wind.cancel();
+    if std::mem::take(&mut wanted.interact_pressed) && help_target.is_none() {
+        let features = yard.0.features;
+        if !crate::life::interact(g, p, &features, yard.0.chest_spot)
+            && g.me.drunk.start_drink(spot, &g.me.body, &env)
+        {
+            g.wind.cancel();
+        }
     }
     g.prompt = if g.me.body.fall_t > 0.0 {
         format!(
@@ -301,7 +341,7 @@ pub fn step_game(
     } else if let Some(d) = spot {
         format!("R: grab {} (+{:.0} drunk)", drink_name(d), d.amount())
     } else {
-        String::new()
+        crate::life::prompt(g, p, &yard.0.features, yard.0.chest_spot)
     };
     for pop in &mut g.popups {
         pop.t += dt;
@@ -330,15 +370,20 @@ pub fn step_game(
         can_act: g.rules.in_play() && g.me.body.fall_t <= 0.0,
         stunned_standing: g.me.body.stun > 0.0 && g.me.body.down_t <= 0.0,
         drinking: g.me.drunk.is_drinking(),
-        ..Default::default()
+        at_smoko: seated,
+        carrying_someone: g.life.carry.is_some(),
     };
 
     if std::mem::take(&mut wanted.throw_down) {
         match g.wind.press(now, selected_kind, &situation) {
             Press::Charging => {}
-            Press::SlapNow => g.say("(melee slaps come with Dazza and bots in later phases)"),
+            Press::SlapNow => crate::life::player_slap(g, p),
             Press::Refused(hands::Refuse::NothingHeld) => {
-                g.say("Nothing to chuck. Walk over something glowing.")
+                if g.options.adult {
+                    crate::life::bare_slap(g, p);
+                } else {
+                    g.say("Nothing to chuck. Walk over something glowing.");
+                }
             }
             Press::Refused(_) => {}
         }
@@ -375,7 +420,8 @@ pub fn step_game(
                     }
                 }
             }
-            Release::Slap | Release::Nothing => {}
+            Release::Slap => crate::life::player_slap(g, p),
+            Release::Nothing => {}
         }
     }
     if std::mem::take(&mut wanted.catch) {
@@ -399,6 +445,7 @@ pub fn step_game(
 
     // ---- the dummies stand about and get knocked over ----
     let mut newly_fallen = Vec::new();
+    let mut env_landings: Vec<(usize, Place)> = Vec::new();
     for (i, d) in g.dummies.iter_mut().enumerate() {
         d.body.tick(dt);
         let down = d.body.fall_t > 0.0;
@@ -406,11 +453,22 @@ pub fn step_game(
             newly_fallen.push(i);
         }
         d.fallen = down;
+        if d.seat.is_some() || d.dragged.is_some() {
+            continue; // sitting in a smoko chair, or being dragged: placed by hand
+        }
         let mods = Modifiers {
             stunned: d.body.stun > 0.0,
             ..Default::default()
         };
-        d.mover.step(dt, MoveInput::default(), &mods, &yard.0);
+        let ev = d.mover.step(dt, MoveInput::default(), &mods, &yard.0);
+        if ev.splash {
+            env_landings.push((i, Place::Pool));
+        } else if ev.bounce.is_some() {
+            env_landings.push((i, Place::Tramp));
+        }
+    }
+    for (i, place) in env_landings {
+        crate::life::env_bonus(g, i, place);
     }
 
     for i in newly_fallen {
@@ -438,7 +496,7 @@ pub fn step_game(
             id: d.id,
             pos: V3::new(d.mover.x, d.mover.y, d.mover.z),
             sink: d.mover.sink,
-            at_smoko: false,
+            at_smoko: d.seat.is_some(),
             catching: false,
             stunned: d.body.stun > 0.0,
             facing: V3::new(0.0, 0.0, 1.0),
@@ -449,7 +507,7 @@ pub fn step_game(
         id: PLAYER_ID,
         pos: V3::new(p.mover.x, p.mover.y, p.mover.z),
         sink: p.mover.sink,
-        at_smoko: false,
+        at_smoko: seated,
         catching: g.catcher.open(),
         stunned: g.me.body.stun > 0.0,
         facing: player_target_facing(p),
@@ -491,6 +549,9 @@ pub fn step_game(
                 // knock and stun
                 let item = bbq_core::flight::Item::new(0, kind, V3::ZERO);
                 let d = &mut g.dummies[di];
+                if let Some(t) = thrower {
+                    d.last_hit = Some((t, now));
+                }
                 let res = hitting::apply_item_hit(&mut d.body, &mut d.mover, &item, dir, flatten);
                 let sign = if g.rng.chance(0.5) { -1.0 } else { 1.0 };
                 d.anim.tumble(dir, kind.def().knock, sign);
@@ -561,6 +622,9 @@ pub fn step_game(
             }
         }
     }
+
+    // Dazza, smoko, dragging, emotes
+    crate::life::step(g, p, &mut wanted, &yard.0);
 
     // keep the feed tidy
     g.feed.retain(|(_, t)| now - *t < 6.0);
@@ -938,5 +1002,547 @@ mod tests {
         app.world_mut().resource_mut::<Wanted>().swap = 1;
         ticks(&mut app, 1);
         assert_ne!(app.world().resource::<Game>().slots.selected(), before);
+    }
+
+    // ---------------------------------------------------------------- Phase 5B
+
+    fn give_kind(app: &mut App, kind: ItemKind) {
+        let mut g = app.world_mut().resource_mut::<Game>();
+        let mut rng = Rng::new(11);
+        let id = g.world.spawn(kind, 8.0, 0.0, false, &mut rng);
+        if let Some(it) = g.world.items.get_mut(&id) {
+            it.uses = kind.starting_uses();
+            if kind == ItemKind::Dildo {
+                it.variant = Some(bbq_core::items::DildoVariant::Classic);
+            }
+        }
+        g.world.give(id, PLAYER_ID);
+        g.slots.add(id);
+    }
+
+    fn click(app: &mut App) {
+        app.world_mut().resource_mut::<Wanted>().throw_down = true;
+        ticks(app, 1);
+        app.world_mut().resource_mut::<Wanted>().throw_up = true;
+        ticks(app, 2);
+    }
+
+    fn near_dummy0(app: &mut App) {
+        put_player(app, 8.0, 4.5); // dummy 0 stands at (8, 6), in front of us
+        ticks(app, 2);
+    }
+
+    #[test]
+    fn a_steak_slap_stuns_a_dummy_pays_50_and_uses_up_a_charge() {
+        let mut app = app();
+        near_dummy0(&mut app);
+        give_kind(&mut app, ItemKind::Steak);
+        click(&mut app);
+        let g = app.world().resource::<Game>();
+        assert!(
+            g.dummies[0].body.stun > 1.0,
+            "stun {}",
+            g.dummies[0].body.stun
+        );
+        assert_eq!(g.board.score(PLAYER_ID), 50);
+        let id = g.slots.selected().unwrap();
+        assert_eq!(g.world.items[&id].uses, Some(2));
+        assert_eq!(
+            g.board.score(g.dummies[0].id),
+            0,
+            "no penalty for the victim"
+        );
+    }
+
+    #[test]
+    fn a_steak_wears_out_after_three_slaps() {
+        let mut app = app();
+        near_dummy0(&mut app);
+        give_kind(&mut app, ItemKind::Steak);
+        for _ in 0..3 {
+            click(&mut app);
+            ticks(&mut app, 60);
+            put_player(&mut app, 8.0, 4.5);
+            let mut g = app.world_mut().resource_mut::<Game>();
+            g.dummies[0].mover.x = 8.0;
+            g.dummies[0].mover.z = 6.0;
+        }
+        let g = app.world().resource::<Game>();
+        assert!(g.slots.is_empty(), "the steak should have fallen apart");
+    }
+
+    #[test]
+    fn a_dildo_slap_knocks_flat_and_scores_like_a_hit() {
+        let mut app = app();
+        near_dummy0(&mut app);
+        give_kind(&mut app, ItemKind::Dildo);
+        click(&mut app);
+        let g = app.world().resource::<Game>();
+        assert!(g.dummies[0].body.is_down());
+        assert!(
+            g.board.score(PLAYER_ID) >= 100,
+            "{}",
+            g.board.score(PLAYER_ID)
+        );
+        assert_eq!(g.board.score(g.dummies[0].id), -50);
+    }
+
+    #[test]
+    fn a_slap_out_of_reach_misses_and_keeps_the_charge() {
+        let mut app = app();
+        put_player(&mut app, 8.0, 0.0); // 6 m away
+        give_kind(&mut app, ItemKind::Steak);
+        click(&mut app);
+        let g = app.world().resource::<Game>();
+        assert_eq!(g.board.score(PLAYER_ID), 0);
+        let id = g.slots.selected().unwrap();
+        assert_eq!(g.world.items[&id].uses, Some(3));
+    }
+
+    #[test]
+    fn slaps_have_a_cooldown() {
+        let mut app = app();
+        near_dummy0(&mut app);
+        give_kind(&mut app, ItemKind::Steak);
+        click(&mut app);
+        click(&mut app); // straight away: too soon
+        assert_eq!(app.world().resource::<Game>().board.score(PLAYER_ID), 50);
+    }
+
+    #[test]
+    fn bare_hands_only_slap_in_cheeky_mode() {
+        let mut app = app();
+        near_dummy0(&mut app);
+        click(&mut app);
+        assert_eq!(app.world().resource::<Game>().board.score(PLAYER_ID), 0);
+        app.world_mut().resource_mut::<Game>().options.adult = true;
+        ticks(&mut app, 60);
+        click(&mut app);
+        let g = app.world().resource::<Game>();
+        assert_eq!(g.board.score(PLAYER_ID), 40);
+        assert!(g.dummies[0].body.stun > 0.0);
+    }
+
+    fn near_dazza(app: &mut App) {
+        put_player(app, -6.0, -17.0);
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            g.life.dazza.pos = bbq_core::dazza::HOME;
+            g.life.dazza.face = 0.0;
+        }
+        app.world_mut().resource_mut::<Player>().yaw = 0.0; // looking along -z, at the grill
+        ticks(app, 2);
+    }
+
+    #[test]
+    fn a_steak_slap_on_dazza_stuns_him_for_20_points() {
+        let mut app = app();
+        near_dazza(&mut app);
+        give_kind(&mut app, ItemKind::Steak);
+        click(&mut app);
+        let g = app.world().resource::<Game>();
+        assert_eq!(g.life.dazza.state, bbq_core::dazza::DazzaState::Stunned);
+        assert_eq!(g.board.score(PLAYER_ID), 20);
+        assert!(!g.life.say_text.is_empty());
+    }
+
+    #[test]
+    fn dildo_slaps_on_dazza_do_one_of_three_things_and_pay() {
+        let mut seen = std::collections::BTreeSet::new();
+        for seed in 0..30u64 {
+            let mut app = app();
+            app.world_mut().resource_mut::<Game>().rng = Rng::new(seed + 1);
+            near_dazza(&mut app);
+            give_kind(&mut app, ItemKind::Dildo);
+            click(&mut app);
+            let g = app.world().resource::<Game>();
+            let s = g.board.score(PLAYER_ID);
+            assert!([75, 25, 50].contains(&s), "{s}");
+            seen.insert(s);
+        }
+        assert_eq!(
+            seen.len(),
+            3,
+            "KO, berserk and flip should all turn up: {seen:?}"
+        );
+    }
+
+    /// R at the meat table, then bin the meat so the next grab isn't refused for full hands.
+    fn take_meat(app: &mut App) {
+        press_r(app);
+        ticks(app, 50);
+        let mut g = app.world_mut().resource_mut::<Game>();
+        let ids: Vec<_> = g.slots.ids().to_vec();
+        for id in ids {
+            g.slots.remove(id);
+            g.world.remove(id);
+        }
+    }
+
+    #[test]
+    fn taking_meat_makes_dazza_angry_and_three_times_makes_him_chase() {
+        let mut app = app();
+        put_player(&mut app, -9.5, -17.0); // left half of the meat table: steak
+        ticks(&mut app, 2);
+        press_r(&mut app);
+        ticks(&mut app, 2);
+        {
+            let g = app.world().resource::<Game>();
+            assert_eq!(g.slots.len(), 1);
+            let id = g.slots.selected().unwrap();
+            assert_eq!(g.world.items[&id].kind, ItemKind::Steak);
+            assert_eq!(g.life.dazza.state, bbq_core::dazza::DazzaState::Angry);
+        }
+        ticks(&mut app, 60);
+        // a second grab with a full hand is fine (two allowed), a third is refused
+        press_r(&mut app);
+        ticks(&mut app, 60);
+        press_r(&mut app);
+        ticks(&mut app, 60);
+        let g = app.world().resource::<Game>();
+        assert_eq!(g.slots.len(), 2, "max two things in your hands");
+    }
+
+    #[test]
+    fn dazza_chases_and_spatulas_a_thief() {
+        let mut app = app();
+        put_player(&mut app, -9.5, -17.0);
+        ticks(&mut app, 2);
+        // he has already had it in for us (two earlier raids); the next one sends him over
+        app.world_mut()
+            .resource_mut::<Game>()
+            .life
+            .dazza
+            .grudges
+            .insert(PLAYER_ID, 1.6);
+        take_meat(&mut app);
+        // stand still where he can reach us
+        let mut hit = app.world().resource::<Game>().me.body.stun > 0.0
+            || app
+                .world()
+                .resource::<Game>()
+                .popups
+                .iter()
+                .any(|p| p.text.contains("SPATULA"));
+        for _ in 0..60 * 8 {
+            if hit {
+                break;
+            }
+            ticks(&mut app, 1);
+            let g = app.world().resource::<Game>();
+            if g.me.body.stun > 0.0 || g.popups.iter().any(|p| p.text.contains("SPATULA")) {
+                hit = true;
+                break;
+            }
+        }
+        assert!(
+            hit,
+            "state {:?}",
+            app.world().resource::<Game>().life.dazza.state
+        );
+    }
+
+    #[test]
+    fn dazza_stays_home_when_the_bbq_is_switched_off() {
+        let mut app = app();
+        app.world_mut().resource_mut::<YardRes>().0.features.bbq = false;
+        ticks(&mut app, 120);
+        let g = app.world().resource::<Game>();
+        assert!((g.life.dazza.pos.x - bbq_core::dazza::HOME.x).abs() < 0.01);
+    }
+
+    fn put_in_smoko(app: &mut App) {
+        put_player(app, yard::SMOKO_X + 1.0, yard::SMOKO_Z);
+        ticks(app, 2);
+    }
+    use bbq_core::yard;
+
+    #[test]
+    fn r_in_the_smoko_zone_sits_you_down_and_the_drinks_keep_coming() {
+        let mut app = app();
+        app.world_mut().resource_mut::<Game>().options.naughty = false;
+        put_in_smoko(&mut app);
+        press_r(&mut app);
+        ticks(&mut app, 2);
+        assert!(app.world().resource::<Game>().life.seated.is_some());
+        ticks(&mut app, 60 * 5);
+        let g = app.world().resource::<Game>();
+        assert!(g.me.drunk.meter > 15.0, "meter {}", g.me.drunk.meter);
+        // r stands you up again
+        press_r(&mut app);
+        ticks(&mut app, 2);
+        assert!(app.world().resource::<Game>().life.seated.is_none());
+    }
+
+    #[test]
+    fn smoko_runs_out_after_20_seconds() {
+        let mut app = app();
+        app.world_mut().resource_mut::<Game>().options.naughty = false;
+        put_in_smoko(&mut app);
+        press_r(&mut app);
+        ticks(&mut app, 60 * 21);
+        let g = app.world().resource::<Game>();
+        assert!(g.life.seated.is_none());
+        assert!(
+            g.popups.iter().any(|p| p.text.contains("Smoko's over")) || g.me.drunk.meter >= 99.0
+        );
+    }
+
+    #[test]
+    fn nobody_can_hit_you_while_you_sit_at_smoko() {
+        let mut app = app();
+        app.world_mut().resource_mut::<Game>().options.naughty = false;
+        put_in_smoko(&mut app);
+        press_r(&mut app);
+        ticks(&mut app, 2);
+        let g = app.world().resource::<Game>();
+        assert!(g.life.seated.is_some());
+        let p = app.world().resource::<Player>();
+        let (px, pz) = (p.mover.x, p.mover.z);
+        // a thrown teddy aimed straight at the seat passes through
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            let mut rng = Rng::new(2);
+            let id = g
+                .world
+                .spawn(ItemKind::Teddy, px, pz - 4.0, false, &mut rng);
+            g.world.give(id, 100);
+            g.world.throw(
+                id,
+                100,
+                V3::new(px, 1.2, pz - 4.0),
+                V3::new(0.0, 0.0, 20.0),
+                1.0,
+                true,
+            );
+        }
+        ticks(&mut app, 60);
+        assert_eq!(app.world().resource::<Game>().me.body.stun, 0.0);
+    }
+
+    #[test]
+    fn with_the_naughty_corner_on_the_zone_is_not_a_safe_break() {
+        let mut app = app();
+        put_in_smoko(&mut app);
+        press_r(&mut app);
+        ticks(&mut app, 2);
+        assert!(app.world().resource::<Game>().life.seated.is_none());
+    }
+
+    fn fell(app: &mut App) {
+        app.world_mut().resource_mut::<Game>().dummies[0]
+            .body
+            .start_fall(10.0);
+        ticks(app, 2);
+    }
+
+    #[test]
+    fn f_grabs_someone_who_is_down_and_a_tap_puts_them_down() {
+        let mut app = app();
+        near_dummy0(&mut app);
+        fell(&mut app);
+        app.world_mut().resource_mut::<Wanted>().grab_pressed = true;
+        ticks(&mut app, 2);
+        assert!(app.world().resource::<Game>().life.carry.is_some());
+        ticks(&mut app, 30);
+        {
+            let g = app.world().resource::<Game>();
+            let d = &g.dummies[0];
+            let p = app.world().resource::<Player>();
+            assert!(
+                (d.mover.z - (p.mover.z - bbq_core::carry::DRAG_DISTANCE)).abs() < 0.2
+                    || (d.mover.z - p.mover.z).abs() < 2.0
+            );
+            assert!(d.dragged.is_some());
+        }
+        app.world_mut().resource_mut::<Wanted>().grab_pressed = true;
+        ticks(&mut app, 2);
+        app.world_mut().resource_mut::<Wanted>().grab_released = true;
+        ticks(&mut app, 2);
+        let g = app.world().resource::<Game>();
+        assert!(g.life.carry.is_none());
+        assert!(g.dummies[0].dragged.is_none());
+        assert!(
+            g.dummies[0].thrown_at.is_none(),
+            "a tap puts down, it doesn't throw"
+        );
+        assert!(g.dummies[0].body.stun > 0.0);
+    }
+
+    #[test]
+    fn you_cannot_grab_someone_who_is_only_stunned() {
+        let mut app = app();
+        near_dummy0(&mut app);
+        app.world_mut().resource_mut::<Game>().dummies[0]
+            .body
+            .apply_hit(2.0, None);
+        app.world_mut().resource_mut::<Wanted>().grab_pressed = true;
+        ticks(&mut app, 2);
+        assert!(app.world().resource::<Game>().life.carry.is_none());
+    }
+
+    #[test]
+    fn holding_f_then_letting_go_chucks_them_and_they_fly() {
+        let mut app = app();
+        near_dummy0(&mut app);
+        fell(&mut app);
+        app.world_mut().resource_mut::<Wanted>().grab_pressed = true;
+        ticks(&mut app, 2);
+        app.world_mut().resource_mut::<Wanted>().grab_pressed = true; // F down to throw
+        ticks(&mut app, 30); // held for half a second
+        app.world_mut().resource_mut::<Wanted>().grab_released = true;
+        ticks(&mut app, 2);
+        let g = app.world().resource::<Game>();
+        assert!(g.dummies[0].thrown_at.is_some());
+        assert!(
+            g.dummies[0].mover.vz > 5.0 || g.dummies[0].mover.z > 7.0,
+            "flying away"
+        );
+    }
+
+    #[test]
+    fn a_thrown_person_flattens_whoever_they_hit_for_100() {
+        let mut app = app();
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            let now = g.now;
+            g.dummies[0].thrown_at = Some(now - 0.3);
+            g.dummies[0].mover.x = g.dummies[1].mover.x + 0.5;
+            g.dummies[0].mover.z = g.dummies[1].mover.z;
+            g.dummies[0].mover.y = 1.0;
+            g.dummies[0].mover.vy = 0.0;
+        }
+        ticks(&mut app, 2);
+        let g = app.world().resource::<Game>();
+        assert!(g.dummies[1].body.is_down());
+        assert_eq!(g.board.score(PLAYER_ID), 100);
+    }
+
+    #[test]
+    fn setting_someone_down_in_the_smoko_zone_sends_them_to_the_naughty_corner() {
+        let mut app = app();
+        near_dummy0(&mut app);
+        fell(&mut app);
+        app.world_mut().resource_mut::<Wanted>().grab_pressed = true;
+        ticks(&mut app, 2);
+        // walk into the smoko zone with them in tow
+        put_player(&mut app, yard::SMOKO_X + 1.5, yard::SMOKO_Z);
+        app.world_mut().resource_mut::<Wanted>().grab_pressed = true;
+        ticks(&mut app, 3);
+        app.world_mut().resource_mut::<Wanted>().grab_released = true;
+        ticks(&mut app, 2);
+        let g = app.world().resource::<Game>();
+        assert!(
+            g.dummies[0].naughty_t > 4.0,
+            "naughty {}",
+            g.dummies[0].naughty_t
+        );
+        assert!(g.dummies[0].seat.is_some());
+        assert_eq!(g.board.score(PLAYER_ID), 100);
+        ticks(&mut app, 60 * 6);
+        let g = app.world().resource::<Game>();
+        assert!(g.dummies[0].seat.is_none(), "up again after five seconds");
+    }
+
+    #[test]
+    fn knocking_someone_into_the_pool_soon_after_hitting_them_pays_50() {
+        let mut app = app();
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            let now = g.now;
+            g.dummies[2].last_hit = Some((PLAYER_ID, now - 1.0));
+            g.dummies[2].mover.x = -20.0;
+            g.dummies[2].mover.z = 10.0;
+            g.dummies[2].mover.y = 0.0;
+        }
+        ticks(&mut app, 3);
+        let g = app.world().resource::<Game>();
+        assert_eq!(g.board.score(PLAYER_ID), 50, "{:?}", g.feed);
+        assert!(g.popups.iter().any(|p| p.text.contains("SPLASHDOWN")));
+    }
+
+    #[test]
+    fn the_pool_pays_nothing_if_you_hit_them_ages_ago() {
+        let mut app = app();
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            let now = g.now;
+            g.dummies[2].last_hit = Some((PLAYER_ID, now - 10.0));
+            g.dummies[2].mover.x = -20.0;
+            g.dummies[2].mover.z = 10.0;
+        }
+        ticks(&mut app, 3);
+        assert_eq!(app.world().resource::<Game>().board.score(PLAYER_ID), 0);
+    }
+
+    #[test]
+    fn emotes_have_a_two_second_cooldown() {
+        let mut app = app();
+        ticks(&mut app, 2);
+        app.world_mut().resource_mut::<Wanted>().emote = Some(bbq_core::pose::Emote::Taunt);
+        ticks(&mut app, 2);
+        let n1 = app.world().resource::<Game>().popups.len();
+        assert_eq!(n1, 1);
+        app.world_mut().resource_mut::<Wanted>().emote = Some(bbq_core::pose::Emote::Dance);
+        ticks(&mut app, 2);
+        assert_eq!(app.world().resource::<Game>().popups.len(), 1, "too soon");
+        ticks(&mut app, 130);
+        app.world_mut().resource_mut::<Wanted>().emote = Some(bbq_core::pose::Emote::Laugh);
+        ticks(&mut app, 2);
+        assert!(!app.world().resource::<Game>().popups.is_empty());
+    }
+
+    #[test]
+    fn you_cannot_emote_when_stunned() {
+        let mut app = app();
+        app.world_mut()
+            .resource_mut::<Game>()
+            .me
+            .body
+            .apply_hit(2.0, None);
+        app.world_mut().resource_mut::<Wanted>().emote = Some(bbq_core::pose::Emote::Taunt);
+        ticks(&mut app, 2);
+        assert!(app.world().resource::<Game>().popups.is_empty());
+    }
+
+    fn chest_spot_pos(app: &App) -> (f32, f32) {
+        let y = app.world().resource::<YardRes>();
+        let (x, z, _) = bbq_core::yard::CHEST_SPOTS[y.0.chest_spot % 9];
+        (x, z)
+    }
+
+    #[test]
+    fn the_chest_gives_a_dildo_in_cheeky_mode_only() {
+        let mut app = app();
+        let (cx, cz) = chest_spot_pos(&app);
+        put_player(&mut app, cx + 1.4, cz);
+        ticks(&mut app, 2);
+        press_r(&mut app);
+        ticks(&mut app, 2);
+        assert!(
+            app.world().resource::<Game>().slots.is_empty(),
+            "not in Cheeky mode"
+        );
+        app.world_mut().resource_mut::<Game>().options.adult = true;
+        press_r(&mut app);
+        ticks(&mut app, 2);
+        let g = app.world().resource::<Game>();
+        assert_eq!(g.slots.len(), 1);
+        assert_eq!(g.life.chest.stock, 1);
+        let id = g.slots.selected().unwrap();
+        assert_eq!(g.world.items[&id].kind, ItemKind::Dildo);
+    }
+
+    #[test]
+    fn the_chest_runs_out() {
+        let mut app = app();
+        let (cx, cz) = chest_spot_pos(&app);
+        put_player(&mut app, cx + 1.4, cz);
+        app.world_mut().resource_mut::<Game>().options.adult = true;
+        app.world_mut().resource_mut::<Game>().life.chest.stock = 0;
+        ticks(&mut app, 2);
+        press_r(&mut app);
+        ticks(&mut app, 2);
+        assert!(app.world().resource::<Game>().slots.is_empty());
     }
 }
