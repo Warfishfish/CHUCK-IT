@@ -271,9 +271,12 @@ Phase 3 result: `bbq_core` gained `flight`, `hands`, `hitting`, `itemworld`, `ve
 - [ ] Phase 5 look and feel check on Marcus's Mac
 
 ### Phase 6: Bots
-- [ ] Bot brain: targets, errands, dodging and catching, difficulty levels
-- [ ] Natural steering (`botSteer`) and Heist goals (raid, guard, chase, bank)
-- [ ] Bot checks: direction flips per bot and longest stuck time, like the current tests
+- [x] Bot brain (`bbq_core/src/bots.rs`, 33 tests): picks targets (leader x2.8, real players favoured by difficulty, teammates and people at smoko skipped), goes for the nearest free item (never melee items, never ones another bot has claimed), keeps its range and orbits, winds up for 0.55-1 x the item's charge and throws with a ballistic aim that leads the target and gets worse with drunkenness, never power-throws, dodges/hops/catches incoming items by difficulty (easy/fair/spicy table), swings melee items every 0.9 s, helps fallen teammates up in team modes, and runs errands every 14-26 s (bar, smoko 5-9 s, chest, meat; none in Heist)
+- [x] Natural steering (`botSteer`): turn-speed limit, easing, personal wobble, drunk sway, giving mates room, slowing near the goal, look-ahead round obstacles on one side, stuck check. Heist goals: the brain takes a goal and a "carrying a stolen teddy" flag; the goal rules themselves arrive with Phase 7
+- [x] Bot checks: headless walks with the real movement rules (6 seeds x 90 s, plus beside the shed): longest stuck time under 2 s and under 8 turns right round
+- [x] In the game (`bbq_app/src/bots_app.rs`): the three practice blobs are now bots. They pick things up, throw, hit you (-50, knocked back, popup "Bruce got you!"), slap you with steak/fish/noodle/dildo, drink at the bar (never stack it), sit at smoko, take meat (Dazza gets cross at them too), take chest toys in Cheeky mode, catch, and the leader wears the crown. F10 freezes them into practice dummies, F11 cycles easy/fair/spicy. Held items are drawn in their hands
+- Result: 335 core tests + 80 app tests pass. Simplified or left out: bots can't yet be hit into the pool for a bonus when they hit the player (the player has no "last hit by" yet); Dazza only chases them (no bot-bot grabbing, as in the browser game); bot count is still fixed at 3 until the menu (Phase 8)
+- [ ] Phase 6 look and feel check on Marcus's Mac
 
 ### Phase 7: Modes and matches
 - [ ] Free for all, Teams (with Wildcard), friendly fire

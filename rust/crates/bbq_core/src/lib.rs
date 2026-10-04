@@ -4,6 +4,7 @@
 //! JavaScript game, version 0.23.1, with the Heist scoring fix from 0.23.2).
 //! The section numbers in the comments point at that file.
 
+pub mod bots;
 pub mod carry;
 pub mod character;
 pub mod chest;

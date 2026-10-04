@@ -388,12 +388,14 @@ fn update_hud(
     };
     text.0 = format!(
         "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw (tap = slap), RMB catch, Q/E/wheel swap, R bar/meat/chest/smoko/help up, F grab someone who's down (tap put down, hold chuck), T taunt, G dance, B laugh\n\
-         F1-F4 features, F5 falls, F6 Drunk mode, F7 Cheeky mode ({}), F8 Naughty Corner ({}), F9 character ({}) | viewer: J/K/L slapped, N stacked it, M emote, Y drunk, C crown, V sash, X stink, P +30 drunk\n\
+         F1-F4 features, F5 falls, F6 Drunk mode, F7 Cheeky mode ({}), F8 Naughty Corner ({}), F9 character ({}), F10 bots ({}), F11 bot level ({:?}) | viewer: J/K/L slapped, N stacked it, M emote, Y drunk, C crown, V sash, X stink, P +30 drunk\n\
          SCORE {} | hits {} | taken {} | catches {} | streak {} | holding: {holding}{charge}\n\
          pos {:.1}, {:.1}, {:.1} | speed {:.1} m/s | {boost} | FOV {:.0} | {pool}{tramp}{fps:.0} fps\n{}",
         if game.options.adult { "on" } else { "off" },
         if game.options.naughty { "on" } else { "off" },
         cast.mine.name(),
+        if game.options.bots_on { "on" } else { "frozen" },
+        game.options.bot_difficulty,
         me.score,
         me.hits,
         me.taken,

@@ -710,11 +710,19 @@ fn compute_poses(
     let t = game.now;
     let (px, pz) = (player.mover.x, player.mover.z);
     poses.0.clear();
+    let bots_on = game.options.bots_on;
     for d in game.dummies.iter_mut() {
-        let face = (px - d.mover.x).atan2(pz - d.mover.z);
+        // bots look where their brains point them; frozen practice blobs just watch you
+        let face = if bots_on {
+            d.face
+        } else {
+            (px - d.mover.x).atan2(pz - d.mover.z)
+        };
         let inputs = Inputs {
             t,
             face,
+            charging: d.bot.winding,
+            charge: d.bot.wind_progress,
             vel: V3::new(d.mover.vx, d.mover.vy, d.mover.vz),
             grounded: d.mover.grounded,
             drunk: d.drunk,

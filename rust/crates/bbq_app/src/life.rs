@@ -104,6 +104,15 @@ fn people_count(g: &Game) -> usize {
 
 // ------------------------------------------------------------------ slaps
 
+/// Whoever is doing the slapping: you, or a bot.
+pub struct Attacker {
+    pub id: PlayerId,
+    pub pos: V3,
+    pub drunk_bonus: i32,
+    pub name: String,
+    pub is_player: bool,
+}
+
 /// Take one use off a slapping item; it falls apart at zero.
 fn use_up(g: &mut Game, id: bbq_core::flight::ItemId) {
     let Some(it) = g.world.items.get_mut(&id) else {
@@ -185,23 +194,36 @@ pub fn player_slap(g: &mut Game, p: &mut Player) {
         let Some(i) = g.dummies.iter().position(|d| d.id == vid) else {
             return;
         };
-        slap_dummy(g, p, i, kind, variant);
+        let att = Attacker {
+            id: PLAYER_ID,
+            pos: me,
+            drunk_bonus: drunk_bonus(g),
+            name: "You".to_string(),
+            is_player: true,
+        };
+        slap_dummy(g, &att, i, kind, variant);
         use_up(g, id);
     } else if dazza_in_reach(g, me, face) && slap_dazza(g, kind) {
         use_up(g, id);
     }
 }
 
-fn slap_dummy(g: &mut Game, p: &Player, i: usize, kind: ItemKind, variant: Option<DildoVariant>) {
-    let me = me_pos(p);
+pub fn slap_dummy(
+    g: &mut Game,
+    att: &Attacker,
+    i: usize,
+    kind: ItemKind,
+    variant: Option<DildoVariant>,
+) {
+    let me = att.pos;
     let dpos = V3::new(g.dummies[i].mover.x, 0.0, g.dummies[i].mover.z);
     let dir = melee::direction(me, dpos);
     let vid = g.dummies[i].id;
     let name = dummy_name(i);
     let leader = g.board.leader() == Some(vid);
-    let drunk = drunk_bonus(g);
+    let drunk = att.drunk_bonus;
     let now = g.now;
-    g.dummies[i].last_hit = Some((PLAYER_ID, now));
+    g.dummies[i].last_hit = Some((att.id, now));
     let sign = if g.rng.chance(0.5) { -1.0 } else { 1.0 };
     match kind.def().melee {
         Melee::Stun => {
@@ -214,13 +236,17 @@ fn slap_dummy(g: &mut Game, p: &Player, i: usize, kind: ItemKind, variant: Optio
             // steak, fish and noodle all pay 50
             let gain = g
                 .board
-                .stun_slap(&g.rules, PLAYER_ID, vid, MEAT_PTS, drunk, false);
+                .stun_slap(&g.rules, att.id, vid, MEAT_PTS, drunk, false);
             let verb = match kind {
                 ItemKind::Fish => "fish-slapped",
                 ItemKind::Noodle => "noodled",
                 _ => "steaked",
             };
-            let mut msg = format!("You {verb} {name}! +{gain}");
+            let mut msg = if att.is_player {
+                format!("You {verb} {name}! +{gain}")
+            } else {
+                format!("{} {verb} {name}", att.name)
+            };
             if !res.stunned {
                 msg += " (already stunned, no new stun)";
             }
@@ -248,14 +274,14 @@ fn slap_dummy(g: &mut Game, p: &Player, i: usize, kind: ItemKind, variant: Optio
             d.anim.tumble(dir, fx.knock * 0.4, sign);
             let out = g.board.dildo_slap(
                 &g.rules,
-                PLAYER_ID,
+                att.id,
                 vid,
                 &SlapInput {
                     victim_is_leader: leader,
                     drunk_bonus: drunk,
                     variant,
                     crit: roll.crit,
-                    same_team: false,
+                    same_team: g.teams.same_team(att.id, vid),
                 },
             );
             let pose = match roll.pose {
@@ -263,7 +289,11 @@ fn slap_dummy(g: &mut Game, p: &Player, i: usize, kind: ItemKind, variant: Optio
                 SlapKind::Cartwheel => "CARTWHEEL!",
                 SlapKind::Timber => "TIMBERRR!",
             };
-            let mut msg = format!("{} {pose} +{}", variant.def().label, out.gain);
+            let mut msg = if att.is_player {
+                format!("{} {pose} +{}", variant.def().label, out.gain)
+            } else {
+                format!("{} slapped {name}: {pose}", att.name)
+            };
             if roll.crit {
                 msg += " CRITICAL!";
             }
@@ -271,7 +301,9 @@ fn slap_dummy(g: &mut Game, p: &Player, i: usize, kind: ItemKind, variant: Optio
                 msg += " (they were already down)";
             }
             g.say(msg);
-            g.popup(pose, true);
+            if att.is_player {
+                g.popup(pose, true);
+            }
         }
         Melee::None => {}
     }
@@ -872,7 +904,16 @@ pub fn step(g: &mut Game, p: &mut Player, wanted: &mut Wanted, yard: &yard::Yard
     // dummies in the Naughty Corner sit still, then get up
     let n = smoko::chair_count(people_count(g));
     for d in &mut g.dummies {
-        if let Some(seat) = d.seat {
+        if let Some(seat) = d.seat
+            && d.sat_by_choice
+        {
+            // a bot having a smoko: pinned in its chair until its own brain stands it up
+            let (x, z) = smoko::seat_pos(seat.min(n - 1), n);
+            d.mover.x = x;
+            d.mover.z = z;
+            d.mover.vx = 0.0;
+            d.mover.vz = 0.0;
+        } else if let Some(seat) = d.seat {
             d.naughty_t = (d.naughty_t - dt).max(0.0);
             let (x, z) = smoko::seat_pos(seat.min(n - 1), n);
             d.mover.x = x;

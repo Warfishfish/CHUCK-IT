@@ -158,8 +158,28 @@ fn sync_items(
             continue;
         };
         match it.state {
-            ItemState::Held => *v = Visibility::Hidden, // the viewmodel shows it
+            ItemState::Held => {
+                // yours is drawn by the viewmodel; a bot's is in its right hand
+                let bot_hand = it
+                    .holder
+                    .filter(|h| *h != crate::player::PLAYER_ID)
+                    .filter(|h| crate::bots_app::is_selected_by_bot(&game, *h, it.id))
+                    .and_then(|h| crate::bots_app::held_item_pos(&game, h));
+                match bot_hand {
+                    Some(pos) => {
+                        *v = Visibility::Inherited;
+                        tf.translation = Vec3::new(pos.x, pos.y, pos.z);
+                        tf.rotation = rest_rotation(it.kind, it.id);
+                        if is_floppy(it.kind) || it.kind == ItemKind::Stubby {
+                            tf.rotation = Quat::IDENTITY;
+                        }
+                        tf.scale = Vec3::splat(0.85);
+                    }
+                    None => *v = Visibility::Hidden,
+                }
+            }
             ItemState::Flying => {
+                tf.scale = Vec3::ONE;
                 *v = Visibility::Inherited;
                 tf.translation = Vec3::new(it.pos.x, it.pos.y, it.pos.z);
                 let sp = it.vel.len();
@@ -169,6 +189,7 @@ fn sync_items(
                 tf.rotate(Quat::from_axis_angle(axis, spin));
             }
             ItemState::Ground => {
+                tf.scale = Vec3::ONE;
                 *v = Visibility::Inherited;
                 let floating =
                     it.ground_y < 0.1 && bbq_core::yard::in_pool_rect(it.pos.x, it.pos.z);

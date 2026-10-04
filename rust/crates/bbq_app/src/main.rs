@@ -9,6 +9,7 @@
 // Bevy systems take many parameters by design.
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
+mod bots_app;
 mod characters;
 mod game;
 mod hud_fx;
@@ -53,6 +54,7 @@ fn main() {
             items_view::ItemsViewPlugin,
             characters::CharactersPlugin,
             hud_fx::HudFxPlugin,
+            bots_app::BotsPlugin,
             models::ModelsPlugin,
             bevy::core_pipeline::fullscreen_material::FullscreenMaterialPlugin::<lighting::DisplayRaw>::default(),
         ));

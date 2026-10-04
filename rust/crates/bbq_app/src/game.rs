@@ -19,6 +19,7 @@ use bbq_core::vec::V3;
 use bbq_core::{GameMode, PlayerId};
 use bevy::prelude::*;
 
+use crate::bots_app::BotBody;
 use crate::player::{PLAYER_ID, Player, Wanted};
 use crate::yard_scene::YardRes;
 
@@ -49,6 +50,12 @@ pub struct Dummy {
     pub thrown_at: Option<f32>,
     /// Hit someone with this throw already.
     pub thrown_hit: bool,
+    /// What the bot carries and does (its hands, drink and walking).
+    pub bot: BotBody,
+    /// Which way it faces, as the browser game does it: it looks along `(sin f, cos f)`.
+    pub face: f32,
+    /// Sitting at smoko because its own brain chose to (not sent to the Naughty Corner).
+    pub sat_by_choice: bool,
 }
 
 /// The player's own body: stuns and falls, the drunk meter, and helping mates up.
@@ -72,6 +79,10 @@ pub struct Options {
     pub naughty: bool,
     /// Smoko is switched on in the yard (kept in step with the F4 toggle).
     pub smoko_on: bool,
+    /// The bots play (F9 freezes them into practice dummies).
+    pub bots_on: bool,
+    /// How good the bots are (F10).
+    pub bot_difficulty: bbq_core::bots::Difficulty,
 }
 
 /// A line of big text in the middle of the screen that fades ("+18 drunk", "STACKED IT!").
@@ -101,6 +112,8 @@ pub struct Game {
     /// The line at the bottom of the screen telling you what R does right now.
     pub prompt: String,
     pub life: crate::life::Life,
+    /// The bots' minds.
+    pub crowd: bbq_core::bots::Crowd,
 }
 
 impl Game {
@@ -133,6 +146,8 @@ impl Plugin for GamePlugin {
         let mut board = Scoreboard::new();
         board.ensure(PLAYER_ID);
         let spots = [(8.0, 6.0), (-6.0, 8.0), (4.0, -8.0)];
+        let mut dummy_rng = Rng::new(0xB07);
+        let mut crowd = bbq_core::bots::Crowd::default();
         let dummies: Vec<Dummy> = spots
             .iter()
             .enumerate()
@@ -156,9 +171,15 @@ impl Plugin for GamePlugin {
                     last_hit: None,
                     thrown_at: None,
                     thrown_hit: false,
+                    bot: BotBody::new(i as f32 * 1.9, &mut dummy_rng),
+                    face: 0.0,
+                    sat_by_choice: false,
                 }
             })
             .collect();
+        for d in &dummies {
+            crowd.add(d.id, &mut dummy_rng);
+        }
         let me = Me {
             body: Body::default(),
             drunk: DrunkState::new(0.7, &mut rng),
@@ -188,10 +209,13 @@ impl Plugin for GamePlugin {
                 adult: false,
                 naughty: true,
                 smoko_on: true,
+                bots_on: true,
+                bot_difficulty: bbq_core::bots::Difficulty::Fair,
             },
             popups: Vec::new(),
             prompt: String::new(),
             life: crate::life::Life::new(),
+            crowd,
         })
         .add_systems(FixedUpdate, step_game);
     }
@@ -443,6 +467,9 @@ pub fn step_game(
         g.slots.add(id);
     }
 
+    // ---- the bots decide what to do ----
+    crate::bots_app::step(g, p, &yard.0);
+
     // ---- the dummies stand about and get knocked over ----
     let mut newly_fallen = Vec::new();
     let mut env_landings: Vec<(usize, Place)> = Vec::new();
@@ -458,9 +485,13 @@ pub fn step_game(
         }
         let mods = Modifiers {
             stunned: d.body.stun > 0.0,
+            charging: d.bot.winding,
+            drinking: d.bot.drunk.is_drinking(),
             ..Default::default()
         };
-        let ev = d.mover.step(dt, MoveInput::default(), &mods, &yard.0);
+        let ev = d
+            .mover
+            .step(dt, MoveInput { wish: d.bot.wish }, &mods, &yard.0);
         if ev.splash {
             env_landings.push((i, Place::Pool));
         } else if ev.bounce.is_some() {
@@ -497,9 +528,9 @@ pub fn step_game(
             pos: V3::new(d.mover.x, d.mover.y, d.mover.z),
             sink: d.mover.sink,
             at_smoko: d.seat.is_some(),
-            catching: false,
+            catching: d.bot.catcher.open(),
             stunned: d.body.stun > 0.0,
-            facing: V3::new(0.0, 0.0, 1.0),
+            facing: V3::new(d.face.sin(), 0.0, d.face.cos()),
             flattenable: d.body.power_throw_flattens(),
         })
         .collect();
@@ -541,6 +572,10 @@ pub fn step_game(
                 start,
                 ..
             } => {
+                if victim == PLAYER_ID {
+                    crate::bots_app::hit_player(g, p, kind, thrower, dir, flatten, charge, start);
+                    continue;
+                }
                 let Some(di) = g.dummies.iter().position(|d| d.id == victim) else {
                     continue;
                 };
@@ -563,13 +598,9 @@ pub fn step_game(
                         charge,
                         dist: start.horiz_dist(V3::new(vx, 0.0, vz)),
                         victim_is_leader: leader,
-                        drunk_bonus: if thrower == Some(PLAYER_ID) {
-                            drinks::drunk_bonus(g.me.drunk.meter, g.options.drunk_mode)
-                        } else {
-                            0
-                        },
+                        drunk_bonus: thrower.map_or(0, |t| crate::bots_app::drunk_bonus_of(g, t)),
                         bum_out: false,
-                        same_team: false,
+                        same_team: thrower.is_some_and(|t| g.teams.same_team(t, victim)),
                     },
                 );
                 let mut msg = format!("HIT! +{}", out.gain);
@@ -585,7 +616,31 @@ pub fn step_game(
                 if !res.effect.stunned && !res.effect.knocked_down {
                     msg += " (already stunned, no new stun)";
                 }
-                g.say(msg);
+                if thrower == Some(PLAYER_ID) {
+                    g.say(msg);
+                } else {
+                    let who = thrower.map_or("Somebody".to_string(), |t| crate::bots_app::name_of(g, t));
+                    let to = crate::bots_app::name_of(g, victim);
+                    g.say(format!("{who} hit {to}"));
+                }
+            }
+            WorldEvent::Caught { by, thrower, .. } if by != PLAYER_ID => {
+                if let Some(i) = g.dummies.iter().position(|d| d.id == by)
+                    && let Some(id) = caught_item(&g.world, by, &g.dummies[i].bot.slots)
+                {
+                    let slots = &mut g.dummies[i].bot.slots;
+                    if slots.is_full()
+                        && let Some(old) = slots.oldest()
+                    {
+                        slots.remove(old);
+                        let at = V3::new(g.dummies[i].mover.x, 1.2, g.dummies[i].mover.z);
+                        g.world.drop_item(old, at, None);
+                    }
+                    g.dummies[i].bot.slots.add(id);
+                    g.board.catch(&g.rules, by, thrower);
+                    let who = crate::bots_app::name_of(g, by);
+                    g.say(format!("{who} caught it!"));
+                }
             }
             WorldEvent::Caught { by, thrower, .. } if by == PLAYER_ID => {
                 // the item is now in our hands; if full, drop the oldest
@@ -612,7 +667,7 @@ pub fn step_game(
     }
 
     // dummies that wandered off (knocked) are put back after a bit once they've settled
-    for d in &mut g.dummies {
+    for d in g.dummies.iter_mut().filter(|_| !g.options.bots_on) {
         if !d.body.is_down() && d.body.stun <= 0.0 && d.mover.grounded && d.mover.speed() < 0.3 {
             let (hx, hz) = d.home;
             let dist = ((d.mover.x - hx).powi(2) + (d.mover.z - hz).powi(2)).sqrt();
@@ -693,8 +748,13 @@ mod tests {
         });
         app.init_resource::<Wanted>();
         app.add_plugins(GamePlugin);
-        // clear the random items so the test is predictable, keep only what we add
-        app.world_mut().resource_mut::<Game>().world.clear();
+        // clear the random items so the test is predictable, keep only what we add; the bots
+        // stand still (the tests are about the player's own moves)
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            g.world.clear();
+            g.options.bots_on = false;
+        }
         app
     }
 
@@ -1544,5 +1604,214 @@ mod tests {
         press_r(&mut app);
         ticks(&mut app, 2);
         assert!(app.world().resource::<Game>().slots.is_empty());
+    }
+
+    // ---------------------------------------------------------------- Phase 6: the bots
+
+    fn bots_on(app: &mut App) {
+        app.world_mut().resource_mut::<Game>().options.bots_on = true;
+    }
+
+    fn give_bot(app: &mut App, i: usize, kind: ItemKind) -> bbq_core::flight::ItemId {
+        let mut g = app.world_mut().resource_mut::<Game>();
+        let mut rng = Rng::new(21);
+        let (x, z) = (g.dummies[i].mover.x, g.dummies[i].mover.z);
+        let id = g.world.spawn(kind, x, z, false, &mut rng);
+        let owner = g.dummies[i].id;
+        g.world.give(id, owner);
+        g.dummies[i].bot.slots.add(id);
+        id
+    }
+
+    fn bot_throws(g: &Game) -> u32 {
+        g.dummies.iter().map(|d| g.board.get(d.id).map_or(0, |s| s.throws)).sum()
+    }
+
+    #[test]
+    fn frozen_bots_stand_still_like_practice_dummies() {
+        let mut app = app();
+        ticks(&mut app, 600);
+        let g = app.world().resource::<Game>();
+        for d in &g.dummies {
+            assert!((d.mover.x - d.home.0).abs() < 0.01 && (d.mover.z - d.home.1).abs() < 0.01);
+        }
+    }
+
+    #[test]
+    fn bots_wander_about_and_pick_things_up_and_throw_them() {
+        let mut app = app();
+        bots_on(&mut app);
+        // plenty to pick up around the bots
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            let mut rng = Rng::new(5);
+            for k in 0..12 {
+                let (x, z) = (-8.0 + k as f32 * 1.5, -4.0 + (k % 3) as f32 * 3.0);
+                g.world.spawn(ItemKind::Teddy, x, z, false, &mut rng);
+            }
+        }
+        put_player(&mut app, 20.0, 15.0);
+        ticks(&mut app, 60 * 40);
+        let g = app.world().resource::<Game>();
+        let held: usize = g.dummies.iter().map(|d| d.bot.slots.len()).sum();
+        assert!(held + bot_throws(g) as usize > 0, "bots should have picked something up");
+        assert!(bot_throws(g) >= 1, "and thrown it; feed {:?}", g.feed);
+        for d in &g.dummies {
+            let moved = (d.mover.x - d.home.0).hypot(d.mover.z - d.home.1);
+            assert!(moved > 2.0 || d.seat.is_some(), "bot {} never left home", d.id);
+        }
+    }
+
+    #[test]
+    fn bots_hit_the_player_when_they_stand_in_the_open() {
+        let mut app = app();
+        bots_on(&mut app);
+        put_player(&mut app, 0.0, 6.0);
+        for i in 0..3 {
+            for _ in 0..2 {
+                give_bot(&mut app, i, ItemKind::Teddy);
+            }
+        }
+        ticks(&mut app, 60 * 45);
+        let g = app.world().resource::<Game>();
+        let me = g.board.get(PLAYER_ID).unwrap();
+        assert!(me.taken >= 1, "someone should have hit the player; feed {:?}", g.feed);
+        assert!(me.score <= -50);
+        let scored: i32 = g.dummies.iter().map(|d| g.board.score(d.id)).sum();
+        assert!(scored > 0, "the thrower should have been paid");
+        assert!(g.feed.iter().any(|(m, _)| m.contains("hit you")) || me.taken >= 1);
+    }
+
+    #[test]
+    fn a_hit_on_the_player_knocks_them_and_stuns_them_once() {
+        let mut app = app();
+        put_player(&mut app, 2.0, 0.0); // off to one side of the clothesline pole
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            let mut rng = Rng::new(3);
+            // a teddy coming straight at the player from the front (+z side), thrown by bot 100
+            let id = g.world.spawn(ItemKind::Teddy, 2.0, 6.0, false, &mut rng);
+            g.world.give(id, 100);
+            g.world.throw(
+                id,
+                100,
+                V3::new(2.0, 1.2, 6.0),
+                V3::new(0.0, 0.5, -18.0),
+                0.8,
+                false,
+            );
+        }
+        ticks(&mut app, 60);
+        let g = app.world().resource::<Game>();
+        assert!(g.me.body.stun > 0.0 || g.me.body.stun_grace > 0.0);
+        assert_eq!(g.board.get(PLAYER_ID).unwrap().taken, 1);
+        assert_eq!(g.board.score(PLAYER_ID), -50);
+        assert!(g.board.score(100) >= 100);
+        assert!(g.popups.iter().any(|p| p.text.contains("got you")));
+    }
+
+    #[test]
+    fn a_bot_with_a_steak_walks_up_and_stuns_the_player() {
+        let mut app = app();
+        bots_on(&mut app);
+        put_player(&mut app, 8.0, 3.0);
+        give_bot(&mut app, 0, ItemKind::Steak);
+        {
+            // the other two have nothing to do with it
+            let mut g = app.world_mut().resource_mut::<Game>();
+            g.dummies[1].mover.x = -30.0;
+            g.dummies[2].mover.x = 30.0;
+        }
+        ticks(&mut app, 60 * 25);
+        let g = app.world().resource::<Game>();
+        let steaked = g.feed.iter().any(|(m, _)| m.contains("steaked you"));
+        assert!(steaked || g.board.score(100) >= 50, "feed {:?} score {}", g.feed, g.board.score(100));
+    }
+
+    #[test]
+    fn bots_never_stack_it_however_drunk() {
+        let mut app = app();
+        bots_on(&mut app);
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            for d in &mut g.dummies {
+                d.bot.drunk.add(100.0);
+            }
+        }
+        ticks(&mut app, 60 * 60);
+        let g = app.world().resource::<Game>();
+        assert!(g.dummies.iter().all(|d| d.body.fall_t <= 0.0));
+    }
+
+    #[test]
+    fn bots_run_little_errands_sooner_or_later() {
+        let mut app = app();
+        bots_on(&mut app);
+        put_player(&mut app, 30.0, 20.0);
+        let mut did_something = false;
+        for _ in 0..60 {
+            ticks(&mut app, 60 * 5);
+            let g = app.world().resource::<Game>();
+            did_something |= g
+                .dummies
+                .iter()
+                .any(|d| d.bot.drunk.meter > 1.0 || d.seat.is_some())
+                || g.life.dazza.state != bbq_core::dazza::DazzaState::Cook;
+            if did_something {
+                break;
+            }
+        }
+        assert!(did_something, "five minutes and no bar, smoko or meat run");
+    }
+
+    #[test]
+    fn bots_start_fair_and_the_test_fixture_freezes_them() {
+        let mut app = app();
+        assert_eq!(
+            app.world().resource::<Game>().options.bot_difficulty,
+            bbq_core::bots::Difficulty::Fair
+        );
+        assert!(!app.world().resource::<Game>().options.bots_on, "the test fixture freezes them");
+    }
+
+    #[test]
+    fn the_leader_wears_the_crown() {
+        let mut app = app();
+        bots_on(&mut app);
+        put_player(&mut app, 30.0, 20.0);
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            let id = g.dummies[1].id;
+            g.board.award(&Rules { mode: GameMode::FreeForAll, friendly_fire: false, phase: Phase::Play }, id, 300);
+        }
+        ticks(&mut app, 5);
+        let g = app.world().resource::<Game>();
+        assert!(g.dummies[1].crown && !g.dummies[0].crown && !g.dummies[2].crown);
+    }
+
+    #[test]
+    fn nobody_gets_stuck_for_long_in_a_real_game() {
+        let mut app = app();
+        bots_on(&mut app);
+        put_player(&mut app, 30.0, 20.0);
+        let mut last = [(0.0f32, 0.0f32); 3];
+        let mut still = [0.0f32; 3];
+        let mut worst = 0.0f32;
+        for sec in 0..120 {
+            ticks(&mut app, 60);
+            let g = app.world().resource::<Game>();
+            for (i, d) in g.dummies.iter().enumerate() {
+                let moved = (d.mover.x - last[i].0).hypot(d.mover.z - last[i].1);
+                let parked = d.seat.is_some() || d.bot.drunk.is_drinking() || d.bot.winding || d.body.stun > 0.0;
+                if sec > 0 && moved < 0.3 && !parked {
+                    still[i] += 1.0;
+                    worst = worst.max(still[i]);
+                } else {
+                    still[i] = 0.0;
+                }
+                last[i] = (d.mover.x, d.mover.z);
+            }
+        }
+        assert!(worst < 12.0, "a bot stood still for {worst} s");
     }
 }
