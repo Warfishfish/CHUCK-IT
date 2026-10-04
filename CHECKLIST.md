@@ -60,6 +60,7 @@
 - ✅ Hits, streaks, leader bounty, drunk bonus, pool/tramp bonus
 - ✅ Teams (Red / Blue / Wildcard), friendly fire option
 - ✅ Best-of-3 matches; host picks what's in the yard
+- ✅ Online, when the game (single round or the whole match) is over, the results show for a few seconds and then everyone goes back to the lobby together, ready for the next one
 
 **Teddy Heist (its own mode)**
 - ✅ Pick **🧸 Teddy Heist** as the Game mode in either the **Solo** or **With mates** section (no separate tab). Choose 2-4 teams there, then Play or Host. Teams spawn inside their own base
@@ -78,13 +79,14 @@
 - ⚠️ A thief can still throw a stolen teddy to a mate. Left in on purpose, so watch it in playtest (it might be fun, it might be exploitable)
 
 
-**Grab and carry**
-- ✅ Press **F** next to someone who's actually down (knocked flat or stacked it) to pick them up. Someone who's only stunned from a hit, but still standing, can't be picked up. Tap **F** again to put them down, **hold F** to throw them (about 7 metres). With nobody to pick up, F still winds up a throw like before
-- ✅ The carried player hangs over your shoulder, flopping and bouncing as you walk. You move slower, can't sprint, throw or slap, and they drop anything they were holding (including a stolen teddy)
-- ✅ The carried player **mashes Space** to wriggle free (about 8 presses). Nobody can be carried for more than 6 seconds, and a freed player can't be grabbed again for 8 seconds
-- ✅ You drop them if you get hit, knocked down, fall over or walk into the pool. Chucking someone into the pool or onto the tramp still scores the splash/orbit bonus
-- ✅ Bots can be carried (they wriggle free on their own). Bots don't grab anyone yet
-- ✅ Works online for host and guests; if someone leaves mid-carry the carry just ends
+**Grab and drag**
+- ✅ Press **F** next to someone who's actually down (knocked flat or stacked it) to grab them by the ankles and drag them along the grass on their back behind you. Tap **F** again to let go, **hold F** to throw them (about 7 metres). With nobody to grab, F still winds up a throw like before. Anyone can be grabbed, teammates included
+- ✅ **Human cannonball:** throw a dragged player into someone and the person they hit is knocked flat (+100 if it's the other team, nothing for your own team unless friendly fire is on)
+- ✅ Dragging slows you down, and you can't sprint, throw or slap. The dragged player drops anything they were holding (including a stolen teddy) and lies looking up at the sky
+- ✅ The dragged player **mashes Space** to wriggle free (about 8 presses). Nobody can be dragged for more than 6 seconds, and a freed player can't be grabbed again for 8 seconds
+- ✅ You let go if you get hit, knocked down, fall over or walk into the pool. Throwing someone into the pool or onto the tramp still scores the splash/orbit bonus
+- ✅ Bots can be dragged (they wriggle free on their own). Bots don't grab anyone yet
+- ✅ Works online for host and guests; if someone leaves mid-drag it just ends
 
 **Naughty Corner**
 - ✅ Tick **😈 Smoko is the Naughty Corner** in the yard options (solo and hosted). The smoko pad turns red

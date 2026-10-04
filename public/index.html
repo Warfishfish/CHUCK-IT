@@ -277,7 +277,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.22.4</span>
+      <span class="tag">Backyard Brawl · prototype 0.23.0</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -428,7 +428,7 @@ body.touch #cds{display:none}
           <span><kbd>Shift</kbd></span><span>Speed boost</span>
           <span><kbd>Right click</kbd></span><span>Catch</span>
           <span><kbd>R</kbd></span><span>Drink, grab, smoko, help up (hold)</span>
-          <span><kbd>F</kbd></span><span>Pick up someone who's down, tap again to put down, hold to throw. Dump them in the smoko area when it's the Naughty Corner</span>
+          <span><kbd>F</kbd></span><span>Grab someone who's down and drag them, tap again to let go, hold to throw them (even at the other team). Dump them in the smoko area when it's the Naughty Corner</span>
           <span><kbd>Q</kbd></span><span>Swap item</span>
           <span><kbd>T</kbd> <kbd>G</kbd> <kbd>B</kbd></span><span>Taunt, dance, laugh</span>
           <span><kbd>Esc</kbd></span><span>Menu</span>
@@ -539,6 +539,7 @@ body.touch #cds{display:none}
     <h3 class="display" id="winTitle">Time!</h3>
     <p id="winLine"></p>
     <p id="matchLine" class="match-line" hidden></p>
+    <p id="lobbyNote" class="match-line" hidden>Game over! Everyone heads back to the lobby in a few seconds.</p>
     <div class="table-wrap"><table>
       <thead><tr><th>#</th><th>Player</th><th>Score</th><th>Hits</th><th>Got hit</th><th>Catches</th><th>Accuracy</th></tr></thead>
       <tbody id="resBody"></tbody>
@@ -1180,7 +1181,7 @@ function startFall(ch){ch.fallT=fallDur;ch.fallAge=0;ch.stun=Math.max(ch.stun,fa
   SFX.thud(ch.pos);SFX.whoa(ch.pos);
   if(ch.kind==='me'&&me){shake=Math.max(shake,.15);floater('STACKED IT!',camera.position.clone().add(fwd(me).multiplyScalar(2.2)).setY(camera.position.y+.4),'big');}}
 /* ---- grab and carry: pick up someone who's down and haul them about ---- */
-const CARRY={max:6,reach:1.9,wig:.8,immune:8,hold:.4,slow:.6,hv:10.5,vy:8.5};
+const CARRY={max:6,reach:1.9,wig:.8,immune:8,hold:.4,slow:.55,drag:1.15,hv:10.5,vy:8.5};
 const carryOf=new Map(),carriedBy=new Map(),grabImmune=new Map(); // carrierId->{vid,t,wr,lastW} · victimId->carrierId · host: victimId->time they can be grabbed again
 let vHeld=0,vArmed=false;
 function isDown(ch){return !!ch&&(ch.downT>0||ch.fallT>0);}
@@ -1206,12 +1207,24 @@ function carryHostTick(dt){for(const [gid,c] of [...carryOf]){const g=chars.get(
     if(g.stun>0||g.downT>0||g.fallT>0||g.inPool){authRelease(gid,3);continue;}
     if(c.t>=CARRY.max)authRelease(gid,c.wr||v.ai?1:2);}}
 function carryCleanup(id){if(!isAuth)return;for(const [gid,c] of [...carryOf])if(gid===id||c.vid===id)authRelease(gid,3);grabImmune.delete(id);}
+function chuckHitTick(){ // host: a thrown player who flies into someone knocks them flat
+  for(const v of chars.values()){if(!v.chuckBy||v.chuckHit||elapsed-v.chuckT>1.2||elapsed-v.chuckT<.08)continue;
+    for(const o of chars.values()){if(o===v||o.id===v.chuckBy||o.smokoSeat>=0||o.downT>0||o.fallT>0||carriedBy.has(o.id))continue;
+      if(Math.hypot(o.pos.x-v.pos.x,o.pos.z-v.pos.z)<1.05&&Math.abs(o.pos.y-v.pos.y)<1.5){v.chuckHit=true;authBodyHit(v.chuckBy,v.id,o.id);break;}}}}
+function authBodyHit(tid,fid,vid){const v=chars.get(vid),f=chars.get(fid);if(!v||!f)return;
+  const tk=sameTeam(tid,vid);if(tk&&!friendlyFire)return;
+  const scoring=state==='play'&&gameMode!=='heist';let pts=0;
+  if(scoring&&stats[tid]&&!tk&&tid!==vid){pts=100;stats[tid].score+=pts;stats[tid].hits++;scoreDirty=true;}
+  if(scoring&&stats[vid])stats[vid].taken++;
+  const kd=new V3(f.vel.x,0,f.vel.z);if(kd.lengthSq()<1e-3)kd.set(v.pos.x-f.pos.x,0,v.pos.z-f.pos.z);if(kd.lengthSq()<1e-4)kd.set(0,0,1);kd.normalize();
+  fx('bodyhit',fid,vid,tid,r2(kd.x),r2(kd.z),pts);}
 function carryList(){return[...carryOf].map(([g,c])=>[g,c.vid]);}
 function carrySync(list){if(!Array.isArray(list))return;const want=new Map();
   for(const e of list)if(Array.isArray(e)&&typeof e[0]==='string'&&typeof e[1]==='string'&&chars.has(e[0])&&chars.has(e[1]))want.set(e[0],e[1]);
   for(const [g,c] of [...carryOf])if(want.get(g)!==c.vid){carryOf.delete(g);carriedBy.delete(c.vid);}
   for(const [g,v] of want)if(!carryOf.has(g)){carryOf.set(g,{vid:v,t:0,wr:0});carriedBy.set(v,g);}}
-function carryPin(v,g){v.pos.copy(g.pos);v.vel.copy(g.vel);v.grounded=g.grounded;v.wish.set(0,0);v.face=g.face;v.stun=Math.max(v.stun,.3);v.fallT=0;v.downT=0;
+function carryPin(v,g){const f=fwd(g);v.pos.set(g.pos.x-f.x*CARRY.drag,g.pos.y,g.pos.z-f.z*CARRY.drag); // dragged along behind by the ankles
+  v.vel.copy(g.vel);v.grounded=g.grounded;v.wish.set(0,0);v.face=g.face;v.stun=Math.max(v.stun,.3);v.fallT=0;v.downT=0;
   v.charging=false;v.charge=0;v.drinkT=0;v.slapA=0;v.boostT=0;v.smokoSeat=-1;v.inPool=false;v.fallImmune=Math.max(v.fallImmune||0,8);}
 function vDown(){if(!me||!canAct()||isCarried(me))return;
   if(isCarrying(me)){vHeld=elapsed;vArmed=true;return;}
@@ -1834,12 +1847,12 @@ function playFx(a){
   const k=a[0];
   if(k==='grab'){const gid=a[1],vid=a[2],g=chars.get(gid),v=chars.get(vid);carryForget(gid);carryForget(vid);carryOf.set(gid,{vid,t:0,wr:0});carriedBy.set(vid,gid);
     if(v){v.charging=false;v.charge=0;v.drinkT=0;}if(g)SFX.pickup(g.pos);
-    feed(`${nm(gid)} picked up ${nm(vid)}`);
-    if(vid===myId&&me)showHint('<b>Oi, put me down!</b> Mash <b>SPACE</b> to wriggle free.',4);
+    feed(`${nm(gid)} grabbed ${nm(vid)} by the ankles`);
+    if(vid===myId&&me)showHint('<b>Oi, let go!</b> Mash <b>SPACE</b> to wriggle free.',4);
   }else if(k==='gfree'){const gid=a[1],vid=a[2],mode=a[3]|0,v=chars.get(vid);carryOf.delete(gid);carriedBy.delete(vid);if(gid===myId)vArmed=false;
     if(v){v.slapA=0;v.fallT=0;v.downT=0;v.fallImmune=Math.max(v.fallImmune||0,8);
       if(mode===4){const vx=num(a[4],0),vy=num(a[5],8),vz=num(a[6],0);v.lastHitBy=gid;v.lastHitT=elapsed;v.chuckBy=gid;v.chuckT=elapsed;
-        if(v.kind!=='proxy'){v.vel.set(vx,vy,vz);v.grounded=false;v.stun=Math.max(v.stun,1.2);v.pos.y+=1;}
+        if(v.kind!=='proxy'){const g=chars.get(gid),l=Math.hypot(vx,vz)||1;if(g)v.pos.set(g.pos.x+vx/l*.8,g.pos.y+1,g.pos.z+vz/l*.8);else v.pos.y+=1;v.vel.set(vx,vy,vz);v.grounded=false;v.stun=Math.max(v.stun,1.2);}v.chuckHit=false;
         const d=new V3(vx,0,vz);if(d.lengthSq()>1e-4)applyTumble(v,d.normalize(),9);
         SFX.throw(v.pos);burst(v.pos.clone().setY(v.pos.y+1.2),[0xffffff,0xffd23f],10,4,.07);}
       else if(v.kind!=='proxy'){v.vel.multiplyScalar(.3);v.stun=Math.max(v.stun,mode===0?.5:.3);}
@@ -1847,6 +1860,13 @@ function playFx(a){
       if(v.kind==='me'&&me&&mode!==4)SFX.thud(v.pos);}
     feed(mode===4?`${nm(gid)} <em>CHUCKED</em> ${nm(vid)}`:mode===1?`${nm(vid)} wriggled free of ${nm(gid)}`:mode===0?`${nm(gid)} put ${nm(vid)} down`:`${nm(gid)} dropped ${nm(vid)}`);
     if(vid===myId&&me)hintEl.style.opacity=0;
+  }else if(k==='bodyhit'){const fid=a[1],vid=a[2],tid=a[3],kd=new V3(num(a[4],0),0,num(a[5],1)),pts=num(a[6],0),vc=chars.get(vid),fc=chars.get(fid);
+    if(fc){fc.chuckHit=true;if(fc.kind!=='proxy'){fc.vel.x*=-.25;fc.vel.z*=-.25;}}
+    if(vc){vc.lastHitBy=tid;vc.lastHitT=elapsed;vc.slapA=2;vc.slapT=0;vc.slapDur=2.2;vc.slapDir=kd.clone();
+      if(vc.kind==='me'||(isAuth&&vc.kind==='bot'))applyKnock(vc,{knock:7,knockdown:true,stun:2.2},kd,2,2.2);
+      const hp=vc.pos.clone().setY(vc.pos.y+1.2);SFX.bonk(hp);burst(hp,[0xffd23f,0xffffff,0xff5f3d],22,6,.08);
+      floater('HUMAN CANNONBALL!'+(tid===myId&&pts?'  +'+pts:''),vc.pos.clone().setY(vc.pos.y+2.5),'big');if(tid===myId&&pts)hitMarker();}
+    feed(`${nm(tid)} threw ${nm(fid)} into ${nm(vid)}${pts?' <b>+'+pts+'</b>':''}`);
   }else if(k==='naughty'){const vid=a[1],tid=a[2],pts=num(a[3],0),v=chars.get(vid);
     if(v){v.naughtyT=NAUGHTY.sit;v.chuckBy=null;
       if(v.kind!=='proxy'){let bi=0,bd=1e9;for(let i=0;i<smokoN;i++){const [x,z]=seatPos(i,smokoN),d=Math.hypot(x-v.pos.x,z-v.pos.z);if(d<bd){bd=d;bi=i;}}v.naughtySeat=bi;
@@ -2248,13 +2268,14 @@ function syncCharMesh(ch,dt){
       else{ch.body.position.y+=Math.abs(Math.sin(t*9))*.16;ch.body.quaternion.multiply(dq.setFromEuler(de.set(0,t*5.5,Math.sin(t*9)*.22)));ch.hand.position.set(-.5,1.2+.3*Math.sin(t*9),.1);}}}
   if(seated){ch.body.position.y=-.3;ch.body.quaternion.setFromEuler(de.set(-.2,0,0));const sp2=Math.pow(Math.max(0,Math.sin(elapsed*1.5+ch.phase)),6);ch.hand.position.set(-.34,.9+.5*sp2,.28);ch.smokoCan.rotation.x=-sp2*1.2;}
   {const cb=carriedBy.get(ch.id),g=cb&&chars.get(cb);
-    if(g){ // draped across the carrier's shoulders, bouncing with their steps
-      const ry2=g.face+Math.PI/2,gsp=Math.hypot(g.vel.x,g.vel.z),bob=g.grounded&&gsp>.5?Math.abs(Math.sin(g.walk))*.1:0;
-      ch.mesh.rotation.y=ry2;ch.mesh.position.set(g.pos.x-Math.sin(ry2)*.72,g.pos.y+1.18+bob,g.pos.z-Math.cos(ry2)*.72);
-      const flop=Math.sin(elapsed*3.1+ch.phase)*.14+(ch.wrigT>0?Math.sin(elapsed*60)*.4:0);
-      ch.body.quaternion.setFromEuler(de.set(Math.PI/2+.1,0,flop));ch.body.position.y=.34;ch.body.scale.set(1,1,1);
-      ch.hand.position.set(-.5,.4+Math.sin(elapsed*8+ch.phase)*.2,.2);ch.handL.position.set(.5,.4+Math.cos(elapsed*8+ch.phase)*.2,.2);}
-    else if(carryOf.has(ch.id)){ch.body.quaternion.multiply(dq.setFromEuler(de.set(-.14,0,0)));}}
+    if(g){ // dragged along the grass on their back by the ankles, feet towards whoever's got them
+      const f=fwd(g),gsp=Math.hypot(g.vel.x,g.vel.z),jig=g.grounded&&gsp>.5?Math.abs(Math.sin(g.walk*1.3))*.05:0;
+      ch.mesh.rotation.y=g.face;ch.mesh.position.set(g.pos.x-f.x*.55,g.pos.y+jig,g.pos.z-f.z*.55);
+      const flop=Math.sin(elapsed*3.1+ch.phase)*.12*(gsp>.5?1.6:1)+(ch.wrigT>0?Math.sin(elapsed*60)*.4:0);
+      ch.body.quaternion.setFromEuler(de.set(-Math.PI/2+.12,0,flop));ch.body.position.y=.3;ch.body.scale.set(1,1,1);
+      ch.hand.position.set(-.55,.35+Math.sin(elapsed*7+ch.phase)*.15,-.1);ch.handL.position.set(.55,.35+Math.cos(elapsed*7+ch.phase)*.15,-.1);}
+    else if(carryOf.has(ch.id)){ // leaning forward, both hands back holding the ankles
+      ch.body.quaternion.multiply(dq.setFromEuler(de.set(.2,0,0)));ch.hand.position.set(-.32,.62,-.42);ch.handL.position.set(.32,.62,-.42);}}
   ch.stars.visible=ch.stun>.15||ch.dizzyT>0;if(ch.stars.visible)ch.stars.rotation.y+=dt*6;
   ch.crown.visible=leaderId===ch.id;
   const tm=teamOfId(ch.id);if(ch.teamShown!==tm){ch.teamShown=tm;ch.sash.visible=!!tm;if(tm)ch.sash.material=mat(TEAMS[tm].color);ch.teamCss=tm?TEAMS[tm].css:null;
@@ -2558,7 +2579,7 @@ function guestState(st,first){
   if(st==='countdown'){resultsOpen=false;lastBeep=4;if(fallbackAim||touchMode)panelOpen=false;}
   if(st==='play'&&prev==='countdown'&&!first){banner('CHUCK IT!',1);SFX.go();}
   if(st==='results'&&!first){SFX.whistle();banner('TIME!',1.4);setTimeout(()=>{if(state==='results'&&mode==='mp'){resultsOpen=true;showResults(resultsRows||boardRows());refreshOverlays();}},1100);}
-  if(st==='warmup'){resultsOpen=false;}
+  if(st==='warmup'){resultsOpen=false;if(prev==='results'){panelOpen=true;if(document.pointerLockElement)document.exitPointerLock();}}
   refreshOverlays();renderYardPanel();
 }
 /* lobby */
@@ -2787,16 +2808,16 @@ function updateHud(dt){
     const ms=canAct()&&me.stun<=0?meatSpot(me):null;
     const ht=helpTick(dt);
     const gt=(!me.fallT&&me.smokoSeat<0&&!isCarried(me)&&!isCarrying(me))?grabTarget():null;
-    if(isCarried(me)){const html='<b>Carried!</b> Mash <kbd>SPACE</kbd> to wriggle free';if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
-    else if(isCarrying(me)){const html=touchMode?'Carrying a mate':'<kbd>F</kbd>Put down · hold <kbd>F</kbd> to throw';if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
+    if(isCarried(me)){const html='<b>Being dragged!</b> Mash <kbd>SPACE</kbd> to wriggle free';if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
+    else if(isCarrying(me)){const html=touchMode?'Dragging someone':'<kbd>F</kbd>Let go · hold <kbd>F</kbd> to throw them';if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
     else if(me.fallT>0){const alone=teamsOn()&&(teamOf.get(myId)==='w'||![...chars.values()].some(o=>o!==me&&sameTeam(myId,o.id)));
       const html=`<b>Stacked it!</b> Up in ${Math.ceil(me.fallT)}s${alone?'':teamsOn()?' (or a teammate can help you up)':' (or a mate can help you up)'}`;if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
     else if(me.smokoSeat>=0){const html=`<b>Smoko.</b> Nobody can touch you for ${Math.ceil(SMOKO.maxT-me.smokoT)}s. `+(touchMode?'Tap <b>Up</b> to get back to it':'<kbd>R</kbd>get back to it');if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
     else if(canAct()&&me.stun<=0&&inSmoko(me)&&!ht&&naughtyOn()){const html='<b>Naughty Corner!</b> Get dumped here and you\'re stuck on the chair for 5s';if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
     else if(canAct()&&me.stun<=0&&inSmoko(me)&&!ht){const html=touchMode?'Tap <b>Sit</b> for smoko (safe, but you have to drink)':'<kbd>R</kbd>Sit down for smoko (safe, but you have to drink)';if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
     else if(ht){const who=esc(ht.kind==='me'?'yourself':ht.name),pc=Math.round(me.helpT/HELP_TIME*100);
-      const html=me.helpT>0?`Helping ${who} up… ${pc}%`:(touchMode?`Hold <b>Help</b> to get ${who} up (+${HELP_PTS})`:`<kbd>R</kbd>Hold to help ${who} up (+${HELP_PTS}) · <kbd>F</kbd>pick up`);if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
-    else if(gt){const html=touchMode?`${esc(gt.name)} is down`:`<kbd>F</kbd>Pick up ${esc(gt.name)}`;if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
+      const html=me.helpT>0?`Helping ${who} up… ${pc}%`:(touchMode?`Hold <b>Help</b> to get ${who} up (+${HELP_PTS})`:`<kbd>R</kbd>Hold to help ${who} up (+${HELP_PTS}) · <kbd>F</kbd>drag`);if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
+    else if(gt){const html=touchMode?`${esc(gt.name)} is down`:`<kbd>F</kbd>Drag ${esc(gt.name)}`;if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
     else if(ms){const nm2=ms==='steak'?'a raw steak':'a raw fish';const html=touchMode?`Tap <b>Grab</b> to nick ${nm2}`:`<kbd>R</kbd>Nick ${nm2} (Dazza won't like it)`;if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
     else if(atChest){const html=chestStock>0?(touchMode?`Tap <b>Grab</b> something from the chest (${chestStock} left)`:`<kbd>R</kbd>Grab something from the chest (${chestStock} left)`):'Chest is empty, restocking…';if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}
     else if(spot){const html=touchMode?`Tap <b>Drink</b> for ${DRINKS[spot].full}`:`<kbd>R</kbd>Drink ${DRINKS[spot].full}`;if(bp.innerHTML!==html)bp.innerHTML=html;bp.classList.add('on');}else bp.classList.remove('on');
@@ -2825,6 +2846,7 @@ function refreshOverlays(){
   const tv=touchMode&&mode!=='menu'&&!resultsOpen&&!(mode==='mp'&&panelOpen)&&state!=='paused';touchEl.hidden=!tv;
   $('#tMenu').hidden=mode!=='mp';
   // results buttons
+  {const ln=$('#lobbyNote');if(ln)ln.hidden=!(mode==='mp'&&matchOver&&resultsOpen);}
   const again=$('#again'),back=$('#toMenu');
   if(mode==='solo'){again.hidden=false;again.textContent=againLabel();back.textContent='Menu';}
   else if(mode==='mp'){again.hidden=!net.isHost;again.textContent=againLabel();back.textContent='Back to the yard';}
@@ -2916,8 +2938,10 @@ function authEndRound(){
   if(Math.max(0,...matchWins.values())>=matchNeed()||matchNo>=matchLen)matchOver=true;
   if(mode==='solo'&&document.pointerLockElement)document.exitPointerLock();
   setTimeout(()=>{if(state==='results'&&mode!=='menu'){resultsOpen=true;showResults(resultsRows);refreshOverlays();}},1100);
+  if(mode==='mp'&&matchOver)setTimeout(()=>{if(mode==='mp'&&net.isHost&&state==='results')backToLobby();},9000); // game over online: everyone heads back to the lobby
   renderYardPanel();
 }
+function backToLobby(){state='warmup';clearHeistProps();carryReset();resultsOpen=false;panelOpen=true;if(document.pointerLockElement)document.exitPointerLock();refreshOverlays();renderYardPanel();}
 function startSolo(){
   ac();mode='solo';isAuth=true;myId='me';clearWorld();roundLen=+radio('len');difficulty=radio('diff');
   me=createChar('me',myName,PALETTE[0],'me',CHAR_SPAWNS[0]);myColor=PALETTE[0];
@@ -2950,7 +2974,7 @@ $('#hostBtn').addEventListener('click',hostYard);
 document.querySelectorAll('#pFeat input,#pAdult,#mFeat input,#mAdult').forEach(c=>c.addEventListener('change',()=>{if(mode==='menu')menuFeatPreview();}));
 $('#joinForm').addEventListener('submit',e=>{e.preventDefault();joinYard($('#codeIn').value);});
 $('#again').addEventListener('click',()=>{if(mode==='solo'){if(matchOver)startSolo();else{resultsOpen=false;authStartRound();requestLock();canvas.focus();}}else if(mode==='mp'&&net.isHost){roundLen=+radio('ylen');difficulty=radio('ydiff');botCount=+radio('ybots');authStartRound();requestLock();}});
-$('#toMenu').addEventListener('click',()=>{if(mode==='mp'){resultsOpen=false;if(net.isHost&&state==='results'){state='warmup';clearHeistProps();}refreshOverlays();renderYardPanel();}else goMenu();});
+$('#toMenu').addEventListener('click',()=>{if(mode==='mp'){if(net.isHost&&state==='results'){backToLobby();return;}resultsOpen=false;refreshOverlays();renderYardPanel();}else goMenu();});
 $('#quit').addEventListener('click',goMenu);
 $('#resume').addEventListener('click',()=>resume(false));
 $('#startMp').addEventListener('click',()=>{if(!net.isHost)return;if(matchOver||matchNo===0)matchLen=+radio('yrounds')||1;roundLen=+radio('ylen');difficulty=radio('ydiff');botCount=+radio('ybots');authStartRound();panelOpen=false;refreshOverlays();requestLock();});
@@ -3021,7 +3045,7 @@ function frame(now){
       const t=teamOfId(myId);if(t)showHint(t==='w'?'You\'re the <b>Wildcard</b>. Everyone is fair game, and everyone is after you.':`You're on the <b style="color:${TEAMS[t].css}">${TEAMS[t].name}</b> team. Get the other lot${friendlyFire?'. Friendly fire is on, so watch your aim':''}.`,5);}
     frame.lastState=state;}
   if(me)playerInput();
-  if(me)carryTick(dt);if(isAuth)carryHostTick(dt);
+  if(me)carryTick(dt);if(isAuth){carryHostTick(dt);chuckHitTick();}
   if(isAuth)for(const ch of chars.values())if(ch.ai&&!carriedBy.has(ch.id)&&!(ch.naughtyT>0))aiUpdate(ch,dt);
   for(const ch of chars.values()){if(ch.kind==='proxy')updateProxy(ch,dt);else updateChar(ch,dt);}
   separate();
@@ -3031,7 +3055,7 @@ function frame(now){
     const sx=shake>0?rand(-1,1)*shake:0,sy=shake>0?rand(-1,1)*shake:0;const bob=me.grounded?Math.sin(me.walk*2)*.035:0;
     const SC=me.slapA?slapCam(me):null;
     const FF=me.fallT>0?Math.min(1,me.fallAge/.3):me.rise/.45;
-    const mdn=SC?SC.lie:me.downT>0?Math.min(1,(DOWN_TIME-me.downT)/.22,me.downT/.45):0;
+    const mdn=SC?SC.lie:isCarried(me)?1:me.downT>0?Math.min(1,(DOWN_TIME-me.downT)/.22,me.downT/.45):0;
     camera.position.set(me.pos.x+sx*.3,me.pos.y+1.55-(me.sink||0)+bob+sy*.3-mdn*1.2+(SC?SC.lift:0)-FF*1.25-(me.smokoSeat>=0?.45:0),me.pos.z);
     const dr=me.dodgeT>0?(me.dodgeDir.dot(new V3(Math.cos(me.yaw),0,-Math.sin(me.yaw)))>0?-.12:.12):0;
     const da=drunkAmt(me.drunk),et=elapsed;
