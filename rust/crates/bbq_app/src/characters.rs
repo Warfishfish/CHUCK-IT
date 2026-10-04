@@ -18,15 +18,15 @@ use crate::game::Game;
 use crate::player::{EyeCamera, Player};
 
 const TEAM_COLOURS: [(Team, Color); 4] = [
-    (Team::Red, Color::srgb(0.85, 0.2, 0.18)),
-    (Team::Blue, Color::srgb(0.18, 0.4, 0.85)),
-    (Team::Green, Color::srgb(0.2, 0.7, 0.3)),
-    (Team::Yellow, Color::srgb(0.95, 0.8, 0.2)),
+    (Team::Red, Color::linear_rgb(0.85, 0.2, 0.18)),
+    (Team::Blue, Color::linear_rgb(0.18, 0.4, 0.85)),
+    (Team::Green, Color::linear_rgb(0.2, 0.7, 0.3)),
+    (Team::Yellow, Color::linear_rgb(0.95, 0.8, 0.2)),
 ];
 
 pub fn team_colour(t: Team) -> Color {
     match t {
-        Team::Wildcard => Color::srgb(0.7, 0.3, 0.9),
+        Team::Wildcard => Color::linear_rgb(0.7, 0.3, 0.9),
         other => TEAM_COLOURS
             .iter()
             .find(|(k, _)| *k == other)
@@ -87,9 +87,9 @@ struct Dazza {
 }
 
 const BLOB_COLOURS: [Color; 3] = [
-    Color::srgb(0.9, 0.3, 0.25),
-    Color::srgb(0.2, 0.7, 0.65),
-    Color::srgb(0.95, 0.75, 0.2),
+    Color::linear_rgb(0.9, 0.3, 0.25),
+    Color::linear_rgb(0.2, 0.7, 0.65),
+    Color::linear_rgb(0.95, 0.75, 0.2),
 ];
 pub const BLOB_NAMES: [&str; 3] = ["Bruce", "Sheila", "Davo"];
 
@@ -272,13 +272,13 @@ fn spawn_blobs(
     game: Res<Game>,
 ) {
     let gold = mats.add(StandardMaterial {
-        base_color: Color::srgb(1.0, 0.81, 0.2),
+        base_color: Color::linear_rgb(1.0, 0.81, 0.2),
         emissive: LinearRgba::new(0.27, 0.2, 0.0, 1.0),
         cull_mode: None,
         ..default()
     });
     let star_mat = mats.add(StandardMaterial {
-        base_color: Color::srgb(1.0, 0.88, 0.4),
+        base_color: Color::linear_rgb(1.0, 0.88, 0.4),
         emissive: LinearRgba::new(0.53, 0.4, 0.0, 1.0),
         ..default()
     });
@@ -324,7 +324,7 @@ fn spawn_blobs(
             head: head_mat,
             foot: foot_mat,
             can_mesh: can.clone(),
-            can_mat: mats.add(Color::srgb(0.85, 0.6, 0.1)),
+            can_mat: mats.add(Color::linear_rgb(0.85, 0.6, 0.1)),
             body_entity: body,
         };
         spawn_model(&mut commands, &assets, &look, i, cast.character_of(i));
@@ -409,7 +409,7 @@ fn spawn_blobs(
                 font_size: FontSize::Px(56.0),
                 ..default()
             },
-            TextColor(Color::srgb(0.84, 0.18, 0.13)),
+            TextColor(Color::linear_rgb(0.84, 0.18, 0.13)),
             TextBackgroundColor(Color::WHITE),
             Transform::from_xyz(0.0, 1.5, 0.0).with_scale(Vec3::splat(0.012)),
             Visibility::Hidden,
@@ -424,7 +424,7 @@ fn spawn_blobs(
         commands.spawn((
             Mesh3d(meshes.add(Sphere::new(1.0))),
             MeshMaterial3d(mats.add(StandardMaterial {
-                base_color: Color::srgba(0.72, 0.81, 0.44, 0.28),
+                base_color: Color::linear_rgba(0.72, 0.81, 0.44, 0.28),
                 alpha_mode: AlphaMode::Blend,
                 unlit: true,
                 ..default()
@@ -443,16 +443,16 @@ fn spawn_dazza(
     mut mats: ResMut<Assets<StandardMaterial>>,
 ) {
     let mut m = |c: Color| mats.add(c);
-    let skin = m(Color::srgb(0.91, 0.71, 0.55));
-    let singlet = m(Color::srgb(0.11, 0.25, 0.45));
-    let apron = m(Color::srgb(0.96, 0.97, 0.95));
-    let belt = m(Color::srgb(0.7, 0.23, 0.17));
-    let hat = m(Color::srgb(0.48, 0.35, 0.23));
-    let dark = m(Color::srgb(0.07, 0.07, 0.07));
-    let nose = m(Color::srgb(0.85, 0.56, 0.42));
-    let boot = m(Color::srgb(0.23, 0.17, 0.1));
-    let tool = m(Color::srgb(0.16, 0.16, 0.16));
-    let plate = m(Color::srgb(0.85, 0.87, 0.88));
+    let skin = m(Color::linear_rgb(0.91, 0.71, 0.55));
+    let singlet = m(Color::linear_rgb(0.11, 0.25, 0.45));
+    let apron = m(Color::linear_rgb(0.96, 0.97, 0.95));
+    let belt = m(Color::linear_rgb(0.7, 0.23, 0.17));
+    let hat = m(Color::linear_rgb(0.48, 0.35, 0.23));
+    let dark = m(Color::linear_rgb(0.07, 0.07, 0.07));
+    let nose = m(Color::linear_rgb(0.85, 0.56, 0.42));
+    let boot = m(Color::linear_rgb(0.23, 0.17, 0.1));
+    let tool = m(Color::linear_rgb(0.16, 0.16, 0.16));
+    let plate = m(Color::linear_rgb(0.85, 0.87, 0.88));
 
     let root = commands
         .spawn((
@@ -575,7 +575,7 @@ fn spawn_dazza(
             font_size: FontSize::Px(34.0),
             ..default()
         },
-        TextColor(Color::srgb(1.0, 0.62, 0.11)),
+        TextColor(Color::linear_rgb(1.0, 0.62, 0.11)),
         Transform::from_xyz(0.0, 3.0, 0.0).with_scale(Vec3::splat(0.0085)),
         Floating {
             target: root,
@@ -590,7 +590,7 @@ fn spawn_dazza(
                 font_size: FontSize::Px(34.0),
                 ..default()
             },
-            TextColor(Color::srgb(0.09, 0.14, 0.09)),
+            TextColor(Color::linear_rgb(0.09, 0.14, 0.09)),
             TextBackgroundColor(Color::WHITE),
             Transform::from_xyz(0.0, 3.0, 0.0).with_scale(Vec3::splat(0.0085)),
             Visibility::Hidden,

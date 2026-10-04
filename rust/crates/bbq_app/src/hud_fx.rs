@@ -231,14 +231,14 @@ fn sync_drink_vm(
     if !*spawned {
         *spawned = true;
         let glass = mats.add(StandardMaterial {
-            base_color: Color::srgba(0.87, 0.91, 0.92, 0.5),
+            base_color: Color::linear_rgba(0.87, 0.91, 0.92, 0.5),
             alpha_mode: AlphaMode::Blend,
             ..default()
         });
-        let amber = mats.add(Color::srgb(0.85, 0.6, 0.1));
-        let wine = mats.add(Color::srgb(0.54, 0.11, 0.23));
+        let amber = mats.add(Color::linear_rgb(0.85, 0.6, 0.1));
+        let wine = mats.add(Color::linear_rgb(0.54, 0.11, 0.23));
         let rum = mats.add(StandardMaterial {
-            base_color: Color::srgba(0.9, 0.75, 0.48, 0.9),
+            base_color: Color::linear_rgba(0.9, 0.75, 0.48, 0.9),
             alpha_mode: AlphaMode::Blend,
             ..default()
         });

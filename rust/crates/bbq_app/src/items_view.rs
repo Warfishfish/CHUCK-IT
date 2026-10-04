@@ -68,7 +68,7 @@ fn setup_look(
     commands.insert_resource(Look {
         ring: meshes.add(Cylinder::new(0.5, 0.02)),
         ring_mat: mats.add(StandardMaterial {
-            base_color: Color::srgba(1.0, 0.9, 0.2, 0.55),
+            base_color: Color::linear_rgba(1.0, 0.9, 0.2, 0.55),
             emissive: LinearRgba::new(1.0, 0.8, 0.1, 1.0),
             alpha_mode: AlphaMode::Blend,
             unlit: true,
@@ -76,7 +76,7 @@ fn setup_look(
         }),
         puddle: meshes.add(Cylinder::new(1.0, 0.01)),
         puddle_mat: mats.add(StandardMaterial {
-            base_color: Color::srgba(0.85, 0.59, 0.18, 0.55),
+            base_color: Color::linear_rgba(0.85, 0.59, 0.18, 0.55),
             alpha_mode: AlphaMode::Blend,
             ..default()
         }),
@@ -333,9 +333,9 @@ fn draw_trajectory(mut gizmos: Gizmos, game: Res<Game>, player: Res<Player>) {
     }
     let power = game.wind.charge >= bbq_core::stun::POWER_CHARGE;
     let colour = if power {
-        Color::srgb(1.0, 0.3, 0.2)
+        Color::linear_rgb(1.0, 0.3, 0.2)
     } else {
-        Color::srgb(1.0, 1.0, 1.0)
+        Color::linear_rgb(1.0, 1.0, 1.0)
     };
     gizmos.linestrip(pts, colour);
 }
