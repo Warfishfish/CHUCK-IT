@@ -36,6 +36,10 @@ pub struct Wanted {
     /// +1 / -1 from Q, E or the mouse wheel.
     pub swap: i32,
     pub slot: Option<usize>,
+    /// R went down since the last fixed step (grab a drink).
+    pub interact_pressed: bool,
+    /// R is being held right now (helping someone up).
+    pub interact_held: bool,
 }
 
 #[derive(Component)]
@@ -137,6 +141,7 @@ fn read_input(
     cursor: Single<&CursorOptions, With<PrimaryWindow>>,
     mut player: ResMut<Player>,
     mut wanted: ResMut<Wanted>,
+    game: Res<crate::game::Game>,
 ) {
     let grabbed = cursor.grab_mode != CursorGrabMode::None;
     if grabbed {
@@ -159,13 +164,18 @@ fn read_input(
     );
     wanted.wish = movement::wish_dir(player.yaw, mx, my);
 
-    let stunned = false; // Phase 3 brings stuns into the game
+    let stunned = game.me.body.stun > 0.0;
     if keys.just_pressed(KeyCode::Space) {
         player.mover.try_jump(stunned);
     }
     if keys.just_pressed(KeyCode::ShiftLeft) || keys.just_pressed(KeyCode::ShiftRight) {
-        player.mover.try_boost(&Modifiers::default());
+        player.mover.try_boost(&Modifiers {
+            stunned,
+            ..Default::default()
+        });
     }
+    wanted.interact_pressed |= keys.just_pressed(KeyCode::KeyR);
+    wanted.interact_held = keys.pressed(KeyCode::KeyR);
     if grabbed {
         wanted.throw_down |= mouse.just_pressed(MouseButton::Left);
         wanted.catch |= mouse.just_pressed(MouseButton::Right);
@@ -195,20 +205,31 @@ fn step_player(
     mut player: ResMut<Player>,
     wanted: Res<Wanted>,
     yard: Res<YardRes>,
-    game: Res<crate::game::Game>,
+    mut game: ResMut<crate::game::Game>,
 ) {
     let p = &mut *player;
+    let g = &mut *game;
     p.prev = Vec3::new(p.mover.x, p.mover.y, p.mover.z);
-    let mods = Modifiers {
-        charging: game.wind.charging,
+    // drunk: the walk drifts off line, and in Drunk mode the speed lurches
+    let da = g.me.drunk.da();
+    let wish = movement::drunk_steer(wanted.wish, da, g.now);
+    let env = bbq_core::drunk_state::Env {
+        drunk_mode: g.options.drunk_mode,
         ..Default::default()
     };
-    let ev = p.mover.step(
-        movement::step_dt(),
-        MoveInput { wish: wanted.wish },
-        &mods,
-        &yard.0,
-    );
+    let gait =
+        g.me.drunk
+            .gait(movement::step_dt(), g.now, &env, &mut g.rng);
+    let mods = Modifiers {
+        charging: g.wind.charging,
+        stunned: g.me.body.stun > 0.0,
+        drinking: g.me.drunk.is_drinking(),
+        gait,
+        ..Default::default()
+    };
+    let ev = p
+        .mover
+        .step(movement::step_dt(), MoveInput { wish }, &mods, &yard.0);
     p.shake = p.shake.max(ev.shake);
     p.walk = movement::advance_walk(
         p.walk,
@@ -222,6 +243,7 @@ fn update_camera(
     time: Res<Time>,
     fixed: Res<Time<Fixed>>,
     mut player: ResMut<Player>,
+    game: Res<crate::game::Game>,
     mut cam: Single<(&mut Transform, &mut Projection), With<EyeCamera>>,
 ) {
     let dt = time.delta_secs();
@@ -241,11 +263,25 @@ fn update_camera(
         (0.0, 0.0)
     };
     let bob = movement::head_bob(p.walk, p.mover.grounded);
-    let eye = movement::eye_y(pos.y, p.mover.sink, bob) + sy * 0.3;
+    // drunk sway, and the drop to the ground when you've stacked it or been knocked flat
+    let me = &game.me;
+    let fx = bbq_core::drunk_state::camera_fx(
+        me.drunk.da(),
+        time.elapsed_secs(),
+        me.drunk.fall_factor(&me.body),
+        bbq_core::drunk_state::flat_amount(me.body.down_t, bbq_core::items::DOWN_TIME),
+        p.pitch,
+    );
+    let eye = movement::eye_y(pos.y, p.mover.sink, bob) + sy * 0.3 + fx.dy;
 
     let (tf, proj) = &mut *cam;
     tf.translation = Vec3::new(pos.x + sx * 0.3, eye, pos.z);
-    tf.rotation = Quat::from_euler(EulerRot::YXZ, p.yaw + sx * 0.2, p.pitch + sy * 0.2, 0.0);
+    tf.rotation = Quat::from_euler(
+        EulerRot::YXZ,
+        p.yaw + sx * 0.2 + fx.yaw,
+        p.pitch + sy * 0.2 + fx.pitch,
+        fx.roll,
+    );
 
     p.fov = movement::ease_fov(
         p.fov,
@@ -254,7 +290,9 @@ fn update_camera(
         dt,
     );
     if let Projection::Perspective(persp) = &mut **proj {
-        persp.fov = p.fov.to_radians();
+        // drunk vision breathes in and out a little
+        let breathe = me.drunk.da() * 3.0 * (time.elapsed_secs() * 1.3).sin();
+        persp.fov = (p.fov + breathe).to_radians();
     }
 }
 
@@ -321,7 +359,7 @@ fn update_hud(
         String::new()
     };
     text.0 = format!(
-        "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw, RMB catch, Q/E/wheel swap, [ ] FOV, F1-F4 features\n\
+        "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw, RMB catch, Q/E/wheel swap, [ ] FOV, R bar/help up, P pour a drink, F1-F4 features, F5 falls, F6 Drunk mode\n\
          Character: {} (G changes it; the blobs wear all four) | J/K/L slapped (fly/cartwheel/timber), N stacked it + HELP, M emote, Y drunk, C crown, V sash, X stink, B stars, Z/H Dazza\n\
          SCORE {} | hits {} | taken {} | catches {} | streak {} | holding: {holding}{charge}\n\
          pos {:.1}, {:.1}, {:.1} | speed {:.1} m/s | {boost} | FOV {:.0} | {pool}{tramp}{fps:.0} fps\n{}",

@@ -11,6 +11,7 @@
 
 mod characters;
 mod game;
+mod hud_fx;
 mod items_view;
 mod player;
 mod yard_scene;
@@ -33,6 +34,7 @@ fn main() {
             game::GamePlugin,
             items_view::ItemsViewPlugin,
             characters::CharactersPlugin,
+            hud_fx::HudFxPlugin,
         ))
         .run();
 }

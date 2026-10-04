@@ -91,7 +91,7 @@ const BLOB_COLOURS: [Color; 3] = [
     Color::srgb(0.2, 0.7, 0.65),
     Color::srgb(0.95, 0.75, 0.2),
 ];
-const BLOB_NAMES: [&str; 3] = ["Bruce", "Sheila", "Davo"];
+pub const BLOB_NAMES: [&str; 3] = ["Bruce", "Sheila", "Davo"];
 
 pub struct CharactersPlugin;
 
@@ -636,9 +636,24 @@ fn viewer_keys(
         }
     }
     if keys.just_pressed(KeyCode::KeyN) {
+        // everyone stacks it, or (if anyone is down) everyone gets up
+        let anyone = g.dummies.iter().any(|d| d.body.fall_t > 0.0);
         for d in &mut g.dummies {
-            d.fallen = !d.fallen;
+            if anyone {
+                d.body.get_up();
+            } else {
+                d.body.start_fall(g.options.fall_duration);
+            }
         }
+    }
+    if keys.just_pressed(KeyCode::F5) {
+        g.options.falls_on = !g.options.falls_on;
+    }
+    if keys.just_pressed(KeyCode::F6) {
+        g.options.drunk_mode = !g.options.drunk_mode;
+    }
+    if keys.just_pressed(KeyCode::KeyP) {
+        g.me.drunk.add(30.0); // a quick way to get drunk without walking to the bar
     }
     if keys.just_pressed(KeyCode::KeyM) {
         let n = g.now as usize;

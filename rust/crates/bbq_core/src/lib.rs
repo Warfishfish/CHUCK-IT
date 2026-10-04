@@ -8,6 +8,7 @@ pub mod carry;
 pub mod character;
 pub mod dazza;
 pub mod drinks;
+pub mod drunk_state;
 pub mod flight;
 pub mod hands;
 pub mod heist;

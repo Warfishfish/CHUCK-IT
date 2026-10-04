@@ -1,6 +1,8 @@
 //! The game state that sits between the rules (`bbq_core`) and the pictures: the items, what
 //! the player holds, practice dummies to hit, and the score. Runs at a fixed 60 Hz.
 
+use bbq_core::drinks::{self, Drink};
+use bbq_core::drunk_state::{self, DrunkState, Env, Event as DrunkEvent, HelpHold};
 use bbq_core::flight::ItemState;
 use bbq_core::hands::{self, Picker, Press, Release, Situation, Slots, Wind};
 use bbq_core::hitting::{self, Catcher, Context, Target};
@@ -34,6 +36,30 @@ pub struct Dummy {
     pub smelly: bool,
 }
 
+/// The player's own body: stuns and falls, the drunk meter, and helping mates up.
+pub struct Me {
+    pub body: Body,
+    pub drunk: DrunkState,
+    pub help: HelpHold,
+}
+
+/// Host switches that change how people fall (F5, F6 for now; the menu comes later).
+pub struct Options {
+    /// Drunk people can stack it.
+    pub falls_on: bool,
+    /// Drunk mode: everyone is held at 78 or more, and walking wobbles.
+    pub drunk_mode: bool,
+    /// How long a fall lasts (10 s; the host can pick 20 or 30).
+    pub fall_duration: f32,
+}
+
+/// A line of big text in the middle of the screen that fades ("+18 drunk", "STACKED IT!").
+pub struct Popup {
+    pub text: String,
+    pub big: bool,
+    pub t: f32,
+}
+
 #[derive(Resource)]
 pub struct Game {
     pub world: ItemWorld,
@@ -48,9 +74,25 @@ pub struct Game {
     pub dummies: Vec<Dummy>,
     /// Messages for the on-screen feed, with the time they appeared.
     pub feed: Vec<(String, f32)>,
+    pub me: Me,
+    pub options: Options,
+    pub popups: Vec<Popup>,
+    /// The line at the bottom of the screen telling you what R does right now.
+    pub prompt: String,
 }
 
 impl Game {
+    pub fn popup(&mut self, text: impl Into<String>, big: bool) {
+        self.popups.push(Popup {
+            text: text.into(),
+            big,
+            t: 0.0,
+        });
+        if self.popups.len() > 4 {
+            self.popups.remove(0);
+        }
+    }
+
     pub fn say(&mut self, s: impl Into<String>) {
         self.feed.push((s.into(), self.now));
         if self.feed.len() > 30 {
@@ -88,6 +130,11 @@ impl Plugin for GamePlugin {
                 }
             })
             .collect();
+        let me = Me {
+            body: Body::default(),
+            drunk: DrunkState::new(0.7, &mut rng),
+            help: HelpHold::default(),
+        };
         app.insert_resource(Game {
             world,
             slots: Slots::default(),
@@ -104,6 +151,14 @@ impl Plugin for GamePlugin {
             now: 0.0,
             dummies,
             feed: Vec::new(),
+            me,
+            options: Options {
+                falls_on: true,
+                drunk_mode: false,
+                fall_duration: drinks::FALL_DURATION_DEFAULT,
+            },
+            popups: Vec::new(),
+            prompt: String::new(),
         })
         .add_systems(FixedUpdate, step_game);
     }
@@ -149,6 +204,110 @@ pub fn step_game(
     let g = &mut *g;
     let p = &mut *player;
 
+    // ---- the player's body: drinking, falling over, helping mates up ----
+    let moving = wanted.wish.0 != 0.0 || wanted.wish.1 != 0.0;
+    let env = Env {
+        in_play: g.rules.in_play(),
+        at_smoko: false,
+        grounded: p.mover.grounded,
+        in_pool: p.mover.in_pool,
+        moving,
+        falls_on: g.options.falls_on,
+        drunk_mode: g.options.drunk_mode,
+        can_fall: true,
+        fall_duration: g.options.fall_duration,
+    };
+    let tick = g.me.body.tick(dt);
+    let events =
+        g.me.drunk
+            .tick(dt, &env, &mut g.me.body, tick.fall_ended, &mut g.rng);
+    for ev in events {
+        match ev {
+            DrunkEvent::DrankUp {
+                added,
+                tier,
+                tier_changed,
+                ..
+            } => {
+                if tier_changed {
+                    g.popup(format!("{}!", tier_name(tier)), true);
+                } else {
+                    g.popup(format!("+{added:.0} drunk"), false);
+                }
+            }
+            DrunkEvent::StackedIt => {
+                p.mover.vx *= 0.3;
+                p.mover.vz *= 0.3;
+                p.shake = p.shake.max(0.15);
+                g.popup("STACKED IT!", true);
+            }
+            DrunkEvent::GotUp => {}
+        }
+    }
+    if g.me.body.fall_t > 0.0 || g.me.drunk.is_drinking() {
+        g.wind.cancel(); // can't wind up a throw on the ground or with a drink in your hand
+    }
+    let can_use = env.in_play && g.me.body.stun <= 0.0;
+    let help_target = if can_use {
+        let mut best: Option<(usize, f32)> = None;
+        for (i, d) in g.dummies.iter().enumerate() {
+            if !drunk_state::can_help(false, d.body.fall_t > 0.0, false, false) {
+                continue;
+            }
+            let dist = (d.mover.x - p.mover.x).hypot(d.mover.z - p.mover.z);
+            if dist < drunk_state::HELP_REACH && best.is_none_or(|(_, b)| dist < b) {
+                best = Some((i, dist));
+            }
+        }
+        best.map(|b| b.0)
+    } else {
+        None
+    };
+    let help_done =
+        g.me.help
+            .tick(dt, help_target.is_some(), wanted.interact_held);
+    if help_done && let Some(i) = help_target {
+        g.dummies[i].body.get_up();
+        let pts = g.board.award(&g.rules, PLAYER_ID, drunk_state::HELP_PTS);
+        let name = crate::characters::BLOB_NAMES[i % 3];
+        g.popup(format!("Helped {name} up! +{pts}"), false);
+    }
+    let bar_on = yard.0.features.bar;
+    let spot = if can_use && bar_on {
+        drunk_state::bar_spot(&bbq_core::yard::BAR, p.mover.x, p.mover.y, p.mover.z)
+    } else {
+        None
+    };
+    if std::mem::take(&mut wanted.interact_pressed)
+        && help_target.is_none()
+        && g.me.drunk.start_drink(spot, &g.me.body, &env)
+    {
+        g.wind.cancel();
+    }
+    g.prompt = if g.me.body.fall_t > 0.0 {
+        format!(
+            "Stacked it! Up in {}s (or a mate can help you up)",
+            g.me.body.fall_t.ceil()
+        )
+    } else if let Some(i) = help_target {
+        let name = crate::characters::BLOB_NAMES[i % 3];
+        if g.me.help.t > 0.0 {
+            format!("Helping {name} up... {:.0}%", g.me.help.progress() * 100.0)
+        } else {
+            format!("R: hold to help {name} up (+{})", drunk_state::HELP_PTS)
+        }
+    } else if g.me.drunk.is_drinking() {
+        String::new()
+    } else if let Some(d) = spot {
+        format!("R: grab {} (+{:.0} drunk)", drink_name(d), d.amount())
+    } else {
+        String::new()
+    };
+    for pop in &mut g.popups {
+        pop.t += dt;
+    }
+    g.popups.retain(|pop| pop.t < 1.6);
+
     // ---- the player's hands ----
     g.catcher.tick(dt);
     if wanted.swap != 0 {
@@ -168,7 +327,9 @@ pub fn step_game(
         .and_then(|id| g.world.items.get(&id))
         .map(|i| i.kind);
     let situation = Situation {
-        can_act: g.rules.in_play(),
+        can_act: g.rules.in_play() && g.me.body.fall_t <= 0.0,
+        stunned_standing: g.me.body.stun > 0.0 && g.me.body.down_t <= 0.0,
+        drinking: g.me.drunk.is_drinking(),
         ..Default::default()
     };
 
@@ -218,7 +379,7 @@ pub fn step_game(
         }
     }
     if std::mem::take(&mut wanted.catch) {
-        let can = g.rules.in_play();
+        let can = g.rules.in_play() && g.me.body.stun <= 0.0;
         g.catcher.press(can);
     }
 
@@ -227,7 +388,7 @@ pub fn step_game(
         id: PLAYER_ID,
         pos: V3::new(p.mover.x, p.mover.y, p.mover.z),
         held: g.slots.len(),
-        stunned: false,
+        stunned: g.me.body.stun > 0.0,
         frozen: false,
         is_bot: false,
     };
@@ -237,13 +398,36 @@ pub fn step_game(
     }
 
     // ---- the dummies stand about and get knocked over ----
-    for d in &mut g.dummies {
+    let mut newly_fallen = Vec::new();
+    for (i, d) in g.dummies.iter_mut().enumerate() {
         d.body.tick(dt);
+        let down = d.body.fall_t > 0.0;
+        if down && !d.fallen {
+            newly_fallen.push(i);
+        }
+        d.fallen = down;
         let mods = Modifiers {
             stunned: d.body.stun > 0.0,
             ..Default::default()
         };
         d.mover.step(dt, MoveInput::default(), &mods, &yard.0);
+    }
+
+    for i in newly_fallen {
+        let name = crate::characters::BLOB_NAMES[i % 3];
+        let lines = [
+            "{N} IS ABSOLUTELY WRECKED AND HAS FACE-PLANTED. GO HELP!",
+            "MAN DOWN! {N} HAS HAD ONE TOO MANY. PICK 'EM UP!",
+            "{N} JUST KISSED THE LAWN. SOMEONE GRAB 'EM!",
+            "{N} TRIED TO WALK. THE GRASS WON. GO HELP!",
+            "TIMBERRR! {N} IS HORIZONTAL. HOLD R TO REVIVE!",
+            "{N} HAS GONE FULL STARFISH. RESCUE REQUIRED!",
+            "{N} IS HAVING A LIE DOWN. NOT BY CHOICE. GO HELP!",
+            "{N} HAS BECOME ONE WITH THE LAWN. GO FETCH 'EM!",
+        ];
+        let k = g.rng.f32() * lines.len() as f32;
+        let line = lines[(k as usize).min(lines.len() - 1)].replace("{N}", &name.to_uppercase());
+        g.say(line);
     }
 
     // ---- items fly, hit and get caught ----
@@ -267,9 +451,9 @@ pub fn step_game(
         sink: p.mover.sink,
         at_smoko: false,
         catching: g.catcher.open(),
-        stunned: false,
+        stunned: g.me.body.stun > 0.0,
         facing: player_target_facing(p),
-        flattenable: false, // nobody throws at you in solo
+        flattenable: g.me.body.power_throw_flattens(),
     });
     let teams = g.teams.clone();
     let ctx = Context {
@@ -318,7 +502,11 @@ pub fn step_game(
                         charge,
                         dist: start.horiz_dist(V3::new(vx, 0.0, vz)),
                         victim_is_leader: leader,
-                        drunk_bonus: 0,
+                        drunk_bonus: if thrower == Some(PLAYER_ID) {
+                            drinks::drunk_bonus(g.me.drunk.meter, g.options.drunk_mode)
+                        } else {
+                            0
+                        },
                         bum_out: false,
                         same_team: false,
                     },
@@ -376,6 +564,25 @@ pub fn step_game(
 
     // keep the feed tidy
     g.feed.retain(|(_, t)| now - *t < 6.0);
+}
+
+fn tier_name(t: drinks::Tier) -> &'static str {
+    use drinks::Tier::*;
+    match t {
+        Sober => "Sober",
+        Tipsy => "Tipsy",
+        Drunk => "Drunk",
+        Maggot => "Maggot",
+        AbsolutelyMaggoted => "Absolutely maggoted",
+    }
+}
+
+pub fn drink_name(d: Drink) -> &'static str {
+    match d {
+        Drink::Beer => "a cold VP",
+        Drink::Wine => "a glass of wine",
+        Drink::Rum => "a rum shot",
+    }
 }
 
 fn caught_item(
@@ -500,6 +707,226 @@ mod tests {
         assert_eq!(g.board.get(PLAYER_ID).unwrap().hits, 0);
         assert_eq!(g.board.get(PLAYER_ID).unwrap().throws, 1);
         assert!(g.world.items.values().all(|i| !i.live));
+    }
+
+    fn put_player(app: &mut App, x: f32, z: f32) {
+        let mut p = app.world_mut().resource_mut::<Player>();
+        p.mover = Mover::new(x, z);
+    }
+
+    fn press_r(app: &mut App) {
+        app.world_mut().resource_mut::<Wanted>().interact_pressed = true;
+    }
+
+    #[test]
+    fn r_at_the_bar_pours_a_drink_that_adds_to_the_meter() {
+        let mut app = app();
+        put_player(&mut app, -1.2, -20.5); // left third: a VP
+        ticks(&mut app, 30);
+        assert!(app.world().resource::<Game>().prompt.contains("VP"));
+        press_r(&mut app);
+        ticks(&mut app, 1);
+        assert!(app.world().resource::<Game>().me.drunk.is_drinking());
+        ticks(&mut app, 60 * 2);
+        let g = app.world().resource::<Game>();
+        assert!(!g.me.drunk.is_drinking());
+        assert!(
+            (g.me.drunk.meter - 18.0).abs() < 2.0,
+            "{}",
+            g.me.drunk.meter
+        );
+        assert!(
+            g.popups
+                .iter()
+                .any(|p| p.text.contains("Tipsy") || p.text.contains("drunk"))
+        );
+    }
+
+    #[test]
+    fn r_away_from_the_bar_does_nothing() {
+        let mut app = app();
+        put_player(&mut app, 8.0, 0.0);
+        ticks(&mut app, 30);
+        press_r(&mut app);
+        ticks(&mut app, 10);
+        assert!(!app.world().resource::<Game>().me.drunk.is_drinking());
+    }
+
+    #[test]
+    fn no_drinks_when_the_bar_is_switched_off() {
+        let mut app = app();
+        app.world_mut().resource_mut::<YardRes>().0.features.bar = false;
+        put_player(&mut app, -1.2, -20.5);
+        ticks(&mut app, 30);
+        press_r(&mut app);
+        ticks(&mut app, 10);
+        assert!(!app.world().resource::<Game>().me.drunk.is_drinking());
+    }
+
+    #[test]
+    fn a_drink_in_your_hand_slows_you_down() {
+        let mut app = app();
+        put_player(&mut app, -1.2, -20.5);
+        ticks(&mut app, 30);
+        press_r(&mut app);
+        ticks(&mut app, 1);
+        app.world_mut().resource_mut::<Wanted>().wish = (1.0, 0.0);
+        ticks(&mut app, 30);
+        let slow = app.world().resource::<Player>().mover.speed();
+        assert!(slow < 6.2 * 0.6, "speed while drinking {slow}");
+    }
+
+    #[test]
+    fn holding_r_for_1_5_s_next_to_a_fallen_mate_gets_them_up_for_25_points() {
+        let mut app = app();
+        put_player(&mut app, 8.0, 4.5); // dummy 0 is at (8, 6)
+        app.world_mut().resource_mut::<Game>().dummies[0]
+            .body
+            .start_fall(10.0);
+        ticks(&mut app, 5);
+        app.world_mut().resource_mut::<Wanted>().interact_held = true;
+        ticks(&mut app, 60); // 1 s: not yet
+        assert!(app.world().resource::<Game>().dummies[0].body.fall_t > 0.0);
+        ticks(&mut app, 45);
+        let g = app.world().resource::<Game>();
+        assert_eq!(g.dummies[0].body.fall_t, 0.0);
+        assert_eq!(g.board.score(PLAYER_ID), 25);
+    }
+
+    #[test]
+    fn letting_go_of_r_stops_the_help() {
+        let mut app = app();
+        put_player(&mut app, 8.0, 4.5);
+        app.world_mut().resource_mut::<Game>().dummies[0]
+            .body
+            .start_fall(10.0);
+        ticks(&mut app, 5);
+        app.world_mut().resource_mut::<Wanted>().interact_held = true;
+        ticks(&mut app, 60);
+        app.world_mut().resource_mut::<Wanted>().interact_held = false;
+        ticks(&mut app, 5);
+        app.world_mut().resource_mut::<Wanted>().interact_held = true;
+        ticks(&mut app, 60);
+        assert!(app.world().resource::<Game>().dummies[0].body.fall_t > 0.0);
+    }
+
+    #[test]
+    fn nobody_helps_from_too_far_away() {
+        let mut app = app();
+        put_player(&mut app, 8.0, 0.0); // 6 m from the dummy
+        app.world_mut().resource_mut::<Game>().dummies[0]
+            .body
+            .start_fall(10.0);
+        ticks(&mut app, 5);
+        app.world_mut().resource_mut::<Wanted>().interact_held = true;
+        ticks(&mut app, 200);
+        assert!(app.world().resource::<Game>().dummies[0].body.fall_t > 0.0);
+    }
+
+    #[test]
+    fn a_dummy_stacking_it_tells_you_to_go_and_help() {
+        let mut app = app();
+        ticks(&mut app, 2);
+        app.world_mut().resource_mut::<Game>().dummies[1]
+            .body
+            .start_fall(10.0);
+        ticks(&mut app, 2);
+        let g = app.world().resource::<Game>();
+        assert!(
+            g.feed.iter().any(|(s, _)| s.contains("SHEILA")),
+            "{:?}",
+            g.feed
+        );
+    }
+
+    #[test]
+    fn a_very_drunk_walker_eventually_stacks_it_and_cannot_throw() {
+        let mut app = app();
+        give_teddy(&mut app);
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            g.me.drunk.meter = 100.0;
+        }
+        app.world_mut().resource_mut::<Wanted>().wish = (0.0, 0.0);
+        // stand still so the yard walls don't matter; force it the quick way
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            let g = &mut *g;
+            g.me.drunk.stack_it(&mut g.me.body, 10.0);
+        }
+        ticks(&mut app, 5);
+        app.world_mut().resource_mut::<Wanted>().throw_down = true;
+        ticks(&mut app, 30);
+        let g = app.world().resource::<Game>();
+        assert!(!g.wind.charging, "can't wind up while down");
+        assert!(g.me.body.fall_t > 0.0);
+        assert!(g.prompt.contains("Stacked it"), "{}", g.prompt);
+    }
+
+    #[test]
+    fn falling_over_is_less_than_certain_but_happens_to_a_maggot_who_keeps_walking() {
+        let mut fell = 0;
+        for seed in 0..12u64 {
+            let mut app = app();
+            {
+                let mut g = app.world_mut().resource_mut::<Game>();
+                g.rng = Rng::new(seed + 50);
+                g.me.drunk.meter = 100.0;
+                g.options.drunk_mode = true; // 4% per 2 s of walking, quick to test
+            }
+            put_player(&mut app, 2.0, 8.0);
+            for _ in 0..40 {
+                // walk back and forth in open grass
+                let dir = if (app.world().resource::<Game>().now as i32 / 3) % 2 == 0 {
+                    1.0
+                } else {
+                    -1.0
+                };
+                app.world_mut().resource_mut::<Wanted>().wish = (dir, 0.0);
+                ticks(&mut app, 30);
+                if app.world().resource::<Game>().me.body.fall_t > 0.0 {
+                    fell += 1;
+                    break;
+                }
+            }
+        }
+        assert!(fell >= 2, "only {fell} of 12 fell");
+    }
+
+    #[test]
+    fn falls_can_be_switched_off() {
+        let mut app = app();
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            g.me.drunk.meter = 100.0;
+            g.options.drunk_mode = true;
+            g.options.falls_on = false;
+        }
+        put_player(&mut app, 2.0, 8.0);
+        for i in 0..300 {
+            let dir = if (i / 90) % 2 == 0 { 1.0 } else { -1.0 };
+            app.world_mut().resource_mut::<Wanted>().wish = (dir, 0.0);
+            ticks(&mut app, 20);
+        }
+        assert_eq!(app.world().resource::<Game>().me.body.fall_t, 0.0);
+    }
+
+    #[test]
+    fn drunk_throwers_earn_a_bonus_on_hits() {
+        let mut app = app();
+        give_teddy(&mut app);
+        app.world_mut().resource_mut::<Game>().me.drunk.meter = 60.0;
+        app.world_mut().resource_mut::<Wanted>().throw_down = true;
+        ticks(&mut app, 41);
+        app.world_mut().resource_mut::<Wanted>().throw_up = true;
+        ticks(&mut app, 90);
+        let g = app.world().resource::<Game>();
+        let me = g.board.get(PLAYER_ID).unwrap();
+        assert!(
+            me.score >= 150,
+            "a hit while drunk should pay the +50 bonus: {}",
+            me.score
+        );
     }
 
     #[test]

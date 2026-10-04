@@ -250,8 +250,8 @@ Phase 3 result: `bbq_core` gained `flight`, `hands`, `hitting`, `itemworld`, `ve
 - [ ] Phase 4 look check on Marcus's Mac
 
 ### Phase 5: Yard life
-- [ ] Bar, drinks, drunk meter and levels, drunk camera and screen shader
-- [ ] Stacking it and helping up; Drunk mode (walking speed, 4% falls)
+- [x] Bar, drinks, drunk meter and levels, drunk camera and screen shader (R at the bar; rules in `bbq_core/src/drunk_state.rs`, 21 tests, plus 11 game tests. SIMPLIFIED: the screen shader is a camera sway, a breathing view and a warm pulsing tint, not the blur/wobble shader. Bar drinks have no sound yet (Phase 10).)
+- [x] Stacking it and helping up; Drunk mode (walking speed, 4% falls) (F5 falls on/off, F6 Drunk mode, P pours a quick +30 drunk for testing. Hold R next to a fallen blob 1.5 s to help them up for +25. In the test yard only you can fall, the three blobs only fall when you press N. Team-only helping is in the rules but untested until Phase 7. Fall alert alarm sound comes with audio.)
 - [ ] Smoko and Naughty Corner
 - [ ] BBQ meat raid and Dazza (anger, chase, spatula, stun, KO, berserk, flip)
 - [ ] Chest, dildo variants and crits, bare-handed slaps, Cheeky mode switching content
