@@ -54,6 +54,10 @@ fn main() {
         ..default()
     }))
     .insert_resource(lighting::LookMode::from_args(&args))
+    .insert_resource(bevy::light::DirectionalLightShadowMap {
+        // crisper, steadier shadows in the polished look
+        size: if lighting::LookMode::from_args(&args) == lighting::LookMode::Polished { 4096 } else { 2048 },
+    })
     .insert_resource(ClearColor(models::hex(0x9fd8f2)))
     .add_plugins(
         (

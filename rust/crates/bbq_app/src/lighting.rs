@@ -229,6 +229,20 @@ pub fn sun(look: LookMode) -> (DirectionalLight, Transform) {
     )
 }
 
+/// A weak cool light from the opposite side of the sun (polished look): a rim light that
+/// separates things from the lawn without flattening the sun's shadows.
+pub fn rim_light() -> (DirectionalLight, Transform) {
+    (
+        DirectionalLight {
+            color: hex(0x9cc4ff),
+            illuminance: lux(0.20),
+            shadow_maps_enabled: false,
+            ..default()
+        },
+        Transform::from_xyz(-24.0, 14.0, -20.0).looking_at(Vec3::ZERO, Vec3::Y),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -155,7 +155,7 @@ fn load_textures(mut cache: ResMut<ModelCache>, assets: Res<AssetServer>) {
             mag_filter: ImageFilterMode::Linear,
             min_filter: ImageFilterMode::Linear,
             mipmap_filter: ImageFilterMode::Linear,
-            anisotropy_clamp: 4,
+            anisotropy_clamp: 8,
             ..default()
         });
     };

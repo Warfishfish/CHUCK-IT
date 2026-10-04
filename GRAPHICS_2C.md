@@ -54,16 +54,16 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 ### Environment
 - [x] Lawn: dry yellow grass, stubborn bright-green patches, bare dirt, uneven coverage, mow stripes still visible (done as a 1 m grid of vertex colours over the lawn tile, `PatchyLawn` + `lawn_tint`; soft dirt decals on top; polished look only)
 - [x] Worn pathways from the back door to the BBQ, bar and Hills Hoist; dirt round the BBQ and bar (`dirt_spots`, soft `soft_dot.png` discs)
-- [ ] Sun-baked palette pass on every flat colour (dry yellow, dusty orange, faded green, weathered brown, washed-out blue, faded red, cream, galvanised grey)
-- [ ] Sky and fog a little warmer near the horizon, a hazy heat feel
-- [ ] Fence leans a little, boards of slightly different heights and shades, some gaps
+- [x] Sun-baked palette pass on every flat colour (`sun_bake`: every plain colour fades 14% towards grey and warms; textured, glowing, see-through and unlit things and the eskies are left alone)
+- [x] Sky and fog a little warmer near the horizon, a hazy heat feel (fog 0xc9e1e4 in the polished look)
+- [x] Fence leans a little, in 3 m sections of slightly different heights and shades with fat posts (visual only; the collider is still straight)
 - [ ] Paddock and far trees get dry grass and a dusty colour, still very simple
 
 ### Australian backyard details
-- [ ] The house: slightly crooked weatherboard in faded cream, uneven roofline, a veranda that sags in the middle, flyscreen door, a letterbox
-- [ ] Hills Hoist leaning a few degrees, rusty arms, a few pegs and a towel
-- [ ] Weeds and dry tufts (instanced), cracked concrete paving by the back door, a green wheelie bin, a hose and a sprinkler
-- [ ] Small clutter that tells a story: a cricket bat and stumps, a dog bowl, thongs by the door, a washing basket, bottle caps and stubbies on the ground
+- [x] The house: faded cream weatherboard, uneven roofline, a veranda whose roof sags in the middle, a flyscreen door (a letterbox would be hidden behind the fence, so left out)
+- [x] Hills Hoist leaning about 3 degrees with a rusty pole and arms (pegs and a towel still to do)
+- [ ] Weeds and dry tufts (done: 170 tufts along the fences and about; not yet instanced), cracked concrete paving by the back door, a green wheelie bin (the bins exist), a hose and a sprinkler
+- [x] Small clutter that tells a story: cricket stumps and a bat, a dog bowl and bone, thongs by the back door, a washing basket and sock, stubbies and bottle caps in the grass
 
 ### Props
 - [x] Outdoor table: thick timber planks in different browns, slightly warped, nail heads, beer rings, a spill, chunky splayed legs and a stretcher (scratches and bevels come with the textures)
@@ -71,7 +71,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] BBQ: oversized uneven wheels, big rounded red hood propped open, stubby knobs, slight asymmetry
 - [ ] Shed, bar, trampoline, planters, log pile, tyres, tank: bevels, a slight lean, dirt, rust
 - [ ] Items in hand and on the ground get a second look: teddy seams, gnome face, stubby label, steak marbling, fish scales, noodle ends, snag
-- [ ] Red sauce bottle and yellow mustard bottle as bright readable props
+- [x] Red sauce bottle and yellow mustard bottle on the outdoor table
 
 ### Dildo Chest
 - [x] Rebuild it as a big, chunky, bright-blue esky (bigger than a normal esky, strong silhouette, easy to see from far away at all 9 spots) — first pass done in shapes (`chest_esky`, polished look only); check all 9 spots on Marcus's Mac
@@ -120,8 +120,8 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 
 ### Lighting
 - [x] Warm sun, cooler shadows (a blue-ish ambient), a stronger sun and slightly lower ambient for depth (first pass; tune on Marcus's Mac)
-- [ ] Softer shadow edges (filter and cascade tuning), shadow range that keeps characters crisp
-- [ ] A rim or back light so characters separate from the lawn
+- [x] Shadows: the shadow map is 4096 in the polished look (was 2048) and the engine's Gaussian filter is on, for crisper and softer-edged shadows (cascade tuning still open)
+- [x] A rim or back light so characters separate from the lawn (a weak cool light from the far side)
 - [ ] Contact shadows or ambient occlusion so things sit on the ground
 - [ ] Inside-the-shed and under-the-veranda get a darker feel
 
@@ -130,7 +130,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] Colour grading in `display_raw.wgsl`: gentle warm curve, a little more saturation, more contrast, a soft vignette (polished look only)
 - [ ] Screen-space ambient occlusion and either SMAA or the existing MSAA
 - [ ] Mild bloom on emissive and very bright things only
-- [ ] Texture filtering: anisotropy 8 for ground and fences
+- [x] Texture filtering: anisotropy 8 for ground and fences
 
 ### Blender workflow
 - [ ] One script per asset in `tools/` (`make_esky.py`, `make_bbq.py`, `make_magpie.py`, `make_table.py`, `make_blob.py` updated...), all run with `blender --background --python`, each writes a `.glb` into `assets/models/`; a `tools/README` line says the order

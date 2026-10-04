@@ -105,7 +105,12 @@ fn setup_camera_and_hud(mut commands: Commands, look: Res<crate::lighting::LookM
         }),
         Transform::from_xyz(0.0, movement::EYE_HEIGHT, 0.0),
         DistanceFog {
-            color: crate::models::hex(0x9fd8f2),
+            // polished look: a hazier, warmer horizon
+            color: if *look == crate::lighting::LookMode::Polished {
+                crate::models::hex(0xc9e1e4)
+            } else {
+                crate::models::hex(0x9fd8f2)
+            },
             falloff: FogFalloff::Linear {
                 // three's fog eases in along an S-curve from 60 m to 150 m; a straight line from
                 // 75 m to 140 m stays within 7% of it

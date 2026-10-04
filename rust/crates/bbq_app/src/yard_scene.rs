@@ -160,6 +160,11 @@ fn build_yard(
         Transform::from_xyz(HOIST_AT.x, HOIST_AT.y, HOIST_AT.z),
     );
     commands.entity(e).insert(HoistHead);
+    if *mode == crate::lighting::LookMode::Polished {
+        // the Hills Hoist leans: its head sits on the tilted pole's top
+        let top = looks_yard::hoist_lean().1;
+        commands.entity(e).insert(Transform::from_xyz(top.x, top.y, top.z));
+    }
 
     // clouds
     for (at, puffs) in &look.clouds {
@@ -265,12 +270,18 @@ fn build_yard(
 
     // the sun, with shadows, and the soft light from the sky
     commands.spawn(crate::lighting::sun(*mode));
+    if *mode == crate::lighting::LookMode::Polished {
+        // a cool, weak light from the far side: it lifts the shaded sides so blobs and props stand
+        // out against the lawn
+        commands.spawn(crate::lighting::rim_light());
+    }
     let (_, sky, sky_at) = crate::lighting::hemisphere(*mode);
     commands.spawn((sky, sky_at));
 }
 
 /// The clothesline turns, the pool water slides and the clouds drift.
 fn animate_yard(
+    mode: Res<crate::lighting::LookMode>,
     time: Res<Time>,
     mut drift: ResMut<Drift>,
     mut head: Query<&mut Transform, (With<HoistHead>, Without<Cloud>)>,
@@ -282,7 +293,16 @@ fn animate_yard(
     let dt = time.delta_secs();
     let t = time.elapsed_secs();
     for mut tf in &mut head {
-        tf.rotate_y(dt * 0.12);
+        if *mode == crate::lighting::LookMode::Polished {
+            // spin on the leaning pole
+            let q = looks_yard::hoist_lean().0;
+            let lean = Quat::from_xyzw(q.x, q.y, q.z, q.w);
+            let (_, spin, _) = tf.rotation.to_euler(EulerRot::YXZ);
+            let _ = spin;
+            tf.rotation = lean * Quat::from_rotation_y(t * 0.12);
+        } else {
+            tf.rotate_y(dt * 0.12);
+        }
     }
     for mut tf in &mut clouds {
         tf.translation.x += dt * 1.2;

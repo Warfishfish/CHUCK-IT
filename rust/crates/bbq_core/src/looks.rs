@@ -314,6 +314,12 @@ impl Part {
         }
     }
 
+    /// Throw no shadow (tufts of grass, small clutter).
+    pub fn no_shadow_part(mut self) -> Self {
+        self.surface.no_shadow = true;
+        self
+    }
+
     /// Ride on chain segment `i`, which hinges at `pivot`.
     pub fn in_seg(mut self, i: usize, pivot: V3) -> Self {
         self.seg = Some((i as u8, pivot));
