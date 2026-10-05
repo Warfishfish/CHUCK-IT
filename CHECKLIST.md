@@ -123,6 +123,15 @@
 - ✅ Ticking or unticking things in "What's in the yard" (and Cheeky mode for the chest) adds or removes them from the yard behind the menu straight away, for whichever tab you're on
 - ⬜ Rules on their own screen, in short pages, only showing what's switched on
 
+## Cheeky-mode bottles ⬜
+> Added 5 Oct 2026 (Marcus). Rust version first.
+
+- ⬜ In Cheeky mode, the VP cans are swapped for glass beer bottles (stubbies) and spirit bottles (rum, bourbon), thrown the same way
+- ⬜ Bottles smash on a hit or a hard landing: glass shards plus a beer or spirit splash (particles), and a stain on the ground (decal), like the VP can's foam and puddle now
+- ⬜ Spirit bottles are rarer and hit a little harder (decide the numbers: speed, knock, points), beer bottles play like the VP can
+- ⬜ Family mode (Cheeky off) keeps the plastic VP cans exactly as now
+- ⬜ Check: the bar's own bottles and the drinks you drink stay as they are; only the throwable item changes
+
 ## 5. Polish ⬜
 > Juice once the gameplay feels right.
 

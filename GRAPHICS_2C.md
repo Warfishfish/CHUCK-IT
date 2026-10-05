@@ -95,6 +95,10 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] Pool noodles flop the same way (K 110, C 2.6), and are longer: 8 links of 0.24 m = 1.92 m (the browser's were 7 x 0.2 = 1.4 m)
 - [x] Slapping with a pool noodle works (tap to slap for 50 and a 1.2 s stun, hold to throw; a test checks both) and your own swing is now drawn across the screen like the browser's
 
+### Cheeky-mode bottles (added 5 Oct 2026, Marcus; gameplay part in CHECKLIST.md)
+- [ ] Models for a glass beer bottle and a spirit bottle (labels, see-through glass with liquid inside, a cap or cork)
+- [ ] Smash effect: glass shards and a splash (particles), and a stain left on the ground (decal)
+
 ### Particles (bevy_hanabi, added 5 Oct 2026)
 - [x] Hit stars and a puff where a throw lands; beer foam when a VP can bursts; a whack burst on slaps; a splash in the pool; dust when someone falls or lands hard; a steady wisp of smoke from the BBQ (`fx.rs`; `--fxtest` fires them all for looking at)
 - [ ] Footstep dust while sprinting, puffs when the trampoline throws you, steam from the pool on hot days, a spray when a bot stacks it, confetti on the results card
