@@ -1211,7 +1211,7 @@ fn bbq(polished: bool) -> Vec<Part> {
     v
 }
 
-fn smoko() -> Vec<Part> {
+fn smoko(polished: bool) -> Vec<Part> {
     let (sx, sz) = (SMOKO_X, SMOKO_Z);
     let mut v = vec![cyl(0.04, 0.04, 2.6, 8, matt(0xd9dfe0), sx, 1.3, sz)];
     // the umbrella: a yellow cone with a red wire frame
@@ -1251,18 +1251,39 @@ fn smoko() -> Vec<Part> {
         0.54,
         sz,
     ));
-    // the SMOKO sign, both ways
-    let sign = matt(0xffffff)
-        .textured(Tex::SignSmoko)
-        .unlit()
-        .both_sides()
-        .no_shadow();
-    v.push(Part::new(Shape::Quad { w: 1.1, h: 0.36 }, sign).at(sx, 1.95, sz + 0.05));
-    v.push(
-        Part::new(Shape::Quad { w: 1.1, h: 0.36 }, sign)
-            .at(sx + 0.05, 1.95, sz)
-            .turn(0.0, HALF_PI, 0.0),
-    );
+    if polished {
+        // the sign as a little four-sided box round the pole, each face reading the right way
+        // round from its own side (the two crossed see-through signs showed each other's
+        // mirrored backs, which read as a jumble from underneath)
+        let face = matt(0xffffff).textured(Tex::SignSmoko).unlit().no_shadow();
+        let (hw, y) = (0.42f32, 1.95f32);
+        for k in 0..4 {
+            let a = k as f32 * HALF_PI;
+            let (dx, dz) = (a.sin() * hw, a.cos() * hw);
+            v.push(Part::new(Shape::Quad { w: 0.84, h: 0.28 }, face).at(sx + dx, y, sz + dz).turn(0.0, a, 0.0));
+        }
+        let frame = matt(0x1f2a1e);
+        v.push(cuboid(0.9, 0.04, 0.9, frame, sx, y + 0.16, sz));
+        v.push(cuboid(0.9, 0.04, 0.9, frame, sx, y - 0.16, sz));
+        // the canopy's underside: sunlight glows through the yellow cloth, with darker ribs
+        v.push(
+            Part::new(Shape::Cone { r: 1.68, h: 0.53, seg: 10 }, matt(0xd9a51c).glow(0x6b4e0c).both_sides().no_shadow())
+                .at(sx, 2.535, sz),
+        );
+    } else {
+        // the SMOKO sign, both ways
+        let sign = matt(0xffffff)
+            .textured(Tex::SignSmoko)
+            .unlit()
+            .both_sides()
+            .no_shadow();
+        v.push(Part::new(Shape::Quad { w: 1.1, h: 0.36 }, sign).at(sx, 1.95, sz + 0.05));
+        v.push(
+            Part::new(Shape::Quad { w: 1.1, h: 0.36 }, sign)
+                .at(sx + 0.05, 1.95, sz)
+                .turn(0.0, HALF_PI, 0.0),
+        );
+    }
     v
 }
 
@@ -1821,7 +1842,7 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         hoist_head,
         bar: if polished { sun_bake(texture_pass(bar())) } else { bar() },
         bbq: if polished { sun_bake(texture_pass(bbq(true))) } else { bbq(false) },
-        smoko: if polished { sun_bake(texture_pass(smoko())) } else { smoko() },
+        smoko: if polished { sun_bake(texture_pass(smoko(true))) } else { smoko(false) },
         chest_base,
         chest_lid,
         clouds,
