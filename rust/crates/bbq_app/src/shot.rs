@@ -172,13 +172,15 @@ fn shot_camera(
         .and_then(|v| v.parse::<usize>().ok());
     if let Some(d) = bot.and_then(|n| game.dummies.get(n)) {
         let side = if args.iter().any(|a| a == "--bot-side") { 1.1 } else { 0.0 };
+        let head = args.iter().any(|a| a == "--bot-head");
         let a = d.face + side;
         let (dx, dz) = (a.sin(), a.cos());
+        let (dist, y, fov) = if head { (4.2, 1.45 + d.mover.y, 22.0f32) } else { (3.0, 1.05, 42.0) };
         let (tf, proj) = &mut *cam;
-        tf.translation = Vec3::new(d.mover.x + dx * 3.0, 1.05, d.mover.z + dz * 3.0);
-        tf.rotation = Quat::from_euler(EulerRot::YXZ, a, -0.05, 0.0);
+        tf.translation = Vec3::new(d.mover.x + dx * dist, y, d.mover.z + dz * dist);
+        tf.rotation = Quat::from_euler(EulerRot::YXZ, a, if head { -0.06 } else { -0.05 }, 0.0);
         if let Projection::Perspective(p) = &mut **proj {
-            p.fov = 42f32.to_radians();
+            p.fov = fov.to_radians();
         }
         return;
     }
@@ -250,6 +252,26 @@ fn take_shot(
     mut exit: MessageWriter<AppExit>,
 ) {
     *frame += 1;
+    // `--burst N`: N pictures 4 frames apart once the round is under way (for things that move),
+    // saved as out_0.png, out_1.png...
+    let args: Vec<String> = std::env::args().collect();
+    let burst = args
+        .iter()
+        .position(|a| a == "--burst")
+        .and_then(|i| args.get(i + 1))
+        .and_then(|v| v.parse::<u32>().ok());
+    if let Some(n) = burst {
+        let start = 320;
+        if *frame >= start && (*frame - start) % 4 == 0 && (*frame - start) / 4 < n {
+            let k = (*frame - start) / 4;
+            let path = cfg.out.replace(".png", &format!("_{k}.png"));
+            commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path));
+        }
+        if *frame == start + n * 4 + 60 {
+            exit.write(AppExit::Success);
+        }
+        return;
+    }
     // give the textures a moment to load, then take the picture and leave
     if *frame == 60 {
         commands

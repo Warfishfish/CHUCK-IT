@@ -559,6 +559,13 @@ fn apply_loaded_settings(settings: Res<Settings>, mut player: ResMut<Player>, mu
     player.fov_base = settings.fov;
     player.fov = settings.fov;
     cast.mine = settings.character;
+    // `--char classic|pear|egg|gumdrop` (testing): the first bot wears this one
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(c) = args.iter().position(|a| a == "--char").and_then(|i| args.get(i + 1)) {
+        if let Some(ch) = Character::ALL.iter().find(|x| x.name().eq_ignore_ascii_case(c)) {
+            cast.mine = *ch;
+        }
+    }
 }
 
 // ---------------------------------------------------------------- clicks

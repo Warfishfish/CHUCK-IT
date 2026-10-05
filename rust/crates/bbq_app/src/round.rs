@@ -529,6 +529,9 @@ fn start_from_args(mut game: ResMut<Game>, mut player: ResMut<Player>, mut yard:
         game.options.adult = true;
     }
     let s = &mut game.round.setup;
+    if let Some(n) = args.iter().position(|a| a == "--bots").and_then(|i| args.get(i + 1)).and_then(|v| v.parse::<usize>().ok()) {
+        s.bots = n;
+    }
     s.mode = match mode.as_str() {
         "heist" => GameMode::Heist,
         "teams" => GameMode::Teams,

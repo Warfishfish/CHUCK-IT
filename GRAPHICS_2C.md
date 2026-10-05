@@ -83,7 +83,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 ### Next up (added 5 Oct 2026, Marcus), worked one at a time
 How we work on these: one item at a time; I show Marcus screenshots (before and after) and only commit and push once he says it looks right.
 - [x] Fix the glitch under the umbrella in the smoko area (the two crossed see-through signs showed each other mirrored; now a four-sided sign box, and the canopy underside glows yellow)
-- [ ] Eyeballs jump around much more when walking and running, each character with its own clearly different "eye wobble" (a first gentle version is in; make it bigger and more obvious)
+- [x] Eyeballs jump around when walking and running, each character with its own eye wobble: eyeballs on springs kicked by every footstep, thrown back and forward by speeding up and stopping, pupils riding on them. Classic steady, Pear lazy and floaty, Egg googly (eyes swell), Gumdrop big boings with squash and stretch and cross-eyed. Toned to 60% (`EYE_STRENGTH`) at Marcus's request
 - [ ] Beer bellies look more natural on the characters (blended into the body, not a ball stuck on the front) and bounce as they run
 - [ ] Trees get more texture and look more realistic (bark, fuller leaf clumps, varied gum-tree shapes), still in the game's style
 - [ ] Two upgrade examples for Marcus to compare: one character and one corner of the yard, each in a "more upgraded" style, before deciding how far to take the whole game
