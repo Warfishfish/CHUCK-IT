@@ -106,6 +106,8 @@ struct Dazza {
     swing_seen: u32,
     last: Vec3,
     face: f32,
+    /// His walking speed, smoothed over frames.
+    speed: f32,
     label: Entity,
 }
 
@@ -819,6 +821,7 @@ fn spawn_dazza(
         swing_seen: 0,
         last: Vec3::new(dazza::HOME.x, 0.0, dazza::HOME.z),
         face: 0.0,
+        speed: 0.0,
         label,
     });
 }
@@ -1161,7 +1164,11 @@ fn animate_dazza(
     }
     let moved = pos.distance(dz.last);
     dz.last = pos;
-    let speed = if dt > 0.0 { moved / dt } else { 0.0 };
+    // he moves in fixed steps but is drawn every frame: smooth his speed so the walk does not
+    // stutter when the frame rate is not a multiple of the tick rate
+    let raw = if dt > 0.0 { moved / dt } else { 0.0 };
+    dz.speed += (raw - dz.speed) * (1.0 - (-14.0 * dt).exp());
+    let speed = dz.speed;
     let pose = dz.anim.tick(dt, brain.state, game.now, speed, moved);
     if let Ok(mut tf) = root.single_mut() {
         tf.translation = pos;

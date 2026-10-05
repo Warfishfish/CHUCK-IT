@@ -35,10 +35,22 @@ pub const ANGRY_TIME: f32 = 3.5;
 /// Gnomes that can pop out of a KO'd Dazza in Cheeky mode, per round.
 pub const BUM_OUTS: u32 = 3;
 
-/// How long a chase lasts at his current anger level.
+/// How long a chase lasts at his current anger level. Longer than the browser game's 8 + 2 per
+/// level (8 to 26 s): he now runs after you for 12 + 3 per level (12 to 36 s).
 pub fn chase_dur(level: u32) -> f32 {
-    (8.0 + level as f32 * 2.0).clamp(8.0, 26.0)
+    (12.0 + level as f32 * 3.0).clamp(12.0, 36.0)
 }
+
+/// How fast he can turn round, in radians per second (a full about-turn in about a quarter of a
+/// second, not in a single frame).
+pub const TURN_RATE: f32 = 13.0;
+
+/// Spatula hits in one chase before he calls it even and walks home.
+pub const CHASE_HITS: u32 = 3;
+/// After a hit he gloats for this long before swinging again.
+pub const GLOAT: f32 = 1.8;
+/// At least this much chase is left after a hit, so he keeps coming.
+pub const KEEP_CHASING: f32 = 6.0;
 
 /// How long a meat slap stuns him: shorter each time he's been wound up.
 pub fn stun_dur(level: u32) -> f32 {
@@ -128,6 +140,12 @@ pub struct Brain {
     pub bum_outs_left: u32,
     /// Distance walked this tick (feeds the animation).
     pub moved: f32,
+    /// So he does not shout a new line for every steak: seconds until he may speak again.
+    pub say_cd: f32,
+    /// Spatula hits landed in this chase.
+    pub chase_hits: u32,
+    /// Angry and walking out to the thief (with some slack so he does not dither at the edge).
+    pub approaching: bool,
 }
 
 impl Default for Brain {
@@ -148,6 +166,9 @@ impl Default for Brain {
             chat_t: 14.0,
             bum_outs_left: BUM_OUTS,
             moved: 0.0,
+            say_cd: 0.0,
+            chase_hits: 0,
+            approaching: false,
         }
     }
 }
@@ -162,6 +183,9 @@ impl Brain {
         self.level = 0;
         self.stun_after = 0.0;
         self.bum_outs_left = BUM_OUTS;
+        self.say_cd = 0.0;
+        self.chase_hits = 0;
+        self.approaching = false;
     }
 
     fn bump_level(&mut self) {
@@ -177,17 +201,34 @@ impl Brain {
         self.grudges.insert(id, n);
         self.target = Some(id);
         self.bump_level();
+        // grabbing more food while he is already on your tail keeps him coming
+        if self.state == DazzaState::Chase {
+            self.state_t = self.state_t.max(KEEP_CHASING);
+        }
         if n >= GRUDGE_CHASE {
-            self.state = DazzaState::Chase;
-            self.state_t = chase_dur(self.level);
-            Some(Event::Say(line(Kind::Rage, adult, rng)))
+            if self.state != DazzaState::Chase {
+                self.state = DazzaState::Chase;
+                self.state_t = chase_dur(self.level);
+                self.chase_hits = 0;
+            }
+            self.speak(Kind::Rage, adult, rng)
         } else if self.state != DazzaState::Chase {
             self.state = DazzaState::Angry;
             self.state_t = ANGRY_TIME;
-            Some(Event::Say(line(Kind::Angry, adult, rng)))
+            self.speak(Kind::Angry, adult, rng)
         } else {
             None
         }
+    }
+
+    /// A line, unless he has just said one (grabbing three steaks in a row used to restart the
+    /// speech bubble each time).
+    fn speak(&mut self, kind: Kind, adult: bool, rng: &mut Rng) -> Option<Event> {
+        if self.say_cd > 0.0 {
+            return None;
+        }
+        self.say_cd = 2.5;
+        Some(Event::Say(line(kind, adult, rng)))
     }
 
     /// Someone slapped him. `stun_item` is true for steak, fish and noodle, false for the
@@ -233,6 +274,7 @@ impl Brain {
             self.state = DazzaState::Chase;
             self.target = Some(attacker);
             self.state_t = chase_dur(self.level);
+            self.chase_hits = 0;
             self.berserk = true;
             self.swing_cd = 1.2; // a head start to leg it
             self.bump_level();
@@ -259,6 +301,7 @@ impl Brain {
     ) -> Vec<Event> {
         let mut out = Vec::new();
         self.moved = 0.0;
+        self.say_cd = (self.say_cd - dt).max(0.0);
 
         if self.state == DazzaState::Ko {
             self.state_t -= dt;
@@ -282,6 +325,7 @@ impl Brain {
                         chase_dur(self.level)
                     };
                     self.berserk = self.level >= 4;
+                    self.chase_hits = 0;
                     out.push(Event::Say(line(Kind::Rage, adult, rng)));
                 } else {
                     self.state = DazzaState::Return;
@@ -335,7 +379,10 @@ impl Brain {
                 stop = STOP_DISTANCE;
             }
             (DazzaState::Angry, Some(t)) => {
-                if t.pos.horiz_dist(HOME) < 5.0 {
+                // a little slack once he has set off, so he does not dither at the edge
+                let reach = if self.approaching { 6.5 } else { 5.0 };
+                self.approaching = t.pos.horiz_dist(HOME) < reach;
+                if self.approaching {
                     goal = Some(t.pos);
                     stop = STOP_DISTANCE;
                 } else {
@@ -373,7 +420,10 @@ impl Brain {
                 self.moved = st;
             }
             if d > 0.05 {
-                self.face = dx.atan2(dz);
+                // turn round at a sensible rate instead of snapping
+                let want = ang_diff(dx.atan2(dz), self.face);
+                let step = TURN_RATE * dt;
+                self.face += want.clamp(-step, step);
             }
         } else {
             let k = 1.0 - (-4.0 * dt).exp();
@@ -433,9 +483,17 @@ impl Brain {
                     });
                     if self.state == DazzaState::Chase {
                         self.grudges.insert(id, 1.0);
-                        self.state = DazzaState::Return;
-                        self.target = None;
+                        self.chase_hits += 1;
                         out.push(Event::Say(line(Kind::Gotcha, adult, rng)));
+                        if self.chase_hits >= CHASE_HITS {
+                            // three whacks and he is satisfied
+                            self.state = DazzaState::Return;
+                            self.target = None;
+                        } else {
+                            // gloat for a moment, then keep coming after you
+                            self.swing_cd = GLOAT;
+                            self.state_t = self.state_t.max(KEEP_CHASING);
+                        }
                     }
                 }
             }
@@ -640,9 +698,10 @@ mod tests {
             }
         }
         assert_eq!(b.level, 8);
-        assert_eq!(chase_dur(0), 8.0);
-        assert_eq!(chase_dur(4), 16.0);
-        assert_eq!(chase_dur(8), 24.0);
+        // longer than the browser game's 8, 16, 24: he runs after you for 12 to 36 s
+        assert_eq!(chase_dur(0), 12.0);
+        assert_eq!(chase_dur(4), 24.0);
+        assert_eq!(chase_dur(8), 36.0);
         assert!((stun_dur(0) - 1.0).abs() < 1e-5);
         assert!((stun_dur(4) - 0.68).abs() < 1e-5);
         assert!((stun_dur(8) - 0.4).abs() < 1e-5);
@@ -705,8 +764,10 @@ mod tests {
         assert_eq!(v, 1);
         assert!(dir.z > 0.9);
         assert!(!berserk);
-        // after a chase hit he goes home, pleased with himself
-        assert_eq!(b.state, DazzaState::Return);
+        // after a chase hit he gloats and KEEPS CHASING (he used to go home after one hit)
+        assert_eq!(b.state, DazzaState::Chase);
+        assert!(b.state_t >= KEEP_CHASING - 0.01);
+        assert!(b.swing_cd > 1.0, "he gloats before he swings again");
         assert!(
             ev.iter()
                 .any(|e| matches!(e, Event::Say(s) if GOTCHA.contains(s)))
@@ -990,5 +1051,75 @@ mod tests {
         assert!(lines(Kind::Angry, true).len() > lines(Kind::Angry, false).len());
         assert!(lines(Kind::Rage, true).len() > lines(Kind::Rage, false).len());
         assert_eq!(lines(Kind::Ko, true).len(), lines(Kind::Ko, false).len());
+    }
+
+    #[test]
+    fn he_never_snaps_round_in_one_frame_even_when_his_goal_flips() {
+        let yard = Yard::default();
+        let mut rng = Rng::new(5);
+        let mut b = Brain::default();
+        let me = person(1, -8.7, -17.0);
+        let mut last = b.face;
+        let mut worst = 0.0f32;
+        for tick in 0..(12.0 / DT) as usize {
+            if tick % 60 == 30 && (tick as f32 * DT) < 4.0 {
+                b.meat_taken(1, false, &mut rng);
+            }
+            b.tick(DT, &[me], &yard.colliders, false, false, &mut rng);
+            worst = worst.max(ang_diff(b.face, last).abs());
+            last = b.face;
+        }
+        // 13 rad/s at 60 Hz is about 0.22 rad a tick (it was up to 3.1)
+        assert!(worst <= TURN_RATE * DT + 1e-4, "turned {worst} rad in one tick");
+    }
+
+    #[test]
+    fn grabbing_steaks_in_a_row_does_not_restart_his_speech_bubble_each_time() {
+        let mut b = Brain::default();
+        let mut rng = Rng::new(6);
+        let mut lines = 0;
+        for _ in 0..4 {
+            if b.meat_taken(1, false, &mut rng).is_some() {
+                lines += 1;
+            }
+        }
+        assert_eq!(lines, 1, "one line, then he holds his tongue for a moment");
+        b.tick(3.0, &[], &Yard::default().colliders, false, false, &mut rng);
+        assert!(b.meat_taken(1, false, &mut rng).is_some() || b.state == DazzaState::Return);
+    }
+
+    #[test]
+    fn he_chases_for_a_long_time_and_goes_home_after_three_whacks() {
+        let mut b = Brain::default();
+        let mut rng = Rng::new(7);
+        for _ in 0..3 {
+            b.meat_taken(1, false, &mut rng);
+        }
+        assert_eq!(b.state, DazzaState::Chase);
+        assert!(b.state_t >= 12.0);
+        // a runner who stays just out of reach for 10 s is still being chased
+        let yard = Yard::default();
+        let mut me = person(1, -6.0, -5.0);
+        for _ in 0..(10.0 / DT) as usize {
+            me.pos = V3::new(b.pos.x, 0.0, b.pos.z + 3.2);
+            b.tick(DT, &[me], &yard.colliders, false, false, &mut rng);
+        }
+        assert_eq!(b.state, DazzaState::Chase, "still on your tail after 10 s");
+        // let him catch someone standing still: three hits and he is done
+        let still = person(1, b.pos.x, b.pos.z + 1.5);
+        let mut hits = 0;
+        for _ in 0..(14.0 / DT) as usize {
+            let me = Person { pos: V3::new(b.pos.x, 0.0, b.pos.z + 1.5), ..still };
+            hits += b
+                .tick(DT, &[me], &yard.colliders, false, false, &mut rng)
+                .iter()
+                .filter(|e| matches!(e, Event::SpatulaHit { .. }))
+                .count();
+            if b.state != DazzaState::Chase {
+                break;
+            }
+        }
+        assert_eq!(hits as u32, CHASE_HITS);
+        assert_eq!(b.state, DazzaState::Return);
     }
 }

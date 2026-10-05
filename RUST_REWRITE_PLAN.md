@@ -248,6 +248,10 @@ Its own list, worked one item at a time, highest impact first: see **`GRAPHICS_2
 - [ ] Work through `GRAPHICS_2C.md` (tick items there; note here when a whole section is done)
 - [ ] Phase 2c look check on Marcus's Mac (before and after screenshots)
 
+### Dazza fixes (5 Oct 2026, Marcus)
+- [x] Dazza no longer glitches when you grab food from the table: he turns at 13 rad/s instead of snapping up to 180 degrees in one frame, his walk animation speed is smoothed (it stuttered when the frame rate was not a multiple of the 60 Hz tick), a new speech line is not started for every steak, and he no longer dithers at the 5 m edge when he walks out to a thief
+- [x] He runs after you for longer. DELIBERATE CHANGE from the browser game (`BEHAVIOUR_SPEC.md`): a chase now lasts 12 + 3 per anger level (12 to 36 s, was 8 + 2 per level, 8 to 26 s); after a spatula hit he gloats for 1.8 s and keeps chasing (at least 6 s more), going home after 3 hits in one chase (he used to go home after the first hit); grabbing more food while he is chasing keeps him coming. The numbers are `chase_dur`, `CHASE_HITS`, `GLOAT`, `KEEP_CHASING` in `bbq_core/src/dazza_brain.rs`
+
 ### Phase 3: Items and throwing
 - [x] Item spawner, pick up, 2 slots, swap, ground glow
 - [x] Wind-up, throw, holding too long, throw-path preview, power throw
