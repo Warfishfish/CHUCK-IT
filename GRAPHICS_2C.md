@@ -82,6 +82,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 
 ### Next up (added 5 Oct 2026, Marcus), worked one at a time
 How we work on these: one item at a time; I show Marcus screenshots (before and after) and only commit and push once he says it looks right.
+- [x] Flicker fixes (5 Oct 2026): the sky flickered because bloom spread any sun glint across the whole sky (bloom removed); the umbrella canopy and its glowing underside were 1.5 cm apart (top now one-sided, underside 8 cm lower); the smoko pad flickered against dirt patches drawn at the same height (no dirt under the pad, pad 2 cm up, dirt lower). Checked with 24-frame bursts, still and with a moving camera
 - [x] Fix the glitch under the umbrella in the smoko area (the two crossed see-through signs showed each other mirrored; now a four-sided sign box, and the canopy underside glows yellow)
 - [x] Eyeballs jump around when walking and running, each character with its own eye wobble: eyeballs on springs kicked by every footstep, thrown back and forward by speeding up and stopping, pupils riding on them. Classic steady, Pear lazy and floaty, Egg googly (eyes swell), Gumdrop big boings with squash and stretch and cross-eyed. Toned to 60% (`EYE_STRENGTH`) at Marcus's request
 - [x] Beer bellies look natural: part of the body (Blender shape keys "Belly" and "Sag" on the body and singlet, no ball stuck on), full and round, the singlet riding up over it; they bounce on every step, squash on landing, swing when speeding up or stopping. A "Beer belly" slider under the character preview (None to Enormous, saved), and each bot gets its own size. Looks only
@@ -148,7 +149,7 @@ How we work on these: one item at a time; I show Marcus screenshots (before and 
 - [x] The look switch: `--look browser|polished` (screenshots default to browser, playing to polished; a menu option comes with the Phase 8 settings); `browser` keeps today's maths for the compare toolkit
 - [x] Colour grading in `display_raw.wgsl`: gentle warm curve, a little more saturation, more contrast, a soft vignette (polished look only)
 - [x] Screen-space ambient occlusion (High) with SMAA instead of MSAA (SSAO cannot be used with MSAA); polished look only; `--fx off` switches the screen effects off for comparing or a slow computer
-- [x] Mild bloom on things brighter than white only (threshold 1.0, additive, intensity 0.12); this makes the camera HDR, and the display shader still clamps to 0..1 at the end
+- [ ] Mild bloom: tried and REMOVED (it made the sky flicker); only revisit with a much stricter threshold
 - [x] Texture filtering: anisotropy 8 for ground and fences
 
 ### Blender workflow

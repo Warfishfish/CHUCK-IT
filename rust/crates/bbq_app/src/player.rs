@@ -128,6 +128,7 @@ fn setup_camera_and_hud(mut commands: Commands, look: Res<crate::lighting::LookM
         .id();
     if crate::lighting::post_fx_wanted(*look, &args) {
         commands.entity(cam).insert(crate::lighting::post_fx());
+
     }
     if *look == crate::lighting::LookMode::Polished {
         // decals need the depth of the scene (SSAO already adds this when it is on)

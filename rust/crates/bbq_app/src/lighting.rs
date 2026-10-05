@@ -244,28 +244,18 @@ pub fn post_fx_wanted(look: LookMode, args: &[String]) -> bool {
 /// The screen effects of the polished look (step 2c):
 ///  * screen-space ambient occlusion: darkens the sky/ambient light in creases and where things
 ///    meet the ground, so props and blobs sit into the lawn instead of floating on it;
-///  * bloom: a soft glow, only round things brighter than white (sun glints, shiny highlights);
 ///  * SMAA, because ambient occlusion cannot be used with the 4x multi-sampling.
-/// Bloom needs an HDR picture; the display shader still clamps to the same 0..1 range at the end.
 pub fn post_fx() -> impl Bundle {
     use bevy::anti_alias::smaa::Smaa;
     use bevy::pbr::{ScreenSpaceAmbientOcclusion, ScreenSpaceAmbientOcclusionQualityLevel};
-    use bevy::post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter};
+    // No bloom: whenever something shiny caught the sun for a frame its glow spread across the
+    // whole sky, which made the sky flicker (Marcus, 5 Oct 2026).
     (
         Msaa::Off,
         Smaa::default(),
         ScreenSpaceAmbientOcclusion {
             quality_level: ScreenSpaceAmbientOcclusionQualityLevel::High,
             constant_object_thickness: 0.25,
-        },
-        Bloom {
-            intensity: 0.12,
-            composite_mode: BloomCompositeMode::Additive,
-            prefilter: BloomPrefilter {
-                threshold: 1.0,
-                threshold_softness: 0.5,
-            },
-            ..Bloom::NATURAL
         },
     )
 }

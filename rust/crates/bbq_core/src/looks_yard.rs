@@ -582,7 +582,8 @@ pub fn smoko_pad(radius: f32) -> Part {
             .repeating(3.0, 3.0)
             .no_shadow(),
     )
-    .at(SMOKO_X, 0.012, SMOKO_Z)
+    // a clear 2 cm above the lawn and its dirt patches, so they never flicker against each other
+    .at(SMOKO_X, 0.02, SMOKO_Z)
     .turn(-HALF_PI, 0.0, 0.0)
     .stretch(radius, radius, 1.0)
 }
@@ -1296,7 +1297,9 @@ fn smoko(polished: bool) -> Vec<Part> {
                 h: 0.55,
                 seg: 10,
             },
-            matt(0xf2c230).both_sides(),
+            // in the polished look the top is one-sided: its underside is a separate glowing
+            // cone a little lower (two surfaces in the same place flickered)
+            if polished { matt(0xf2c230) } else { matt(0xf2c230).both_sides() },
         )
         .at(sx, 2.55, sz),
     );
@@ -1341,8 +1344,8 @@ fn smoko(polished: bool) -> Vec<Part> {
         v.push(cuboid(0.9, 0.04, 0.9, frame, sx, y - 0.16, sz));
         // the canopy's underside: sunlight glows through the yellow cloth, with darker ribs
         v.push(
-            Part::new(Shape::Cone { r: 1.68, h: 0.53, seg: 10 }, matt(0xd9a51c).glow(0x6b4e0c).both_sides().no_shadow())
-                .at(sx, 2.535, sz),
+            Part::new(Shape::Cone { r: 1.62, h: 0.5, seg: 10 }, matt(0xd9a51c).glow(0x6b4e0c).both_sides().no_shadow())
+                .at(sx, 2.47, sz),
         );
     } else {
         // the SMOKO sign, both ways
@@ -1732,7 +1735,7 @@ pub fn dirt_spots(seed: u64) -> Vec<DirtSpot> {
         (-8.7, -16.8, 2.2),
         (0.0, 3.0, 1.8),
         (TRAMP_X, TRAMP_Z, TRAMP_R + 0.6),
-        (-24.0, -3.0, 2.6),
+        // (not the smoko pad: the dirt drawn at the pad's height made the pad flicker)
     ] {
         for _ in 0..4 {
             let a = rng.range(0.0, 2.0 * PI);
@@ -1810,7 +1813,7 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
                     Shape::Disc { r: 1.0, seg: 12 },
                     matt(c).textured(Tex::SoftDot).see_through(0.96).no_shadow(),
                 )
-                .at(d.x, 0.012, d.z)
+                .at(d.x, 0.006, d.z)
                 .turn(-HALF_PI, 0.0, d.turn)
                 .stretch(d.rx * 1.15, d.rz * 1.15, 1.0),
             );
@@ -2121,7 +2124,7 @@ mod tests {
                 .any(|p| matches!(p.shape, Shape::Cone { .. }))
         );
         let pad = smoko_pad(3.0);
-        assert_eq!(pad.pos, V3::new(SMOKO_X, 0.012, SMOKO_Z));
+        assert_eq!(pad.pos, V3::new(SMOKO_X, 0.02, SMOKO_Z));
         assert_eq!(pad.scale, V3::new(3.0, 3.0, 1.0));
         assert_eq!(chair().len(), 2 + 4 + 2 + 1);
     }

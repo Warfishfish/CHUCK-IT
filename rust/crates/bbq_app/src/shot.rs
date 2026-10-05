@@ -190,9 +190,14 @@ fn shot_camera(
         }
         return;
     }
-    let Some([x, y, z, yaw, pitch, fov]) = cfg.cam else {
+    let Some([mut x, y, mut z, yaw, pitch, fov]) = cfg.cam else {
         return;
     };
+    // `--cam-drift`: the camera creeps sideways, like someone walking past (to catch flicker)
+    if args.iter().any(|a| a == "--cam-drift") {
+        x += game.now * 0.6;
+        z += game.now * 0.2;
+    }
     let (tf, proj) = &mut *cam;
     tf.translation = Vec3::new(x, y, z);
     tf.rotation = Quat::from_euler(EulerRot::YXZ, yaw.to_radians(), pitch.to_radians(), 0.0);
@@ -266,14 +271,21 @@ fn take_shot(
         .position(|a| a == "--burst")
         .and_then(|i| args.get(i + 1))
         .and_then(|v| v.parse::<u32>().ok());
+    let every = args
+        .iter()
+        .position(|a| a == "--burst-step")
+        .and_then(|i| args.get(i + 1))
+        .and_then(|v| v.parse::<u32>().ok())
+        .unwrap_or(4)
+        .max(1);
     if let Some(n) = burst {
         let start = 320;
-        if *frame >= start && (*frame - start) % 4 == 0 && (*frame - start) / 4 < n {
-            let k = (*frame - start) / 4;
+        if *frame >= start && (*frame - start) % every == 0 && (*frame - start) / every < n {
+            let k = (*frame - start) / every;
             let path = cfg.out.replace(".png", &format!("_{k}.png"));
             commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path));
         }
-        if *frame == start + n * 4 + 60 {
+        if *frame == start + n * every + 60 {
             exit.write(AppExit::Success);
         }
         return;
