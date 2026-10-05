@@ -837,10 +837,84 @@ pub fn item(kind: crate::items::ItemKind, id: u32, variant: Option<DildoVariant>
     }
 }
 
+/// An item in the step 2c look: the browser model plus a few details that make it read better
+/// close up (`polished` false gives exactly the browser model).
+pub fn item_look(kind: crate::items::ItemKind, id: u32, variant: Option<DildoVariant>, polished: bool) -> Vec<Part> {
+    let mut v = item(kind, id, variant);
+    if polished {
+        v.extend(item_extras(kind));
+    }
+    v
+}
+
+/// The extra details (step 2c, "Items get a second look").
+pub fn item_extras(kind: crate::items::ItemKind) -> Vec<Part> {
+    use crate::items::ItemKind as K;
+    let dk = Surface::matt(0x24160c);
+    match kind {
+        K::Teddy => {
+            let mut v = vec![
+                // a stitched seam down the tummy, a patch, and a red bow tie
+                Part::new(Shape::Cuboid { w: 0.008, h: 0.17, d: 0.006 }, Surface::matt(0x5a3418)).at(0.0, -0.06, 0.148),
+                Part::new(sphere(0.045, 8, 6), Surface::matt(0xd8a46a)).at(-0.1, -0.13, 0.11).stretch(1.0, 1.0, 0.35),
+                Part::new(sphere(0.022, 6, 4), Surface::matt(0xd63a2f)).at(0.0, 0.03, 0.13),
+            ];
+            for k in 0..5 {
+                v.push(Part::new(Shape::Cuboid { w: 0.03, h: 0.004, d: 0.006 }, Surface::matt(0x5a3418)).at(0.0, -0.13 + k as f32 * 0.035, 0.149));
+            }
+            for sx in [-1.0f32, 1.0] {
+                v.push(Part::new(Shape::Cone { r: 0.03, h: 0.06, seg: 6 }, Surface::matt(0xd63a2f)).at(sx * 0.035, 0.03, 0.125).turn(0.0, 0.0, -sx * HALF_PI));
+            }
+            v
+        }
+        K::Gnome => {
+            let mut v = vec![
+                // a belt with a gold buckle
+                Part::new(cyl(0.16, 0.165, 0.035, 12), Surface::matt(0x3b2a1a)).at(0.0, -0.17, 0.0),
+                Part::new(Shape::Cuboid { w: 0.05, h: 0.04, d: 0.02 }, Surface::shiny(0xf2c230, 0xffffff, 40.0)).at(0.0, -0.17, 0.16),
+            ];
+            for sx in [-1.0f32, 1.0] {
+                // little eyes and rosy cheeks, and boots peeping out
+                v.push(Part::new(sphere(0.014, 6, 4), dk).at(sx * 0.035, 0.1, 0.09));
+                v.push(Part::new(sphere(0.022, 6, 4), Surface::matt(0xe8847a)).at(sx * 0.06, 0.065, 0.075).stretch(1.0, 0.7, 0.5));
+                v.push(Part::new(sphere(0.06, 8, 6), Surface::matt(0x2a1d14)).at(sx * 0.07, -0.28, 0.06).stretch(1.0, 0.6, 1.4));
+            }
+            v
+        }
+        K::Steak | K::Snag => {
+            let mut v = Vec::new();
+            // grill marks across the top and streaks of marbling
+            for k in 0..3 {
+                v.push(
+                    Part::new(Shape::Cuboid { w: 0.3, h: 0.006, d: 0.018 }, Surface::matt(0x5a1a14))
+                        .at(-0.02, 0.027, -0.07 + k as f32 * 0.07)
+                        .turn(0.0, 0.6, 0.0),
+                );
+            }
+            for (x, z, a) in [(-0.06f32, 0.04f32, 0.3f32), (0.07, -0.05, -0.5)] {
+                v.push(Part::new(Shape::Cuboid { w: 0.09, h: 0.005, d: 0.01 }, Surface::matt(0xf2d2c8)).at(x, 0.026, z).turn(0.0, a, 0.0));
+            }
+            v
+        }
+        _ => Vec::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::items::ItemKind;
+
+    #[test]
+    fn the_polished_items_only_add_to_the_browser_models() {
+        for k in ItemKind::ALL {
+            let plain = item(k, 0, None);
+            let fancy = item_look(k, 0, None, true);
+            assert!(fancy.len() >= plain.len());
+            assert_eq!(item_look(k, 0, None, false).len(), plain.len());
+        }
+        assert!(item_extras(ItemKind::Teddy).len() > 3);
+    }
 
     #[test]
     fn every_item_has_a_model() {

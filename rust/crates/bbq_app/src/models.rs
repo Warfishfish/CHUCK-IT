@@ -29,6 +29,9 @@ pub const MATT_ROUGHNESS: f32 = 0.5;
 /// The lawn is seen at a glancing angle, where Bevy lights rough things up; this brings it back.
 pub const GROUND_ROUGHNESS: f32 = 0.0;
 
+/// The polished look draws items with their extra details (set once at start-up from `LookMode`).
+pub static POLISHED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// What to look up: an item (and which size or colour), or a one-off by name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ModelKey {
@@ -52,7 +55,7 @@ impl ModelKey {
 
     fn parts(self) -> Vec<Part> {
         match self {
-            ModelKey::Item(kind, v, n) => bbq_core::looks::item(kind, n, v),
+            ModelKey::Item(kind, v, n) => bbq_core::looks::item_look(kind, n, v, POLISHED.load(std::sync::atomic::Ordering::Relaxed)),
             ModelKey::BumCrack => bbq_core::looks::bum_crack(),
         }
     }
@@ -138,6 +141,11 @@ pub struct ModelsPlugin;
 
 impl Plugin for ModelsPlugin {
     fn build(&self, app: &mut App) {
+        let polished = app
+            .world()
+            .get_resource::<crate::lighting::LookMode>()
+            .is_some_and(|l| *l == crate::lighting::LookMode::Polished);
+        POLISHED.store(polished, std::sync::atomic::Ordering::Relaxed);
         app.init_resource::<ModelCache>()
             .add_systems(Startup, load_textures)
             .add_systems(Update, add_mipmaps);
