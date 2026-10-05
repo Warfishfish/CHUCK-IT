@@ -239,17 +239,25 @@ pub enum CheckId {
     Sound,
 }
 
-/// A slider for the field of view.
+/// Which setting a slider changes.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SliderId {
+    Fov,
+    Belly,
+}
+
+/// A slider (field of view, beer belly).
 #[derive(Component)]
 pub struct Slider {
+    pub id: SliderId,
     pub min: f32,
     pub max: f32,
 }
 
 #[derive(Component)]
-pub struct SliderFill;
+pub struct SliderFill(pub SliderId);
 #[derive(Component)]
-pub struct SliderValue;
+pub struct SliderValue(pub SliderId);
 
 /// A bold heading above a group (the page's `legend`).
 pub fn legend(s: &str) -> impl Bundle {
@@ -411,12 +419,12 @@ pub fn tab_button(p: &mut ChildSpawnerCommands, tab: Tab, label: &str) {
 #[derive(Component)]
 pub struct TabButton(pub Tab);
 
-/// A labelled slider (field of view).
-pub fn slider(p: &mut ChildSpawnerCommands, title: &str, min: f32, max: f32) {
+/// A labelled slider.
+pub fn slider(p: &mut ChildSpawnerCommands, id: SliderId, title: &str, min: f32, max: f32) {
     p.spawn(column(6.0)).with_children(|c| {
         c.spawn(row(8.0)).with_children(|r| {
             r.spawn(legend(title));
-            r.spawn((text("85", 11.0, true, INK), SliderValue));
+            r.spawn((text("", 11.0, true, INK), SliderValue(id)));
         });
         c.spawn((
             Button,
@@ -427,7 +435,7 @@ pub fn slider(p: &mut ChildSpawnerCommands, title: &str, min: f32, max: f32) {
                 ..default()
             },
             RelativeCursorPosition::default(),
-            Slider { min, max },
+            Slider { id, min, max },
             children![
                 (
                     Node {
@@ -453,7 +461,7 @@ pub fn slider(p: &mut ChildSpawnerCommands, title: &str, min: f32, max: f32) {
                     },
                     BackgroundColor(SUN),
                     BorderColor::all(INK),
-                    SliderFill,
+                    SliderFill(id),
                 ),
             ],
         ));

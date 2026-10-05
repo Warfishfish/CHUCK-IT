@@ -25,6 +25,9 @@ pub struct PreviewImage(pub Handle<Image>);
 struct PreviewCamera;
 #[derive(Component)]
 struct PreviewModel;
+/// The preview's body and singlet: their belly follows the slider.
+#[derive(Component)]
+struct PreviewBelly;
 
 pub struct PreviewPlugin;
 
@@ -110,6 +113,9 @@ fn swap_preview_model(
                     // everything of the model is on the preview's own layer
                     commands.entity(node).insert(RenderLayers::layer(LAYER));
                     let Ok(name) = names.get(node) else { continue };
+                    if matches!(name.as_str(), "Torso" | "Singlet") {
+                        commands.entity(node).insert(PreviewBelly);
+                    }
                     let m = match name.as_str() {
                         "Torso" | "Belly" => Some(body.clone()),
                         "Head" | "HandR" | "HandL" => Some(head.clone()),
@@ -129,12 +135,26 @@ fn swap_preview_model(
         );
 }
 
-/// A slow turn with a little bounce, so you can see all of it.
-fn spin_preview(time: Res<Time>, mut q: Query<&mut Transform, With<PreviewModel>>) {
+/// A slow turn with a little bounce, so you can see all of it; the belly is the slider's size
+/// and jiggles with each hop.
+fn spin_preview(
+    time: Res<Time>,
+    settings: Res<Settings>,
+    mut q: Query<&mut Transform, With<PreviewModel>>,
+    mut bellies: Query<&mut bevy::mesh::morph::MorphWeights, With<PreviewBelly>>,
+) {
     let t = time.elapsed_secs();
     for mut tf in &mut q {
         tf.rotation = Quat::from_rotation_y(0.6 + t * 0.7);
         tf.translation.y = (t * 2.4).sin().abs() * 0.04;
+    }
+    let jiggle = (t * 4.8).cos() * 0.25;
+    for mut w in &mut bellies {
+        let ws = w.weights_mut();
+        if ws.len() >= 2 {
+            ws[0] = settings.belly.powf(0.8);
+            ws[1] = jiggle * settings.belly;
+        }
     }
 }
 

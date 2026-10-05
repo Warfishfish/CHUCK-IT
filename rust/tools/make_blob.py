@@ -59,9 +59,10 @@ SHAPES = {
 # game's hit and catch sizes are fixed in code and do not read this. Classic is left as the
 # original capsule (decision 4 Oct 2026).
 CARICATURE = {
-    "pear": dict(head=0.33, hand=0.125, foot=0.165, belly=0.26, belly_y=0.66, tilt=-0.07, thong="ThongPear"),
-    "egg": dict(head=0.34, hand=0.13, foot=0.17, belly=0.24, belly_y=0.70, tilt=0.09, thong="ThongEgg"),
-    "gumdrop": dict(head=0.34, hand=0.13, foot=0.18, belly=0.30, belly_y=0.58, tilt=-0.05, thong="ThongGumdrop"),
+    # belly: how far the tummy swells forward (m), its height and how tall it is
+    "pear": dict(head=0.33, hand=0.125, foot=0.165, belly=0.15, belly_y=0.72, belly_h=0.34, tilt=-0.07, thong="ThongPear"),
+    "egg": dict(head=0.34, hand=0.13, foot=0.17, belly=0.13, belly_y=0.78, belly_h=0.32, tilt=0.09, thong="ThongEgg"),
+    "gumdrop": dict(head=0.34, hand=0.13, foot=0.18, belly=0.18, belly_y=0.66, belly_h=0.36, tilt=-0.05, thong="ThongGumdrop"),
 }
 BODY_BASE = 0.07  # the body's lowest point sits just off the ground (same as the old capsule)
 
@@ -164,7 +165,39 @@ def profile_radius(shape, up):
     return w * math.sqrt(max(0.0, 1 - (2 * u - 1) ** 2))
 
 
-def singlet(shape, y0, y1, material, parent, seed=1):
+def belly_field(c, x, y, z):
+    """How a point moves for the two belly shape keys: (swell, sag). Swell pushes the front of the
+    body outwards round the tummy; sag lets it droop down and forward (the game bounces the two).
+    Blender coordinates: x sideways, -y forward, z up."""
+    r = math.hypot(x, y)
+    if r < 1e-6:
+        return (0, 0, 0), (0, 0, 0)
+    # a broad, round swell: it wraps well round the sides (not just straight out the front) and
+    # fades out softly above and below, so it reads as a full tummy rather than a point
+    cosf = -y / r
+    front = max(0.0, (cosf + 0.45) / 1.45) ** 1.25
+    d = (z - c["belly_y"]) / c["belly_h"]
+    g = math.exp(-(d * d) ** 1.4)  # flatter top than a plain bell curve
+    amt = c["belly"] * g * front
+    swell = (x / r * amt, y / r * amt, -0.15 * amt)
+    sag = (0.0, -0.35 * amt, -0.6 * amt)
+    return swell, sag
+
+
+def add_belly_keys(ob, c, swell_value=1.0):
+    """Shape keys "Belly" (on by default) and "Sag" (off) that the game drives to make it bounce."""
+    ob.shape_key_add(name="Basis")
+    kb = ob.shape_key_add(name="Belly")
+    ks = ob.shape_key_add(name="Sag")
+    for i, v in enumerate(ob.data.vertices):
+        sw, sg = belly_field(c, v.co.x, v.co.y, v.co.z)
+        kb.data[i].co = (v.co.x + sw[0], v.co.y + sw[1], v.co.z + sw[2])
+        ks.data[i].co = (v.co.x + sg[0], v.co.y + sg[1], v.co.z + sg[2])
+    kb.value = swell_value
+    ks.value = 0.0
+
+
+def singlet(shape, y0, y1, material, parent, seed=1, front_lift=0.0):
     """A loose singlet over the chest: a shell a little wider than the torso, with folds, a wavy
     hem that rides up (so the tummy sticks out below it) and a wonky collar."""
     rnd = random.Random(seed)
@@ -178,6 +211,7 @@ def singlet(shape, y0, y1, material, parent, seed=1):
         for i in range(n_a):
             a = 2 * math.pi * i / n_a
             hem = 0.035 * math.sin(3 * a + ph[0]) + 0.02 * math.sin(7 * a + ph[1])  # wavy bottom edge
+            hem += front_lift * max(0.0, math.cos(a)) ** 2  # rides up over the tummy at the front
             collar = 0.03 * math.sin(2 * a + ph[2])
             y = (y0 + hem * (1 - t)) + t * ((y1 + collar) - (y0 + hem * (1 - t)))
             r = profile_radius(shape, y) * 1.045 + 0.012
@@ -234,8 +268,14 @@ def make_blob(shape, dx=0.0):
             sphere("Foot" + side, 0.13, (sg * 0.2, 0.09, 0.05), M["Foot"], scale=(1, 0.6, 1.4), parent=body, seg=24, rings=13)
     if c:
         # a tummy that sticks out the front, and the wrinkles of a singlet round it
-        sphere("Belly", c["belly"], (0, c["belly_y"], 0.22), M["Body"], scale=(1.0, 0.95, 0.85), parent=body)
-        singlet(shape, c["belly_y"] + 0.10, 1.22, M["Singlet"], body, seed=len(shape))
+        # the tummy is part of the body (shape keys), not a ball stuck on the front
+        torso = bpy.data.objects["Torso"] if "Torso" in bpy.data.objects else None
+        for ob in scn.collection.objects:
+            if ob.name.startswith("Torso"):
+                torso = ob
+        add_belly_keys(torso, c)
+        sing = singlet(shape, c["belly_y"] - 0.04, 1.22, M["Singlet"], body, seed=len(shape), front_lift=0.12)
+        add_belly_keys(sing, c)
     # HandR is the one the game animates (it swings), HandL is the other side.
     # Hands rest just outside the body at arm height (0.88 up).
     hr = c["hand"] if c else 0.10
@@ -250,7 +290,9 @@ ORDER = ["classic", "pear", "egg", "gumdrop"]
 
 if SHEET:
     for i, name in enumerate(ORDER):
-        make_blob(name, dx=(i - 1.5) * 1.3)
+        b = make_blob(name, dx=(i - 1.5) * 1.3)
+        if "--side" in sys.argv:
+            b.rotation_euler = (0, 0, math.radians(-90))  # facing right, to see the tummy
 elif not PREVIEW:
     pass  # exporting happens below, one file per character
 else:

@@ -54,6 +54,8 @@ pub struct Settings {
     pub falls: bool,
     pub drunk_all: bool,
     pub character: Character,
+    /// How big your beer belly is: 0 none, 1 normal, 2 enormous (looks only).
+    pub belly: f32,
     pub sound: bool,
 }
 
@@ -75,6 +77,7 @@ impl Default for Settings {
             falls: true,
             drunk_all: false,
             character: Character::default(),
+            belly: 1.0,
             sound: true,
         }
     }
@@ -112,10 +115,10 @@ impl Settings {
         };
         let f = &self.features;
         let s = format!(
-            "name={}\nfov={}\nbots={}\nmode={mode}\nheist_teams={}\ncheeky={}\nround_len={}\nskill={skill}\nrounds={}\nfriendly_fire={}\nbar={}\nbbq={}\nchest={}\nsmoko={}\nnaughty={}\nfalls={}\ndrunk_all={}\ncharacter={}\nsound={}\n",
+            "name={}\nfov={}\nbots={}\nmode={mode}\nheist_teams={}\ncheeky={}\nround_len={}\nskill={skill}\nrounds={}\nfriendly_fire={}\nbar={}\nbbq={}\nchest={}\nsmoko={}\nnaughty={}\nfalls={}\ndrunk_all={}\ncharacter={}\nbelly={}\nsound={}\n",
             self.name, self.fov, self.bots, self.heist_teams, self.cheeky, self.round_len,
             self.rounds, self.friendly_fire, f.bar, f.bbq, f.chest, f.smoko, self.naughty,
-            self.falls, self.drunk_all, self.character.name(), self.sound
+            self.falls, self.drunk_all, self.character.name(), self.belly, self.sound
         );
         let _ = std::fs::write(p, s);
     }
@@ -163,6 +166,7 @@ impl Settings {
                         s.character = *c;
                     }
                 }
+                "belly" => s.belly = v.parse().unwrap_or(1.0f32).clamp(0.0, 2.0),
                 "sound" => s.sound = b,
                 _ => {}
             }
@@ -306,7 +310,7 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                         children![(text("", 15.0, true, INK), NameText)],
                     ));
                 });
-                slider(c, "Field of view", 60.0, 105.0);
+                slider(c, SliderId::Fov, "Field of view", 60.0, 105.0);
                 // tabs
                 c.spawn(row(8.0)).with_children(|t| {
                     tab_button(t, Tab::Solo, "Solo");
@@ -364,8 +368,9 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                     BorderColor::all(INK),
                     ImageNode::new(preview.0.clone()),
                 ));
+                slider(pv, SliderId::Belly, "Beer belly", 0.0, 2.0);
                 pv.spawn(text(
-                    "Only the look changes. Every blob has the same speed and the same hit size.",
+                    "Only the look changes. Every blob has the same speed and the same hit size. (Classic has no belly.)",
                     12.5,
                     false,
                     MUTED,
@@ -546,7 +551,7 @@ fn spawn_pause(mut commands: Commands) {
                     false,
                     MUTED,
                 ));
-                slider(c, "Field of view", 60.0, 105.0);
+                slider(c, SliderId::Fov, "Field of view", 60.0, 105.0);
                 c.spawn(row(10.0)).with_children(|r| {
                     button(r, Action::Resume, "Resume", Some(SUN));
                     button(r, Action::Quit, "Quit to menu", None);
@@ -555,12 +560,15 @@ fn spawn_pause(mut commands: Commands) {
         });
 }
 
-fn apply_loaded_settings(settings: Res<Settings>, mut player: ResMut<Player>, mut cast: ResMut<Cast>) {
+fn apply_loaded_settings(mut settings: ResMut<Settings>, mut player: ResMut<Player>, mut cast: ResMut<Cast>) {
     player.fov_base = settings.fov;
     player.fov = settings.fov;
     cast.mine = settings.character;
     // `--char classic|pear|egg|gumdrop` (testing): the first bot wears this one
     let args: Vec<String> = std::env::args().collect();
+    if let Some(b) = args.iter().position(|a| a == "--belly").and_then(|i| args.get(i + 1)).and_then(|v| v.parse::<f32>().ok()) {
+        settings.belly = b.clamp(0.0, 2.0);
+    }
     if let Some(c) = args.iter().position(|a| a == "--char").and_then(|i| args.get(i + 1)) {
         if let Some(ch) = Character::ALL.iter().find(|x| x.name().eq_ignore_ascii_case(c)) {
             cast.mine = *ch;
@@ -662,12 +670,23 @@ fn slider_drag(
         }
         let Some(n) = rel.normalized else { continue };
         let t = (n.x + 0.5).clamp(0.0, 1.0);
-        let v = (s.min + (s.max - s.min) * t).round();
-        if v != settings.fov {
-            settings.fov = v;
-            player.fov_base = v;
-            player.fov = v;
-            settings.save();
+        match s.id {
+            SliderId::Fov => {
+                let v = (s.min + (s.max - s.min) * t).round();
+                if v != settings.fov {
+                    settings.fov = v;
+                    player.fov_base = v;
+                    player.fov = v;
+                    settings.save();
+                }
+            }
+            SliderId::Belly => {
+                let v = ((s.min + (s.max - s.min) * t) * 20.0).round() / 20.0;
+                if v != settings.belly {
+                    settings.belly = v;
+                    settings.save();
+                }
+            }
         }
     }
 }
@@ -743,9 +762,9 @@ fn paint_widgets(
     mut shows: Query<(&ShowWhen, &mut Node)>,
     mut texts: ParamSet<(
         Query<&mut Text, With<NameText>>,
-        Query<&mut Text, With<SliderValue>>,
+        Query<(&SliderValue, &mut Text)>,
     )>,
-    mut handles: Query<&mut Node, (With<SliderFill>, Without<ShowWhen>)>,
+    mut handles: Query<(&SliderFill, &mut Node), Without<ShowWhen>>,
     mut play_label: Query<&Children, With<PlayLabelMarker>>,
     mut label_text: Query<&mut Text, (Without<NameText>, Without<SliderValue>, Without<BlobName>)>,
     mut blob_name: Query<&mut Text, (With<BlobName>, Without<NameText>, Without<SliderValue>)>,
@@ -830,12 +849,24 @@ fn paint_widgets(
         let caret = if ui.name_focus { "|" } else { "" };
         t.0 = format!("{}{caret}", settings.name);
     }
-    let fov_text = format!("{:.0}", settings.fov);
-    for mut t in &mut texts.p1() {
-        t.0 = fov_text.clone();
+    let belly_word = |b: f32| match b {
+        b if b < 0.15 => "None",
+        b if b < 0.6 => "Light",
+        b if b < 1.2 => "Healthy",
+        b if b < 1.65 => "Proper",
+        _ => "Enormous",
+    };
+    for (id, mut t) in &mut texts.p1() {
+        t.0 = match id.0 {
+            SliderId::Fov => format!("{:.0}", settings.fov),
+            SliderId::Belly => belly_word(settings.belly).to_string(),
+        };
     }
-    let frac = (settings.fov - 60.0) / 45.0;
-    for mut n in &mut handles {
+    for (id, mut n) in &mut handles {
+        let frac = match id.0 {
+            SliderId::Fov => (settings.fov - 60.0) / 45.0,
+            SliderId::Belly => settings.belly / 2.0,
+        };
         n.left = Val::Percent(frac * 100.0);
     }
     let label = match settings.mode {

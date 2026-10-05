@@ -84,7 +84,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 How we work on these: one item at a time; I show Marcus screenshots (before and after) and only commit and push once he says it looks right.
 - [x] Fix the glitch under the umbrella in the smoko area (the two crossed see-through signs showed each other mirrored; now a four-sided sign box, and the canopy underside glows yellow)
 - [x] Eyeballs jump around when walking and running, each character with its own eye wobble: eyeballs on springs kicked by every footstep, thrown back and forward by speeding up and stopping, pupils riding on them. Classic steady, Pear lazy and floaty, Egg googly (eyes swell), Gumdrop big boings with squash and stretch and cross-eyed. Toned to 60% (`EYE_STRENGTH`) at Marcus's request
-- [ ] Beer bellies look more natural on the characters (blended into the body, not a ball stuck on the front) and bounce as they run
+- [x] Beer bellies look natural: part of the body (Blender shape keys "Belly" and "Sag" on the body and singlet, no ball stuck on), full and round, the singlet riding up over it; they bounce on every step, squash on landing, swing when speeding up or stopping. A "Beer belly" slider under the character preview (None to Enormous, saved), and each bot gets its own size. Looks only
 - [ ] Trees get more texture and look more realistic (bark, fuller leaf clumps, varied gum-tree shapes), still in the game's style
 - [ ] Two upgrade examples for Marcus to compare: one character and one corner of the yard, each in a "more upgraded" style, before deciding how far to take the whole game
 - [ ] Upgrade the game's overall style to be more unique and funny (Marcus sees example screenshots and picks before anything is pushed)

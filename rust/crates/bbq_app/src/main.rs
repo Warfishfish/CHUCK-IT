@@ -40,7 +40,11 @@ fn main() {
     let window = if shot.is_some() {
         Window {
             title: "Australian BBQ (screenshot)".into(),
-            resolution: bevy::window::WindowResolution::new(800, 600)
+            resolution: if args.iter().any(|a| a == "--big") {
+                bevy::window::WindowResolution::new(1280, 800)
+            } else {
+                bevy::window::WindowResolution::new(800, 600)
+            }
                 .with_scale_factor_override(1.0),
             ..default()
         }

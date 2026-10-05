@@ -62,6 +62,11 @@ struct PupilPart {
     pos: Vec2,
     vel: Vec2,
 }
+/// The body or singlet of a blob with a beer belly: its "Belly" and "Sag" shape keys are
+/// bounced as the blob moves.
+#[derive(Component)]
+struct BellyNode;
+
 /// A foot (or its thong or strap): it steps as the blob walks.
 #[derive(Component)]
 struct FootPart {
@@ -246,6 +251,9 @@ fn spawn_model(
                         }
                     }
                     let base = tfs.get(node).map(|t| t.translation).unwrap_or_default();
+                    if matches!(name.as_str(), "Torso" | "Singlet") {
+                        commands.entity(node).insert((BellyNode, Blob(i)));
+                    }
                     match name.as_str() {
                         "EyeL" | "EyeR" => {
                             commands.entity(node).insert((
@@ -1295,6 +1303,12 @@ struct EyeDrive {
     step: i32,
     vel: Vec3,
     grounded: bool,
+    /// The belly's bounce: how far it sags (down and forward) and how far it swells or squashes,
+    /// each on a soft spring.
+    sag: f32,
+    sag_v: f32,
+    swell: f32,
+    swell_v: f32,
 }
 
 /// Walking makes the eyeballs bounce and pop (each character in its own style), the pupils
@@ -1307,6 +1321,7 @@ fn animate_face_and_feet(
     mut eyes: Query<(&Blob, &mut EyePart, &mut Transform), (Without<PupilPart>, Without<FootPart>)>,
     mut pupils: Query<(&Blob, &mut PupilPart, &mut Transform), (Without<EyePart>, Without<FootPart>)>,
     mut feet: Query<(&Blob, &FootPart, &mut Transform), (Without<EyePart>, Without<PupilPart>)>,
+    mut bellies: Query<(&Blob, &mut bevy::mesh::morph::MorphWeights), With<BellyNode>>,
 ) {
     let dt = time.delta_secs().clamp(0.0001, 0.05);
     let t = time.elapsed_secs();
@@ -1334,8 +1349,29 @@ fn animate_face_and_feet(
         if d.mover.grounded && !dr.grounded {
             kick[i] = kick[i].max((-dr.vel.y / 6.0).clamp(0.4, 1.6)); // a landing
         }
+        // the belly: every footstep drops it, it springs back up and jiggles; speeding up
+        // squashes it back, stopping throws it forward, a landing squashes it hard
+        if kick[i] > 0.0 {
+            dr.sag_v += kick[i] * 4.2;
+            dr.swell_v -= kick[i] * 1.2;
+        }
+        let fwd = accel[i].z.clamp(-40.0, 40.0);
+        dr.swell_v -= fwd * 0.02;
+        dr.sag_v += (dr.sag * -150.0 - dr.sag_v * 6.0) * dt;
+        dr.swell_v += (dr.swell * -110.0 - dr.swell_v * 5.0) * dt;
+        dr.sag = (dr.sag + dr.sag_v * dt).clamp(-0.6, 1.0);
+        dr.swell = (dr.swell + dr.swell_v * dt).clamp(-0.35, 0.35);
         dr.vel = local;
         dr.grounded = d.mover.grounded;
+    }
+    for (b, mut w) in &mut bellies {
+        let Some(dr) = drive.get(b.0) else { continue };
+        let size = game.dummies.get(b.0).map_or(1.0, |d| d.belly);
+        let ws = w.weights_mut();
+        if ws.len() >= 2 {
+            ws[0] = size.powf(0.8) * (1.0 + dr.swell);
+            ws[1] = dr.sag * size.max(0.3);
+        }
     }
     let walk = |i: usize| (speed.get(i).copied().unwrap_or(0.0) / 4.0).clamp(0.0, 1.0);
     // each blob also differs a little from the others of its kind

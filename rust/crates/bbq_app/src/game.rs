@@ -56,6 +56,8 @@ pub struct Dummy {
     pub face: f32,
     /// Sitting at smoko because its own brain chose to (not sent to the Naughty Corner).
     pub sat_by_choice: bool,
+    /// How big this bot's beer belly is (looks only; 1 = normal).
+    pub belly: f32,
 }
 
 impl Dummy {
@@ -82,6 +84,7 @@ impl Dummy {
             bot: BotBody::new(i as f32 * 1.9, rng),
             face: 0.0,
             sat_by_choice: false,
+            belly: 0.5 + rng.f32() * 1.1,
         }
     }
 }

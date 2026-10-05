@@ -171,7 +171,13 @@ fn shot_camera(
         .and_then(|i| args.get(i + 1))
         .and_then(|v| v.parse::<usize>().ok());
     if let Some(d) = bot.and_then(|n| game.dummies.get(n)) {
-        let side = if args.iter().any(|a| a == "--bot-side") { 1.1 } else { 0.0 };
+        let side = if args.iter().any(|a| a == "--bot-profile") {
+            std::f32::consts::FRAC_PI_2
+        } else if args.iter().any(|a| a == "--bot-side") {
+            1.1
+        } else {
+            0.0
+        };
         let head = args.iter().any(|a| a == "--bot-head");
         let a = d.face + side;
         let (dx, dz) = (a.sin(), a.cos());

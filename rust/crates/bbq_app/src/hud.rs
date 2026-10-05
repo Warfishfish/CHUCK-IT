@@ -529,8 +529,10 @@ fn cd_chip(p: &mut ChildSpawnerCommands, key: &str, label: &str, fill: Option<Cd
 // ---------------------------------------------------------------- showing and updating
 
 fn show_hud(screen: Res<Screen>, mut q: Query<&mut Visibility, With<HudRoot>>) {
+    // `--nohud` (screenshots of the characters)
+    let hide = std::env::args().any(|a| a == "--nohud");
     for mut v in &mut q {
-        *v = if matches!(*screen, Screen::Playing | Screen::Paused) {
+        *v = if !hide && matches!(*screen, Screen::Playing | Screen::Paused) {
             Visibility::Inherited
         } else {
             Visibility::Hidden
