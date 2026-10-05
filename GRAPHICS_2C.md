@@ -116,7 +116,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] Metal: brushed streaks, scratches, grime and rust spots; on the BBQ, shed roof and every mid-grey part (roughness variation still to do)
 - [x] Plastic: sun-fade blotches, fine scratches, dirt specks; on the chairs and every esky
 - [x] Concrete: cracks, stains, aggregate; a cracked pad inside the back gate
-- [ ] Decals: stickers, beer rings, burn marks, stains (small textured quads, no engine decal system needed at first)
+- [x] Decals (Bevy forward decals, `decals.rs`; textures from `make_textures.py`): grease and a scorch mark by the BBQ, a beer spill by the bar, meat drips, a wet edge round the pool, bird droppings under the magpies, grime at the back door, and a beer stain (fading over 25 s, 10 at most) where a VP can bursts
 
 ### Materials
 - [ ] Roughness and metal per material instead of one matt value (cans and BBQ metal shiny, wood and fabric matt, plastic in between)

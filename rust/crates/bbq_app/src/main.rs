@@ -11,6 +11,7 @@
 
 mod bots_app;
 mod characters;
+mod decals;
 mod fx;
 mod game;
 mod heist_app;
@@ -80,7 +81,7 @@ fn main() {
             >::default(),
         ),
     );
-    app.add_plugins((fx::FxPlugin, preview::PreviewPlugin));
+    app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin));
     if let Some(cfg) = shot {
         app.add_plugins(shot::ShotPlugin(cfg));
     }

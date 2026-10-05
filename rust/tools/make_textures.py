@@ -133,3 +133,51 @@ for _ in range(5):
             a += rng.choice([-1, 1]) * 0.9  # a branch kink
 base -= crack * 0.38
 save("concrete.png", grey(np.clip(base, 0.35, 1.0), (1.0, 0.99, 0.96)))
+
+
+# ---- decals (white with an alpha shape; the game tints them): stain, splat, scorch
+def save_rgba(name, alpha):
+    a = np.clip(alpha, 0, 1)
+    rgba = np.zeros((N, N, 4), np.uint8)
+    rgba[..., :3] = 255
+    rgba[..., 3] = (a * 255 + 0.5).astype(np.uint8)
+    rows = b"".join(b"\x00" + rgba[y].tobytes() for y in range(N))
+    def chunk(t, d):
+        c = struct.pack(">I", len(d)) + t + d
+        return c + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)
+    png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", N, N, 8, 6, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(rows, 9)) + chunk(b"IEND", b"")
+    with open(os.path.join(OUT, name), "wb") as f:
+        f.write(png)
+    print("wrote", name)
+
+
+cx = (np.arange(N)[None, :] - N / 2) / (N / 2)
+cy = (np.arange(N)[:, None] - N / 2) / (N / 2)
+rad = np.sqrt(cx ** 2 + cy ** 2)
+ang = np.arctan2(cy, cx)
+
+# stain: an irregular blotch with a darker rim, a few satellite drops, fading to nothing at the edge
+wob = 0.12 * np.sin(ang * 3 + 1.1) + 0.08 * np.sin(ang * 5 + 0.3) + 0.05 * np.sin(ang * 9 + 2.0)
+edge = 0.62 + wob + 0.06 * (fbm(6, 3) - 0.5)
+stain = np.clip((edge - rad) / 0.18, 0, 1)
+stain *= 0.75 + 0.25 * fbm(5, 3)
+for _ in range(7):
+    a0 = rng.random() * 2 * np.pi; r0 = rng.uniform(0.72, 0.9); s0 = rng.uniform(0.025, 0.06)
+    d = np.sqrt((cx - np.cos(a0) * r0) ** 2 + (cy - np.sin(a0) * r0) ** 2)
+    stain = np.maximum(stain, np.clip((s0 - d) / 0.02, 0, 1) * 0.8)
+save_rgba("decal_stain.png", stain * (1 - np.clip(rad - 0.9, 0, 0.1) * 10))
+
+# splat: a small centre with spokes of drops flung outwards (bird droppings, sauce, a smashed can)
+splat = np.clip((0.2 - rad) / 0.05, 0, 1) * 0.95
+for k in range(14):
+    a0 = rng.random() * 2 * np.pi
+    for j in range(rng.integers(2, 5)):
+        r0 = rng.uniform(0.25, 0.85); s0 = rng.uniform(0.02, 0.07) * (1.2 - r0)
+        d = np.sqrt((cx - np.cos(a0 + rng.normal(0, 0.12)) * r0) ** 2 + (cy - np.sin(a0 + rng.normal(0, 0.12)) * r0) ** 2)
+        splat = np.maximum(splat, np.clip((s0 - d) / 0.015, 0, 1) * 0.9)
+save_rgba("decal_splat.png", splat * (rad < 0.95))
+
+# scorch: a soft dark smudge with a smoky streak
+sc = np.clip((0.7 - np.sqrt((cx / 1.0) ** 2 + (cy / 0.75) ** 2)) / 0.5, 0, 1) ** 1.2
+sc *= 0.6 + 0.4 * fbm(4, 4)
+save_rgba("decal_scorch.png", sc * (rad < 0.98))
