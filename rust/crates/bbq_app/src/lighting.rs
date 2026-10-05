@@ -229,6 +229,47 @@ pub fn sun(look: LookMode) -> (DirectionalLight, Transform) {
     )
 }
 
+/// Whether the polished look's screen effects (ambient occlusion, bloom, SMAA) are on. They are
+/// on by default in the polished look; `--fx off` switches them off (to compare, or on a slow
+/// computer).
+pub fn post_fx_wanted(look: LookMode, args: &[String]) -> bool {
+    let off = args
+        .iter()
+        .position(|a| a == "--fx")
+        .and_then(|i| args.get(i + 1))
+        .is_some_and(|v| v == "off");
+    look == LookMode::Polished && !off
+}
+
+/// The screen effects of the polished look (step 2c):
+///  * screen-space ambient occlusion: darkens the sky/ambient light in creases and where things
+///    meet the ground, so props and blobs sit into the lawn instead of floating on it;
+///  * bloom: a soft glow, only round things brighter than white (sun glints, shiny highlights);
+///  * SMAA, because ambient occlusion cannot be used with the 4x multi-sampling.
+/// Bloom needs an HDR picture; the display shader still clamps to the same 0..1 range at the end.
+pub fn post_fx() -> impl Bundle {
+    use bevy::anti_alias::smaa::Smaa;
+    use bevy::pbr::{ScreenSpaceAmbientOcclusion, ScreenSpaceAmbientOcclusionQualityLevel};
+    use bevy::post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter};
+    (
+        Msaa::Off,
+        Smaa::default(),
+        ScreenSpaceAmbientOcclusion {
+            quality_level: ScreenSpaceAmbientOcclusionQualityLevel::High,
+            constant_object_thickness: 0.25,
+        },
+        Bloom {
+            intensity: 0.12,
+            composite_mode: BloomCompositeMode::Additive,
+            prefilter: BloomPrefilter {
+                threshold: 1.0,
+                threshold_softness: 0.5,
+            },
+            ..Bloom::NATURAL
+        },
+    )
+}
+
 /// A weak cool light from the opposite side of the sun (polished look): a rim light that
 /// separates things from the lawn without flattening the sun's shadows.
 pub fn rim_light() -> (DirectionalLight, Transform) {

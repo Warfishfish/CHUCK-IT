@@ -95,7 +95,9 @@ impl Plugin for PlayerPlugin {
 }
 
 fn setup_camera_and_hud(mut commands: Commands, look: Res<crate::lighting::LookMode>) {
-    commands.spawn((
+    let args: Vec<String> = std::env::args().collect();
+    let cam = commands
+        .spawn((
         Camera3d::default(),
         Projection::from(PerspectiveProjection {
             fov: FOV_DEFAULT.to_radians(),
@@ -122,7 +124,11 @@ fn setup_camera_and_hud(mut commands: Commands, look: Res<crate::lighting::LookM
         crate::lighting::camera_style(*look),
         crate::lighting::hemisphere(*look).0,
         EyeCamera,
-    ));
+    ))
+        .id();
+    if crate::lighting::post_fx_wanted(*look, &args) {
+        commands.entity(cam).insert(crate::lighting::post_fx());
+    }
     commands.spawn((
         Text::new(""),
         TextFont {

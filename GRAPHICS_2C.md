@@ -123,14 +123,14 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] Warm sun, cooler shadows (a blue-ish ambient), a stronger sun and slightly lower ambient for depth (first pass; tune on Marcus's Mac)
 - [x] Shadows: the shadow map is 4096 in the polished look (was 2048) and the engine's Gaussian filter is on, for crisper and softer-edged shadows (cascade tuning still open)
 - [x] A rim or back light so characters separate from the lawn (a weak cool light from the far side)
-- [ ] Contact shadows or ambient occlusion so things sit on the ground
+- [x] Contact shadows or ambient occlusion so things sit on the ground (SSAO; subtle, strongest under the BBQ and in creases; measure the frame cost on Marcus's Mac)
 - [ ] Inside-the-shed and under-the-veranda get a darker feel
 
 ### Rendering
 - [x] The look switch: `--look browser|polished` (screenshots default to browser, playing to polished; a menu option comes with the Phase 8 settings); `browser` keeps today's maths for the compare toolkit
 - [x] Colour grading in `display_raw.wgsl`: gentle warm curve, a little more saturation, more contrast, a soft vignette (polished look only)
-- [ ] Screen-space ambient occlusion and either SMAA or the existing MSAA
-- [ ] Mild bloom on emissive and very bright things only
+- [x] Screen-space ambient occlusion (High) with SMAA instead of MSAA (SSAO cannot be used with MSAA); polished look only; `--fx off` switches the screen effects off for comparing or a slow computer
+- [x] Mild bloom on things brighter than white only (threshold 1.0, additive, intensity 0.12); this makes the camera HDR, and the display shader still clamps to 0..1 at the end
 - [x] Texture filtering: anisotropy 8 for ground and fences
 
 ### Blender workflow
