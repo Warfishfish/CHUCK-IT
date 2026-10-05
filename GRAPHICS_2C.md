@@ -70,7 +70,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] Plastic chairs: chunky, sun-faded, slatted back, fat arms and legs, each crooked with a bent leg (scratches come with the textures)
 - [x] BBQ: oversized uneven wheels, big rounded red hood propped open, stubby knobs, slight asymmetry
 - [ ] Shed, bar, trampoline, planters, log pile, tyres, tank: bevels, a slight lean, dirt, rust
-- [ ] Items in hand and on the ground get a second look: teddy seams, gnome face, stubby label, steak marbling, fish scales, noodle ends, snag
+- [x] Items in hand and on the ground get a second look: teddy seam, patch and red bow tie; gnome eyes, rosy cheeks, belt with a gold buckle and boots; steak and snag grill marks and marbling (the stubby label, fish scales and noodle ends were already there)
 - [x] Red sauce bottle and yellow mustard bottle on the outdoor table
 
 ### Dildo Chest
