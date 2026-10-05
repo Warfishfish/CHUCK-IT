@@ -164,7 +164,7 @@ pub fn sun_bake(parts: Vec<Part>) -> Vec<Part> {
         .into_iter()
         .map(|mut p| {
             let sf = &mut p.surface;
-            if sf.tex.is_some() || sf.unlit || sf.additive || sf.alpha < 1.0 || sf.emissive != 0 {
+            if sf.tex.is_some_and(|t| !t.is_material()) || sf.unlit || sf.additive || sf.alpha < 1.0 || sf.emissive != 0 {
                 return p;
             }
             let ch = |s: u32| ((sf.color >> s) & 0xff) as f32;
@@ -199,7 +199,7 @@ fn fence_styled(len: f32, horizontal: bool, x: f32, z: f32, rng: &mut Rng) -> Ve
         let part = if horizontal { part.turn(lean, 0.0, roll) } else { part.turn(roll, 0.0, lean) };
         v.push(part);
         // a fat post at each join
-        v.push(cuboid(0.16, FENCE_H + 0.1, 0.16, matt(0x7a5e3f), if horizontal { cx + sec / 2.0 } else { cx }, (FENCE_H + 0.1) / 2.0, if horizontal { cz } else { cz + sec / 2.0 }));
+        v.push(cuboid(0.16, FENCE_H + 0.1, 0.16, matt(0x7a5e3f).material(Tex::Wood, 1.5), if horizontal { cx + sec / 2.0 } else { cx }, (FENCE_H + 0.1) / 2.0, if horizontal { cz } else { cz + sec / 2.0 }));
     }
     v
 }
@@ -348,8 +348,8 @@ fn shade_surface(s: Surface, k: f32) -> Surface {
 /// slatted back, chunky arms, a tilt and a bent leg that differ for every `i`.
 pub fn chair_styled(i: usize) -> Vec<Part> {
     let fades = [0x5f8fcf, 0x6d97d2, 0x5784c4, 0x7aa0d6];
-    let fab = matt(fades[i % 4]);
-    let frame = matt(0xb8bdc0);
+    let fab = matt(fades[i % 4]).material(Tex::Plastic, 2.5);
+    let frame = matt(0xb8bdc0).material(Tex::Plastic, 3.0);
     let dark = matt(0x8c9296);
     let f = (i % 5) as f32;
     let mut v = vec![
@@ -380,27 +380,26 @@ pub fn chair_styled(i: usize) -> Vec<Part> {
     place(v, V3::ZERO, Quat::from_euler_xyz(tilt, 0.0, -tilt * 1.4), 1.0)
 }
 
-/// The outdoor table (the step 2c look): fat warped timber planks in slightly different browns,
-/// nail heads, beer rings, a stain, chunky splayed legs and a stretcher. The top is at 0.8 m, like
-/// the old table, so its collider still fits.
+/// The outdoor table (the step 2c look): fat warped timber planks running its length in slightly
+/// different browns, wood grain, nail heads, beer rings, a spill, chunky splayed legs and a
+/// stretcher. The top is at 0.8 m, like the old table, so its collider still fits.
 fn table_styled() -> Vec<Part> {
     let (tx, tz) = (6.0f32, -16.5f32);
     let woods = [0xb98a52u32, 0xc79a61, 0xb08048, 0xcfa56d, 0xbd8f58];
+    let wood = |c: u32| matt(c).material(Tex::Wood, 1.3);
     let mut v = Vec::new();
     for (k, c) in woods.iter().enumerate() {
         let warp = ((k * 5 % 7) as f32 - 3.0) * 0.004;
-        v.push(
-            cuboid(0.392, 0.1, 1.0, matt(*c), tx - 0.8 + k as f32 * 0.4, 0.75 + warp, tz)
-                .turn(0.0, warp * 2.0, warp * 3.0),
-        );
-        // the planks end a little uneven
-        v.push(cuboid(0.392, 0.1, 0.05, matt(looks::shade(*c, 0.8)), tx - 0.8 + k as f32 * 0.4, 0.75 + warp, tz + 0.5));
+        let z = tz - 0.4 + k as f32 * 0.2;
+        v.push(cuboid(2.0, 0.1, 0.192, wood(*c), tx, 0.75 + warp, z).turn(warp * 3.0, warp * 1.5, 0.0));
+        // the planks end a little uneven, with darker end grain
+        v.push(cuboid(0.05, 0.1, 0.192, wood(looks::shade(*c, 0.78)), tx + 1.0 + warp * 4.0, 0.75 + warp, z));
     }
-    // battens under the top, with a nail head in every plank
-    for z in [-0.3f32, 0.3] {
-        v.push(cuboid(1.9, 0.07, 0.1, matt(0x7a5a38), tx, 0.66, tz + z));
+    // battens under the top (across it), with a nail head in every plank over them
+    for x in [-0.7f32, 0.7] {
+        v.push(cuboid(0.1, 0.07, 0.95, wood(0x7a5a38), tx + x, 0.66, tz));
         for k in 0..5 {
-            v.push(cyl(0.013, 0.013, 0.006, 6, matt(0x2b2b2b), tx - 0.8 + k as f32 * 0.4 + 0.07 * (k as f32 - 2.0).signum(), 0.802, tz + z));
+            v.push(cyl(0.013, 0.013, 0.006, 6, matt(0x2b2b2b), tx + x, 0.802, tz - 0.4 + k as f32 * 0.2 + 0.03));
         }
     }
     // beer rings and a spill on the top
@@ -410,11 +409,39 @@ fn table_styled() -> Vec<Part> {
     v.push(Part::new(Shape::Disc { r: 0.12, seg: 12 }, matt(0x9a7442)).at(tx - 0.2, 0.803, tz - 0.3).turn(-HALF_PI, 0.0, 0.0).stretch(1.6, 1.0, 1.0));
     // chunky legs splayed outwards, and a stretcher between the long sides
     for (a, b) in [(-0.9f32, -0.4f32), (0.9, -0.4), (-0.9, 0.4), (0.9, 0.4)] {
-        v.push(cuboid(0.12, 0.72, 0.12, matt(0x8a6538), tx + a, 0.36, tz + b).turn(b * 0.1, 0.0, -a * 0.06));
+        v.push(cuboid(0.12, 0.72, 0.12, wood(0x8a6538), tx + a, 0.36, tz + b).turn(b * 0.1, 0.0, -a * 0.06));
     }
-    v.push(cuboid(1.8, 0.07, 0.07, matt(0x7a5a38), tx, 0.22, tz - 0.4));
-    v.push(cuboid(1.8, 0.07, 0.07, matt(0x7a5a38), tx, 0.2, tz + 0.4));
+    v.push(cuboid(1.8, 0.07, 0.07, wood(0x7a5a38), tx, 0.22, tz - 0.4));
+    v.push(cuboid(1.8, 0.07, 0.07, wood(0x7a5a38), tx, 0.2, tz + 0.4));
     v
+}
+
+/// Step 2c: give the plain parts a surface texture by what they look like: browns become timber
+/// and mid greys become worn metal. Parts that already have a picture, glow, are see-through or
+/// unlit are left alone, and so is anything very dark or very light (tyres, paint, signs).
+pub fn texture_pass(parts: Vec<Part>) -> Vec<Part> {
+    parts
+        .into_iter()
+        .map(|mut p| {
+            let sf = &mut p.surface;
+            if sf.tex.is_some() || sf.unlit || sf.additive || sf.alpha < 1.0 || sf.emissive != 0 {
+                return p;
+            }
+            let ch = |s: u32| ((sf.color >> s) & 0xff) as i32;
+            let (r, g, b) = (ch(16), ch(8), ch(0));
+            let (mx, mn) = (r.max(g).max(b), r.min(g).min(b));
+            let brown = r > g && g > b && r - b > 30 && (0x50..0xe8).contains(&mx) && (mx - mn) * 10 < mx * 7;
+            let grey = mx - mn < 16 && (0x70..0xe0).contains(&mx);
+            if brown {
+                sf.tex = Some(Tex::Wood);
+                sf.uv_per_m = 1.4;
+            } else if grey {
+                sf.tex = Some(Tex::Metal);
+                sf.uv_per_m = 1.2;
+            }
+            p
+        })
+        .collect()
 }
 
 /// The BBQ (the step 2c look): chunky and cartoony, with oversized wheels, a big rounded hood,
@@ -422,10 +449,10 @@ fn table_styled() -> Vec<Part> {
 /// marks, bolts and a bit of rust. Same footprint as the old one (the collider is unchanged) and
 /// the same cooking surface height (1.23 m), so the food still sits right.
 fn bbq_styled() -> Vec<Part> {
-    let silver = matt(0xb4bcc0);
-    let steel = matt(0x8a9298);
-    let dark = matt(0x2a2d31);
-    let red = matt(0xc43c2c);
+    let silver = matt(0xb4bcc0).material(Tex::Metal, 1.5);
+    let steel = matt(0x8a9298).material(Tex::Metal, 1.5);
+    let dark = matt(0x2a2d31).material(Tex::Metal, 1.5);
+    let red = matt(0xc43c2c).material(Tex::Metal, 1.2);
     let (bx, bz) = (-6.0f32, -18.0f32);
     let mut v = vec![
         // cabinet and shelf
@@ -1286,9 +1313,9 @@ pub fn chest_esky() -> (Vec<Part>, Vec<Part>) {
 
 /// An esky in any colour (`dark` is the darker trim of the same colour).
 pub fn esky_with(body: u32, dark: u32) -> (Vec<Part>, Vec<Part>) {
-    let blue = matt(body);
-    let navy = matt(dark);
-    let white = matt(0xf1f3ee);
+    let blue = matt(body).material(Tex::Plastic, 1.6);
+    let navy = matt(dark).material(Tex::Plastic, 1.6);
+    let white = matt(0xf1f3ee).material(Tex::Plastic, 1.6);
     let grey = matt(0x4a5057);
     let (hw, hd) = (0.62f32, 0.38f32);
     let mut base = vec![
@@ -1541,8 +1568,8 @@ pub fn lawn_dryness(x: f32, z: f32) -> f32 {
 /// The colour a lawn corner is multiplied by (over the green lawn picture).
 pub fn lawn_tint(x: f32, z: f32) -> [f32; 3] {
     let d = lawn_dryness(x, z);
-    let lush = [0.72, 0.90, 0.58];
-    let dry = [1.38, 1.10, 0.50];
+    let lush = [0.70, 0.86, 0.58];
+    let dry = [1.28, 1.06, 0.56];
     [0, 1, 2].map(|i| lush[i] + (dry[i] - lush[i]) * d)
 }
 
@@ -1736,6 +1763,8 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         world.extend(weeds(&mut sr));
         world.extend(clutter(&mut sr));
         world.extend(table_bottles());
+        // a cracked concrete pad inside the back gate, where the paths start
+        world.push(cuboid(3.4, 0.04, 2.0, matt(0xc9c4b8).material(Tex::Concrete, 0.7), 3.0, 0.02, -22.9).no_shadow_part());
     } else {
         world.push(fence(2.0 * W + 0.2, true, 0.0, -D - 0.05));
         world.push(fence(2.0 * W + 0.2, true, 0.0, D + 0.05));
@@ -1782,7 +1811,7 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         Vec::new()
     };
     if polished {
-        world = sun_bake(world);
+        world = sun_bake(texture_pass(world));
     }
     YardLook {
         magpies,
@@ -1790,9 +1819,9 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         chest_pivot: if polished { ESKY_PIVOT } else { CHEST_PIVOT },
         world,
         hoist_head,
-        bar: if polished { sun_bake(bar()) } else { bar() },
-        bbq: if polished { sun_bake(bbq(true)) } else { bbq(false) },
-        smoko: if polished { sun_bake(smoko()) } else { smoko() },
+        bar: if polished { sun_bake(texture_pass(bar())) } else { bar() },
+        bbq: if polished { sun_bake(texture_pass(bbq(true))) } else { bbq(false) },
+        smoko: if polished { sun_bake(texture_pass(smoko())) } else { smoko() },
         chest_base,
         chest_lid,
         clouds,

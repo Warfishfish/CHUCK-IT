@@ -62,7 +62,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 ### Australian backyard details
 - [x] The house: faded cream weatherboard, uneven roofline, a veranda whose roof sags in the middle, a flyscreen door (a letterbox would be hidden behind the fence, so left out)
 - [x] Hills Hoist leaning about 3 degrees with a rusty pole and arms (pegs and a towel still to do)
-- [ ] Weeds and dry tufts (done: 170 tufts along the fences and about; not yet instanced), cracked concrete paving by the back door, a green wheelie bin (the bins exist), a hose and a sprinkler
+- [ ] Weeds and dry tufts (done: 170 tufts; not yet instanced), cracked concrete paving by the back door (done), a green wheelie bin (the bins exist), a hose and a sprinkler
 - [x] Small clutter that tells a story: cricket stumps and a bat, a dog bowl and bone, thongs by the back door, a washing basket and sock, stubbies and bottle caps in the grass
 
 ### Props
@@ -106,11 +106,12 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [ ] Keep each prop's collider as it is unless the new shape genuinely needs a new one; add tests that props still sit inside their colliders
 
 ### Textures
-- [ ] `tools/make_textures.py` writes stylised timber, galvanised metal, plastic, concrete, dirt, dry grass and rust textures (128 to 512 px; base colour plus roughness and normal maps)
-- [ ] Wood: grain, dark edges, nail heads, scratches, chips; fence and table share it
-- [ ] Metal: roughness variation, scratches, heat staining, grease, rust round bolts
-- [ ] Plastic: sun fade, scratches, dirt in seams
-- [ ] Concrete: cracks, stains, aggregate, dark patches, dirt at edges
+(Textures are laid by real size: `Surface::material(tex, per_m)` repeats the picture per metre on boxes and cylinders, so a long plank does not stretch the grain.)
+- [x] `tools/make_textures.py` writes stylised timber, worn metal (with rust spots), sun-faded plastic and cracked concrete (256 px, tileable, light grey so each part's colour tints it). Roughness and normal maps still to do
+- [x] Wood: crisp growth rings, fibres, knots and scratches; on the table, fence posts, crates, bar, veranda and everything brown (`texture_pass`)
+- [x] Metal: brushed streaks, scratches, grime and rust spots; on the BBQ, shed roof and every mid-grey part (roughness variation still to do)
+- [x] Plastic: sun-fade blotches, fine scratches, dirt specks; on the chairs and every esky
+- [x] Concrete: cracks, stains, aggregate; a cracked pad inside the back gate
 - [ ] Decals: stickers, beer rings, burn marks, stains (small textured quads, no engine decal system needed at first)
 
 ### Materials

@@ -119,7 +119,7 @@ fn build_part(
 ) -> Built {
     let s = &p.surface;
     Built {
-        mesh: meshes.add(build_mesh(&p.shape)),
+        mesh: meshes.add(crate::shapes::build_mesh_uv(&p.shape, s.uv_per_m)),
         material: mats.add(material(s, cache)),
         transform: transform_of(p),
         casts: !s.no_shadow,

@@ -585,6 +585,40 @@ fn patchy_lawn(x0: f32, x1: f32, z0: f32, z1: f32, hole: (f32, f32, f32, f32), p
     b
 }
 
+/// Build the mesh for a shape, with the picture laid by real size (`per_m` repeats per metre)
+/// on boxes and cylinders when `per_m` is above 0 (the step 2c material textures).
+pub fn build_mesh_uv(shape: &Shape, per_m: f32) -> Mesh {
+    if per_m <= 0.0 {
+        return build_mesh(shape);
+    }
+    match *shape {
+        Shape::Cuboid { w, h, d } => {
+            let mut b = cuboid(w, h, d);
+            // every face is a 0..1 square: stretch each to its real size. Faces come in the
+            // order +x, -x, +y, -y, +z, -z, four corners each.
+            let dims = [(d, h), (d, h), (w, d), (w, d), (w, h), (w, h)];
+            for (f, (fw, fh)) in dims.iter().enumerate() {
+                for k in 0..4 {
+                    let uv = &mut b.uv[f * 4 + k];
+                    uv[0] *= fw * per_m;
+                    uv[1] *= fh * per_m;
+                }
+            }
+            b.into_mesh()
+        }
+        Shape::Cylinder { top, bottom, h, seg, caps } => {
+            let mut b = cylinder(top, bottom, h, seg, caps);
+            let round = std::f32::consts::TAU * top.max(bottom);
+            for uv in &mut b.uv {
+                uv[0] *= round * per_m;
+                uv[1] *= h * per_m;
+            }
+            b.into_mesh()
+        }
+        _ => build_mesh(shape),
+    }
+}
+
 /// Build the mesh for a shape.
 pub fn build_mesh(shape: &Shape) -> Mesh {
     match *shape {

@@ -122,6 +122,12 @@ pub enum Tex {
     SignHands,
     /// A white soft-edged dot (alpha falls off to the rim): dirt patches and worn paths.
     SoftDot,
+    /// Step 2c surface textures made by `tools/make_textures.py`: light, mostly grey pictures
+    /// that the part's own colour tints.
+    Wood,
+    Metal,
+    Plastic,
+    Concrete,
 }
 
 impl Tex {
@@ -147,10 +153,14 @@ impl Tex {
             Tex::SignSmoko => "sign_smoko.png",
             Tex::SignHands => "sign_hands.png",
             Tex::SoftDot => "soft_dot.png",
+            Tex::Wood => "wood.png",
+            Tex::Metal => "metal.png",
+            Tex::Plastic => "plastic.png",
+            Tex::Concrete => "concrete.png",
         }
     }
 
-    pub const ALL: [Tex; 19] = [
+    pub const ALL: [Tex; 23] = [
         Tex::VpLabel,
         Tex::Fish,
         Tex::Lawn,
@@ -170,7 +180,16 @@ impl Tex {
         Tex::SignSmoko,
         Tex::SignHands,
         Tex::SoftDot,
+        Tex::Wood,
+        Tex::Metal,
+        Tex::Plastic,
+        Tex::Concrete,
     ];
+
+    /// A surface texture (wood, metal...) rather than a picture (a sign, the lawn).
+    pub fn is_material(self) -> bool {
+        matches!(self, Tex::Wood | Tex::Metal | Tex::Plastic | Tex::Concrete)
+    }
 }
 
 /// How a surface looks. `shine == 0` is the browser's matt "Lambert"; above that it is the shiny
@@ -196,6 +215,10 @@ pub struct Surface {
     pub no_shadow: bool,
     /// Flat ground, which is seen at a glancing angle and so needs its own roughness.
     pub ground: bool,
+    /// For the material textures (wood, metal, plastic, concrete): how many times the picture
+    /// repeats per metre, laid by the part's real size so a long plank does not stretch the
+    /// grain. 0 = the old way (one picture per face).
+    pub uv_per_m: f32,
 }
 
 impl Surface {
@@ -215,6 +238,7 @@ impl Surface {
             flat: false,
             no_shadow: false,
             ground: false,
+            uv_per_m: 0.0,
         }
     }
 
@@ -234,11 +258,19 @@ impl Surface {
             flat: false,
             no_shadow: false,
             ground: false,
+            uv_per_m: 0.0,
         }
     }
 
     pub const fn glow(mut self, emissive: u32) -> Self {
         self.emissive = emissive;
+        self
+    }
+
+    /// A material texture laid by real size: `per_m` repeats per metre.
+    pub const fn material(mut self, tex: Tex, per_m: f32) -> Self {
+        self.tex = Some(tex);
+        self.uv_per_m = per_m;
         self
     }
 
