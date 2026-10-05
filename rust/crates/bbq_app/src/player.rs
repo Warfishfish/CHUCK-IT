@@ -35,6 +35,8 @@ pub struct Wanted {
     pub catch: bool,
     /// +1 / -1 from Q, E or the mouse wheel.
     pub swap: i32,
+    /// G went down: throw away what you are holding.
+    pub drop_held: bool,
     pub slot: Option<usize>,
     /// R went down since the last fixed step (grab a drink).
     pub interact_pressed: bool,
@@ -193,11 +195,12 @@ fn read_input(
             player.mover.try_jump(stunned);
         }
     }
+    wanted.drop_held |= keys.just_pressed(KeyCode::KeyG);
     wanted.grab_pressed |= keys.just_pressed(KeyCode::KeyF);
     wanted.grab_released |= keys.just_released(KeyCode::KeyF);
     for (k, e) in [
         (KeyCode::KeyT, bbq_core::pose::Emote::Taunt),
-        (KeyCode::KeyG, bbq_core::pose::Emote::Dance),
+        (KeyCode::KeyH, bbq_core::pose::Emote::Dance),
         (KeyCode::KeyB, bbq_core::pose::Emote::Laugh),
     ] {
         if keys.just_pressed(k) {
@@ -406,7 +409,7 @@ fn update_hud(
         String::new()
     };
     text.0 = format!(
-        "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw (tap = slap), RMB catch, Q/E/wheel swap, R bar/meat/chest/smoko/help up, F grab someone who's down (tap put down, hold chuck), T taunt, G dance, B laugh\n\
+        "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw (tap = slap), RMB catch, Q/E/wheel swap, R bar/meat/chest/smoko/help up, F grab someone who's down (tap put down, hold chuck), T taunt, H dance, B laugh, G drop what you're holding\n\
          F1-F4 features, F5 falls, F6 Drunk mode, F7 Cheeky mode ({}), F8 Naughty Corner ({}), F9 character ({}), F10 bots ({}), F11 bot level ({:?}) | viewer: J/K/L slapped, N stacked it, M emote, Y drunk, C crown, V sash, X stink, P +30 drunk\n\
          SCORE {} | hits {} | taken {} | catches {} | streak {} | holding: {holding}{charge}\n\
          pos {:.1}, {:.1}, {:.1} | speed {:.1} m/s | {boost} | FOV {:.0} | {pool}{tramp}{fps:.0} fps\n{}",

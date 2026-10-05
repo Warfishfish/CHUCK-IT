@@ -360,8 +360,9 @@ fn sync_chest(
             Visibility::Hidden
         };
     }
-    // the lid eases open (-1.15 radians) when there is stock, shut (-0.08) when empty
-    let want = if stock > 0 { -1.15 } else { -0.08 };
+    // the lid eases open when there is stock (right back, past upright, so the tall toys have
+    // room), shut (-0.08) when empty
+    let want = if stock > 0 { -1.8 } else { -0.08 };
     let k = 1.0 - (-6.0 * time.delta_secs()).exp();
     for mut tf in &mut lid {
         let (x, _, _) = tf.rotation.to_euler(EulerRot::XYZ);

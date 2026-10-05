@@ -1568,8 +1568,9 @@ pub fn chest_toy_variant(k: usize) -> DildoVariant {
 
 pub fn chest_toy_place(k: usize) -> (V3, Quat, f32) {
     (
-        V3::new(-0.42 + k as f32 * 0.42, 0.62, 0.0),
-        Quat::from_euler_xyz(-0.5, 0.0, (k as f32 - 1.0) * 0.3),
+        V3::new(-0.42 + k as f32 * 0.42, 0.62, 0.1),
+        // leaning a little forward (towards the front), never back into the lid
+        Quat::from_euler_xyz(0.32, 0.0, (k as f32 - 1.0) * 0.28),
         0.9,
     )
 }

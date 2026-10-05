@@ -508,7 +508,8 @@ fn how_panel(c: &mut ChildSpawnerCommands) {
                 ("R", "Drink, grab, smoko, help up (hold)"),
                 ("F", "Grab someone who's down and drag them, tap again to let go, hold to throw them"),
                 ("Q", "Swap item"),
-                ("T G B", "Taunt, dance, laugh"),
+                ("T H B", "Taunt, dance, laugh"),
+                ("G", "Throw away what you are holding"),
                 ("Esc", "Pause"),
             ] {
                 g.spawn(kbd(k));

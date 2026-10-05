@@ -206,3 +206,8 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 ## Notes
 - Items done before this reorganisation keep their `[x]` and their wording; nothing was removed.
 - Normal maps are made but not used until A3.3. The flicker findings are recorded in E16.3.
+
+## Fixes from play (6 Oct 2026)
+- [x] Toys in the chest no longer poke through the lid (lid opens wider, toys sit lower and tilt back).
+- [x] G throws away what you are holding (dance moved to H). You cannot grab it straight back for 2.5 s.
+- [ ] Dildo and noodle flop: a physics-chain attempt did not feel right and was reverted (back to the original spring). To do later: more natural flop, calmer in first person, in step with your walking.

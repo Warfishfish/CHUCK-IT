@@ -413,6 +413,25 @@ pub fn step_game(
         }
         wanted.swap = 0;
     }
+    // G: throw away what you are holding. It drops a little in front of you and you cannot pick
+    // it straight back up (2.5 s), as in the browser game's over-held drop.
+    if std::mem::take(&mut wanted.drop_held)
+        && g.rules.phase != Phase::Countdown
+        && g.me.body.stun <= 0.0
+        && g.life.seated.is_none()
+        && g.life.carry.is_none()
+        && let Some(id) = g.slots.selected()
+    {
+        g.slots.remove(id);
+        g.wind.cancel();
+        let aim = aim_dir(p.yaw, 0.0);
+        let at = eye_of(p) + aim * 0.7 + V3::new(0.0, -0.4, 0.0);
+        let until = g.now + 2.5;
+        g.world.drop_item(id, at, Some((PLAYER_ID, until)));
+        if let Some(it) = g.world.items.get_mut(&id) {
+            it.vel = aim * 2.2 + V3::new(0.0, 1.0, 0.0);
+        }
+    }
     if let Some(s) = wanted.slot.take()
         && g.slots.select_slot(s)
     {
@@ -2659,5 +2678,56 @@ mod tests {
             assert_eq!(g.board.iter().count(), bots + 1);
             assert_eq!(g.crowd.brains.len(), bots);
         }
+    }
+
+    #[test]
+    fn g_throws_away_what_you_hold_and_you_cannot_grab_it_straight_back() {
+        let mut app = app();
+        {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            g.world.clear();
+            let mut rng = Rng::new(9);
+            let a = g.world.spawn(ItemKind::Teddy, 8.0, 0.0, false, &mut rng);
+            g.world.give(a, PLAYER_ID);
+            g.slots.add(a);
+            let b = g.world.spawn(ItemKind::Gnome, 8.0, 0.0, false, &mut rng);
+            g.world.give(b, PLAYER_ID);
+            g.slots.add(b);
+        }
+        let held = app.world().resource::<Game>().slots.selected().unwrap();
+        app.world_mut().resource_mut::<Wanted>().drop_held = true;
+        ticks(&mut app, 2);
+        {
+            let g = app.world().resource::<Game>();
+            assert_eq!(g.slots.len(), 1, "one item is gone from your hands");
+            assert!(!g.slots.ids().contains(&held));
+            let it = &g.world.items[&held];
+            assert_ne!(it.state, ItemState::Held);
+            assert!(!it.live, "a dropped item is harmless");
+            assert!(it.block.is_some(), "and blocked from being picked straight back up");
+        }
+        // standing right next to it for 2 seconds does not pick it up
+        ticks(&mut app, 100);
+        assert!(!app.world().resource::<Game>().slots.ids().contains(&held), "still blocked");
+        // after the 2.5 s block it can be picked up again
+        ticks(&mut app, 120);
+        // (it landed somewhere in front of you; walk onto it)
+        let at = app.world().resource::<Game>().world.items[&held].pos;
+        put_player(&mut app, at.x, at.z);
+        ticks(&mut app, 5);
+        assert!(app.world().resource::<Game>().slots.ids().contains(&held), "picked up again later");
+    }
+
+    #[test]
+    fn g_does_nothing_with_empty_hands_or_when_stunned() {
+        let mut app = app();
+        app.world_mut().resource_mut::<Wanted>().drop_held = true;
+        ticks(&mut app, 2);
+        assert!(app.world().resource::<Game>().slots.is_empty());
+        give_teddy(&mut app);
+        app.world_mut().resource_mut::<Game>().me.body.apply_hit(1.0, None);
+        app.world_mut().resource_mut::<Wanted>().drop_held = true;
+        ticks(&mut app, 2);
+        assert_eq!(app.world().resource::<Game>().slots.len(), 1, "G is ignored while you are stunned");
     }
 }
