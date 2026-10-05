@@ -245,6 +245,79 @@ fn weeds(rng: &mut Rng) -> Vec<Part> {
     v
 }
 
+/// A leaf outline lying flat on the ground (x across, z along).
+const LEAF: &[(f32, f32)] = &[(0.0, -0.5), (0.22, -0.22), (0.26, 0.08), (0.0, 0.5), (-0.26, 0.08), (-0.22, -0.22)];
+
+/// A fallen gum leaf or a strip of bark at `(x, z)`, turned by `yaw`. Same shape for every leaf
+/// (stretched per leaf) so they all share one mesh.
+fn litter_piece(kind: u32, x: f32, z: f32, yaw: f32, size: f32, colour: u32) -> Part {
+    let flat = if kind == 0 {
+        // a long thin gum leaf
+        Part::new(Shape::Poly(LEAF), matt(colour).both_sides().no_shadow())
+            .at(0.0, 0.016, 0.0)
+            .turn(-HALF_PI, 0.0, 0.0)
+            .stretch(0.13 * size, 0.38 * size, 1.0)
+    } else {
+        // a curled strip of bark: a thin flat box, one end a little lifted
+        Part::new(Shape::Cuboid { w: 0.08, h: 0.014, d: 0.5 }, matt(colour).material(Tex::Bark, 2.0).no_shadow())
+            .at(0.0, 0.016, 0.0)
+            .turn(0.12, 0.0, 0.0)
+            .stretch(size, 1.0, size)
+    };
+    flat.inside(V3::new(x, 0.0, z), turn_y(yaw), 1.0)
+}
+
+/// Fallen leaves and bark (step 2c, A1.6): thickest along the fences, where the wind from the
+/// trees outside drops them, thinning out onto the lawn; and a litter patch under every tree.
+/// Flat, tiny, no shadow, and clear of the pool and the smoko pad. Visual only.
+fn leaf_litter(trees: &[(f32, f32)], seed: u64) -> Vec<Part> {
+    let mut rng = Rng::new(seed ^ 0x1EAF);
+    let leaf_cols = [0x6f6f3a_u32, 0x5f5f30, 0x8a7a3e, 0x7e5e32, 0x56442a, 0x9a7438];
+    let bark_cols = [0x9a8460_u32, 0x8a7656, 0x7a766a];
+    let mut v = Vec::new();
+    let clear = |x: f32, z: f32| {
+        let in_pool = (POOL_X0 - 0.5..POOL_X1 + 0.5).contains(&x) && (POOL_Z0 - 0.5..POOL_Z1 + 0.5).contains(&z);
+        let in_smoko = (x - SMOKO_X).hypot(z - SMOKO_Z) < 5.2;
+        !in_pool && !in_smoko
+    };
+    // along the fences: the closer to the fence, the more
+    for n in 0..170 {
+        let along = rng.range(0.0, 1.0);
+        let off = rng.range(0.0, 1.0).powi(2) * 3.2 + 0.15;
+        let (x, z) = match n % 4 {
+            0 => (-W + 0.3 + along * (2.0 * W - 0.6), -D + off),
+            1 => (-W + 0.3 + along * (2.0 * W - 0.6), D - off),
+            2 => (-W + off, -D + 0.3 + along * (2.0 * D - 0.6)),
+            _ => (W - off, -D + 0.3 + along * (2.0 * D - 0.6)),
+        };
+        if !clear(x, z) {
+            continue;
+        }
+        let kind = if rng.chance(0.2) { 1 } else { 0 };
+        let col = if kind == 1 { bark_cols[rng.index(3)] } else { leaf_cols[rng.index(6)] };
+        v.push(litter_piece(kind, x, z, rng.range(0.0, PI), rng.range(0.7, 1.3), col));
+    }
+    // a scatter on the open lawn (a few leaves that blew further in)
+    for _ in 0..20 {
+        let (x, z) = (rng.range(-W + 4.0, W - 4.0), rng.range(-D + 4.0, D - 4.0));
+        if clear(x, z) {
+            let col = leaf_cols[rng.index(6)];
+            v.push(litter_piece(0, x, z, rng.range(0.0, PI), rng.range(0.7, 1.2), col));
+        }
+    }
+    // under each tree (mostly out in the paddock, but they show over the fence)
+    for (tx, tz) in trees {
+        for _ in 0..4 {
+            let (a, d) = (rng.range(0.0, 2.0 * PI), rng.range(0.0, 1.0).sqrt() * 3.4);
+            let (x, z) = (tx + a.cos() * d, tz + a.sin() * d);
+            let kind = if rng.chance(0.15) { 1 } else { 0 };
+            let col = if kind == 1 { bark_cols[rng.index(3)] } else { leaf_cols[rng.index(6)] };
+            v.push(litter_piece(kind, x, z, rng.range(0.0, PI), rng.range(0.8, 1.4), col));
+        }
+    }
+    v
+}
+
 /// Little things lying about that tell a story (step 2c): a cricket set, a dog bowl, thongs by the
 /// back door, a washing basket, a few stubbies and bottle caps. Visual only; kept off the paths.
 fn clutter(rng: &mut Rng) -> Vec<Part> {
@@ -1874,6 +1947,7 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         world.extend(house());
     }
     // gum trees, anywhere outside the fence and not in front of the house
+    let mut tree_spots: Vec<(f32, f32)> = Vec::new();
     for _ in 0..34 {
         let (mut x, mut z);
         loop {
@@ -1885,6 +1959,7 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
                 break;
             }
         }
+        tree_spots.push((x, z));
         if polished {
             world.extend(gum_tree_styled(&mut rng, x, z));
         } else {
@@ -1917,6 +1992,8 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
     };
     if polished {
         world = sun_bake(texture_pass(world));
+        // fallen leaves and bark go on last, so the texture pass leaves their colours alone
+        world.extend(leaf_litter(&tree_spots, seed));
     }
     YardLook {
         magpies,

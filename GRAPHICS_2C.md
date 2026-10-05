@@ -38,7 +38,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] A1.3 Dirt patches placed naturally: clusters of overlapping soft ellipses in different earthy tones, along paths and where people stand, creeping in from the fences
 - [x] A1.4 Weeds and dry tufts: 170 tufts along the fences and about
 - [x] A1.5 Instance the tufts and weeds: parts with the same shape and surface now share one mesh and one material (cache in `models.rs`), tuft blades are one shared cone scaled per blade. Materials 3,129 to 373, meshes 3,166 to 1,583 (`--stats`); frame time still to measure (E18.4)
-- [ ] A1.6 Fallen leaves and bark bits under the gum trees and along the fence lines (flat decals or tiny shapes)
+- [x] A1.6 Fallen leaves and bark bits under the gum trees and along the fence lines (about 170 leaves and some bark strips along the fences, a light scatter on the lawn, a few under each tree; flat, tiny, no shadow, clear of the pool and smoko pad; Marcus asked for fewer leaves)
 - [ ] A1.7 A few small bits of backyard debris on the lawn (bottle caps and stubbies are in; add sticks, a crushed can, a lid)
 - [ ] A1.8 Paddock and far trees get dry grass and a dusty colour, still very simple
 - [ ] A1.9 Check the ground still reads clearly for moving and for seeing items (a readability check on Marcus's Mac)
