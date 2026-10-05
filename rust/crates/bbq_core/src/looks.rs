@@ -336,6 +336,9 @@ pub struct Part {
     /// For the floppy things (dildo, noodle): which segment of the chain this part rides on, and
     /// where that segment's hinge is (in the same frame as `pos`). The game bends the chain.
     pub seg: Option<(u8, V3)>,
+    /// A "hero" thing (a character-like prop, an item, the BBQ...): the pop style outlines these
+    /// and leaves the scenery alone.
+    pub hero: bool,
 }
 
 impl Part {
@@ -347,7 +350,14 @@ impl Part {
             rot: Quat::IDENTITY,
             scale: V3::new(1.0, 1.0, 1.0),
             seg: None,
+            hero: false,
         }
+    }
+
+    /// Mark as a hero part (see `hero`).
+    pub fn hero(mut self) -> Self {
+        self.hero = true;
+        self
     }
 
     /// Throw no shadow (tufts of grass, small clutter).
@@ -842,13 +852,18 @@ pub fn item(kind: crate::items::ItemKind, id: u32, variant: Option<DildoVariant>
 }
 
 /// An item in the step 2c look: the browser model plus a few details that make it read better
-/// close up (`polished` false gives exactly the browser model).
+/// close up (`polished` false gives exactly the browser model). Items are hero parts.
 pub fn item_look(kind: crate::items::ItemKind, id: u32, variant: Option<DildoVariant>, polished: bool) -> Vec<Part> {
     let mut v = item(kind, id, variant);
     if polished {
         v.extend(item_extras(kind));
     }
-    v
+    mark_hero(v)
+}
+
+/// Mark every part of a model as a hero part.
+pub fn mark_hero(parts: Vec<Part>) -> Vec<Part> {
+    parts.into_iter().map(Part::hero).collect()
 }
 
 /// The extra details (step 2c, "Items get a second look").

@@ -32,6 +32,9 @@ pub const GROUND_ROUGHNESS: f32 = 0.0;
 /// The polished look draws items with their extra details (set once at start-up from `LookMode`).
 pub static POLISHED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// The shared black outline material (made at start-up in the pop style).
+pub static OUTLINE_MAT: std::sync::OnceLock<Handle<StandardMaterial>> = std::sync::OnceLock::new();
+
 /// What to look up: an item (and which size or colour), or a one-off by name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ModelKey {
@@ -73,6 +76,8 @@ pub struct Built {
     pub receives: bool,
     /// Which segment of a floppy chain this rides on, and where that segment hinges.
     pub seg: Option<(u8, Vec3)>,
+    /// The S1 "pop" style: the scale of a slightly bigger black copy that shows as an outline.
+    pub outline: Option<Vec3>,
 }
 
 /// One link of a floppy item's chain: the item bends by turning these.
@@ -109,6 +114,23 @@ impl Built {
         }
         let id = e.id();
         commands.entity(parent).add_child(id);
+        // pop style: a slightly bigger black copy drawn inside-out (hero parts only)
+        if let Some(sc) = self.outline {
+            {
+                let mut t2 = tf;
+                t2.scale = tf.scale * sc;
+                let o = commands
+                    .spawn((
+                        Mesh3d(self.mesh.clone()),
+                        MeshMaterial3d(OUTLINE_MAT.get().cloned().unwrap_or_default()),
+                        t2,
+                        NotShadowCaster,
+                        NotShadowReceiver,
+                    ))
+                    .id();
+                commands.entity(parent).add_child(o);
+            }
+        }
         id
     }
 }
@@ -150,7 +172,29 @@ fn build_part(
         casts: !s.no_shadow,
         receives: !(s.no_shadow && (s.additive || s.alpha < 1.0)),
         seg: p.seg.map(|(i, v)| (i, Vec3::new(v.x, v.y, v.z))),
+        outline: if p.hero { outline_scale(&p.shape, p.scale) } else { None },
     }
+}
+
+/// How much bigger the outline copy of a part is, per local axis, for 2.2 cm of line in the world
+/// (only simple convex shapes: boxes, cylinders, spheres, cones, capsules).
+fn outline_scale(shape: &bbq_core::looks::Shape, part_scale: bbq_core::vec::V3) -> Option<Vec3> {
+    use bbq_core::looks::Shape;
+    if crate::style::current() != crate::style::Style::Pop {
+        return None;
+    }
+    let t = 0.016;
+    let grow = |half: f32, sc: f32| 1.0 + (t / sc.max(0.05)) / half.max(0.01);
+    let (hx, hy, hz) = match *shape {
+        Shape::Cuboid { w, h, d } => (w / 2.0, h / 2.0, d / 2.0),
+        Shape::Cylinder { top, bottom, h, .. } => (top.max(bottom), h / 2.0, top.max(bottom)),
+        Shape::Sphere { r, .. } => (r, r, r),
+        Shape::Cone { r, h, .. } => (r, h / 2.0, r),
+        Shape::Capsule { r, len, .. } => (r, len / 2.0 + r, r),
+        Shape::Ico { r, .. } => (r, r, r),
+        _ => return None,
+    };
+    Some(Vec3::new(grow(hx, part_scale.x), grow(hy, part_scale.y), grow(hz, part_scale.z)))
 }
 
 #[derive(Resource, Default)]
@@ -171,6 +215,10 @@ impl Plugin for ModelsPlugin {
             .get_resource::<crate::lighting::LookMode>()
             .is_some_and(|l| *l == crate::lighting::LookMode::Polished);
         POLISHED.store(polished, std::sync::atomic::Ordering::Relaxed);
+        if crate::style::current() == crate::style::Style::Pop {
+            let mut mats = app.world_mut().resource_mut::<Assets<StandardMaterial>>();
+            let _ = OUTLINE_MAT.set(crate::style::outline_material(&mut mats));
+        }
         app.init_resource::<ModelCache>()
             .add_systems(Startup, load_textures)
             .add_systems(Update, add_mipmaps);

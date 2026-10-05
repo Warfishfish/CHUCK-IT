@@ -28,6 +28,7 @@ mod results;
 mod round;
 mod shapes;
 mod shot;
+mod style;
 mod ui;
 mod yard_scene;
 
@@ -36,6 +37,7 @@ use bevy::prelude::*;
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let shot = shot::parse(&args);
+    style::init(&args);
     // Screenshot mode uses an 800 x 600 window at normal pixel size so pictures can be compared.
     let window = if shot.is_some() {
         Window {
@@ -64,7 +66,7 @@ fn main() {
         // crisper, steadier shadows in the polished look
         size: if lighting::LookMode::from_args(&args) == lighting::LookMode::Polished { 4096 } else { 2048 },
     })
-    .insert_resource(ClearColor(models::hex(0x9fd8f2)))
+    .insert_resource(ClearColor(models::hex(if style::current() != style::Style::Current { 0x88b4f4 } else { 0x9fd8f2 })))
     .add_plugins(
         (
             yard_scene::YardScenePlugin,

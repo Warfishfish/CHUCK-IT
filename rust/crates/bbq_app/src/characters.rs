@@ -220,7 +220,7 @@ fn spawn_model(
     let (can_mesh, can_mat) = (look.can_mesh.clone(), look.can_mat.clone());
     commands
         .spawn((
-            WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset(character.model()))),
+            WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset(crate::style::model_path(character)))),
             Transform::default(),
             BlobModel,
             Blob(i),
@@ -232,7 +232,87 @@ fn spawn_model(
                   names: Query<&Name>,
                   has_mat: Query<(), With<MeshMaterial3d<StandardMaterial>>>,
                   tfs: Query<&Transform>,
+                  mesh_nodes: Query<(&Mesh3d, Option<&bevy::mesh::morph::MeshMorphWeights>)>,
+                  mut meshes: ResMut<Assets<Mesh>>,
+                  mut mats: ResMut<Assets<StandardMaterial>>,
                   mut commands: Commands| {
+                // clay style: the skin texture needs UV coordinates and tangents, which the models
+                // do not have; make them here from where each point sits on the part (a simple
+                // spherical wrap, which suits these round bodies)
+                if crate::style::current() == crate::style::Style::Clay {
+                    for node in children.iter_descendants(ready.entity) {
+                        let Ok((m3, _)) = mesh_nodes.get(node) else { continue };
+                        let Some(mut m) = meshes.get_mut(&m3.0) else { continue };
+                        if m.attribute(Mesh::ATTRIBUTE_UV_0).is_none()
+                            && let Some(bevy::mesh::VertexAttributeValues::Float32x3(pos)) =
+                                m.attribute(Mesh::ATTRIBUTE_POSITION).cloned()
+                        {
+                            let c = pos.iter().fold([0.0f32; 3], |a, p| [a[0] + p[0], a[1] + p[1], a[2] + p[2]]);
+                            let n = pos.len().max(1) as f32;
+                            let c = [c[0] / n, c[1] / n, c[2] / n];
+                            let uv: Vec<[f32; 2]> = pos
+                                .iter()
+                                .map(|p| {
+                                    let (x, y, z) = (p[0] - c[0], p[1] - c[1], p[2] - c[2]);
+                                    let u = 0.5 + z.atan2(x) / std::f32::consts::TAU;
+                                    let v = 0.5 + y.atan2((x * x + z * z).sqrt()) / std::f32::consts::PI;
+                                    [u, v]
+                                })
+                                .collect();
+                            m.insert_attribute(Mesh::ATTRIBUTE_UV_0, uv);
+                        }
+                        if m.attribute(Mesh::ATTRIBUTE_UV_0).is_some() && m.attribute(Mesh::ATTRIBUTE_TANGENT).is_none() {
+                            let _ = m.generate_tangents();
+                        }
+                    }
+                }
+                // pop style: a black, slightly bigger, inside-out copy of every part is its outline.
+                // Small parts get a thinner line, and the pupils and straps none at all (their
+                // lines were the stray marks round the eyes).
+                if crate::style::current() == crate::style::Style::Pop {
+                    let om = crate::style::outline_material(&mut mats);
+                    for node in children.iter_descendants(ready.entity) {
+                        let Ok(name) = names.get(node) else { continue };
+                        let width = match name.as_str() {
+                            n if n.starts_with("Pupil") || n.starts_with("Eye") || n.starts_with("Strap") || n.starts_with("Thong") => continue,
+                            n if n.starts_with("Eye") => 0.009,
+                            n if n.starts_with("Hand") => 0.011,
+                            n if n.starts_with("Foot") => 0.011,
+                            "Singlet" => 0.009,
+                            _ => 0.013,
+                        };
+                        for e in std::iter::once(node).chain(children.iter_descendants(node)) {
+                            let Ok((m3, morph)) = mesh_nodes.get(e) else { continue };
+                            let Some(src) = meshes.get(&m3.0) else { continue };
+                            let mut big = src.clone();
+                            if let (
+                                Some(bevy::mesh::VertexAttributeValues::Float32x3(pos)),
+                                Some(bevy::mesh::VertexAttributeValues::Float32x3(nor)),
+                            ) = (
+                                src.attribute(Mesh::ATTRIBUTE_POSITION).cloned(),
+                                src.attribute(Mesh::ATTRIBUTE_NORMAL).cloned(),
+                            ) {
+                                let out: Vec<[f32; 3]> = pos
+                                    .iter()
+                                    .zip(nor.iter())
+                                    .map(|(p, n)| [p[0] + n[0] * width, p[1] + n[1] * width, p[2] + n[2] * width])
+                                    .collect();
+                                big.insert_attribute(Mesh::ATTRIBUTE_POSITION, out);
+                            }
+                            let h = meshes.add(big);
+                            let mut oe = commands.spawn((
+                                Mesh3d(h),
+                                MeshMaterial3d(om.clone()),
+                                Transform::default(),
+                                bevy::light::NotShadowCaster,
+                                ChildOf(e),
+                            ));
+                            if let Some(mw) = morph {
+                                oe.insert(mw.clone());
+                            }
+                        }
+                    }
+                }
                 // once loaded: tint it for this player and find the hands, which the animation moves
                 for node in children.iter_descendants(ready.entity) {
                     let Ok(name) = names.get(node) else { continue };
@@ -309,11 +389,10 @@ fn swap_models(
     mut shown: Local<Option<Character>>,
     old: Query<Entity, With<BlobModel>>,
 ) {
-    if *shown == Some(cast.mine) {
-        return;
-    }
-    if shown.is_none() {
-        *shown = Some(cast.mine); // the first models were spawned at startup
+    // the first models were spawned at startup with the default character, before the saved
+    // pick (or `--char`) was applied, so compare against that, not against "whatever is picked"
+    let on_screen = *shown.get_or_insert(Character::default());
+    if on_screen == cast.mine {
         return;
     }
     *shown = Some(cast.mine);
@@ -442,9 +521,9 @@ fn build_blobs(
 
     for (i, d) in game.dummies.iter().enumerate() {
         let colour = BLOB_COLOURS[i % BLOB_COLOURS.len()];
-        let body_mat = mats.add(colour);
-        let head_mat = mats.add(lighter(colour));
-        let foot_mat = mats.add(darker(colour));
+        let body_mat = mats.add(crate::style::body_material(colour, assets));
+        let head_mat = mats.add(crate::style::body_material(lighter(colour), assets));
+        let foot_mat = mats.add(crate::style::body_material(darker(colour), assets));
         let root = commands
             .spawn((
                 Transform::from_xyz(d.mover.x, 0.0, d.mover.z),
@@ -645,13 +724,42 @@ fn spawn_dazza(
             ChildOf(root),
         ))
         .id();
-    let mut part = |mesh: Mesh, mat: Handle<StandardMaterial>, t: Transform| {
+    // pop style: a bigger head with its hat and sunnies, bigger hands and feet, and a black outline
+    let pop = crate::style::current() == crate::style::Style::Pop;
+    let outline_mat = crate::style::outline_material(&mut mats);
+    let mut part = |mesh: Mesh, mat: Handle<StandardMaterial>, mut t: Transform| {
+        if pop {
+            let pivot = Vec3::new(0.0, 1.4, 0.0);
+            if t.translation.y >= 1.38 {
+                // head, hat, sunnies, nose, moustache, corks: grow about the neck
+                t.translation = pivot + (t.translation - pivot) * 1.28;
+                t.scale *= 1.28;
+            } else if t.translation.y < 0.2 {
+                t.scale *= Vec3::new(1.25, 1.25, 1.25); // feet and thongs
+            } else if (t.translation.x + 0.52).abs() < 0.04 && (t.translation.y - 0.9).abs() < 0.2 {
+                t.scale *= 1.3; // the free hand
+            }
+        }
+        let aabb = bevy::camera::primitives::MeshAabb::compute_aabb(&mesh);
+        let h = meshes.add(mesh);
         commands.spawn((
-            Mesh3d(meshes.add(mesh)),
+            Mesh3d(h.clone()),
             MeshMaterial3d(mat),
             t,
             ChildOf(body),
         ));
+        if pop && let Some(a) = aabb {
+            let half = Vec3::from(a.half_extents).max_element().max(0.02);
+            let mut o = t;
+            o.scale = t.scale * (1.0 + 0.013 / (half * t.scale.max_element()));
+            commands.spawn((
+                Mesh3d(h),
+                MeshMaterial3d(outline_mat.clone()),
+                o,
+                bevy::light::NotShadowCaster,
+                ChildOf(body),
+            ));
+        }
     };
     part(
         Capsule3d::new(0.42, 0.5).into(),
@@ -1370,7 +1478,13 @@ fn animate_face_and_feet(
         let ws = w.weights_mut();
         if ws.len() >= 2 {
             ws[0] = size.powf(0.8) * (1.0 + dr.swell);
-            ws[1] = dr.sag * size.max(0.3);
+            // with outlines or a bigger body the flop is harder to see, so the styles show it a bit more
+            let flop = match crate::style::current() {
+                crate::style::Style::Current => 1.0,
+                crate::style::Style::Pop => 1.8,
+                crate::style::Style::Clay => 1.4,
+            };
+            ws[1] = dr.sag * size.max(0.3) * flop;
         }
     }
     let walk = |i: usize| (speed.get(i).copied().unwrap_or(0.0) / 4.0).clamp(0.0, 1.0);

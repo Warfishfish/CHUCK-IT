@@ -39,6 +39,7 @@ M = {
     "ThongEgg": mat("ThongEggMat", (0.18, 0.66, 0.85)),
     "ThongGumdrop": mat("ThongGumdropMat", (0.91, 0.27, 0.23)),
     "Strap": mat("StrapMat", (0.12, 0.12, 0.12)),
+    "ThongClassic": mat("ThongClassicMat", (0.30, 0.76, 0.42)),
 }
 
 
@@ -60,10 +61,32 @@ SHAPES = {
 # original capsule (decision 4 Oct 2026).
 CARICATURE = {
     # belly: how far the tummy swells forward (m), its height and how tall it is
+    # Classic (updated 5 Oct 2026 at Marcus's request): still the original capsule body, now with the
+    # same caricature as the others: bigger head, hands and feet, thongs, a singlet and a tummy
+    "classic": dict(head=0.32, hand=0.12, foot=0.16, belly=0.12, belly_y=0.76, belly_h=0.32, tilt=0.05, thong="ThongClassic"),
     "pear": dict(head=0.33, hand=0.125, foot=0.165, belly=0.15, belly_y=0.72, belly_h=0.34, tilt=-0.07, thong="ThongPear"),
     "egg": dict(head=0.34, hand=0.13, foot=0.17, belly=0.13, belly_y=0.78, belly_h=0.32, tilt=0.09, thong="ThongEgg"),
     "gumdrop": dict(head=0.34, hand=0.13, foot=0.18, belly=0.18, belly_y=0.66, belly_h=0.36, tilt=-0.05, thong="ThongGumdrop"),
 }
+# Style experiment (S1 in GRAPHICS_2C.md): `--style pop` or `--style clay` writes
+# blob_<name>_<style>.glb next to the normal ones, with different proportions.
+STYLE = sys.argv[sys.argv.index("--style") + 1] if "--style" in sys.argv else ""
+if STYLE == "pop":
+    # cartoon pop: much bigger head and eyes, hands and feet; the body a little slimmer
+    for k, c in CARICATURE.items():
+        c["head"] *= 1.32; c["hand"] *= 1.4; c["foot"] *= 1.35; c["belly"] *= 1.0
+    for k, sh in SHAPES.items():
+        if not sh.get("capsule"):
+            sh["bottom"] *= 0.95; sh["top"] *= 0.9
+elif STYLE == "clay":
+    # dusty clay toys: wide, squat, round, a big soft belly, a smaller head, small hands
+    for k, c in CARICATURE.items():
+        c["head"] *= 0.95; c["hand"] *= 0.88; c["foot"] *= 1.12; c["belly"] *= 1.5; c["belly_h"] *= 1.15
+    for k, sh in SHAPES.items():
+        if sh.get("capsule"):
+            sh["bottom"] *= 1.2; sh["top"] *= 1.2
+        else:
+            sh["bottom"] *= 1.2; sh["top"] *= 1.22; sh["height"] *= 0.9
 BODY_BASE = 0.07  # the body's lowest point sits just off the ground (same as the old capsule)
 
 
@@ -160,6 +183,11 @@ def torus(name, major, minor, at, material, tilt=(0.0, 0.0), scale=(1, 1, 1), pa
 def profile_radius(shape, up):
     """The real half-width of the torso at height `up` (the sphere narrows towards its ends)."""
     sh = SHAPES[shape]
+    if sh.get("capsule"):
+        r = 0.36 * sh["bottom"] / 0.37
+        mid, half = 0.78, 0.275
+        dy = max(0.0, abs(up - mid) - half)
+        return math.sqrt(max(0.0, r * r - dy * dy))
     u = max(0.0, min(1.0, (up - BODY_BASE) / sh["height"]))
     w = sh["top"] + (sh["bottom"] - sh["top"]) * (1 - u)
     return w * math.sqrt(max(0.0, 1 - (2 * u - 1) ** 2))
@@ -190,7 +218,8 @@ def add_belly_keys(ob, c, swell_value=1.0):
     kb = ob.shape_key_add(name="Belly")
     ks = ob.shape_key_add(name="Sag")
     for i, v in enumerate(ob.data.vertices):
-        sw, sg = belly_field(c, v.co.x, v.co.y, v.co.z)
+        # the field is in the body's frame; the capsule torso's own origin is up at 0.78
+        sw, sg = belly_field(c, v.co.x + ob.location.x, v.co.y + ob.location.y, v.co.z + ob.location.z)
         kb.data[i].co = (v.co.x + sw[0], v.co.y + sw[1], v.co.z + sw[2])
         ks.data[i].co = (v.co.x + sg[0], v.co.y + sg[1], v.co.z + sg[2])
     kb.value = swell_value
@@ -244,7 +273,7 @@ def make_blob(shape, dx=0.0):
     body.location = (dx, 0, 0)
     scn.collection.objects.link(body)
     if SHAPES[shape].get("capsule"):
-        sphere("Torso", 0.36, (0, 0.78, 0), M["Body"], parent=body, capsule=0.55)
+        sphere("Torso", 0.36 * SHAPES[shape]["bottom"] / 0.37, (0, 0.78, 0), M["Body"], parent=body, capsule=0.55)
     else:
         egg_body("Torso", shape, M["Body"], parent=body)
     c = CARICATURE.get(shape)
@@ -330,7 +359,7 @@ for shape in ORDER:
     for ob in list(bpy.data.objects):
         bpy.data.objects.remove(ob)
     make_blob(shape)
-    path = os.path.join(out_dir, "blob_%s.glb" % shape)
+    path = os.path.join(out_dir, "blob_%s%s.glb" % (shape, ("_" + STYLE) if STYLE else ""))
     bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", export_yup=True,
                               export_apply=True, export_cameras=False, export_lights=False)
     print("wrote", path)

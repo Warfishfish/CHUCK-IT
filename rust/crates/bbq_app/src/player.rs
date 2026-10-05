@@ -108,7 +108,9 @@ fn setup_camera_and_hud(mut commands: Commands, look: Res<crate::lighting::LookM
         Transform::from_xyz(0.0, movement::EYE_HEIGHT, 0.0),
         DistanceFog {
             // polished look: a hazier, warmer horizon
-            color: if *look == crate::lighting::LookMode::Polished {
+            color: if *look == crate::lighting::LookMode::Polished && crate::style::current() != crate::style::Style::Current {
+                crate::models::hex(0xeccfa0) // warm dusty haze
+            } else if *look == crate::lighting::LookMode::Polished {
                 crate::models::hex(0xc9e1e4)
             } else {
                 crate::models::hex(0x9fd8f2)

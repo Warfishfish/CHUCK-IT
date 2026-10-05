@@ -58,7 +58,26 @@ impl LookMode {
                 grade: Grade::NONE,
             },
             // warm hard sun, cooler and a little dimmer sky fill, dry dusty ground bounce
-            LookMode::Polished => Rig {
+            LookMode::Polished => match crate::style::current() {
+                // pop: vivid colours with clay's strong, low, golden sun, cool shade and warm bounce
+                crate::style::Style::Pop => Rig {
+                    sky: 0x9db4e0,
+                    ground: 0xb8864c,
+                    hemi: 0.38,
+                    sun: 0xffb868,
+                    sun_intensity: 1.42,
+                    grade: Grade { saturation: 1.2, warmth: 0.10, contrast: 1.12, vignette: 0.32 },
+                },
+                // clay: a strong, low, golden sun with a cool blue shade and warm bounce light
+                crate::style::Style::Clay => Rig {
+                    sky: 0x9db4e0,
+                    ground: 0xb8864c,
+                    hemi: 0.36,
+                    sun: 0xffb260,
+                    sun_intensity: 1.5,
+                    grade: Grade { saturation: 1.0, warmth: 0.13, contrast: 1.14, vignette: 0.45 },
+                },
+                crate::style::Style::Current => Rig {
                 sky: 0xbfd6f2,
                 ground: 0x8a7a48,
                 hemi: 0.50,
@@ -69,6 +88,7 @@ impl LookMode {
                     warmth: 0.05,
                     contrast: 1.07,
                     vignette: 0.28,
+                },
                 },
             },
         }
@@ -225,7 +245,13 @@ pub fn sun(look: LookMode) -> (DirectionalLight, Transform) {
             shadow_maps_enabled: true,
             ..default()
         },
-        Transform::from_translation(SUN_AT).looking_at(Vec3::ZERO, Vec3::Y),
+        // clay: a lower sun, so shadows are long and the light rakes across the surfaces
+        Transform::from_translation(if crate::style::current() != crate::style::Style::Current {
+            Vec3::new(SUN_AT.x, SUN_AT.y * 0.62, SUN_AT.z)
+        } else {
+            SUN_AT
+        })
+        .looking_at(Vec3::ZERO, Vec3::Y),
     )
 }
 

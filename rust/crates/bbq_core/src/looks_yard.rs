@@ -155,6 +155,16 @@ fn orb(r: f32, s: Surface, x: f32, y: f32, z: f32) -> Part {
     Part::new(Shape::Sphere { r, ws: 14, hs: 10 }, s).at(x, y, z)
 }
 
+/// How the palette is set (the S1 style experiment): how far plain colours fade towards grey
+/// (negative = more vivid) and the lawn's colour strength. Stored as `f32` bits.
+static PALETTE_FADE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0x3e0f5c29); // 0.14
+static LAWN_SAT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0x3f800000); // 1.0
+
+pub fn set_palette(fade: f32, lawn_sat: f32) {
+    PALETTE_FADE.store(fade.to_bits(), std::sync::atomic::Ordering::Relaxed);
+    LAWN_SAT.store(lawn_sat.to_bits(), std::sync::atomic::Ordering::Relaxed);
+}
+
 /// The sun-baked palette (step 2c): every plain colour is washed a touch towards dust and warmed,
 /// so the yard reads as faded, sun-beaten paint rather than fresh plastic. Textured, see-through,
 /// glowing and unlit parts (water, signs, lines) are left alone, and so are the bright things
@@ -170,7 +180,7 @@ pub fn sun_bake(parts: Vec<Part>) -> Vec<Part> {
             let ch = |s: u32| ((sf.color >> s) & 0xff) as f32;
             let (r, g, b) = (ch(16), ch(8), ch(0));
             let lum = 0.299 * r + 0.587 * g + 0.114 * b;
-            let k = 0.14; // how much of the colour fades towards grey
+            let k = f32::from_bits(PALETTE_FADE.load(std::sync::atomic::Ordering::Relaxed)); // how much of the colour fades towards grey
             let mix = |c: f32, w: f32| ((c + (lum - c) * k) * w).clamp(0.0, 255.0).round() as u32;
             sf.color = (mix(r, 1.05) << 16) | (mix(g, 1.0) << 8) | mix(b, 0.9);
             p
@@ -453,7 +463,7 @@ pub fn chair_styled(i: usize) -> Vec<Part> {
     v.push(cuboid(0.4, 0.012, 0.1, matt(0x6f7f8a), 0.0, 0.482, -0.2));
     // each chair sits a little crooked
     let tilt = ((i * 7 % 9) as f32 - 4.0) * 0.007;
-    place(v, V3::ZERO, Quat::from_euler_xyz(tilt, 0.0, -tilt * 1.4), 1.0)
+    looks::mark_hero(place(v, V3::ZERO, Quat::from_euler_xyz(tilt, 0.0, -tilt * 1.4), 1.0))
 }
 
 /// The outdoor table (the step 2c look): fat warped timber planks running its length in slightly
@@ -625,7 +635,7 @@ pub fn magpie() -> MagpieModel {
         head.push(orb(0.019, black, sx * 0.112, 0.17, 0.2));
         head.push(orb(0.007, white, sx * 0.116 + 0.004, 0.178, 0.212));
     }
-    MagpieModel { body, head, neck: V3::new(0.0, 0.36, 0.08) }
+    MagpieModel { body: looks::mark_hero(body), head: looks::mark_hero(head), neck: V3::new(0.0, 0.36, 0.08) }
 }
 
 /// Where the magpies sit on the fence (x, z) and which way they face (a turn about y; they
@@ -1062,7 +1072,7 @@ fn props(polished: bool) -> Vec<Part> {
     }
     // outdoor table
     if polished {
-        v.extend(table_styled());
+        v.extend(looks::mark_hero(table_styled()));
     } else {
         v.push(cuboid(2.0, 0.08, 1.0, matt(0xc79a61), 6.0, 0.76, -16.5));
         for (a, b) in [(-0.9, -0.4), (0.9, -0.4), (-0.9, 0.4), (0.9, 0.4)] {
@@ -1538,7 +1548,7 @@ pub fn esky_with(body: u32, dark: u32) -> (Vec<Part>, Vec<Part>) {
         )
         .at(0.0, 0.17, 0.49),
     );
-    (base, lid)
+    (looks::mark_hero(base), looks::mark_hero(lid))
 }
 
 /// The toy in slot `k` of the chest (the sizes cycle: classic, mini, jumbo).
@@ -1744,7 +1754,13 @@ pub fn lawn_tint(x: f32, z: f32) -> [f32; 3] {
     let d = lawn_dryness(x, z);
     let lush = [0.70, 0.86, 0.58];
     let dry = [1.28, 1.06, 0.56];
-    [0, 1, 2].map(|i| lush[i] + (dry[i] - lush[i]) * d)
+    let t = [0, 1, 2].map(|i| lush[i] + (dry[i] - lush[i]) * d);
+    let sat = f32::from_bits(LAWN_SAT.load(std::sync::atomic::Ordering::Relaxed));
+    if (sat - 1.0).abs() < 1e-4 {
+        return t;
+    }
+    let lum = 0.299 * t[0] + 0.587 * t[1] + 0.114 * t[2];
+    t.map(|c| lum + (c - lum) * sat)
 }
 
 /// One soft patch of bare earth: a squashed, turned ellipse in one of a few earthy tones.
@@ -2001,9 +2017,9 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         chest_pivot: if polished { ESKY_PIVOT } else { CHEST_PIVOT },
         world,
         hoist_head,
-        bar: if polished { sun_bake(texture_pass(bar())) } else { bar() },
-        bbq: if polished { sun_bake(texture_pass(bbq(true))) } else { bbq(false) },
-        smoko: if polished { sun_bake(texture_pass(smoko(true))) } else { smoko(false) },
+        bar: if polished { looks::mark_hero(sun_bake(texture_pass(bar()))) } else { bar() },
+        bbq: if polished { looks::mark_hero(sun_bake(texture_pass(bbq(true)))) } else { bbq(false) },
+        smoko: if polished { looks::mark_hero(sun_bake(texture_pass(smoko(true)))) } else { smoko(false) },
         chest_base,
         chest_lid,
         clouds,

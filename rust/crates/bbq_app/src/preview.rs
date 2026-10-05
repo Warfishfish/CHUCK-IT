@@ -92,13 +92,13 @@ fn swap_preview_model(
     }
     let base = crate::models::hex(0xffd23f);
     let (body, head, foot) = (
-        mats.add(base),
-        mats.add(crate::characters::lighter(base)),
-        mats.add(crate::characters::darker(base)),
+        mats.add(crate::style::body_material(base, &assets)),
+        mats.add(crate::style::body_material(crate::characters::lighter(base), &assets)),
+        mats.add(crate::style::body_material(crate::characters::darker(base), &assets)),
     );
     commands
         .spawn((
-            WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset(settings.character.model()))),
+            WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset(crate::style::model_path(settings.character)))),
             Transform::from_xyz(0.0, 0.0, 0.0).with_rotation(Quat::from_rotation_y(0.5)),
             RenderLayers::layer(LAYER),
             PreviewModel,

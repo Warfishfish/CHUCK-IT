@@ -27,8 +27,8 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 ## Checklist
 
 ### Style direction (decided by Marcus before the phases go further)
-- [ ] S1. Two upgrade examples for Marcus to compare: one character and one corner of the yard, each in a "more upgraded" style, before deciding how far to take the whole game
-- [ ] S2. Upgrade the game's overall style to be more unique and funny (example screenshots first; Marcus picks before anything is pushed)
+- [x] S1. Two upgrade examples compared (6 Oct 2026): "Cartoon pop" (outlines, vivid colours, big-headed characters) and "Dusty clay" (no outlines, squat clay toys, golden light). Marcus chose Pop with clay's warm light and thinner outlines
+- [x] S2. The game's overall style: **Pop with clay's warm golden light** is now the polished look (`style.rs`, `--style pop|clay|current` to switch): outlines on the "hero" things only (characters, Dazza, items, magpie, BBQ and bar area, table, chairs, eskies; not fence, trees, ground or house), vivid colours, a low strong golden sun with cool shade, a warm hazy horizon, big-headed big-handed big-footed characters (models `blob_*_pop.glb`, made by `make_blob.py --style pop`), a stronger belly flop. Outlines thinned twice at Marcus's request. The browser look is unchanged. Still open: Dazza's outline is partial; a subtle clay skin texture on Pop characters is optional
 
 ## PHASE A: Environment foundation
 
@@ -113,6 +113,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] C9.2 Oversized chunky thongs in a colour each, with a strap; slightly exaggerated stomachs
 - [x] C9.3 Beer bellies are part of the body (shape keys), full and round, with a "Beer belly" slider in the menu
 - [ ] C9.4 Slight asymmetry: one shoulder lower, a wonky grin (head tilt is done)
+- [x] C9.4b Classic updated (6 Oct 2026): same caricature as the others (bigger head, hands, feet, thongs, singlet, belly), its Beer belly slider now works; also fixed `--char` and the saved pick not reaching the on-screen characters
 - [ ] C9.5 Clearly different silhouettes between the four characters
 - [ ] C9.6 Skinny lower legs (the blobs have no legs, so this needs a pose change; decide with Marcus first)
 - [ ] C9.7 Walk, throw, stunned and fall poses re-checked with the bigger feet and hands (no clipping)

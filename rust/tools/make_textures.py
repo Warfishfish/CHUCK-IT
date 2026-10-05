@@ -214,3 +214,20 @@ edge = np.clip(1 - np.abs(patches - 0.5) * 4, 0, 1)
 rgb *= (1 - edge[..., None] * 0.18)
 save("bark.png", rgb)
 save_normal("bark_n.png", bark - patches * 0.08, 4.0)
+
+
+# ---- clay: a soft mottled surface with fine pores and a few thumb-print swirls; grey, so each
+# character's own colour tints it. Used on the characters in the "clay" style.
+mott = fbm(5, 4)
+pores = (rng.random((N, N)) > 0.985).astype(float)
+swirl = np.zeros((N, N))
+for _ in range(5):
+    sx, sy = rng.random() * N, rng.random() * N
+    dx = (np.arange(N)[None, :] - sx + N / 2) % N - N / 2
+    dy = (np.arange(N)[:, None] - sy + N / 2) % N - N / 2
+    r = np.sqrt(dx * dx + dy * dy)
+    swirl += np.exp(-(r / 22) ** 2) * np.sin(r * 0.55) * 0.4
+mott_n = (mott - mott.mean()) / mott.std()
+clay = 0.88 + 0.07 * mott_n - pores * 0.10 + 0.06 * swirl
+save("clay.png", grey(np.clip(clay, 0.6, 1.0), (1.0, 0.98, 0.95)))
+save_normal("clay_n.png", 0.5 * (mott - 0.5) + 0.5 * swirl + 0.4 * fbm(14, 2) - pores * 0.35, 3.0)
