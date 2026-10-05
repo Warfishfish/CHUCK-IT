@@ -195,3 +195,22 @@ save_rgba("decal_splat.png", splat * (rad < 0.95))
 sc = np.clip((0.7 - np.sqrt((cx / 1.0) ** 2 + (cy / 0.75) ** 2)) / 0.5, 0, 1) ** 1.2
 sc *= 0.6 + 0.4 * fbm(4, 4)
 save_rgba("decal_scorch.png", sc * (rad < 0.98))
+
+
+# ---- gum-tree bark: pale smooth bark with long vertical streaks and patches where the old bark
+# has peeled away (tan and grey), running up the trunk (v)
+streaks = fbm(3, 3, sx=6, sy=1)          # narrow across, long up the trunk
+patches = np.clip((fbm(3, 4) - 0.52) * 4.0, 0, 1)
+fine = fbm(10, 2, sx=4, sy=1)
+bark = 0.86 + 0.08 * (streaks - 0.5) + 0.05 * (fine - 0.5)
+rgb = grey(bark, (1.0, 0.98, 0.93))
+tan = np.array([0.72, 0.58, 0.42])
+greyp = np.array([0.62, 0.62, 0.6])
+mix = np.clip(fbm(2, 2) - 0.5, 0, 1)[..., None] * 2
+peel = tan * (1 - mix) + greyp * mix
+rgb = rgb * (1 - patches[..., None] * 0.85) + peel * patches[..., None] * 0.85
+# a dark edge round each peeled patch
+edge = np.clip(1 - np.abs(patches - 0.5) * 4, 0, 1)
+rgb *= (1 - edge[..., None] * 0.18)
+save("bark.png", rgb)
+save_normal("bark_n.png", bark - patches * 0.08, 4.0)

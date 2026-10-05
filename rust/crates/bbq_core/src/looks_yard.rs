@@ -588,6 +588,80 @@ pub fn smoko_pad(radius: f32) -> Part {
 }
 
 /// A shaky tree: trunk plus three rough balls of leaves.
+/// A tapered limb from `a` to `b`, `r0` thick at the bottom and `r1` at the top.
+fn limb(a: V3, b: V3, r0: f32, r1: f32, seg: u32, s: Surface) -> Part {
+    let mut p = rod(a, b, 1.0, s);
+    let len = (b - a).len();
+    p.shape = Shape::Cylinder { top: r1, bottom: r0, h: len, seg, caps: true };
+    p
+}
+
+/// A gum tree in the step 2c look: a pale, streaky, peeling trunk with a little bend, that forks
+/// into two or three limbs reaching up and out; each limb ends in a loose crown of olive and
+/// grey-green leaf clumps, a few hanging lower like drooping gum leaves. No two are the same:
+/// some are tall and spindly, some short and spreading.
+fn gum_tree_styled(rng: &mut Rng, x: f32, z: f32) -> Vec<Part> {
+    let bark = matt(0xffffff).material(Tex::Bark, 1.0);
+    // sun-bleached gum greens: olive, sage and blue-grey, a few darker
+    let leaves = [0x8fa36f_u32, 0xa3b37f, 0x93a888, 0x7f9a66, 0x9aae8e, 0x6f8a5a, 0xb0bb8a];
+    let tall = rng.range(0.0, 1.0);
+    let h = 5.5 + tall * 4.5;
+    let r = 0.2 + rng.range(0.0, 0.14);
+    let mut v = Vec::new();
+    // the trunk, in two bent sections
+    let lean = V3::new(rng.range(-0.5, 0.5), 0.0, rng.range(-0.5, 0.5));
+    let base = V3::new(x, 0.0, z);
+    let mid = V3::new(x, h * 0.35, z) + lean * 0.5;
+    let fork = V3::new(x, h * 0.55, z) + lean;
+    v.push(limb(base, mid, r * 1.25, r, 9, bark));
+    v.push(limb(mid, fork, r, r * 0.85, 9, bark));
+    // a root flare at the ground
+    v.push(Part::new(Shape::Cone { r: r * 2.1, h: 0.5, seg: 9 }, bark).at(x, 0.25, z));
+    // the limbs, and a crown on each
+    let n = 2 + rng.index(2);
+    let a0 = rng.range(0.0, 2.0 * PI);
+    for k in 0..n {
+        let a = a0 + k as f32 * 2.0 * PI / n as f32 + rng.range(-0.4, 0.4);
+        let spread = rng.range(0.9, 2.2) * (1.4 - tall * 0.6);
+        let top = fork + V3::new(a.cos() * spread, h * rng.range(0.38, 0.5), a.sin() * spread);
+        let bend = (fork + top) * 0.5 + V3::new(a.cos() * 0.3, rng.range(-0.2, 0.2), a.sin() * 0.3);
+        v.push(limb(fork, bend, r * 0.8, r * 0.55, 7, bark));
+        v.push(limb(bend, top, r * 0.55, r * 0.3, 7, bark));
+        // a dead twig sticking out now and then
+        if rng.chance(0.35) {
+            let tw = bend + V3::new(-a.sin() * 0.9, 0.6, a.cos() * 0.9);
+            v.push(limb(bend, tw, r * 0.25, r * 0.08, 5, bark));
+        }
+        // the crown: lots of small, airy clumps spread wide (gums are sparse, not round balls),
+        // darker underneath, a few hanging lower, and a couple more along the limb
+        let clumps = 6 + rng.index(4);
+        for c in 0..clumps {
+            let s = rng.range(0.45, 0.95) * (0.85 + spread * 0.12);
+            let off = V3::new(rng.range(-1.7, 1.7), rng.range(-0.5, 0.8), rng.range(-1.7, 1.7));
+            let hang = if c >= clumps - 2 { -rng.range(0.5, 1.2) } else { 0.0 };
+            let col = leaves[rng.index(leaves.len())];
+            let col = if hang < 0.0 || off.y < -0.1 { looks::shade(col, 0.8) } else { col };
+            v.push(
+                Part::new(Shape::Ico { r: s, detail: 1 }, matt(col).faceted())
+                    .at(top.x + off.x, top.y + off.y + hang, top.z + off.z)
+                    .stretch(rng.range(0.9, 1.3), rng.range(0.5, 0.75), rng.range(0.9, 1.3))
+                    .turn(0.0, rng.range(0.0, PI), 0.0),
+            );
+        }
+        for _ in 0..2 {
+            let t = rng.range(0.4, 0.85);
+            let p = bend + (top - bend) * t;
+            let col = leaves[rng.index(leaves.len())];
+            v.push(
+                Part::new(Shape::Ico { r: rng.range(0.35, 0.6), detail: 1 }, matt(col).faceted())
+                    .at(p.x + rng.range(-0.5, 0.5), p.y, p.z + rng.range(-0.5, 0.5))
+                    .stretch(1.2, 0.6, 1.2),
+            );
+        }
+    }
+    v
+}
+
 fn gum_tree(rng: &mut Rng, x: f32, z: f32) -> Vec<Part> {
     let leaf = [0x7d9460, 0x6b8656, 0x8ea46b];
     let h = rng.range(6.0, 10.0);
@@ -1805,7 +1879,11 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
                 break;
             }
         }
-        world.extend(gum_tree(&mut rng, x, z));
+        if polished {
+            world.extend(gum_tree_styled(&mut rng, x, z));
+        } else {
+            world.extend(gum_tree(&mut rng, x, z));
+        }
     }
     let clouds: Vec<(V3, Vec<Part>)> = (0..9).map(|_| cloud(&mut rng)).collect();
     let (pole, hoist_head) = clothesline(polished);

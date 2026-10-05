@@ -128,6 +128,8 @@ pub enum Tex {
     Metal,
     Plastic,
     Concrete,
+    /// Gum-tree bark: pale, streaky, with peeling patches.
+    Bark,
 }
 
 impl Tex {
@@ -157,10 +159,11 @@ impl Tex {
             Tex::Metal => "metal.png",
             Tex::Plastic => "plastic.png",
             Tex::Concrete => "concrete.png",
+            Tex::Bark => "bark.png",
         }
     }
 
-    pub const ALL: [Tex; 23] = [
+    pub const ALL: [Tex; 24] = [
         Tex::VpLabel,
         Tex::Fish,
         Tex::Lawn,
@@ -184,11 +187,12 @@ impl Tex {
         Tex::Metal,
         Tex::Plastic,
         Tex::Concrete,
+        Tex::Bark,
     ];
 
     /// A surface texture (wood, metal...) rather than a picture (a sign, the lawn).
     pub fn is_material(self) -> bool {
-        matches!(self, Tex::Wood | Tex::Metal | Tex::Plastic | Tex::Concrete)
+        matches!(self, Tex::Wood | Tex::Metal | Tex::Plastic | Tex::Concrete | Tex::Bark)
     }
 }
 
