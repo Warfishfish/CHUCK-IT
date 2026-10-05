@@ -261,8 +261,20 @@ fn take_shot(
     cfg: Res<ShotConfig>,
     mut frame: Local<u32>,
     mut exit: MessageWriter<AppExit>,
+    meshes: Res<Assets<Mesh>>,
+    mats: Res<Assets<StandardMaterial>>,
+    drawn: Query<(), With<Mesh3d>>,
 ) {
     *frame += 1;
+    // `--stats`: how many meshes, materials and drawn parts there are (for measuring cuts)
+    if *frame == 100 && std::env::args().any(|a| a == "--stats") {
+        println!(
+            "STATS meshes={} materials={} mesh_entities={}",
+            meshes.iter().count(),
+            mats.iter().count(),
+            drawn.iter().count()
+        );
+    }
     // `--burst N`: N pictures 4 frames apart once the round is under way (for things that move),
     // saved as out_0.png, out_1.png...
     let args: Vec<String> = std::env::args().collect();

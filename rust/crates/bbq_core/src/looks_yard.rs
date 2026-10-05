@@ -229,12 +229,15 @@ fn weeds(rng: &mut Rng) -> Vec<Part> {
         // a tuft is a few thin cones fanned out
         let blades = 3 + rng.index(3);
         for _ in 0..blades {
+            // every blade is the same little cone, made taller or thinner by scaling it, so
+            // all the tufts share one mesh (and one material per colour) and are drawn together
             let (h, r) = (rng.range(0.16, 0.42), rng.range(0.025, 0.05));
             let (a, tilt) = (rng.range(0.0, 2.0 * PI), rng.range(0.1, 0.5));
             v.push(
-                Part::new(Shape::Cone { r, h, seg: 4 }, matt(c))
+                Part::new(Shape::Cone { r: 0.04, h: 0.3, seg: 4 }, matt(c))
                     .at(x + rng.range(-0.08, 0.08), h / 2.0, z + rng.range(-0.08, 0.08))
                     .turn(tilt * a.cos(), 0.0, tilt * a.sin())
+                    .stretch(r / 0.04, h / 0.3, r / 0.04)
                     .no_shadow_part(),
             );
         }

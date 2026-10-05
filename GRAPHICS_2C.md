@@ -4,30 +4,18 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 
 **The look in one line:** simple cartoon geometry + exaggerated, slightly wonky proportions + sun-baked Australian colours + surprisingly rich surface detail. Not photoreal, not clean, not generic low-poly. Readable first.
 
-## What the inspection found (5 Oct 2026)
+## How we work (Marcus, 5 Oct 2026)
+- ONE item at a time, in phase order. For each: find the current code first, reuse it, change only that item, keep gameplay as is, build and test, send Marcus before/after screenshots, tick only that item, then STOP. Commit and push only after Marcus says it looks right.
+- Item numbers (A1.2 and so on) are the handles to use: "do A2.3".
+- Direction (Marcus's prompt): **Sun-Baked Cartoon Realism**: a simple cartoon silhouette from a distance, surprising material and surface detail up close. Stylised, not photoreal. Tiny Glade and Foxtrot are inspiration only (environment richness, soft light, grounded materials), never a look to copy. Keep the lawn and playable areas readable; do not fill every space with clutter.
 
-**Engine and rendering**
-- Bevy 0.19.1, `StandardMaterial` (PBR: base colour, roughness, metallic, normal map, occlusion are all available; only base colour and a roughness value are used so far). MSAA 4x (Bevy default). No bloom, SSAO, SMAA, tone mapping or colour grading. Distance fog only (75 to 140 m).
-- Lighting copies three.js r149 on purpose: hex colours go in as linear, tone mapping off, a small shader (`assets/shaders/display_raw.wgsl`) undoes the sRGB step, one sun with shadow maps (default cascades) plus a flat ambient and a soft top light. That is why browser and Rust screenshots match. A new look must not break that, so there is a **look switch** (`--look browser|polished`); the compare toolkit uses `browser`.
-- Textures: 18 small PNGs (64 to 256 px) in `assets/textures/`, colour only, repeating, hand-made mipmaps, anisotropy 4. No roughness, normal or AO maps.
-- No decals, no instancing, no LODs.
-
-**Meshes and Blender**
-- Almost everything is built from shape lists in code (`bbq_core/src/looks.rs`, `looks_yard.rs`: cuboid, cylinder, sphere, cone, torus, capsule, ico, half-cylinder, ground...), flat-coloured, no bevels, no wobble. Shapes-as-data was chosen so a Blender script can rebuild them later.
-- Blender only makes the four blobs (`tools/make_blob.py` -> `assets/models/blob_*.glb`, about 100 to 125 KB each, flat grey, tinted per player by the game). The blob parts are separate (body, head, eyes, pupils, feet, hands), not a skinned skeleton. `/opt/homebrew/bin/blender` is installed; run scripts with `blender --background --python tools/<script>.py` (the `pip install bpy` route is not set up).
-
-**The yard today (and how primitive it is)**
-- Lawn: one repeating `lawn.png` over a flat ground plane with mow stripes; a flat green paddock outside. No dry grass, dirt, weeds or paths.
-- House: a single weatherboard box with two roof slabs, five windows, a door, a water tank. No veranda, perfectly straight. Fence: four straight paling panels.
-- Hills Hoist: pole plus turning head (works), perfectly upright.
-- Table, chairs (blue seat, dark frame), bar, BBQ (box with a lid and knobs), shed (box with corrugated texture), trampoline, pool (rectangle with coping), log pile, planters, tyres, cricket-free.
-- **Dildo Chest:** a brown wooden box with gold bands and a half-cylinder lid, only shown in Cheeky mode, at one of 9 spots (`CHEST_SPOTS`), lid eases open when stocked. **The four decorative eskies are blue boxes with white lids**, so a blue chest would be confused with them: they must change to other colours (red, white, green) so the bright-blue Chest stays unique.
-- No animals at all (no magpie yet). The sky has faceted clouds and faceted gum trees.
-- Characters: four selectable blobs (Classic = original capsule; Pear, Egg, Gumdrop = Marcus's shapes). Eyes are static white balls with black pupils; feet are flat dark discs; no clothes, no thongs.
-
-**Stays simple:** sky, clouds, far trees, paddock, pool tiles, signs, the house interior-facing details, bar stools, planter boxes.
-**Needs more surface detail (texture, not geometry):** lawn, fence, house, table, chairs, shed, tyres, concrete paving, bar, trampoline.
-**Worth a higher-detail model (still cartoon proportions):** the BBQ, the Dildo Chest esky, the Hills Hoist, the character blobs (close in every match), the table and chairs, the bin and sauce bottles, the magpie, the held items (teddy, stubby, gnome, steak, fish, noodle, snag).
+## What exists now (inspection, updated 5 Oct 2026)
+- **Engine:** Bevy 0.19.1, `StandardMaterial`. Used: base colour, roughness, texture, vertex colours (the lawn), emissive. Available but not used yet: normal maps, metallic, occlusion maps. Two looks: `--look browser` (matches the browser game for the compare toolkit) and `polished` (everything in this list).
+- **Lighting and screen:** one sun with a 4096 shadow map and Gaussian filtering, a weak cool rim light, an ambient light from the sky/ground colours, SSAO with SMAA (not MSAA), colour grading and a vignette in `display_raw.wgsl`, distance fog. Tone mapping is off on purpose. Bloom was tried and removed (it flickered the sky).
+- **Meshes:** almost all built in code from shape lists (`bbq_core/src/looks.rs`, `looks_yard.rs`), with `sun_bake` and `texture_pass` giving colour and textures. Blender only makes the four blobs (`tools/make_blob.py`, with the belly shape keys). Models load as GLB; the blob parts are named (Torso, Head, EyeL...) and the game finds them by name.
+- **Textures:** 18 browser pictures plus generated ones from `tools/make_textures.py`: wood, metal, plastic, concrete, bark, three decal shapes, a particle dot, and normal maps for wood, metal, plastic, concrete and bark (the normal maps are not used yet). Laid by real size with `Surface::material`.
+- **Also in place:** forward decals (`decals.rs`), GPU particles with `bevy_hanabi` (`fx.rs`), a character preview camera (`preview.rs`). Not in place: LODs, instancing, a Blender hero-model path for props.
+- **Limits found:** SSAO needs MSAA off; decals need a depth pre-pass; shapes built in code have no bevels; no skeletal animation (characters are animated by moving named parts); frame time on Marcus's Mac has not been measured.
 
 **Decisions made while merging the new brief (change me if wrong)**
 1. Game rules and hit sizes do not change. Character looks change only (Marcus's 4 Oct rule: the four characters differ in looks, not speed or hit sizes). The big feet and thongs are drawn bigger than the collision, never used for it.
@@ -38,146 +26,182 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 
 ## Checklist
 
-### Characters
-- [x] Eyes that bob and slide as you walk and run (eyeballs bob and pop on different beats, pupils slosh on bouncy springs, swirl when stunned, wander when drunk)
-- [ ] Simple expressive faces: brows, a mouth that changes (stunned, drinking, throwing, drunk)
-- [ ] Clothing with folds: a singlet that wrinkles round the tummy (done on Pear, Egg and Gumdrop: loose shell with a wavy hem and folds), board shorts or stubbies, a cap or hat on some characters
-- [ ] Slight asymmetry per character (head tilt done: -4, +5 and -3 degrees; still to do: one shoulder lower, a wonky grin) and clearly different silhouettes between the four
-- [x] Dazza: more caricature: sunburnt skin and nose, a cork hat with dangling corks, wraparound sunnies with blue lenses, a bushy moustache, a big belly with the apron riding up on it, stubby shorts, a stubby in a holder, and big feet in thongs (polished look only)
-- [ ] Leader crown, stars, sash and tag still read clearly on the new bodies
+### Style direction (decided by Marcus before the phases go further)
+- [ ] S1. Two upgrade examples for Marcus to compare: one character and one corner of the yard, each in a "more upgraded" style, before deciding how far to take the whole game
+- [ ] S2. Upgrade the game's overall style to be more unique and funny (example screenshots first; Marcus picks before anything is pushed)
 
-### Character proportions
-- [x] Slightly oversized heads, larger hands, noticeably large feet (visual only, collision unchanged); feet step as they walk
-- [ ] Oversized thongs (done: flat, chunky, a colour each, with a strap) and slightly exaggerated stomachs (done); skinny lower legs still to do (the blobs have no legs, so this needs a pose change)
-- [ ] Walk, throw, stunned and fall poses re-checked with the bigger feet and hands (no clipping)
+## PHASE A: Environment foundation
 
-### Environment
-- [x] Lawn: dry yellow grass, stubborn bright-green patches, bare dirt, uneven coverage, mow stripes still visible (done as a 1 m grid of vertex colours over the lawn tile, `PatchyLawn` + `lawn_tint`; soft dirt decals on top; polished look only)
-- [x] Worn pathways from the back door to the BBQ, bar and Hills Hoist; dirt round the BBQ and bar (`dirt_spots`, soft `soft_dot.png` discs)
-- [x] Sun-baked palette pass on every flat colour (`sun_bake`: every plain colour fades 14% towards grey and warms; textured, glowing, see-through and unlit things and the eskies are left alone)
-- [x] Sky and fog a little warmer near the horizon, a hazy heat feel (fog 0xc9e1e4 in the polished look)
-- [x] Fence leans a little, in 3 m sections of slightly different heights and shades with fat posts (visual only; the collider is still straight)
-- [ ] Paddock and far trees get dry grass and a dusty colour, still very simple
+### A1. Ground and grass
+- [x] A1.1 Lawn with dry yellow grass, stubborn green patches and uneven coverage, mow stripes still visible (a 1 m grid of vertex colours over the lawn tile, `PatchyLawn` + `lawn_tint`; polished look only)
+- [x] A1.2 Worn pathways from the back door to the BBQ, bar and Hills Hoist, and dirt round the BBQ and bar (`dirt_spots`)
+- [x] A1.3 Dirt patches placed naturally: clusters of overlapping soft ellipses in different earthy tones, along paths and where people stand, creeping in from the fences
+- [x] A1.4 Weeds and dry tufts: 170 tufts along the fences and about
+- [x] A1.5 Instance the tufts and weeds: parts with the same shape and surface now share one mesh and one material (cache in `models.rs`), tuft blades are one shared cone scaled per blade. Materials 3,129 to 373, meshes 3,166 to 1,583 (`--stats`); frame time still to measure (E18.4)
+- [ ] A1.6 Fallen leaves and bark bits under the gum trees and along the fence lines (flat decals or tiny shapes)
+- [ ] A1.7 A few small bits of backyard debris on the lawn (bottle caps and stubbies are in; add sticks, a crushed can, a lid)
+- [ ] A1.8 Paddock and far trees get dry grass and a dusty colour, still very simple
+- [ ] A1.9 Check the ground still reads clearly for moving and for seeing items (a readability check on Marcus's Mac)
 
-### Australian backyard details
-- [x] The house: faded cream weatherboard, uneven roofline, a veranda whose roof sags in the middle, a flyscreen door (a letterbox would be hidden behind the fence, so left out)
-- [x] Hills Hoist leaning about 3 degrees with a rusty pole and arms (pegs and a towel still to do)
-- [ ] Weeds and dry tufts (done: 170 tufts; not yet instanced), cracked concrete paving by the back door (done), a green wheelie bin (the bins exist), a hose and a sprinkler
-- [x] Small clutter that tells a story: cricket stumps and a bat, a dog bowl and bone, thongs by the back door, a washing basket and sock, stubbies and bottle caps in the grass
+### A2. Lighting
+- [x] A2.1 Warm sun, cooler shadows, a stronger sun and slightly lower ambient for depth (first pass; tune on Marcus's Mac)
+- [x] A2.2 Shadows: 4096 shadow map and Gaussian filter in the polished look
+- [x] A2.3 A rim or back light so characters separate from the lawn
+- [x] A2.4 Ambient occlusion so things sit on the ground (SSAO, subtle, strongest under the BBQ and in creases)
+- [ ] A2.5 Tune the shadow cascades so near shadows are crisp and far tree shadows still reach (cascade tuning)
+- [ ] A2.6 Check tree shadows on the lawn and fence; thicken or soften them if they look patchy
+- [ ] A2.7 Under the shed roof and under the veranda get a darker, cooler feel
+- [ ] A2.8 Tune the whole afternoon feel on Marcus's Mac (sun angle, warmth, how dark the shadows are), still clearly daytime, not orange
 
-### Props
-- [x] Outdoor table: thick timber planks in different browns, slightly warped, nail heads, beer rings, a spill, chunky splayed legs and a stretcher (scratches and bevels come with the textures)
-- [x] Plastic chairs: chunky, sun-faded, slatted back, fat arms and legs, each crooked with a bent leg (scratches come with the textures)
-- [x] BBQ: oversized uneven wheels, big rounded red hood propped open, stubby knobs, slight asymmetry
-- [ ] Shed, bar, trampoline, planters, log pile, tyres, tank: bevels, a slight lean, dirt, rust
-- [x] Items in hand and on the ground get a second look: teddy seam, patch and red bow tie; gnome eyes, rosy cheeks, belt with a gold buckle and boots; steak and snag grill marks and marbling (the stubby label, fish scales and noodle ends were already there)
-- [x] Red sauce bottle and yellow mustard bottle on the outdoor table
+### A3. Materials
+- [x] A3.1 Generated textures: wood, worn metal, sun-faded plastic, cracked concrete, laid by real size (`make_textures.py`, `texture_pass`)
+- [x] A3.2 Wood on the table, fence posts, crates, bar and veranda; metal on the BBQ and shed roof; plastic on the chairs and eskies; a concrete pad
+- [ ] A3.3 Use the normal maps that are already made (`wood_n`, `metal_n`, `plastic_n`, `concrete_n`, `bark_n`) on their materials, polished look only
+- [ ] A3.4 Roughness and metal per material instead of one matt value (cans and BBQ metal shiny, wood and fabric matt, plastic in between)
+- [ ] A3.5 Roughness maps and ambient occlusion maps for wood and metal (generated with the others)
+- [ ] A3.6 A fabric material: towels, washing, the umbrella cloth, the singlet (soft, matt, a little weave)
+- [ ] A3.7 Scratches, dirt and fading on the chairs, shed, bar, trampoline and tyres (more of A3.2's style on props that are still flat)
+- [ ] A3.8 Stronger, cleaner colours on gameplay objects (Chest, bins, sauce bottles, items) than on the background
 
-### Dildo Chest
-- [x] Rebuild it as a big, chunky, bright-blue esky (bigger than a normal esky, strong silhouette, easy to see from far away at all 9 spots) — first pass done in shapes (`chest_esky`, polished look only); check all 9 spots on Marcus's Mac
-- [x] Chunky hinges, a large handle, an exaggerated lid that still opens and eases shut as now (hinge at `ESKY_PIVOT`)
-- [ ] Surface: scratches, faded plastic, dirt, stickers, worn corners, slight discoloration
-- [x] Change the four decorative eskies to red, green, orange and grey so only the Chest is bright blue
-- [ ] Check it reads against grass, dirt, the shed and the fence, in shadow and in sun
+### A4. Environmental integration
+- [x] A4.1 Decals: grease and a scorch mark by the BBQ, a beer spill by the bar, meat drips, a wet edge round the pool, bird droppings under the magpies, grime at the back door, and fading beer stains where a VP can bursts
+- [ ] A4.2 Fence: dirt and weeds at the base of the posts and boards, and darker ground where the fence shades it
+- [ ] A4.3 BBQ area: flattened grass, more grease and sauce stains, food scraps and bottle caps close to the BBQ and table
+- [ ] A4.4 Tyres: compressed grass and dirt under them, a few weeds round the stack, a soft contact shadow
+- [ ] A4.5 Pool: worn grass at the edges, a wetter darker ground band all round (more than the two decals now), towels and thongs left on the edge
+- [ ] A4.6 A soft blob shadow under props that SSAO misses (the shed, bins, bar legs)
 
-### Next up (added 5 Oct 2026, Marcus), worked one at a time
-How we work on these: one item at a time; I show Marcus screenshots (before and after) and only commit and push once he says it looks right.
-- [x] Flicker fixes (5 Oct 2026): the sky flickered because bloom spread any sun glint across the whole sky (bloom removed); the umbrella canopy and its glowing underside were 1.5 cm apart (top now one-sided, underside 8 cm lower); the smoko pad flickered against dirt patches drawn at the same height (no dirt under the pad, pad 2 cm up, dirt lower). Checked with 24-frame bursts, still and with a moving camera
-- [x] Fix the glitch under the umbrella in the smoko area (the two crossed see-through signs showed each other mirrored; now a four-sided sign box, and the canopy underside glows yellow)
-- [x] Eyeballs jump around when walking and running, each character with its own eye wobble: eyeballs on springs kicked by every footstep, thrown back and forward by speeding up and stopping, pupils riding on them. Classic steady, Pear lazy and floaty, Egg googly (eyes swell), Gumdrop big boings with squash and stretch and cross-eyed. Toned to 60% (`EYE_STRENGTH`) at Marcus's request
-- [x] Beer bellies look natural: part of the body (Blender shape keys "Belly" and "Sag" on the body and singlet, no ball stuck on), full and round, the singlet riding up over it; they bounce on every step, squash on landing, swing when speeding up or stopping. A "Beer belly" slider under the character preview (None to Enormous, saved), and each bot gets its own size. Looks only
-- [x] Trees: gum trees with pale streaky peeling bark (`bark.png` from `make_textures.py`), a bent trunk with a root flare, 2 or 3 forking limbs, airy crowns of many small clumps in sun-bleached greens (darker underneath, some drooping), the odd dead twig; tall-and-spindly to short-and-spreading. Polished look only
-- [ ] Two upgrade examples for Marcus to compare: one character and one corner of the yard, each in a "more upgraded" style, before deciding how far to take the whole game
-- [ ] Upgrade the game's overall style to be more unique and funny (Marcus sees example screenshots and picks before anything is pushed)
-- (kept for later) Normal maps for wood, metal, plastic and concrete are made (`*_n.png`) but not yet used in the game
+## PHASE B: World character
 
-### More from Marcus (5 Oct 2026)
-- [x] Dirt patches look more naturally placed (irregular clusters of overlapping soft ellipses in different earthy tones, worn where people walk and gather, not random round dots)
-- [x] Dildos are much floppier (softer spring, less damping, a bigger lean, a stronger droop and a bendier tip)
-- [x] Heist: the smoko pad moves beside the pool, clear of every base (`heist::smoko_spot`)
-- [x] Every character has its own eye-bob style (Classic steady, Pear lazy and floaty, Egg nervous and googly, Gumdrop big and cross-eyed), plus small differences between individual blobs
-- [x] Dildos have more surface texture (ribbing rings, raised bumps, a ridge under the head, bumps on the cup)
-- [x] Choosing your blob shows a rotating preview of the character in a panel beside the menu (second camera drawing into a picture on render layer 1; `preview.rs`)
+### B5. Trees
+- [x] B5.1 Gum trees with pale streaky peeling bark, a bent trunk with a root flare, 2 or 3 forking limbs, airy crowns of many small clumps in sun-bleached greens, the odd dead twig; tall-and-spindly to short-and-spreading
+- [ ] B5.2 Leaning trunks and a few split or double trunks
+- [ ] B5.3 One or two slightly dead trees (bare limbs, a few leaf clumps)
+- [ ] B5.4 More variety in trunk width and crown shape (a wide spreading one, a thin whippy one)
+- [ ] B5.5 Far trees fade slightly into the haze (ties to B8.3)
 
-### Eskies, toys and noodles (added 5 Oct 2026, Marcus)
-- [x] Every esky in the yard is an esky you can open (R near it opens the lid for 3 s; polished look); the old wooden pirate chest is gone. Only one esky holds the toys (the Dildo Chest, at its random spot each round); the other four open onto nothing ("Just ice and an old stubby. Empty!"). Later they can hold other things
-- [x] The toys inside the Chest look larger when you look at the open esky (0.9, was 0.52, standing well out of the esky)
-- [x] Dildos flop around like in the browser game: the same chain of 7 links, spring numbers (K 90, C 2.1), footstep flicks, drooping in the hand, shaking in flight, gentle sway in the chest (`Wobble`, `FloppyChain`; core `looks::floppy`)
-- [x] Pool noodles flop the same way (K 110, C 2.6), and are longer: 8 links of 0.24 m = 1.92 m (the browser's were 7 x 0.2 = 1.4 m)
-- [x] Slapping with a pool noodle works (tap to slap for 50 and a 1.2 s stun, hold to throw; a test checks both) and your own swing is now drawn across the screen like the browser's
+### B6. Fence
+- [x] B6.1 Fence leans a little, in 3 m sections of slightly different heights and shades with fat posts (visual only; the collider is still straight)
+- [ ] B6.2 Variation inside a section: boards of slightly different height, width and shade (subtle, not every board)
+- [ ] B6.3 Slight warping and leaning posts
+- [ ] B6.4 Stains, knots and weathering on the paling texture
+- [ ] B6.5 A few damaged boards: one missing, one broken, one hanging
+- [ ] B6.6 A gap or two the magpies can look through (visual only)
 
-### Cheeky-mode bottles (added 5 Oct 2026, Marcus; gameplay part in CHECKLIST.md)
-- [ ] Models for a glass beer bottle and a spirit bottle (labels, see-through glass with liquid inside, a cap or cork)
-- [ ] Smash effect: glass shards and a splash (particles), and a stain left on the ground (decal)
+### B7. Detail clusters
+- [x] B7.1 Small clutter that tells a story: cricket stumps and bat, dog bowl and bone, thongs by the back door, washing basket and sock, stubbies and bottle caps
+- [x] B7.2 BBQ area: BBQ, outdoor table, chairs, sauce and mustard bottles, esky, food (the BBQ cluster's rubbish is in A4.3)
+- [ ] B7.3 Pool area: towels, a pool umbrella, chairs, pool toys, thongs, wet ground (with A4.5)
+- [ ] B7.4 Shed and junk area: tyres, tools, a mower, timber offcuts, oil stains, old junk
+- [ ] B7.5 Clothesline area: washing and pegs on the hoist, a peg basket, worn dirt right under it
+- [ ] B7.6 Fence areas: the wheelie bins (a green one), old furniture, stacked timber, small rubbish
+- [ ] B7.7 A hose and a sprinkler on the lawn
+- [ ] B7.8 Keep the middle of the yard open: check each cluster stays out of the walking and throwing space
 
-### Particles (bevy_hanabi, added 5 Oct 2026)
-- [x] Hit stars and a puff where a throw lands; beer foam when a VP can bursts; a whack burst on slaps; a splash in the pool; dust when someone falls or lands hard; a steady wisp of smoke from the BBQ (`fx.rs`; `--fxtest` fires them all for looking at)
-- [ ] Footstep dust while sprinting, puffs when the trampoline throws you, steam from the pool on hot days, a spray when a bot stacks it, confetti on the results card
+### B8. Sky and atmosphere
+- [x] B8.1 Sky and fog a little warmer near the horizon (fog 0xc9e1e4 in the polished look)
+- [ ] B8.2 Sky gradient: deeper blue overhead, paler and warmer at the horizon
+- [ ] B8.3 Distance haze: far things lose contrast and fade into the horizon colour
+- [ ] B8.4 Cloud variety: different sizes, some thin and streaky, slow drift (clouds stay faceted and simple)
+- [ ] B8.5 Separate the foreground from the background (slightly cooler, hazier far trees and fence)
+- [ ] B8.6 Keep the stylised sky: no photographic sky box
 
-### Animals
-- [x] A magpie on the fence watching the player: absurdly big head, big beak, chunky body, wings, tail, big eyes, head that tracks you and cocks now and then (two spots: south fence and west fence)
-- [ ] Magpie extras: hops along the fence, flaps off if something flies close (visual only, no gameplay)
-- [ ] (Later, optional) a dog, a lizard or a kookaburra on the shed
+## PHASE C: Characters
 
-### Models
-- [ ] Shape builder: bevel option on cuboids and cylinders, a `wobble` (small per-part random tilt and size change from a fixed seed) so nothing is mathematically straight
-- [ ] Vertex-colour variation on shapes (a faded top and a darker bottom edge)
-- [ ] Keep each prop's collider as it is unless the new shape genuinely needs a new one; add tests that props still sit inside their colliders
+### C9. Proportions
+- [x] C9.1 Slightly oversized heads, larger hands, noticeably large feet (visual only, collision unchanged)
+- [x] C9.2 Oversized chunky thongs in a colour each, with a strap; slightly exaggerated stomachs
+- [x] C9.3 Beer bellies are part of the body (shape keys), full and round, with a "Beer belly" slider in the menu
+- [ ] C9.4 Slight asymmetry: one shoulder lower, a wonky grin (head tilt is done)
+- [ ] C9.5 Clearly different silhouettes between the four characters
+- [ ] C9.6 Skinny lower legs (the blobs have no legs, so this needs a pose change; decide with Marcus first)
+- [ ] C9.7 Walk, throw, stunned and fall poses re-checked with the bigger feet and hands (no clipping)
 
-### Textures
-(Textures are laid by real size: `Surface::material(tex, per_m)` repeats the picture per metre on boxes and cylinders, so a long plank does not stretch the grain.)
-- [x] `tools/make_textures.py` writes stylised timber, worn metal (with rust spots), sun-faded plastic and cracked concrete (256 px, tileable, light grey so each part's colour tints it). Roughness and normal maps still to do
-- [x] Wood: crisp growth rings, fibres, knots and scratches; on the table, fence posts, crates, bar, veranda and everything brown (`texture_pass`)
-- [x] Metal: brushed streaks, scratches, grime and rust spots; on the BBQ, shed roof and every mid-grey part (roughness variation still to do)
-- [x] Plastic: sun-fade blotches, fine scratches, dirt specks; on the chairs and every esky
-- [x] Concrete: cracks, stains, aggregate; a cracked pad inside the back gate
-- [x] Decals (Bevy forward decals, `decals.rs`; textures from `make_textures.py`): grease and a scorch mark by the BBQ, a beer spill by the bar, meat drips, a wet edge round the pool, bird droppings under the magpies, grime at the back door, and a beer stain (fading over 25 s, 10 at most) where a VP can bursts
+### C10. Secondary animation
+- [x] C10.1 Eyeballs bounce and bob while walking and running, each character in its own style (springs, footstep kicks, jolts), pupils riding on them; strength set to 60%
+- [x] C10.2 Belly bounce on every step, squash on landing, swing when speeding up or stopping
+- [x] C10.3 Feet step as the blob walks
+- [ ] C10.4 Eyes lag a little in fast turns
+- [ ] C10.5 Body leans forward when speeding up and back when stopping
+- [ ] C10.6 Exaggerated arm swing when walking and running
+- [ ] C10.7 Thong flap: the thongs lift and slap with each step
+- [ ] C10.8 Controlled squash and stretch on strong impacts (a big hit, a hard landing)
+- [ ] C10.9 Simple expressive faces: brows and a mouth that changes (stunned, drinking, throwing, drunk)
 
-### Materials
-- [ ] Roughness and metal per material instead of one matt value (cans and BBQ metal shiny, wood and fabric matt, plastic in between)
-- [ ] Use the normal, roughness and AO maps the engine already supports; keep the browser-look path unchanged
-- [ ] Stronger, cleaner colours on gameplay objects (Chest, bin, sauce bottles, items) than on the background
+### C11. Character materials and looks
+- [x] C11.1 Singlet over the tummy with folds and a wavy hem (Pear, Egg, Gumdrop)
+- [x] C11.2 Dazza: sunburnt skin, cork hat, sunnies, moustache, belly, apron, stubby shorts, stubby holder, thongs
+- [ ] C11.3 Singlet in the fabric material (A3.6), and shorts or stubbies for the blobs
+- [ ] C11.4 A cap or hat on some characters
+- [ ] C11.5 Skin and body roughness (a soft sheen, a little sunburn on the nose and shoulders)
+- [ ] C11.6 Leader crown, stars, sash and name tag still read clearly on the new bodies
 
-### Lighting
-- [x] Warm sun, cooler shadows (a blue-ish ambient), a stronger sun and slightly lower ambient for depth (first pass; tune on Marcus's Mac)
-- [x] Shadows: the shadow map is 4096 in the polished look (was 2048) and the engine's Gaussian filter is on, for crisper and softer-edged shadows (cascade tuning still open)
-- [x] A rim or back light so characters separate from the lawn (a weak cool light from the far side)
-- [x] Contact shadows or ambient occlusion so things sit on the ground (SSAO; subtle, strongest under the BBQ and in creases; measure the frame cost on Marcus's Mac)
-- [ ] Inside-the-shed and under-the-veranda get a darker feel
+## PHASE D: Hero assets
 
-### Rendering
-- [x] The look switch: `--look browser|polished` (screenshots default to browser, playing to polished; a menu option comes with the Phase 8 settings); `browser` keeps today's maths for the compare toolkit
-- [x] Colour grading in `display_raw.wgsl`: gentle warm curve, a little more saturation, more contrast, a soft vignette (polished look only)
-- [x] Screen-space ambient occlusion (High) with SMAA instead of MSAA (SSAO cannot be used with MSAA); polished look only; `--fx off` switches the screen effects off for comparing or a slow computer
-- [ ] Mild bloom: tried and REMOVED (it made the sky flicker); only revisit with a much stricter threshold
-- [x] Texture filtering: anisotropy 8 for ground and fences
+### D12. BBQ
+- [x] D12.1 Oversized uneven wheels, big rounded red hood propped open, stubby knobs, slight asymmetry
+- [x] D12.2 Surface wear: grease and burn marks on the plate, heat staining, bolts, a weld seam, rust patches
+- [ ] D12.3 Grill bars you can see, hood hinges, a proper handle, vents
+- [ ] D12.4 Faded stickers and food residue
+- [ ] D12.5 A Blender hero version with baked normal and AO (with E17)
 
-### Blender workflow
-- [ ] One script per asset in `tools/` (`make_esky.py`, `make_bbq.py`, `make_magpie.py`, `make_table.py`, `make_blob.py` updated...), all run with `blender --background --python`, each writes a `.glb` into `assets/models/`; a `tools/README` line says the order
-- [ ] Bevel modifier, weighted normals, shade smooth and UVs on every export
-- [ ] High-poly to low-poly bake of normal and AO for the hero props (BBQ, esky, magpie), 512 to 1024 px
-- [ ] Slight controlled mesh deformation and asymmetry in the scripts (seeded, so a rebuild gives the same wonk)
-- [ ] The game loads these models and falls back to the shape-list version if a file is missing
+### D13. Dildo Chest (the blue esky)
+- [x] D13.1 Rebuilt as a big, chunky, bright-blue esky with chunky hinges, a large handle, an exaggerated lid that still opens as before
+- [x] D13.2 Every esky in the yard is openable; only one holds the toys; the other four are red, green, orange and grey
+- [x] D13.3 The toys in the Chest look larger (0.9)
+- [ ] D13.4 Surface: scratches, faded plastic, dirt, stickers, worn corners, slight discoloration
+- [ ] D13.5 Check it reads against grass, dirt, the shed and the fence, in shadow and in sun, at all 9 spots
+- [ ] D13.6 A Blender hero version (with E17)
 
-### High-detail assets
-- [x] BBQ surface detail: grease and burn marks on the plate, heat staining, bolts, a weld seam, rust patches (shape-built; a Blender hero version with baked textures is still to do)
-- [ ] Dildo Chest esky (see above) as a hero model
-- [ ] Magpie as a hero model
-- [ ] Hills Hoist and the bar's taps and bottles
-- [ ] Food: a slightly oversized snag and steak with real-looking texture, the fish, the teddy, the gnome
+### D14. Interactive props
+- [x] D14.1 Table, chairs, sauce and mustard bottles (see A3 and B7 for the surface work)
+- [x] D14.2 Items get a second look: teddy seam, patch and bow tie; gnome face and belt; steak and snag grill marks
+- [x] D14.3 Dildos: floppy like the browser, bigger in the chest, more surface texture. Noodles: floppy, longer, slap works
+- [ ] D14.4 Cheeky-mode bottles: a glass beer bottle and a spirit bottle (labels, see-through glass with liquid, cap or cork); gameplay is in CHECKLIST.md
+- [ ] D14.5 Smash effect for those bottles: glass shards, a splash and a stain decal
+- [ ] D14.6 Food: a slightly oversized snag and steak with real-looking texture, the fish
+- [ ] D14.7 Shed, bar, trampoline, planters, log pile, tank: bevels, a slight lean, dirt, rust; springs on the trampoline, taps and bottles on the bar
+- [ ] D14.8 Hills Hoist: pegs, a towel and washing (with B7.5)
 
-### Optimization
-- [ ] LOD: a low version of each hero model for far away; swap by distance
-- [ ] Instance weeds, tufts, bottle caps; share materials between parts; merge static background parts into fewer meshes
-- [ ] Keep textures at 128 to 512 px (1024 only for BBQ and esky); no 4K
-- [ ] Measure frame time before and after on Marcus's Mac (11 bots, Heist arena, Cheeky mode); keep 60 fps; add a Low / High graphics option to the Phase 8 menu
-- [ ] Before and after screenshots of the yard, the BBQ, the Chest, the magpie and a blob close-up for Marcus to approve
+### D15. Animals
+- [x] D15.1 A magpie on the fence watching the player: big head, big beak, chunky body, head that tracks you and cocks now and then (two spots)
+- [ ] D15.2 Magpie extras: hops along the fence, flaps off if something flies close (visual only)
+- [ ] D15.3 A Blender hero magpie
+- [ ] D15.4 (Later, optional) a dog, a lizard or a kookaburra on the shed
 
-## Order of work (highest impact first)
-1. The look switch and warm/cool lighting plus grading (everything else shows up better under it)
-2. Lawn colour variety, dirt and paths
-3. The Dildo Chest esky and the four decor eskies changing colour
-4. Character feet, thongs, eye bob
-5. Magpie
-6. Wonky shape language (fence, house, hoist, table, chairs) and textures
-7. BBQ and other hero models, then LODs and performance
+## PHASE E: Technical polish
+
+### E16. Rendering
+- [x] E16.1 The look switch (`--look browser|polished`), colour grading and a vignette, SSAO with SMAA, anisotropy 8, and a `--fx off` switch
+- [x] E16.2 GPU particles with `bevy_hanabi`: hit stars and puff, beer foam, whack, pool splash, fall dust, BBQ smoke
+- [x] E16.3 Flicker fixes: bloom removed (it flickered the sky), umbrella surfaces separated, smoko pad lifted above dirt
+- [ ] E16.4 More particles: sprint dust, trampoline puffs, pool steam, a spray when a bot stacks it, confetti on the results card
+- [ ] E16.5 Bloom, only if it comes back with a very strict threshold and a flicker test
+- [ ] E16.6 Check SMAA against MSAA edges on Marcus's Mac and pick one
+- [ ] E16.7 A Low / High graphics option in the Phase 8 settings (turns off SSAO, particles, decals, the 4096 shadows)
+
+### E17. Blender pipeline
+- [ ] E17.1 One script per asset in `tools/` (`make_esky.py`, `make_bbq.py`, `make_magpie.py`...), run with `blender --background --python`, each writing a `.glb` into `assets/models/`; a `tools/README` line for the order
+- [ ] E17.2 Bevel modifier, weighted normals, shade smooth and UVs on every export
+- [ ] E17.3 High-poly to low-poly bake of normal and AO for the hero props, 512 to 1024 px
+- [ ] E17.4 Slight controlled mesh deformation and asymmetry in the scripts (seeded, so a rebuild gives the same wonk)
+- [ ] E17.5 The game loads a hero model and falls back to the shape-list version if the file is missing
+- [ ] E17.6 Shape builder in code: a bevel option on cuboids and cylinders, and a small seeded tilt and size change so nothing is mathematically straight
+- [ ] E17.7 Vertex-colour variation on shapes (a faded top, a darker bottom edge)
+- [ ] E17.8 Tests that props still sit inside their colliders after any new shape
+
+### E18. LOD and optimisation
+- [ ] E18.1 A low version of each hero model for far away, swapped by distance
+- [ ] E18.2 Share materials between parts; merge static background parts into fewer meshes
+- [ ] E18.3 Keep textures at 128 to 512 px (1024 only for the BBQ and esky); no 4K
+- [ ] E18.4 Measure frame time on Marcus's Mac (11 bots, Heist arena, Cheeky mode, effects on and off); keep 60 fps
+
+### E19. Final visual consistency pass
+- [ ] E19.1 Walk the whole yard for anything that looks off-style (too clean, too glossy, too straight, too detailed)
+- [ ] E19.2 One palette pass so the sun-baked colours match everywhere
+- [ ] E19.3 Before and after screenshots of the yard, the BBQ, the Chest, the magpie and a blob close-up for Marcus to approve
+- [ ] E19.4 Tick the Phase 2c look check on Marcus's Mac in `RUST_REWRITE_PLAN.md`
+
+## Notes
+- Items done before this reorganisation keep their `[x]` and their wording; nothing was removed.
+- Normal maps are made but not used until A3.3. The flicker findings are recorded in E16.3.

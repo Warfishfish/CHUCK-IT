@@ -114,16 +114,38 @@ impl Built {
 }
 
 /// Make one finished part from a part description.
+///
+/// Parts with the same shape and the same surface share one mesh and one material. Bevy draws
+/// entities that share both in a single instanced draw, so 170 grass tufts of the same few
+/// kinds cost a handful of draw calls instead of hundreds.
 fn build_part(
     p: &Part,
-    cache: &ModelCache,
+    cache: &mut ModelCache,
     meshes: &mut Assets<Mesh>,
     mats: &mut Assets<StandardMaterial>,
 ) -> Built {
     let s = &p.surface;
+    let mesh_key = format!("{:?}|{}", p.shape, s.uv_per_m);
+    let mesh = match cache.shared_meshes.get(&mesh_key) {
+        Some(h) => h.clone(),
+        None => {
+            let h = meshes.add(crate::shapes::build_mesh_uv(&p.shape, s.uv_per_m));
+            cache.shared_meshes.insert(mesh_key, h.clone());
+            h
+        }
+    };
+    let mat_key = format!("{s:?}");
+    let material = match cache.shared_materials.get(&mat_key) {
+        Some(h) => h.clone(),
+        None => {
+            let h = mats.add(material(s, cache));
+            cache.shared_materials.insert(mat_key, h.clone());
+            h
+        }
+    };
     Built {
-        mesh: meshes.add(crate::shapes::build_mesh_uv(&p.shape, s.uv_per_m)),
-        material: mats.add(material(s, cache)),
+        mesh,
+        material,
         transform: transform_of(p),
         casts: !s.no_shadow,
         receives: !(s.no_shadow && (s.additive || s.alpha < 1.0)),
@@ -135,6 +157,9 @@ fn build_part(
 pub struct ModelCache {
     textures: HashMap<Tex, Handle<Image>>,
     built: HashMap<ModelKey, Vec<Built>>,
+    /// Meshes and materials already made, by what they are (see `build_part`).
+    shared_meshes: HashMap<String, Handle<Mesh>>,
+    shared_materials: HashMap<String, Handle<StandardMaterial>>,
 }
 
 pub struct ModelsPlugin;
