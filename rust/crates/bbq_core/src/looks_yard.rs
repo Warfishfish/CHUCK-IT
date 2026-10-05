@@ -1989,8 +1989,9 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
     world.extend(props(polished));
     let (chest_base, chest_lid) = if polished { chest_esky() } else { chest() };
     let eskies = if polished {
-        DECOR_ESKIES
-            .into_iter()
+        crate::yard::decor_eskies()
+            .iter()
+            .copied()
             .enumerate()
             .map(|(n, (x, z, r))| {
                 let (body, dark) = [(0xc9392f, 0x7d1f19), (0x2f8a55, 0x1b5232), (0xd9822b, 0x8a4c10), (0x7d8a93, 0x4a545c)][n % 4];

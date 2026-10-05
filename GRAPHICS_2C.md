@@ -28,7 +28,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 
 ### Style direction (decided by Marcus before the phases go further)
 - [x] S1. Two upgrade examples compared (6 Oct 2026): "Cartoon pop" (outlines, vivid colours, big-headed characters) and "Dusty clay" (no outlines, squat clay toys, golden light). Marcus chose Pop with clay's warm light and thinner outlines
-- [x] S2. The game's overall style: **Pop with clay's warm golden light** is now the polished look (`style.rs`, `--style pop|clay|current` to switch): outlines on the "hero" things only (characters, Dazza, items, magpie, BBQ and bar area, table, chairs, eskies; not fence, trees, ground or house), vivid colours, a low strong golden sun with cool shade, a warm hazy horizon, big-headed big-handed big-footed characters (models `blob_*_pop.glb`, made by `make_blob.py --style pop`), a stronger belly flop. Outlines thinned twice at Marcus's request. The browser look is unchanged. Still open: Dazza's outline is partial; a subtle clay skin texture on Pop characters is optional
+- [x] S2. The game's overall style: **Pop with clay's warm golden light** is now the polished look (`style.rs`, `--style pop|clay|current` to switch): outlines on the "hero" things only (characters, Dazza, items, magpie, BBQ and bar area, table, chairs, eskies; not fence, trees, ground or house), vivid colours, a low strong golden sun with cool shade, a warm hazy horizon, big-headed big-handed big-footed characters (models `blob_*_pop.glb`, made by `make_blob.py --style pop`), a stronger belly flop. Outlines thinned twice at Marcus's request. The browser look is unchanged. Dazza's outline is complete (body, head, hat brim, corks, hands, spatula). Still open: a subtle clay skin texture on Pop characters is optional
 
 ## PHASE A: Environment foundation
 
@@ -39,7 +39,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] A1.4 Weeds and dry tufts: 170 tufts along the fences and about
 - [x] A1.5 Instance the tufts and weeds: parts with the same shape and surface now share one mesh and one material (cache in `models.rs`), tuft blades are one shared cone scaled per blade. Materials 3,129 to 373, meshes 3,166 to 1,583 (`--stats`); frame time still to measure (E18.4)
 - [x] A1.6 Fallen leaves and bark bits under the gum trees and along the fence lines (about 170 leaves and some bark strips along the fences, a light scatter on the lawn, a few under each tree; flat, tiny, no shadow, clear of the pool and smoko pad; Marcus asked for fewer leaves)
-- [ ] A1.7 A few small bits of backyard debris on the lawn (bottle caps and stubbies are in; add sticks, a crushed can, a lid)
+- [ ] A1.7 (on hold, Marcus 6 Oct 2026: the ground already has enough going on) A few small bits of backyard debris on the lawn (bottle caps and stubbies are in; add sticks, a crushed can, a lid). Also bring back the four empty yard eskies that open onto nothing: switch them on again with `bbq_core::yard::set_empty_eskies(true)` in `main.rs`; they are red, green, orange and grey, openable with R, and could hold other things later
 - [ ] A1.8 Paddock and far trees get dry grass and a dusty colour, still very simple
 - [ ] A1.9 Check the ground still reads clearly for moving and for seeing items (a readability check on Marcus's Mac)
 
@@ -148,7 +148,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 
 ### D13. Dildo Chest (the blue esky)
 - [x] D13.1 Rebuilt as a big, chunky, bright-blue esky with chunky hinges, a large handle, an exaggerated lid that still opens as before
-- [x] D13.2 Every esky in the yard is openable; only one holds the toys; the other four are red, green, orange and grey
+- [x] D13.2 Every esky in the yard was openable and only one held the toys; the other four (red, green, orange, grey) are now switched OFF in the polished look (picture, collider and R prompt) until A1.7
 - [x] D13.3 The toys in the Chest look larger (0.9)
 - [ ] D13.4 Surface: scratches, faded plastic, dirt, stickers, worn corners, slight discoloration
 - [ ] D13.5 Check it reads against grass, dirt, the shed and the fence, in shadow and in sun, at all 9 spots

@@ -38,6 +38,10 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let shot = shot::parse(&args);
     style::init(&args);
+    // the polished look has no empty eskies for now (A1.7 brings them back)
+    if lighting::LookMode::from_args(&args) == lighting::LookMode::Polished {
+        bbq_core::yard::set_empty_eskies(false);
+    }
     // Screenshot mode uses an 800 x 600 window at normal pixel size so pictures can be compared.
     let window = if shot.is_some() {
         Window {

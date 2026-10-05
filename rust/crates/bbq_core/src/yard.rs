@@ -128,6 +128,25 @@ pub const DECOR_ESKIES: [(f32, f32, f32); 4] = [
     (24.0, 6.0, 1.4),
 ];
 
+static EMPTY_ESKIES: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+/// Turn the four empty yard eskies on or off (the polished look has them off for now, 6 Oct 2026,
+/// at Marcus's request; they come back with GRAPHICS_2C.md item A1.7). Off removes the picture,
+/// the collider and the "R: open the esky" prompt together. They stay on by default, so the
+/// browser look and the tests are unchanged.
+pub fn set_empty_eskies(on: bool) {
+    EMPTY_ESKIES.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The yard eskies that are in the game right now (none while they are switched off).
+pub fn decor_eskies() -> &'static [(f32, f32, f32)] {
+    if EMPTY_ESKIES.load(std::sync::atomic::Ordering::Relaxed) {
+        &DECOR_ESKIES
+    } else {
+        &[]
+    }
+}
+
 /// Where the chest can sit, as (x, z, rotation). Each round picks a new one.
 #[allow(clippy::approx_constant)] // 3.14 is the JavaScript game's own number
 pub const CHEST_SPOTS: [(f32, f32, f32); 9] = [
@@ -216,7 +235,7 @@ impl Yard {
         c.push(pole); // clothesline pole
         c.push(Collider::centred(22.5, -16.5, 4.0, 3.0, 2.6).of(Kind::Shed)); // shed
         // Eskies: the box is the axis-aligned bounds of a 1.5 x 1.0 box turned by r.
-        for (x, z, r) in DECOR_ESKIES {
+        for &(x, z, r) in decor_eskies() {
             let (s, co) = (r.sin().abs(), r.cos().abs());
             c.push(Collider::centred(x, z, 1.5 * co + 1.0 * s, 1.5 * s + 1.0 * co, 0.75).of(Kind::Esky));
         }

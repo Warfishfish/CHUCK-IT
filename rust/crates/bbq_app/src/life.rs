@@ -460,7 +460,7 @@ fn meat_spot(p: &Player, bbq_on: bool) -> Option<ItemKind> {
 
 /// The nearest of the yard's other eskies within reach, and which one it is.
 pub fn near_decor_esky(p: &Player) -> Option<usize> {
-    yard::DECOR_ESKIES
+    yard::decor_eskies()
         .iter()
         .enumerate()
         .map(|(i, (x, z, _))| (i, (p.mover.x - x).hypot(p.mover.z - z)))

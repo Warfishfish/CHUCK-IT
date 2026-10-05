@@ -748,10 +748,9 @@ fn spawn_dazza(
             t,
             ChildOf(body),
         ));
-        if pop && let Some(a) = aabb {
-            let half = Vec3::from(a.half_extents).max_element().max(0.02);
+        if pop && let Some(a) = aabb && Vec3::from(a.half_extents).max_element() * t.scale.max_element() > 0.04 {
             let mut o = t;
-            o.scale = t.scale * (1.0 + 0.013 / (half * t.scale.max_element()));
+            o.scale = outline_scale_for(a.half_extents.into(), t.scale, 0.013);
             commands.spawn((
                 Mesh3d(h),
                 MeshMaterial3d(outline_mat.clone()),
@@ -872,7 +871,7 @@ fn spawn_dazza(
         );
     }
     let _ = &boot;
-    // the spatula arm
+    // the spatula arm (outlined too in the pop style: a slightly bigger black copy of each part)
     let arm = commands
         .spawn((
             Transform::from_xyz(0.5, 1.05, 0.05),
@@ -881,25 +880,33 @@ fn spawn_dazza(
             ChildOf(body),
         ))
         .id();
-    commands.spawn((
-        Mesh3d(meshes.add(Sphere::new(0.11))),
-        MeshMaterial3d(skin),
-        Transform::from_xyz(0.0, -0.15, 0.0),
-        ChildOf(arm),
-    ));
-    commands.spawn((
-        Mesh3d(meshes.add(Cylinder::new(0.02, 0.4))),
-        MeshMaterial3d(tool),
-        Transform::from_xyz(0.0, -0.05, 0.2)
-            .with_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)),
-        ChildOf(arm),
-    ));
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(0.16, 0.015, 0.2))),
-        MeshMaterial3d(plate),
-        Transform::from_xyz(0.0, -0.05, 0.48),
-        ChildOf(arm),
-    ));
+    let arm_parts: [(Mesh, Handle<StandardMaterial>, Transform, f32); 3] = [
+        (Sphere::new(0.11).into(), skin, Transform::from_xyz(0.0, -0.15, 0.0), 0.11),
+        (
+            Cylinder::new(0.02, 0.4).into(),
+            tool,
+            Transform::from_xyz(0.0, -0.05, 0.2).with_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)),
+            0.1,
+        ),
+        (Cuboid::new(0.16, 0.015, 0.2).into(), plate, Transform::from_xyz(0.0, -0.05, 0.48), 0.1),
+    ];
+    for (mesh, mat, tf, _size) in arm_parts {
+        let half = bevy::camera::primitives::MeshAabb::compute_aabb(&mesh)
+            .map_or(Vec3::splat(0.1), |a| Vec3::from(a.half_extents));
+        let h = meshes.add(mesh);
+        commands.spawn((Mesh3d(h.clone()), MeshMaterial3d(mat), tf, ChildOf(arm)));
+        if pop {
+            let mut o = tf;
+            o.scale = outline_scale_for(half, tf.scale, 0.013);
+            commands.spawn((
+                Mesh3d(h),
+                MeshMaterial3d(outline_mat.clone()),
+                o,
+                bevy::light::NotShadowCaster,
+                ChildOf(arm),
+            ));
+        }
+    }
 
     // name tag and speech bubble
     commands.spawn((
@@ -1481,8 +1488,8 @@ fn animate_face_and_feet(
             // with outlines or a bigger body the flop is harder to see, so the styles show it a bit more
             let flop = match crate::style::current() {
                 crate::style::Style::Current => 1.0,
-                crate::style::Style::Pop => 1.8,
-                crate::style::Style::Clay => 1.4,
+                crate::style::Style::Pop => 4.4,
+                crate::style::Style::Clay => 3.0,
             };
             ws[1] = dr.sag * size.max(0.3) * flop;
         }
@@ -1578,4 +1585,11 @@ fn animate_face_and_feet(
         let a = ph + if f.right { std::f32::consts::PI } else { 0.0 };
         tf.translation = f.base + Vec3::new(0.0, a.cos().max(0.0) * 0.06 * k, a.sin() * 0.11 * k);
     }
+}
+
+/// The scale of an outline copy: every axis grows by `line` metres on each side whatever its
+/// size, so thin flat things (a hat brim, a spatula) get a line as well as fat round ones.
+fn outline_scale_for(half: Vec3, scale: Vec3, line: f32) -> Vec3 {
+    let g = |h: f32, s: f32| 1.0 + line / (h.max(0.004) * s.max(0.05));
+    Vec3::new(g(half.x, scale.x), g(half.y, scale.y), g(half.z, scale.z)) * scale
 }
