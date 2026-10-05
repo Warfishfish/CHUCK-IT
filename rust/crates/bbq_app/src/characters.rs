@@ -590,18 +590,32 @@ fn spawn_dazza(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
+    look: Res<crate::lighting::LookMode>,
 ) {
+    let polished = *look == crate::lighting::LookMode::Polished;
     let mut m = |c: Color| mats.add(c);
-    let skin = m(Color::linear_rgb(0.91, 0.71, 0.55));
+    // step 2c: sunburnt skin and a caricature (belly, cork hat, sunnies, stubbies, thongs)
+    let skin = if polished { m(crate::models::hex(0xf2a98a)) } else { m(Color::linear_rgb(0.91, 0.71, 0.55)) };
     let singlet = m(Color::linear_rgb(0.11, 0.25, 0.45));
     let apron = m(Color::linear_rgb(0.96, 0.97, 0.95));
     let belt = m(Color::linear_rgb(0.7, 0.23, 0.17));
     let hat = m(Color::linear_rgb(0.48, 0.35, 0.23));
     let dark = m(Color::linear_rgb(0.07, 0.07, 0.07));
-    let nose = m(Color::linear_rgb(0.85, 0.56, 0.42));
+    let nose = if polished { m(crate::models::hex(0xe0614a)) } else { m(Color::linear_rgb(0.85, 0.56, 0.42)) };
     let boot = m(Color::linear_rgb(0.23, 0.17, 0.1));
     let tool = m(Color::linear_rgb(0.16, 0.16, 0.16));
     let plate = m(Color::linear_rgb(0.85, 0.87, 0.88));
+    let khaki = m(crate::models::hex(0xb59a6a));
+    let cork = m(crate::models::hex(0xc9a06a));
+    let lens = mats.add(StandardMaterial {
+        base_color: crate::models::hex(0x2b5fa8),
+        perceptual_roughness: 0.15,
+        reflectance: 0.6,
+        ..default()
+    });
+    let holder = mats.add(crate::models::hex(0xe08a1e));
+    let can = mats.add(crate::models::hex(0xc9ced3));
+    let thong = mats.add(crate::models::hex(0x2f8ee8));
 
     let root = commands
         .spawn((
@@ -631,63 +645,112 @@ fn spawn_dazza(
         singlet.clone(),
         Transform::from_xyz(0.0, 0.8, 0.0),
     );
-    part(
-        Sphere::new(0.4).into(),
-        singlet,
-        Transform::from_xyz(0.0, 0.72, 0.12).with_scale(Vec3::new(1.0, 1.0, 0.9)),
-    );
-    part(
-        Cuboid::new(0.66, 0.78, 0.04).into(),
-        apron,
-        Transform::from_xyz(0.0, 0.72, 0.47).with_rotation(Quat::from_rotation_x(-0.08)),
-    );
-    part(
-        Cuboid::new(0.66, 0.07, 0.045).into(),
-        belt,
-        Transform::from_xyz(0.0, 0.93, 0.475),
-    );
+    if polished {
+        // a big round belly that the singlet stretches over, and the apron riding up on it
+        part(Sphere::new(0.47).into(), singlet.clone(), Transform::from_xyz(0.0, 0.68, 0.17).with_scale(Vec3::new(1.05, 0.95, 1.0)));
+        part(Cuboid::new(0.62, 0.66, 0.04).into(), apron.clone(), Transform::from_xyz(0.0, 0.66, 0.64).with_rotation(Quat::from_rotation_x(-0.22)));
+        part(Cuboid::new(0.7, 0.07, 0.05).into(), belt.clone(), Transform::from_xyz(0.0, 0.92, 0.58).with_rotation(Quat::from_rotation_x(-0.22)));
+        // apron straps over the shoulders
+        for sx in [-1.0f32, 1.0] {
+            part(Cuboid::new(0.06, 0.5, 0.03).into(), apron.clone(), Transform::from_xyz(sx * 0.2, 1.12, 0.36).with_rotation(Quat::from_rotation_x(-0.5)));
+        }
+        // stubby shorts
+        part(Cylinder::new(0.44, 0.3).into(), khaki, Transform::from_xyz(0.0, 0.36, 0.02));
+    } else {
+        part(
+            Sphere::new(0.4).into(),
+            singlet,
+            Transform::from_xyz(0.0, 0.72, 0.12).with_scale(Vec3::new(1.0, 1.0, 0.9)),
+        );
+        part(
+            Cuboid::new(0.66, 0.78, 0.04).into(),
+            apron,
+            Transform::from_xyz(0.0, 0.72, 0.47).with_rotation(Quat::from_rotation_x(-0.08)),
+        );
+        part(
+            Cuboid::new(0.66, 0.07, 0.045).into(),
+            belt,
+            Transform::from_xyz(0.0, 0.93, 0.475),
+        );
+    }
     part(
         Sphere::new(0.3).into(),
         skin.clone(),
         Transform::from_xyz(0.0, 1.55, 0.0),
     );
-    part(
-        Cuboid::new(0.4, 0.08, 0.05).into(),
-        dark,
-        Transform::from_xyz(0.0, 1.6, 0.27),
-    ); // sunnies
-    part(
-        Sphere::new(0.07).into(),
-        nose,
-        Transform::from_xyz(0.0, 1.5, 0.3),
-    );
-    part(
-        Cuboid::new(0.22, 0.06, 0.04).into(),
-        hat.clone(),
-        Transform::from_xyz(0.0, 1.4, 0.27),
-    ); // moustache
-    part(
-        Cylinder::new(0.5, 0.03).into(),
-        hat.clone(),
-        Transform::from_xyz(0.0, 1.8, 0.0),
-    ); // hat brim
-    part(
-        Cylinder::new(0.26, 0.2).into(),
-        hat,
-        Transform::from_xyz(0.0, 1.9, 0.0),
-    );
-    for s in [-1.0f32, 1.0] {
+    if polished {
+        // wraparound sunnies with shiny blue lenses
+        part(Cuboid::new(0.46, 0.1, 0.06).into(), dark.clone(), Transform::from_xyz(0.0, 1.6, 0.27));
+        for sx in [-1.0f32, 1.0] {
+            part(Cuboid::new(0.17, 0.08, 0.02).into(), lens.clone(), Transform::from_xyz(sx * 0.11, 1.6, 0.305));
+        }
+        // a big sunburnt nose and a bushy moustache in two halves
+        part(Sphere::new(0.095).into(), nose, Transform::from_xyz(0.0, 1.49, 0.31));
+        for sx in [-1.0f32, 1.0] {
+            part(
+                Capsule3d::new(0.045, 0.13).into(),
+                hat.clone(),
+                Transform::from_xyz(sx * 0.08, 1.41, 0.28).with_rotation(Quat::from_rotation_z(sx * 1.25)),
+            );
+        }
+        // the cork hat: a wide brim, a crown, and corks dangling on strings all round
+        part(Cylinder::new(0.6, 0.03).into(), hat.clone(), Transform::from_xyz(0.0, 1.8, 0.0));
+        part(Cylinder::new(0.27, 0.22).into(), hat.clone(), Transform::from_xyz(0.0, 1.92, 0.0));
+        for k in 0..9 {
+            let a = k as f32 / 9.0 * std::f32::consts::TAU + 0.2;
+            let (x, z) = (a.sin() * 0.52, a.cos() * 0.52);
+            part(Cylinder::new(0.006, 0.12).into(), dark.clone(), Transform::from_xyz(x, 1.72, z));
+            part(Cylinder::new(0.028, 0.075).into(), cork.clone(), Transform::from_xyz(x, 1.63, z));
+        }
+        // big feet in thongs
+        for sx in [-1.0f32, 1.0] {
+            part(Sphere::new(0.16).into(), skin.clone(), Transform::from_xyz(sx * 0.18, 0.1, 0.1).with_scale(Vec3::new(1.0, 0.5, 1.6)));
+            part(Sphere::new(0.17).into(), thong.clone(), Transform::from_xyz(sx * 0.18, 0.03, 0.11).with_scale(Vec3::new(1.05, 0.15, 1.75)));
+        }
+        // the free hand holds a stubby in a holder
+        part(Sphere::new(0.11).into(), skin.clone(), Transform::from_xyz(-0.52, 0.9, 0.12));
+        part(Cylinder::new(0.065, 0.14).into(), holder, Transform::from_xyz(-0.52, 1.0, 0.2));
+        part(Cylinder::new(0.05, 0.02).into(), can, Transform::from_xyz(-0.52, 1.08, 0.2));
+    } else {
         part(
-            Sphere::new(0.13).into(),
-            boot.clone(),
-            Transform::from_xyz(s * 0.17, 0.09, 0.05).with_scale(Vec3::new(1.0, 0.6, 1.4)),
+            Cuboid::new(0.4, 0.08, 0.05).into(),
+            dark,
+            Transform::from_xyz(0.0, 1.6, 0.27),
+        ); // sunnies
+        part(
+            Sphere::new(0.07).into(),
+            nose,
+            Transform::from_xyz(0.0, 1.5, 0.3),
+        );
+        part(
+            Cuboid::new(0.22, 0.06, 0.04).into(),
+            hat.clone(),
+            Transform::from_xyz(0.0, 1.4, 0.27),
+        ); // moustache
+        part(
+            Cylinder::new(0.5, 0.03).into(),
+            hat.clone(),
+            Transform::from_xyz(0.0, 1.8, 0.0),
+        ); // hat brim
+        part(
+            Cylinder::new(0.26, 0.2).into(),
+            hat,
+            Transform::from_xyz(0.0, 1.9, 0.0),
+        );
+        for s in [-1.0f32, 1.0] {
+            part(
+                Sphere::new(0.13).into(),
+                boot.clone(),
+                Transform::from_xyz(s * 0.17, 0.09, 0.05).with_scale(Vec3::new(1.0, 0.6, 1.4)),
+            );
+        }
+        part(
+            Sphere::new(0.11).into(),
+            skin.clone(),
+            Transform::from_xyz(-0.5, 0.9, 0.05),
         );
     }
-    part(
-        Sphere::new(0.11).into(),
-        skin.clone(),
-        Transform::from_xyz(-0.5, 0.9, 0.05),
-    );
+    let _ = &boot;
     // the spatula arm
     let arm = commands
         .spawn((

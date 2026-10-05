@@ -43,7 +43,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [ ] Simple expressive faces: brows, a mouth that changes (stunned, drinking, throwing, drunk)
 - [ ] Clothing with folds: a singlet that wrinkles round the tummy (done on Pear, Egg and Gumdrop: loose shell with a wavy hem and folds), board shorts or stubbies, a cap or hat on some characters
 - [ ] Slight asymmetry per character (head tilt done: -4, +5 and -3 degrees; still to do: one shoulder lower, a wonky grin) and clearly different silhouettes between the four
-- [ ] Dazza: more caricature (big hat, belly, apron, stubby holder, sunnies)
+- [x] Dazza: more caricature: sunburnt skin and nose, a cork hat with dangling corks, wraparound sunnies with blue lenses, a bushy moustache, a big belly with the apron riding up on it, stubby shorts, a stubby in a holder, and big feet in thongs (polished look only)
 - [ ] Leader crown, stars, sash and tag still read clearly on the new bodies
 
 ### Character proportions
