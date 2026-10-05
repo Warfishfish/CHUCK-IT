@@ -80,6 +80,14 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] Change the four decorative eskies to red, green, orange and grey so only the Chest is bright blue
 - [ ] Check it reads against grass, dirt, the shed and the fence, in shadow and in sun
 
+### Next up (added 5 Oct 2026, Marcus), worked one at a time
+- [ ] Fix the glitch under the umbrella in the smoko area
+- [ ] Eyeballs jump around much more when walking and running, each character with its own clearly different "eye wobble" (a first gentle version is in; make it bigger and more obvious)
+- [ ] Beer bellies look more natural on the characters (blended into the body, not a ball stuck on the front) and bounce as they run
+- [ ] Trees get more texture and look more realistic (bark, fuller leaf clumps, varied gum-tree shapes), still in the game's style
+- [ ] Two upgrade examples for Marcus to compare: one character and one corner of the yard, each in a "more upgraded" style, before deciding how far to take the whole game
+- (kept for later) Normal maps for wood, metal, plastic and concrete are made (`*_n.png`) but not yet used in the game
+
 ### More from Marcus (5 Oct 2026)
 - [x] Dirt patches look more naturally placed (irregular clusters of overlapping soft ellipses in different earthy tones, worn where people walk and gather, not random round dots)
 - [x] Dildos are much floppier (softer spring, less damping, a bigger lean, a stronger droop and a bendier tip)

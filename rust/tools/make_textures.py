@@ -16,6 +16,16 @@ OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "crates", "
 rng = np.random.default_rng(20261005)
 
 
+def save_normal(name, height, strength):
+    """A tangent-space normal map from a height field (light = high), wrapping at the edges so it
+    tiles. `strength` is how steep the bumps look."""
+    dx = (np.roll(height, -1, axis=1) - np.roll(height, 1, axis=1)) * 0.5 * strength
+    dy = (np.roll(height, -1, axis=0) - np.roll(height, 1, axis=0)) * 0.5 * strength
+    n = np.stack([-dx, dy, np.ones_like(height)], axis=-1)
+    n /= np.linalg.norm(n, axis=-1, keepdims=True)
+    save(name, n * 0.5 + 0.5)
+
+
 def save(name, rgb):
     """rgb: N x N x 3 floats 0..1 -> PNG (RGBA, opaque)."""
     a = np.clip(rgb, 0, 1)
@@ -91,6 +101,7 @@ for _ in range(3):
 wood -= scratches(14, 70, 0.12, 1, horizontal_bias=0.8)
 wood = np.clip(wood, 0.42, 1.0)
 save("wood.png", grey(wood, (1.0, 0.96, 0.9)))
+save_normal("wood_n.png", wood - 0.8 * line * 0.15, 6.0)
 
 # ---- metal: brushed streaks, scratches (bright), grime blotches, a little rust here and there
 streak = fbm(16, 3, sx=8, sy=1)  # long in x
@@ -102,6 +113,7 @@ rust = np.clip((fbm(5, 4) - 0.68) * 5, 0, 1) * np.clip(grime * 1.5, 0, 1)
 rust_col = np.array([0.62, 0.36, 0.18])
 rgb = rgb * (1 - rust[..., None] * 0.8) + rust_col * rust[..., None] * 0.8
 save("metal.png", rgb)
+save_normal("metal_n.png", metal + rust * 0.3, 3.0)
 
 # ---- plastic: very gentle sun-fade blotches (lighter), fine light scratches, dark specks of dirt
 fade = fbm(2, 3)
@@ -112,6 +124,7 @@ plastic -= specks * 0.35
 dirt = np.clip(fbm(4, 3) - 0.62, 0, 1) * 1.5
 plastic -= dirt * 0.18
 save("plastic.png", grey(np.clip(plastic, 0.4, 1.0)))
+save_normal("plastic_n.png", plastic, 2.0)
 
 # ---- concrete: aggregate speckle, stains, dark cracks that wander
 base = 0.82 + 0.10 * (fbm(6, 4) - 0.5)
@@ -133,6 +146,7 @@ for _ in range(5):
             a += rng.choice([-1, 1]) * 0.9  # a branch kink
 base -= crack * 0.38
 save("concrete.png", grey(np.clip(base, 0.35, 1.0), (1.0, 0.99, 0.96)))
+save_normal("concrete_n.png", base, 5.0)
 
 
 # ---- decals (white with an alpha shape; the game tints them): stain, splat, scorch
