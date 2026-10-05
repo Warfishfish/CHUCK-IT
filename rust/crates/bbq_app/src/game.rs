@@ -148,6 +148,8 @@ pub struct Game {
     pub heist: Option<crate::heist_app::HeistState>,
     /// The yard behind the menu: the bots wander and ignore you.
     pub attract: bool,
+    /// Things that just happened, for the particle effects to show (see `fx.rs`).
+    pub fx: Vec<crate::fx::FxEvent>,
 }
 
 impl Game {
@@ -159,6 +161,13 @@ impl Game {
         });
         if self.popups.len() > 4 {
             self.popups.remove(0);
+        }
+    }
+
+    /// Show a particle effect at `at`.
+    pub fn fx(&mut self, kind: crate::fx::FxKind, at: V3) {
+        if self.fx.len() < 24 {
+            self.fx.push(crate::fx::FxEvent { kind, at });
         }
     }
 
@@ -232,6 +241,7 @@ impl Plugin for GamePlugin {
             round: crate::round::RoundCtl::new(),
             heist: None,
             attract: false,
+            fx: Vec::new(),
         })
         .add_systems(FixedUpdate, step_game.run_if(crate::menu::world_runs));
     }
@@ -496,6 +506,7 @@ pub fn step_game(
     let countdown = g.rules.phase == Phase::Countdown;
     let mut newly_fallen = Vec::new();
     let mut env_landings: Vec<(usize, Place)> = Vec::new();
+    let mut splashes: Vec<V3> = Vec::new();
     for (i, d) in g.dummies.iter_mut().enumerate() {
         d.body.tick(dt);
         let down = d.body.fall_t > 0.0;
@@ -517,6 +528,7 @@ pub fn step_game(
             .mover
             .step(dt, MoveInput { wish: d.bot.wish }, &mods, &yard.0);
         if ev.splash {
+            splashes.push(V3::new(d.mover.x, bbq_core::yard::WATER_Y, d.mover.z));
             env_landings.push((i, Place::Pool));
         } else if ev.bounce.is_some() {
             env_landings.push((i, Place::Tramp));
@@ -525,8 +537,13 @@ pub fn step_game(
     for (i, place) in env_landings {
         crate::life::env_bonus(g, i, place);
     }
+    for at in splashes {
+        g.fx(crate::fx::FxKind::Splash, at);
+    }
 
     for i in newly_fallen {
+        let at = V3::new(g.dummies[i].mover.x, 0.15, g.dummies[i].mover.z);
+        g.fx(crate::fx::FxKind::Dust, at);
         let name = crate::characters::BLOB_NAMES[i % crate::characters::BLOB_NAMES.len()];
         let lines = [
             "{N} IS ABSOLUTELY WRECKED AND HAS FACE-PLANTED. GO HELP!",
@@ -615,6 +632,10 @@ pub fn step_game(
                     continue;
                 };
                 let (vx, vz) = (g.dummies[di].mover.x, g.dummies[di].mover.z);
+                g.fx(
+                    if kind == ItemKind::Stubby { crate::fx::FxKind::Smash } else { crate::fx::FxKind::Hit },
+                    V3::new(vx, 1.2, vz),
+                );
                 let leader = g.board.leader() == Some(victim);
                 // knock and stun
                 let item = bbq_core::flight::Item::new(0, kind, V3::ZERO);

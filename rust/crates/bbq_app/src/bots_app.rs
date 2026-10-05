@@ -726,6 +726,10 @@ pub fn hit_player(
     charge: f32,
     start: V3,
 ) {
+    g.fx(
+        if kind == ItemKind::Stubby { crate::fx::FxKind::Smash } else { crate::fx::FxKind::Hit },
+        V3::new(p.mover.x, 1.0, p.mover.z),
+    );
     let item = Item::new(0, kind, V3::ZERO);
     let res = hitting::apply_item_hit(&mut g.me.body, &mut p.mover, &item, dir, flatten);
     g.me.drunk.cancel_drink();

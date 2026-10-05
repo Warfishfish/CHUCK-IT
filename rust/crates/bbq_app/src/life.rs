@@ -225,6 +225,7 @@ pub fn slap_dummy(
     let dpos = V3::new(g.dummies[i].mover.x, 0.0, g.dummies[i].mover.z);
     let dir = melee::direction(me, dpos);
     let vid = g.dummies[i].id;
+    g.fx(crate::fx::FxKind::Whack, V3::new(dpos.x, 1.2, dpos.z));
     let name = dummy_name(i);
     let leader = g.board.leader() == Some(vid);
     let drunk = att.drunk_bonus;

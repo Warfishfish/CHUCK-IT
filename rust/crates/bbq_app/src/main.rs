@@ -11,6 +11,7 @@
 
 mod bots_app;
 mod characters;
+mod fx;
 mod game;
 mod heist_app;
 mod hud;
@@ -71,7 +72,6 @@ fn main() {
             bots_app::BotsPlugin,
             round::RoundPlugin,
             ui::FontsPlugin,
-            preview::PreviewPlugin,
             menu::MenuPlugin,
             heist_app::HeistViewPlugin,
             models::ModelsPlugin,
@@ -80,6 +80,7 @@ fn main() {
             >::default(),
         ),
     );
+    app.add_plugins((fx::FxPlugin, preview::PreviewPlugin));
     if let Some(cfg) = shot {
         app.add_plugins(shot::ShotPlugin(cfg));
     }

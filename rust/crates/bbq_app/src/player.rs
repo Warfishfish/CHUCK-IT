@@ -266,6 +266,11 @@ fn step_player(
         .mover
         .step(movement::step_dt(), MoveInput { wish }, &mods, &yard.0);
     p.shake = p.shake.max(ev.shake);
+    if ev.splash {
+        g.fx(crate::fx::FxKind::Splash, bbq_core::vec::V3::new(p.mover.x, bbq_core::yard::WATER_Y, p.mover.z));
+    } else if ev.hard_landing {
+        g.fx(crate::fx::FxKind::Dust, bbq_core::vec::V3::new(p.mover.x, 0.1, p.mover.z));
+    }
     p.walk = movement::advance_walk(
         p.walk,
         p.mover.speed(),

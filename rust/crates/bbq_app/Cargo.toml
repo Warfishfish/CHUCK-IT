@@ -9,3 +9,4 @@ license.workspace = true
 # Pinned to one Bevy release on purpose: Bevy breaks things every few months.
 bevy = { version = "=0.19.1", features = ["system_font_discovery"] }
 bbq_core = { path = "../bbq_core" }
+bevy_hanabi = "0.19"
