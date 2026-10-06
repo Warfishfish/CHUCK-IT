@@ -84,6 +84,12 @@ struct Sash;
 /// The see-through bubble round a blob in their team's colour.
 #[derive(Component)]
 struct Balloon;
+/// Teddy Heist: an inflatable pool ring round the torso in the team colour, instead of the bubble.
+#[derive(Component)]
+struct SwimRing;
+/// The white stripes on the ring (they stay white).
+#[derive(Component)]
+struct RingStripe;
 #[derive(Component)]
 struct SmokoCan;
 /// A thing that floats above a blob and faces the camera.
@@ -529,6 +535,9 @@ fn build_blobs(
     let star = meshes.add(Sphere::new(0.07).mesh().ico(1).unwrap());
     let sash = meshes.add(Torus::new(0.32, 0.43));
     let balloon = meshes.add(Sphere::new(1.0).mesh().uv(32, 20));
+    let swim_ring = meshes.add(Torus::new(0.5, 0.74));
+    let ring_stripe = meshes.add(Sphere::new(0.13).mesh().uv(10, 8));
+    let stripe_mat = mats.add(StandardMaterial { base_color: Color::WHITE, perceptual_roughness: 0.4, ..default() });
     let can = meshes.add(Cylinder::new(0.035, 0.12));
     let tag_font = TextFont {
         font_size: FontSize::Px(34.0),
@@ -631,6 +640,36 @@ fn build_blobs(
             Blob(i),
             ChildOf(root),
         ));
+        // Teddy Heist: a swim ring round the middle (on the body, so it moves with the torso)
+        let ring_mat = mats.add(StandardMaterial {
+            base_color: Color::WHITE,
+            perceptual_roughness: 0.35,
+            reflectance: 0.5,
+            ..default()
+        });
+        let ring = commands
+            .spawn((
+                Mesh3d(swim_ring.clone()),
+                MeshMaterial3d(ring_mat),
+                Transform::from_xyz(0.0, 0.6, 0.0),
+                Visibility::Hidden,
+                SwimRing,
+                Blob(i),
+                ChildOf(body),
+            ))
+            .id();
+        for k in 0..8 {
+            let a = k as f32 / 8.0 * std::f32::consts::TAU;
+            commands.spawn((
+                Mesh3d(ring_stripe.clone()),
+                MeshMaterial3d(stripe_mat.clone()),
+                Transform::from_xyz(a.cos() * 0.62, 0.0, a.sin() * 0.62)
+                    .with_rotation(Quat::from_rotation_y(-a))
+                    .with_scale(Vec3::new(1.15, 0.9, 0.55)),
+                RingStripe,
+                ChildOf(ring),
+            ));
+        }
         // team sash
         commands.spawn((
             Mesh3d(sash.clone()),
@@ -1197,10 +1236,23 @@ const BALLOON_ALPHA: f32 = 0.42;
 fn apply_balloon(
     game: Res<Game>,
     mut mats: ResMut<Assets<StandardMaterial>>,
-    mut q: Query<(&Blob, &mut Visibility, &MeshMaterial3d<StandardMaterial>), With<Balloon>>,
+    mut q: Query<(&Blob, &mut Visibility, &MeshMaterial3d<StandardMaterial>), (With<Balloon>, Without<SwimRing>)>,
+    mut rings: Query<(&Blob, &mut Visibility, &MeshMaterial3d<StandardMaterial>), (With<SwimRing>, Without<Balloon>)>,
 ) {
+    let heist = game.rules.mode == bbq_core::GameMode::Heist;
+    for (b, mut v, m) in &mut rings {
+        match game.dummies.get(b.0).and_then(|d| d.team).filter(|_| heist) {
+            Some(t) => {
+                *v = Visibility::Inherited;
+                if let Some(mut mat) = mats.get_mut(&m.0) {
+                    mat.base_color = team_colour(t);
+                }
+            }
+            None => *v = Visibility::Hidden,
+        }
+    }
     for (b, mut v, m) in &mut q {
-        match game.dummies.get(b.0).and_then(|d| d.team) {
+        match game.dummies.get(b.0).and_then(|d| d.team).filter(|_| !heist) {
             Some(t) => {
                 *v = Visibility::Inherited;
                 if let Some(mut mat) = mats.get_mut(&m.0) {
