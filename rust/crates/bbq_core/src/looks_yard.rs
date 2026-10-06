@@ -688,6 +688,12 @@ fn limb(a: V3, b: V3, r0: f32, r1: f32, seg: u32, s: Surface) -> Part {
 /// grey-green leaf clumps, a few hanging lower like drooping gum leaves. No two are the same:
 /// some are tall and spindly, some short and spreading.
 fn gum_tree_styled(rng: &mut Rng, x: f32, z: f32) -> Vec<Part> {
+    gum_tree_dusty(rng, x, z, 0.0)
+}
+
+/// A gum tree whose leaves are dusted towards dry khaki (`dust` 0 = as normal, 1 = the far,
+/// sun-baked trees out in the paddock).
+fn gum_tree_dusty(rng: &mut Rng, x: f32, z: f32, dust: f32) -> Vec<Part> {
     let bark = matt(0xffffff).material(Tex::Bark, 1.0);
     // sun-bleached gum greens: olive, sage and blue-grey, a few darker
     let leaves = [0x8fa36f_u32, 0xa3b37f, 0x93a888, 0x7f9a66, 0x9aae8e, 0x6f8a5a, 0xb0bb8a];
@@ -727,6 +733,7 @@ fn gum_tree_styled(rng: &mut Rng, x: f32, z: f32) -> Vec<Part> {
             let off = V3::new(rng.range(-1.7, 1.7), rng.range(-0.5, 0.8), rng.range(-1.7, 1.7));
             let hang = if c >= clumps - 2 { -rng.range(0.5, 1.2) } else { 0.0 };
             let col = leaves[rng.index(leaves.len())];
+            let col = mix_colour(col, 0x9ea27c, dust * 0.5);
             let col = if hang < 0.0 || off.y < -0.1 { looks::shade(col, 0.8) } else { col };
             v.push(
                 Part::new(Shape::Ico { r: s, detail: 1 }, matt(col).faceted())
@@ -1863,6 +1870,84 @@ pub fn dirt_spots(seed: u64) -> Vec<DirtSpot> {
     v
 }
 
+/// Blend two plain colours (`t` 0 = `a`, 1 = `b`).
+fn mix_colour(a: u32, b: u32, t: f32) -> u32 {
+    let ch = |s: u32| {
+        let (x, y) = (((a >> s) & 0xff) as f32, ((b >> s) & 0xff) as f32);
+        (x + (y - x) * t).round() as u32
+    };
+    (ch(16) << 16) | (ch(8) << 8) | ch(0)
+}
+
+/// One neighbour's house (visual only, outside the fence): a plain box with a gable roof, a few
+/// windows, a door, sometimes a chimney or a tank. Built facing +z, `w` wide and `d` deep.
+fn neighbour_house(rng: &mut Rng, w: f32, d: f32) -> Vec<Part> {
+    let walls = [0xf1e6cc_u32, 0xe9d9b8, 0xd8e0e2, 0xe8c9b8, 0xcfd9c0, 0xf4efe2, 0xc9d3dc, 0xe5d2a8];
+    let roofs = [0x9a4636_u32, 0x7a4a3c, 0x5f6b72, 0x6b7a5a, 0x8a3f33, 0x4f5a66];
+    let wall = walls[rng.index(walls.len())];
+    let roof = roofs[rng.index(roofs.len())];
+    let h = rng.range(3.4, 4.2);
+    let a = 0.42f32;
+    let slab_d = (d * 0.5 + 0.7) / a.cos();
+    let rise = d * 0.25 * a.tan();
+    let mut v = vec![
+        cuboid(w, h, d, matt(wall), 0.0, h / 2.0, 0.0),
+        cuboid(w + 0.9, 0.15, slab_d, matt(roof), 0.0, h + rise + 0.08, d * 0.25).turn(a, 0.0, 0.0),
+        cuboid(w + 0.9, 0.15, slab_d, matt(shade_surface(matt(roof), 0.92).color), 0.0, h + rise + 0.08, -d * 0.25).turn(-a, 0.0, 0.0),
+        // the roof's end triangles are left open, so close them with a wall slab under the ridge
+        cuboid(w, rise * 1.1, d * 0.5, matt(shade_surface(matt(wall), 0.96).color), 0.0, h + rise * 0.5, 0.0),
+    ];
+    let n = ((w / 4.5) as usize).max(2);
+    for i in 0..n {
+        let x = -w / 2.0 + w * (i as f32 + 0.5) / n as f32;
+        if i == n / 2 {
+            v.push(cuboid(1.0, 2.1, 0.1, matt(0x6f4a30), x, 1.05, d / 2.0 + 0.02));
+        } else {
+            v.push(cuboid(1.7, 1.3, 0.08, matt(0xeeeadc), x, 2.0, d / 2.0 + 0.02));
+            v.push(cuboid(1.45, 1.05, 0.1, matt(0x2d4b66), x, 2.0, d / 2.0 + 0.03));
+        }
+    }
+    if rng.chance(0.5) {
+        v.push(cuboid(0.7, 1.6, 0.7, matt(0xb0705a), rng.range(-w * 0.3, w * 0.3), h + rise + 0.9, -d * 0.2));
+    }
+    if rng.chance(0.4) {
+        v.push(cyl(1.0, 1.0, 2.2, 14, matt(0x9fb0a4), w / 2.0 + 1.6, 1.1, 0.0));
+    }
+    v
+}
+
+/// Where the neighbours' houses stand: (x, z, which way it faces, width, depth). A row each side
+/// of the yard, a row behind the front fence and a row behind our own house, with a bit of
+/// jitter so they do not look stamped out.
+pub fn neighbour_spots() -> Vec<(f32, f32, f32, f32, f32)> {
+    let mut rng = Rng::new(0x4E16B0);
+    let mut v = Vec::new();
+    let mut add = |x: f32, z: f32, yaw: f32, w: f32, d: f32, rng: &mut Rng| {
+        v.push((x + rng.range(-2.0, 2.0), z + rng.range(-2.0, 2.0), yaw + rng.range(-0.05, 0.05), w * rng.range(0.9, 1.15), d * rng.range(0.9, 1.1)));
+    };
+    for z in [-14.0f32, 12.0] {
+        add(50.0, z, -HALF_PI, 14.0, 9.0, &mut rng);
+        add(-50.0, z + 3.0, HALF_PI, 14.0, 9.0, &mut rng);
+    }
+    for x in [-42.0f32, -14.0, 14.0, 42.0] {
+        add(x, 41.0, PI, 14.0, 9.0, &mut rng);
+    }
+    for x in [-44.0f32, -16.0, 16.0, 44.0] {
+        add(x, -50.0, 0.0, 14.0, 9.0, &mut rng);
+    }
+    v
+}
+
+fn neighbourhood(seed: u64) -> Vec<Part> {
+    let mut rng = Rng::new(seed ^ 0x9E1_6B05);
+    let mut v = Vec::new();
+    for (x, z, yaw, w, d) in neighbour_spots() {
+        let house = neighbour_house(&mut rng, w, d);
+        v.extend(place(house, V3::new(x, 0.0, z), turn_y(yaw), 1.0));
+    }
+    v
+}
+
 /// The whole yard in the browser game's look. `seed` picks where the gum trees and clouds go.
 pub fn yard(seed: u64) -> YardLook {
     yard_styled(seed, false)
@@ -1934,10 +2019,28 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
                 hole,
                 per_m: 0.0,
             },
-            matt(0x8aaa62).no_shadow().ground(),
+            // the paddock: dry khaki grass in the polished look
+            matt(if polished { 0x7f9058 } else { 0x8aaa62 }).no_shadow().ground(),
         )
         .at(0.0, -0.02, 0.0),
     );
+    if polished {
+        // big pale dust patches and a few green-ish dry-grass patches out in the paddock
+        let mut pr = Rng::new(seed ^ 0xD057);
+        for n in 0..46 {
+            let (x, z) = (pr.range(-140.0, 140.0), pr.range(-140.0, 140.0));
+            if x.abs() < W + 4.0 && z.abs() < D + 4.0 {
+                continue;
+            }
+            let col = if n % 3 == 0 { 0x8f9a5c } else if n % 3 == 1 { 0xbdb27e } else { 0xa59b68 };
+            world.push(
+                Part::new(Shape::Disc { r: 1.0, seg: 12 }, matt(col).textured(Tex::SoftDot).see_through(0.7).no_shadow())
+                    .at(x, 0.0, z)
+                    .turn(-HALF_PI, 0.0, pr.range(0.0, PI))
+                    .stretch(pr.range(5.0, 14.0), pr.range(4.0, 10.0), 1.0),
+            );
+        }
+    }
     // the paling fence
     if polished {
         let mut fr = Rng::new(seed ^ 0xFE17);
@@ -1963,6 +2066,17 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         world.push(fence(2.0 * D, false, W + 0.05, 0.0));
         world.extend(house());
     }
+    // the neighbours' houses (polished look only)
+    let neighbours = if polished { neighbour_spots() } else { Vec::new() };
+    if polished {
+        world.extend(neighbourhood(seed));
+    }
+    let near_neighbour = |x: f32, z: f32| {
+        neighbours.iter().any(|&(hx, hz, _, w, d)| {
+            let r = w.max(d) * 0.5 + 4.0;
+            (x - hx).abs() < r && (z - hz).abs() < r
+        })
+    };
     // gum trees, anywhere outside the fence and not in front of the house
     let mut tree_spots: Vec<(f32, f32)> = Vec::new();
     for _ in 0..34 {
@@ -1972,15 +2086,25 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
             z = rng.range(-66.0, 66.0);
             let inside_fence = x.abs() < W + 3.0 && z.abs() < D + 3.0;
             let house_spot = x.abs() < 22.0 && z < -23.0 && z > -36.0;
-            if !inside_fence && !house_spot {
+            if !inside_fence && !house_spot && !near_neighbour(x, z) {
                 break;
             }
         }
         tree_spots.push((x, z));
         if polished {
-            world.extend(gum_tree_styled(&mut rng, x, z));
+            let dust = (((x * x + z * z).sqrt() - 30.0) / 50.0).clamp(0.0, 1.0);
+            world.extend(gum_tree_dusty(&mut rng, x, z, dust));
         } else {
             world.extend(gum_tree(&mut rng, x, z));
+        }
+    }
+    if polished {
+        // a scatter of far trees out in the dry paddock, beyond the houses
+        let mut fr = Rng::new(seed ^ 0xFA27);
+        for _ in 0..22 {
+            let (a, r) = (fr.range(0.0, 2.0 * PI), fr.range(85.0, 140.0));
+            let (x, z) = (a.cos() * r, a.sin() * r);
+            world.extend(gum_tree_dusty(&mut fr, x, z, 1.0));
         }
     }
     let clouds: Vec<(V3, Vec<Part>)> = (0..9).map(|_| cloud(&mut rng)).collect();

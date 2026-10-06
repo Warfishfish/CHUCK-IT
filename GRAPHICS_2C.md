@@ -40,7 +40,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] A1.5 Instance the tufts and weeds: parts with the same shape and surface now share one mesh and one material (cache in `models.rs`), tuft blades are one shared cone scaled per blade. Materials 3,129 to 373, meshes 3,166 to 1,583 (`--stats`); frame time still to measure (E18.4)
 - [x] A1.6 Fallen leaves and bark bits under the gum trees and along the fence lines (about 170 leaves and some bark strips along the fences, a light scatter on the lawn, a few under each tree; flat, tiny, no shadow, clear of the pool and smoko pad; Marcus asked for fewer leaves)
 - [ ] A1.7 (on hold, Marcus 6 Oct 2026: the ground already has enough going on) A few small bits of backyard debris on the lawn (bottle caps and stubbies are in; add sticks, a crushed can, a lid). Also bring back the four empty yard eskies that open onto nothing: switch them on again with `bbq_core::yard::set_empty_eskies(true)` in `main.rs`; they are red, green, orange and grey, openable with R, and could hold other things later
-- [ ] A1.8 Paddock and far trees get dry grass and a dusty colour, still very simple
+- [x] A1.8 Paddock and far trees get dry grass and a dusty colour, still very simple (dry khaki paddock with dust patches, far trees dusted, 22 extra far trees; plus a neighbourhood: 12 simple neighbour houses round the yard, visual only)
 - [ ] A1.9 Check the ground still reads clearly for moving and for seeing items (a readability check on Marcus's Mac)
 
 ### A2. Lighting
