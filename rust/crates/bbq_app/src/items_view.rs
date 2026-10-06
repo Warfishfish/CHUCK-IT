@@ -622,7 +622,7 @@ fn wobble_items(
         let held = drive.mode == FlopMode::Held;
         if held {
             let sp = drive.speed;
-            w.phase += sp * dt * 1.7;
+            w.phase += sp * dt * 2.4;
             let ph = w.phase;
             w.vx += (ph * 2.0).cos() * (sp / 5.0).min(1.0) * dt * 9.0;
             w.vz += ph.sin() * (sp / 5.0).min(1.0) * dt * 5.0;

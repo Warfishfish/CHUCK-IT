@@ -83,7 +83,9 @@ impl DazzaAnim {
         moved: f32,
     ) -> DazzaPose {
         self.bubble_t = (self.bubble_t - dt).max(0.0);
-        self.walk += moved * 30.0;
+        // 2.4 rad of walk cycle per metre, as in the browser game (it was 30, which spun the
+        // bob about 19 times a second and made him judder)
+        self.walk += moved * 2.4;
         if state == DazzaState::Ko {
             self.ko_age += dt;
             let f = (self.ko_age / 0.3).min(1.0);

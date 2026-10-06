@@ -535,6 +535,14 @@ pub fn texture_pass(parts: Vec<Part>) -> Vec<Part> {
 /// marks, bolts and a bit of rust. Same footprint as the old one (the collider is unchanged) and
 /// the same cooking surface height (1.23 m), so the food still sits right.
 fn bbq_styled() -> Vec<Part> {
+    // Dazza cooks from the north side (the fence side), so the knobs, the hood handle and the
+    // open side face him: the whole thing is built facing the yard and turned half way round
+    let (bx, bz) = (-6.0f32, -18.0f32);
+    let v = place(bbq_styled_facing_yard(), V3::new(-bx, 0.0, -bz), Quat::IDENTITY, 1.0);
+    place(v, V3::new(bx, 0.0, bz), turn_y(PI), 1.0)
+}
+
+fn bbq_styled_facing_yard() -> Vec<Part> {
     let silver = matt(0xb4bcc0).material(Tex::Metal, 1.5);
     let steel = matt(0x8a9298).material(Tex::Metal, 1.5);
     let dark = matt(0x2a2d31).material(Tex::Metal, 1.5);
@@ -687,10 +695,6 @@ fn limb(a: V3, b: V3, r0: f32, r1: f32, seg: u32, s: Surface) -> Part {
 /// into two or three limbs reaching up and out; each limb ends in a loose crown of olive and
 /// grey-green leaf clumps, a few hanging lower like drooping gum leaves. No two are the same:
 /// some are tall and spindly, some short and spreading.
-fn gum_tree_styled(rng: &mut Rng, x: f32, z: f32) -> Vec<Part> {
-    gum_tree_dusty(rng, x, z, 0.0)
-}
-
 /// A gum tree whose leaves are dusted towards dry khaki (`dust` 0 = as normal, 1 = the far,
 /// sun-baked trees out in the paddock).
 fn gum_tree_dusty(rng: &mut Rng, x: f32, z: f32, dust: f32) -> Vec<Part> {

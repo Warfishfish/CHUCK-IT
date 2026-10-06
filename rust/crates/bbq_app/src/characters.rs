@@ -1276,7 +1276,15 @@ fn animate_dazza(
 ) {
     let dt = time.delta_secs();
     let brain = &game.life.dazza;
-    let pos = Vec3::new(brain.pos.x, 0.0, brain.pos.z);
+    // he moves in fixed ticks but is drawn every frame: ease the drawn position after the real
+    // one (about 25 ms behind) so the steps do not show as judder at any frame rate. Snap if he
+    // was moved far (sent home, or the round restarted).
+    let target = Vec3::new(brain.pos.x, 0.0, brain.pos.z);
+    let pos = if target.distance(dz.last) > 2.0 {
+        target
+    } else {
+        dz.last + (target - dz.last) * (1.0 - (-40.0 * dt).exp())
+    };
     if game.life.say_seq != dz.say_seen {
         dz.say_seen = game.life.say_seq;
         dz.anim.say();
