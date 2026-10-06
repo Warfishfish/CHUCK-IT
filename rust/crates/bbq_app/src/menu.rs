@@ -404,7 +404,11 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                     },
                     BorderColor::all(INK),
                     ImageNode::new(preview.0.clone()),
+                    // hold the left button and drag to spin the blob
+                    Interaction::default(),
+                    crate::preview::PreviewDrag,
                 ));
+                pv.spawn(text("Hold the left button and drag to spin", 12.0, false, MUTED));
                 slider(pv, SliderId::Belly, "Beer belly", 0.0, 2.0);
                 pv.spawn(text(
                     "Only the look changes. Every blob has the same speed and the same hit size. (Classic has no belly.)",
