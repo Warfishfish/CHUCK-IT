@@ -56,6 +56,9 @@ pub struct Session {
     /// Guest only: who the host is on the relay.
     host_peer: Option<String>,
     pub heard: HashMap<u32, Heard>,
+    /// Guest: the host's latest picture of the yard, until the game has used it.
+    pub world: Option<bbq_core::net_world::WorldSnap>,
+    world_seq: u32,
     /// A line for the menu.
     pub status: String,
     /// The yard is closed to newcomers (a round is on).
@@ -80,6 +83,8 @@ impl Session {
             peers: HashMap::new(),
             host_peer: None,
             heard: HashMap::new(),
+            world: None,
+            world_seq: 0,
             status: "Connecting...".into(),
             round_on: false,
             ended: false,
@@ -98,6 +103,8 @@ impl Session {
             peers: HashMap::new(),
             host_peer: None,
             heard: HashMap::new(),
+            world: None,
+            world_seq: 0,
             status: "Connecting...".into(),
             round_on: false,
             ended: false,
@@ -236,6 +243,14 @@ impl Session {
                 }
                 Vec::new()
             }
+            (Role::Guest, Msg::World(w)) => {
+                // only the host describes the yard, and only newer pictures count
+                if self.my_id != 0 && self.host_peer.as_deref() == Some(from.as_str()) && (w.seq > self.world_seq || self.world.is_none()) {
+                    self.world_seq = w.seq;
+                    self.world = Some(*w);
+                }
+                Vec::new()
+            }
             (Role::Guest, Msg::State(s)) => {
                 if self.my_id != 0 && s.id != self.my_id && self.members.iter().any(|m| m.id == s.id) {
                     self.heard.insert(s.id, Heard { state: s, at: now });
@@ -244,6 +259,11 @@ impl Session {
             }
             _ => Vec::new(),
         }
+    }
+
+    /// The host's name (for the feed lines that say "You").
+    pub fn host_name(&self) -> String {
+        self.members.iter().find(|m| m.host).map_or("The host".to_string(), |m| m.name.clone())
     }
 
     /// The other people, as the game wants them.
@@ -358,7 +378,7 @@ pub struct OnlinePlugin;
 impl Plugin for OnlinePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Online>()
-            .add_systems(Update, (net_requests, online_poll, online_send, online_roster).chain())
+            .add_systems(Update, (net_requests, online_poll, online_send, online_roster, online_world_send, online_world_apply).chain())
             .add_systems(FixedUpdate, online_puppets.after(crate::game::step_game));
     }
 }
@@ -374,6 +394,7 @@ fn net_requests(
     game: Res<Game>,
     mut frames: Local<u32>,
     mut last_debug: Local<f32>,
+    mut played: Local<bool>,
 ) {
     *frames += 1;
     if *frames == 3 {
@@ -389,6 +410,13 @@ fn net_requests(
             }
         }
     }
+    // `--net-play SECONDS`: press Play that long after start-up (a host waiting for a guest)
+    if !*played && let Some(secs) = std::env::args().position(|a| a == "--net-play").and_then(|i| std::env::args().nth(i + 1)).and_then(|v| v.parse::<f32>().ok()) {
+        if time.elapsed_secs() > secs {
+            *played = true;
+            ui.request = Some(crate::menu::Request::Play);
+        }
+    }
     if let Some(req) = ui.net_request.take() {
         let seed = (time.elapsed_secs_f64() * 1000.0) as u64 ^ std::process::id() as u64;
         online.start(req, &settings, seed);
@@ -400,7 +428,18 @@ fn net_requests(
             .iter()
             .filter_map(|d| d.remote.as_ref().map(|r| format!("{} at ({:.1}, {:.1})", r.name, d.mover.x, d.mover.z)))
             .collect();
-        println!("ONLINE status=\"{}\" puppets=[{}]", online.status(), who.join("; "));
+        let bot0 = game.dummies.iter().find(|d| d.remote.is_none()).map_or("none".to_string(), |d| format!("{:.1},{:.1}", d.mover.x, d.mover.z));
+        println!(
+            "ONLINE status=\"{}\" puppets=[{}] mirror={} items={} bot0=({bot0}) phase={:?} clock={:.0} dazza=({:.1},{:.1})",
+            online.status(),
+            who.join("; "),
+            game.mirror,
+            game.world.items.len(),
+            game.rules.phase,
+            game.round.time_left,
+            game.life.dazza.pos.x,
+            game.life.dazza.pos.z
+        );
     }
 }
 
@@ -482,11 +521,62 @@ fn online_roster(mut online: ResMut<Online>, mut game: ResMut<Game>, screen: Res
         s.round_on = *screen == crate::menu::Screen::Playing;
     }
     let want = online.session.as_ref().filter(|s| !s.ended).map(Session::others).unwrap_or_default();
+    let (guest, host_with_mates) = online
+        .session
+        .as_ref()
+        .filter(|s| !s.ended)
+        .map_or((false, false), |s| (s.role == Role::Guest && s.joined(), s.role == Role::Host && s.members.len() > 1));
+    if game.mirror != guest {
+        game.mirror = guest;
+        if !guest {
+            // back to running our own yard
+            game.world.clear();
+        }
+    }
+    game.net_fx = host_with_mates;
     if game.remotes != want {
         game.remotes = want;
         let bots = game.dummies.iter().filter(|d| d.remote.is_none()).count();
         crate::round::sync_bot_count(&mut game, bots);
     }
+}
+
+/// The host tells everyone how the yard looks, 15 times a second.
+fn online_world_send(
+    time: Res<Time>,
+    mut online: ResMut<Online>,
+    mut game: ResMut<Game>,
+    yard: Res<crate::yard_scene::YardRes>,
+    mut every: Local<f32>,
+    mut seq: Local<u32>,
+    mut feed_sent: Local<f32>,
+) {
+    let Online { link, session, .. } = &mut *online;
+    let (Some(link), Some(session)) = (link.as_ref(), session.as_ref()) else { return };
+    if session.role != Role::Host || !session.joined() || session.members.len() < 2 {
+        game.fx_out.clear();
+        return;
+    }
+    *every -= time.delta_secs();
+    if *every > 0.0 {
+        return;
+    }
+    *every = 1.0 / crate::online_world::WORLD_HZ;
+    *seq = seq.wrapping_add(1);
+    let fx = std::mem::take(&mut game.fx_out);
+    let snap = crate::online_world::build_world(&game, &yard.0, *seq, *feed_sent, &fx);
+    if let Some((_, t)) = game.feed.last() {
+        *feed_sent = *t;
+    }
+    link.send(&session.room, None, Msg::World(Box::new(snap)).encode());
+}
+
+/// A guest copies the host's picture of the yard.
+fn online_world_apply(mut online: ResMut<Online>, mut game: ResMut<Game>, mut yard: ResMut<crate::yard_scene::YardRes>) {
+    let Some(session) = online.session.as_mut().filter(|s| s.role == Role::Guest && s.joined()) else { return };
+    let Some(snap) = session.world.take() else { return };
+    let (my_id, host) = (session.my_id, session.host_name());
+    crate::online_world::apply_world(&mut game, &mut yard.0, &snap, my_id, &host);
 }
 
 /// Move each puppet to where its person says they are (a little ahead, by their speed, and
@@ -699,6 +789,37 @@ mod tests {
         // a roster from somebody who is not the host is ignored
         p.guest.on_event(msg_in("Z", &Msg::Roster(vec![])), 0.0);
         assert_eq!(p.guest.members.len(), 2);
+    }
+
+    #[test]
+    fn a_guest_keeps_only_newer_world_pictures_from_the_host() {
+        use bbq_core::net_world::*;
+        let mut p = Pair::new();
+        let snap = |seq| WorldSnap {
+            seq,
+            now: 1.0,
+            round: RoundSnap { phase: 3, mode: 0, features: 0, time_left: 9.0, round_no: 1, match_len: 1, chest_spot: 0, chest_stock: 3, smoko_at: (0.0, 0.0), heist_teams: 0, banner: None },
+            items: vec![],
+            bots: vec![],
+            dazza: DazzaSnap { x: 0.0, z: 0.0, face: 0.0, state: 0, say_seq: 0, swing_seq: 0, flip_seq: 0, say: String::new() },
+            board: vec![],
+            teams: vec![],
+            feed: vec![],
+            fx: vec![],
+        };
+        p.guest.on_event(msg_in("H", &Msg::World(Box::new(snap(5)))), 0.0);
+        assert_eq!(p.guest.world.as_ref().unwrap().seq, 5);
+        p.guest.on_event(msg_in("H", &Msg::World(Box::new(snap(4)))), 0.0);
+        assert_eq!(p.guest.world.as_ref().unwrap().seq, 5, "an old picture is ignored");
+        p.guest.on_event(msg_in("H", &Msg::World(Box::new(snap(6)))), 0.0);
+        assert_eq!(p.guest.world.as_ref().unwrap().seq, 6);
+        // somebody who is not the host cannot describe the yard
+        p.guest.on_event(msg_in("Z", &Msg::World(Box::new(snap(99)))), 0.0);
+        assert_eq!(p.guest.world.as_ref().unwrap().seq, 6);
+        // and a host does not take pictures from anybody
+        p.host.on_event(msg_in("G", &Msg::World(Box::new(snap(50)))), 0.0);
+        assert!(p.host.world.is_none());
+        assert_eq!(p.guest.host_name(), "Marcus");
     }
 
     #[test]

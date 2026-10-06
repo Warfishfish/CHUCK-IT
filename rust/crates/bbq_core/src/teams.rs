@@ -46,6 +46,10 @@ impl Teams {
         self.map.clear();
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = (PlayerId, Team)> + '_ {
+        self.map.iter().map(|(k, v)| (*k, *v))
+    }
+
     pub fn len(&self) -> usize {
         self.map.len()
     }

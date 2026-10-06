@@ -26,6 +26,15 @@ pub enum FxKind {
     Dust,
 }
 
+impl FxKind {
+    pub const ALL: [FxKind; 5] = [FxKind::Hit, FxKind::Smash, FxKind::Whack, FxKind::Splash, FxKind::Dust];
+
+    /// Its number on the network.
+    pub fn index(self) -> u8 {
+        FxKind::ALL.iter().position(|k| *k == self).unwrap_or(0) as u8
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct FxEvent {
     pub kind: FxKind,

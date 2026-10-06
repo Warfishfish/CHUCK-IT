@@ -26,6 +26,7 @@ pub mod melee;
 pub mod gamepad;
 pub mod movement;
 pub mod net;
+pub mod net_world;
 pub mod pose;
 pub mod rng;
 pub mod scoring;

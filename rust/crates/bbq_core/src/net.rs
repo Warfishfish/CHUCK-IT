@@ -98,6 +98,8 @@ pub enum Msg {
     State(PlayerState),
     /// "I am leaving" (the host also sends it for a guest who vanished).
     Bye { id: u32 },
+    /// Host to everybody: how the whole yard looks right now (about 15 times a second).
+    World(Box<crate::net_world::WorldSnap>),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -111,19 +113,37 @@ pub enum DecodeError {
 
 // ---------------------------------------------------------------- writing
 
-struct Writer(Vec<u8>);
+pub(crate) struct Writer(pub(crate) Vec<u8>);
 
 impl Writer {
-    fn u8(&mut self, v: u8) {
+    pub(crate) fn i32(&mut self, v: i32) {
+        self.0.extend_from_slice(&v.to_le_bytes());
+    }
+    /// A line of text of up to `max` characters (cut if longer), with a two-byte length.
+    pub(crate) fn line(&mut self, s: &str, max: usize) {
+        let s: String = s.chars().filter(|c| !c.is_control()).take(max).collect();
+        self.u16(s.len() as u16);
+        self.0.extend_from_slice(s.as_bytes());
+    }
+    pub(crate) fn pair(&mut self, p: (f32, f32)) {
+        self.f32(p.0);
+        self.f32(p.1);
+    }
+    pub(crate) fn triple(&mut self, p: (f32, f32, f32)) {
+        self.f32(p.0);
+        self.f32(p.1);
+        self.f32(p.2);
+    }
+    pub(crate) fn u8(&mut self, v: u8) {
         self.0.push(v);
     }
-    fn u16(&mut self, v: u16) {
+    pub(crate) fn u16(&mut self, v: u16) {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
-    fn u32(&mut self, v: u32) {
+    pub(crate) fn u32(&mut self, v: u32) {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
-    fn f32(&mut self, v: f32) {
+    pub(crate) fn f32(&mut self, v: f32) {
         self.0.extend_from_slice(&v.to_le_bytes());
     }
     fn text(&mut self, s: &str) {
@@ -147,10 +167,30 @@ impl Writer {
 
 // ---------------------------------------------------------------- reading
 
-struct Reader<'a>(&'a [u8]);
+pub(crate) struct Reader<'a>(pub(crate) &'a [u8]);
 
 impl<'a> Reader<'a> {
-    fn take(&mut self, n: usize) -> Result<&'a [u8], DecodeError> {
+    pub(crate) fn i32(&mut self) -> Result<i32, DecodeError> {
+        Ok(i32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+    }
+    pub(crate) fn line(&mut self, max: usize) -> Result<String, DecodeError> {
+        let n = self.u16()? as usize;
+        if n > max * 4 {
+            return Err(DecodeError::BadText);
+        }
+        let s = std::str::from_utf8(self.take(n)?).map_err(|_| DecodeError::BadText)?;
+        if s.chars().count() > max || s.chars().any(|c| c.is_control()) {
+            return Err(DecodeError::BadText);
+        }
+        Ok(s.to_string())
+    }
+    pub(crate) fn pair(&mut self) -> Result<(f32, f32), DecodeError> {
+        Ok((self.f32()?, self.f32()?))
+    }
+    pub(crate) fn triple(&mut self) -> Result<(f32, f32, f32), DecodeError> {
+        Ok((self.f32()?, self.f32()?, self.f32()?))
+    }
+    pub(crate) fn take(&mut self, n: usize) -> Result<&'a [u8], DecodeError> {
         if self.0.len() < n {
             return Err(DecodeError::TooShort);
         }
@@ -158,16 +198,16 @@ impl<'a> Reader<'a> {
         self.0 = b;
         Ok(a)
     }
-    fn u8(&mut self) -> Result<u8, DecodeError> {
+    pub(crate) fn u8(&mut self) -> Result<u8, DecodeError> {
         Ok(self.take(1)?[0])
     }
-    fn u16(&mut self) -> Result<u16, DecodeError> {
+    pub(crate) fn u16(&mut self) -> Result<u16, DecodeError> {
         Ok(u16::from_le_bytes(self.take(2)?.try_into().unwrap()))
     }
-    fn u32(&mut self) -> Result<u32, DecodeError> {
+    pub(crate) fn u32(&mut self) -> Result<u32, DecodeError> {
         Ok(u32::from_le_bytes(self.take(4)?.try_into().unwrap()))
     }
-    fn f32(&mut self) -> Result<f32, DecodeError> {
+    pub(crate) fn f32(&mut self) -> Result<f32, DecodeError> {
         let v = f32::from_le_bytes(self.take(4)?.try_into().unwrap());
         // never let a NaN or infinity into the game
         Ok(if v.is_finite() { v } else { 0.0 })
@@ -201,6 +241,7 @@ const K_REFUSED: u8 = 3;
 const K_ROSTER: u8 = 4;
 const K_STATE: u8 = 5;
 const K_BYE: u8 = 6;
+const K_WORLD: u8 = 7;
 
 const F_GROUNDED: u16 = 1;
 const F_STUNNED: u16 = 2;
@@ -260,6 +301,10 @@ impl Msg {
                 w.u8(K_BYE);
                 w.u32(*id);
             }
+            Msg::World(snap) => {
+                w.u8(K_WORLD);
+                snap.write(&mut w);
+            }
         }
         w.0
     }
@@ -300,6 +345,7 @@ impl Msg {
                 })
             }
             K_BYE => Msg::Bye { id: r.u32()? },
+            K_WORLD => Msg::World(Box::new(crate::net_world::WorldSnap::read(&mut r)?)),
             k => return Err(DecodeError::UnknownKind(k)),
         };
         if !r.0.is_empty() {

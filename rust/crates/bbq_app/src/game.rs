@@ -47,6 +47,8 @@ pub struct Dummy {
     pub id: PlayerId,
     /// Set for a person playing online: the bot brain leaves them alone.
     pub remote: Option<RemoteInfo>,
+    /// Online guest: where the host last said this bot is (position, speed, game time heard).
+    pub net_target: Option<(V3, (f32, f32), f32)>,
     pub mover: Mover,
     pub body: Body,
     pub home: (f32, f32),
@@ -87,6 +89,7 @@ impl Dummy {
         Dummy {
             id,
             remote: None,
+            net_target: None,
             mover: Mover::new(x, z),
             body: Body::default(),
             home: (x, z),
@@ -177,6 +180,12 @@ pub struct Game {
     pub fx: Vec<crate::fx::FxEvent>,
     /// The other people in an online yard (empty when playing alone).
     pub remotes: Vec<RemoteInfo>,
+    /// Online guest: this game does not run the yard, it shows what the host says (see
+    /// `online_world.rs`).
+    pub mirror: bool,
+    /// Online host: keep a copy of the particle effects for the guests (`fx_out`).
+    pub net_fx: bool,
+    pub fx_out: Vec<crate::fx::FxEvent>,
     /// Goes up whenever the people in the yard are rebuilt, so the blobs are rebuilt too.
     pub dummies_version: u32,
 }
@@ -197,6 +206,9 @@ impl Game {
     pub fn fx(&mut self, kind: crate::fx::FxKind, at: V3) {
         if self.fx.len() < 24 {
             self.fx.push(crate::fx::FxEvent { kind, at });
+        }
+        if self.net_fx && self.fx_out.len() < 32 {
+            self.fx_out.push(crate::fx::FxEvent { kind, at });
         }
     }
 
@@ -272,6 +284,9 @@ impl Plugin for GamePlugin {
             attract: false,
             fx: Vec::new(),
             remotes: Vec::new(),
+            mirror: false,
+            net_fx: false,
+            fx_out: Vec::new(),
             dummies_version: 0,
         })
         .add_systems(FixedUpdate, step_game.run_if(crate::menu::world_runs));
@@ -317,6 +332,10 @@ pub fn step_game(
     let now = g.now;
     let g = &mut *g;
     let p = &mut *player;
+    if g.mirror {
+        crate::online_world::mirror_tick(g, &mut wanted, dt);
+        return;
+    }
 
     // ---- the round clock, and Heist banking ----
     crate::round::step(g);

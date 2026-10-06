@@ -20,6 +20,19 @@ pub enum Phase {
     Results,
 }
 
+impl Phase {
+    pub const ALL: [Phase; 5] = [Phase::Menu, Phase::Warmup, Phase::Countdown, Phase::Play, Phase::Results];
+
+    /// Its place in `ALL` (what goes over the network).
+    pub fn index(self) -> u8 {
+        Phase::ALL.iter().position(|p| *p == self).unwrap_or(0) as u8
+    }
+
+    pub fn from_index(i: u8) -> Phase {
+        Phase::ALL.get(i as usize).copied().unwrap_or(Phase::Menu)
+    }
+}
+
 /// The things scoring depends on.
 #[derive(Clone, Copy, Debug)]
 pub struct Rules {
@@ -137,6 +150,15 @@ impl Scoreboard {
 
     pub fn remove(&mut self, id: PlayerId) {
         self.stats.remove(&id);
+    }
+
+    /// Put somebody's numbers in as they are (a guest copying the host's board).
+    pub fn set(&mut self, id: PlayerId, stats: PlayerStats) {
+        self.stats.insert(id, stats);
+    }
+
+    pub fn clear(&mut self) {
+        self.stats.clear();
     }
 
     pub fn get(&self, id: PlayerId) -> Option<&PlayerStats> {

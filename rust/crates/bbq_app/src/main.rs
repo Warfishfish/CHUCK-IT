@@ -27,6 +27,7 @@ mod preview;
 mod menu;
 mod net_link;
 mod online;
+mod online_world;
 mod results;
 mod round;
 mod shapes;
