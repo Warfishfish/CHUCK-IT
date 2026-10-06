@@ -95,13 +95,13 @@ pub fn gallery_places() -> Vec<(ModelKey, Vec3)> {
             Vec3::new((i as f32 - 3.0) * 0.55, 30.35, -1.0),
         ));
     }
-    for (i, d) in [DildoVariant::Mini, DildoVariant::Jumbo, DildoVariant::Gold]
+    for (i, d) in [DildoVariant::Mini, DildoVariant::Jumbo, DildoVariant::Gold, DildoVariant::Quickie, DildoVariant::LongJohn]
         .into_iter()
         .enumerate()
     {
         v.push((
             ModelKey::item(ItemKind::Dildo, Some(d), 0),
-            Vec3::new((i as f32 - 1.0) * 0.6, 29.7, -1.0),
+            Vec3::new((i as f32 - 2.0) * 0.6, 29.7, -1.0),
         ));
     }
     v

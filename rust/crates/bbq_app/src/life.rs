@@ -161,10 +161,26 @@ fn candidates(g: &Game) -> Vec<Candidate> {
         .collect()
 }
 
+/// What the dildo in your hand does differently (reach, swing speed): nothing for anything else.
+fn held_dildo(g: &Game) -> Option<bbq_core::items::DildoVariant> {
+    let item = g.world.items.get(&g.slots.selected()?)?;
+    if item.kind == ItemKind::Dildo { item.variant } else { None }
+}
+
+/// How far your slap reaches with what you hold now.
+fn slap_reach(g: &Game) -> f32 {
+    melee::REACH * held_dildo(g).map_or(1.0, |v| v.def().reach)
+}
+
+/// How long a swing takes, and the wait for the next one, as a share of the usual.
+pub fn swing_mul(g: &Game) -> f32 {
+    held_dildo(g).map_or(1.0, |v| v.def().swing)
+}
+
 fn dazza_in_reach(g: &Game, me: V3, face: (f32, f32)) -> bool {
     let d = &g.life.dazza;
     d.state != DazzaState::Ko
-        && melee::in_front(me, face, d.pos)
+        && melee::in_front_reach(me, face, d.pos, slap_reach(g))
         && (d.pos.y - me.y).abs() < melee::VERTICAL
 }
 
@@ -176,7 +192,7 @@ fn can_swing(g: &Game, armed: bool) -> bool {
         && g.life.seated.is_none()
         && g.life.carry.is_none()
         && !g.me.drunk.is_drinking()
-        && g.life.slap.ready(g.now, armed)
+        && g.life.slap.ready_scaled(g.now, armed, if armed { swing_mul(g) } else { 1.0 })
 }
 
 /// Left click with a slapping item in hand (or a tap with the noodle).
@@ -192,11 +208,11 @@ pub fn player_slap(g: &mut Game, p: &mut Player) {
         return;
     }
     g.life.slap.mark(g.now);
-    g.life.me_swing = melee::SWING_TIME;
+    g.life.me_swing = melee::SWING_TIME * swing_mul(g);
     let me = me_pos(p);
     let face = facing(p);
     let cands = candidates(g);
-    if let Some(vid) = melee::pick_target(me, face, &cands, g.rules.friendly_fire) {
+    if let Some(vid) = melee::pick_target_reach(me, face, &cands, g.rules.friendly_fire, slap_reach(g)) {
         let Some(i) = g.dummies.iter().position(|d| d.id == vid) else {
             return;
         };

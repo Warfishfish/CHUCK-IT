@@ -54,6 +54,17 @@ pub fn pick_target(
     cands: &[Candidate],
     friendly_fire: bool,
 ) -> Option<PlayerId> {
+    pick_target_reach(me, facing, cands, friendly_fire, REACH)
+}
+
+/// Like `pick_target`, for a weapon with its own reach (a long dildo reaches further).
+pub fn pick_target_reach(
+    me: V3,
+    facing: (f32, f32),
+    cands: &[Candidate],
+    friendly_fire: bool,
+    reach: f32,
+) -> Option<PlayerId> {
     let fl = facing.0.hypot(facing.1);
     let (fx, fz) = if fl > 1e-4 {
         (facing.0 / fl, facing.1 / fl)
@@ -67,7 +78,7 @@ pub fn pick_target(
         }
         let (dx, dz) = (c.pos.x - me.x, c.pos.z - me.z);
         let l = dx.hypot(dz);
-        if l > REACH || (c.pos.y - me.y).abs() > VERTICAL {
+        if l > reach || (c.pos.y - me.y).abs() > VERTICAL {
             continue;
         }
         if l > 0.01 && (fx * dx + fz * dz) / l < CONE {
@@ -82,6 +93,11 @@ pub fn pick_target(
 
 /// Is Dazza (or anything else that isn't a player) in reach in front of you?
 pub fn in_front(me: V3, facing: (f32, f32), at: V3) -> bool {
+    in_front_reach(me, facing, at, REACH)
+}
+
+/// Like `in_front`, for a weapon with its own reach.
+pub fn in_front_reach(me: V3, facing: (f32, f32), at: V3, reach: f32) -> bool {
     let fl = facing.0.hypot(facing.1);
     let (fx, fz) = if fl > 1e-4 {
         (facing.0 / fl, facing.1 / fl)
@@ -90,7 +106,7 @@ pub fn in_front(me: V3, facing: (f32, f32), at: V3) -> bool {
     };
     let (dx, dz) = (at.x - me.x, at.z - me.z);
     let l = dx.hypot(dz);
-    l < REACH && (l < 0.01 || (fx * dx + fz * dz) / l >= CONE)
+    l < reach && (l < 0.01 || (fx * dx + fz * dz) / l >= CONE)
 }
 
 /// Your swing timer.
@@ -107,7 +123,11 @@ impl Default for SlapClock {
 
 impl SlapClock {
     pub fn ready(&self, now: f32, armed: bool) -> bool {
-        now - self.last >= if armed { COOLDOWN_ARMED } else { COOLDOWN_BARE }
+        self.ready_scaled(now, armed, 1.0)
+    }
+    /// Like `ready`, for a weapon that swings faster or slower (`mul` of the usual wait).
+    pub fn ready_scaled(&self, now: f32, armed: bool, mul: f32) -> bool {
+        now - self.last >= mul * if armed { COOLDOWN_ARMED } else { COOLDOWN_BARE }
     }
     pub fn mark(&mut self, now: f32) {
         self.last = now;
@@ -158,15 +178,16 @@ pub struct DildoRoll {
 }
 
 pub fn roll_dildo(rng: &mut Rng, variant: DildoVariant) -> DildoRoll {
-    let r = rng.f32();
-    let pose = if r < 1.0 / 3.0 {
+    let w = variant.def().poses;
+    let r = rng.f32() * (w[0] + w[1] + w[2]);
+    let pose = if r < w[0] {
         SlapKind::SentFlying
-    } else if r < 2.0 / 3.0 {
+    } else if r < w[0] + w[1] {
         SlapKind::Cartwheel
     } else {
         SlapKind::Timber
     };
-    let crit = rng.chance(crate::items::CRIT_CHANCE);
+    let crit = rng.chance(variant.def().crit);
     DildoRoll {
         pose,
         crit,
@@ -397,6 +418,50 @@ mod tests {
             assert!((c as f32 / n as f32 - 1.0 / 3.0).abs() < 0.03, "{c}");
         }
         assert!((crits as f32 / n as f32 - 0.15).abs() < 0.02, "{crits}");
+    }
+
+    #[test]
+    fn each_type_has_its_own_odds() {
+        let n = 8000;
+        let stats = |v: DildoVariant| {
+            let mut rng = Rng::new(11);
+            let (mut fly, mut crits) = (0, 0);
+            for _ in 0..n {
+                let r = roll_dildo(&mut rng, v);
+                if r.pose == SlapKind::SentFlying {
+                    fly += 1;
+                }
+                if r.crit {
+                    crits += 1;
+                }
+            }
+            (fly as f32 / n as f32, crits as f32 / n as f32)
+        };
+        let (mini_fly, mini_crit) = stats(DildoVariant::Mini);
+        assert_eq!(mini_fly, 0.0, "the Pocket Rocket never sends anyone flying");
+        assert!((mini_crit - 0.22).abs() < 0.02, "{mini_crit}");
+        let (unit_fly, unit_crit) = stats(DildoVariant::Jumbo);
+        assert!((unit_fly - 0.5).abs() < 0.03, "The Unit mostly sends them flying ({unit_fly})");
+        assert!((unit_crit - 0.08).abs() < 0.015, "{unit_crit}");
+        let (_, gold_crit) = stats(DildoVariant::Gold);
+        assert!((gold_crit - 0.25).abs() < 0.02, "{gold_crit}");
+    }
+
+    #[test]
+    fn a_long_dildo_reaches_further_and_a_quick_one_swings_sooner() {
+        let long = DildoVariant::LongJohn.def().reach * REACH;
+        let me = V3::ZERO;
+        let far = [Candidate { id: 1, pos: V3::new(0.0, 0.0, 3.2), down_t: 0.0, at_smoko: false, teammate: false }];
+        assert_eq!(pick_target(me, (0.0, 1.0), &far, false), None);
+        assert_eq!(pick_target_reach(me, (0.0, 1.0), &far, false, long), Some(1));
+        assert!(in_front_reach(me, (0.0, 1.0), V3::new(0.0, 0.0, 3.2), long));
+        assert!(!in_front(me, (0.0, 1.0), V3::new(0.0, 0.0, 3.2)));
+        let mut clock = SlapClock::default();
+        clock.mark(0.0);
+        let quick = DildoVariant::Quickie.def().swing;
+        assert!(!clock.ready(0.4, true), "a normal weapon is still recovering");
+        assert!(clock.ready_scaled(0.4, true, quick), "the quick one is ready");
+        assert!(!clock.ready_scaled(0.4, true, DildoVariant::LongJohn.def().swing), "the long one is not");
     }
 
     #[test]

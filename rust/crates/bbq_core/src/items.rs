@@ -222,13 +222,18 @@ pub const SPAWN_CLEARANCE: f32 = 2.2;
 /// Noodles kept floating in the pool.
 pub const NOODLES: usize = 2;
 
-/// The four dildo sizes (spec section 3).
+/// The dildo types: the four sizes from the browser game (spec section 3), plus two new ones
+/// that only the Rust version has, each with an ability (Marcus, 6 Oct 2026).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DildoVariant {
     Classic,
     Mini,
     Jumbo,
     Gold,
+    /// Small and teal: swings fast, so you can slap more often, but it hits light.
+    Quickie,
+    /// Long and orange: hits from further away, but swings slowly.
+    LongJohn,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -241,17 +246,30 @@ pub struct VariantDef {
     pub down: f32,
     pub weight: f32,
     pub rare: bool,
+    /// Chance that a slap is a critical (the browser game has 0.15 for all of them).
+    pub crit: f32,
+    /// How likely each knockdown is, in the order Sent Flying, Cartwheel, Timber (they need not
+    /// add up to 1: they are weights).
+    pub poses: [f32; 3],
+    /// Multiplies the wait between swings and the swing animation (below 1 = faster).
+    pub swing: f32,
+    /// Multiplies how far away a slap can land.
+    pub reach: f32,
 }
 
 impl DildoVariant {
-    pub const ALL: [DildoVariant; 4] = [
+    pub const ALL: [DildoVariant; 6] = [
         DildoVariant::Classic,
         DildoVariant::Mini,
         DildoVariant::Jumbo,
         DildoVariant::Gold,
+        DildoVariant::Quickie,
+        DildoVariant::LongJohn,
     ];
 
     pub fn def(self) -> VariantDef {
+        // `crit` and `poses` are the odds of each type: the browser's types all use 0.15 and an
+        // even third of each knockdown; the Rust version gives them each their own character.
         match self {
             DildoVariant::Classic => VariantDef {
                 label: "Purple Dildo",
@@ -260,7 +278,12 @@ impl DildoVariant {
                 down: 0.0,
                 weight: 46.0,
                 rare: false,
+                crit: 0.15,
+                poses: [1.0, 1.0, 1.0],
+                swing: 1.0,
+                reach: 1.0,
             },
+            // light and nippy: crits a bit more often, but never sends anyone flying
             DildoVariant::Mini => VariantDef {
                 label: "Pocket Rocket",
                 scale: 0.66,
@@ -268,7 +291,12 @@ impl DildoVariant {
                 down: -1.0,
                 weight: 28.0,
                 rare: false,
+                crit: 0.22,
+                poses: [0.0, 1.0, 1.0],
+                swing: 1.0,
+                reach: 1.0,
             },
+            // heavy: rarely crits, but mostly sends people flying
             DildoVariant::Jumbo => VariantDef {
                 label: "The Unit",
                 scale: 1.38,
@@ -276,6 +304,10 @@ impl DildoVariant {
                 down: 1.0,
                 weight: 18.0,
                 rare: false,
+                crit: 0.08,
+                poses: [1.0, 0.5, 0.5],
+                swing: 1.0,
+                reach: 1.0,
             },
             DildoVariant::Gold => VariantDef {
                 label: "Golden Wonder",
@@ -284,6 +316,36 @@ impl DildoVariant {
                 down: 2.0,
                 weight: 4.0,
                 rare: true,
+                crit: 0.25,
+                poses: [1.0, 1.0, 1.0],
+                swing: 1.0,
+                reach: 1.0,
+            },
+            // fast: swings in 60% of the time (about 0.33 s between slaps, not 0.55)
+            DildoVariant::Quickie => VariantDef {
+                label: "The Quickie",
+                scale: 0.8,
+                points: -10,
+                down: -0.5,
+                weight: 12.0,
+                rare: false,
+                crit: 0.12,
+                poses: [0.5, 1.0, 1.0],
+                swing: 0.6,
+                reach: 0.9,
+            },
+            // long: reaches 40% further, but swings in 150% of the time
+            DildoVariant::LongJohn => VariantDef {
+                label: "Long John",
+                scale: 1.5,
+                points: 25,
+                down: 0.5,
+                weight: 10.0,
+                rare: false,
+                crit: 0.10,
+                poses: [1.0, 1.0, 1.0],
+                swing: 1.5,
+                reach: 1.4,
             },
         }
     }
@@ -368,14 +430,37 @@ mod tests {
 
     #[test]
     fn dildo_variant_weights() {
-        // Weights 46/28/18/4 add up to 96, so the cut-offs are 46/96, 74/96 and 92/96.
+        // Weights 46/28/18/4/12/10 add up to 118, so the cut-offs are 46, 74, 92, 96 and 108
+        // out of 118 (0.390, 0.627, 0.780, 0.814, 0.915).
         assert_eq!(pick_dildo_variant(0.0), DildoVariant::Classic);
-        assert_eq!(pick_dildo_variant(0.47), DildoVariant::Classic);
-        assert_eq!(pick_dildo_variant(0.49), DildoVariant::Mini);
-        assert_eq!(pick_dildo_variant(0.77), DildoVariant::Mini);
-        assert_eq!(pick_dildo_variant(0.78), DildoVariant::Jumbo);
-        assert_eq!(pick_dildo_variant(0.95), DildoVariant::Jumbo);
-        assert_eq!(pick_dildo_variant(0.97), DildoVariant::Gold);
+        assert_eq!(pick_dildo_variant(0.38), DildoVariant::Classic);
+        assert_eq!(pick_dildo_variant(0.40), DildoVariant::Mini);
+        assert_eq!(pick_dildo_variant(0.62), DildoVariant::Mini);
+        assert_eq!(pick_dildo_variant(0.64), DildoVariant::Jumbo);
+        assert_eq!(pick_dildo_variant(0.77), DildoVariant::Jumbo);
+        assert_eq!(pick_dildo_variant(0.79), DildoVariant::Gold);
+        assert_eq!(pick_dildo_variant(0.82), DildoVariant::Quickie);
+        assert_eq!(pick_dildo_variant(0.90), DildoVariant::Quickie);
+        assert_eq!(pick_dildo_variant(0.93), DildoVariant::LongJohn);
+        assert_eq!(pick_dildo_variant(0.999), DildoVariant::LongJohn);
+    }
+
+    #[test]
+    fn the_new_types_have_their_abilities() {
+        let q = DildoVariant::Quickie.def();
+        let l = DildoVariant::LongJohn.def();
+        assert!(q.swing < 1.0 && l.swing > 1.0, "quick swings faster, long slower");
+        assert!(l.reach > 1.0 && q.reach <= 1.0, "long reaches further");
+        // every type that existed in the browser game keeps its reach and swing speed
+        for v in [DildoVariant::Classic, DildoVariant::Mini, DildoVariant::Jumbo, DildoVariant::Gold] {
+            assert_eq!((v.def().swing, v.def().reach), (1.0, 1.0));
+        }
+        // the odds make sense for every type
+        for v in DildoVariant::ALL {
+            let d = v.def();
+            assert!((0.0..=1.0).contains(&d.crit), "{v:?}");
+            assert!(d.poses.iter().all(|p| *p >= 0.0) && d.poses.iter().sum::<f32>() > 0.0, "{v:?}");
+        }
     }
 
     #[test]

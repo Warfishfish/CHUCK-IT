@@ -1227,6 +1227,28 @@ mod tests {
         assert_eq!(g.board.score(g.dummies[0].id), -50);
     }
 
+    fn set_held_variant(app: &mut App, v: bbq_core::items::DildoVariant) {
+        let mut g = app.world_mut().resource_mut::<Game>();
+        let id = g.slots.selected().unwrap();
+        g.world.items.get_mut(&id).unwrap().variant = Some(v);
+    }
+
+    #[test]
+    fn a_long_dildo_reaches_a_target_a_normal_one_cannot() {
+        use bbq_core::items::DildoVariant;
+        // the dummy is 2.8 m away: past the normal 2.6 m reach, inside Long John's 3.6 m
+        for (variant, hits) in [(DildoVariant::Classic, false), (DildoVariant::LongJohn, true)] {
+            let mut app = app();
+            put_player(&mut app, 8.0, 3.2); // dummy 0 stands at (8, 6)
+            ticks(&mut app, 2);
+            give_kind(&mut app, ItemKind::Dildo);
+            set_held_variant(&mut app, variant);
+            click(&mut app);
+            let g = app.world().resource::<Game>();
+            assert_eq!(g.dummies[0].body.is_down(), hits, "{variant:?}");
+        }
+    }
+
     #[test]
     fn a_slap_out_of_reach_misses_and_keeps_the_charge() {
         let mut app = app();

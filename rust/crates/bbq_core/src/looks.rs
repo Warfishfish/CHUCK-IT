@@ -764,6 +764,8 @@ pub fn dildo_colour(v: DildoVariant) -> u32 {
         DildoVariant::Mini => 0xff6fb0,
         DildoVariant::Jumbo => 0x5a2a8a,
         DildoVariant::Gold => 0xffd23f,
+        DildoVariant::Quickie => 0x2ed3c6,
+        DildoVariant::LongJohn => 0xff8a3d,
     }
 }
 

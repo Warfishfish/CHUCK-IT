@@ -408,7 +408,7 @@ fn sync_viewmodel(
     tf.scale = Vec3::splat(scale);
     // your own slap: the browser's swing across the screen (right to left, tip whipping through)
     if game.life.me_swing > 0.0 && bbq_core::items::ItemKind::def(kind).melee != Melee::None {
-        let p = 1.0 - game.life.me_swing / bbq_core::melee::SWING_TIME;
+        let p = 1.0 - game.life.me_swing / (bbq_core::melee::SWING_TIME * crate::life::swing_mul(&game));
         let a = (std::f32::consts::PI * p).sin();
         tf.translation = Vec3::new(0.42 - 0.8 * p, -0.2 + 0.06 * a, -0.55 - 0.2 * a);
         tf.rotation = Quat::from_euler(EulerRot::XYZ, -0.9 + 0.3 * a, 0.2, -1.3 + 2.2 * p);
