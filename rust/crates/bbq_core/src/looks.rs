@@ -379,6 +379,8 @@ pub struct Part {
     /// A "hero" thing (a character-like prop, an item, the BBQ...): the pop style outlines these
     /// and leaves the scenery alone.
     pub hero: bool,
+    /// With `hero`: draw only a thin, soft outline (things you hold and throw), not the full one.
+    pub soft: bool,
 }
 
 impl Part {
@@ -391,12 +393,20 @@ impl Part {
             scale: V3::new(1.0, 1.0, 1.0),
             seg: None,
             hero: false,
+            soft: false,
         }
     }
 
     /// Mark as a hero part (see `hero`).
     pub fn hero(mut self) -> Self {
         self.hero = true;
+        self
+    }
+
+    /// A hero part with a thin, soft outline.
+    pub fn soft_hero(mut self) -> Self {
+        self.hero = true;
+        self.soft = true;
         self
     }
 
@@ -903,11 +913,11 @@ pub fn item_look(kind: crate::items::ItemKind, id: u32, variant: Option<DildoVar
         for p in &mut v {
             let s = &mut p.surface;
             if !(s.unlit || s.additive || s.alpha < 1.0 || s.emissive != 0 || s.tex.is_some()) {
-                s.color = punch(s.color, 1.3, 1.1);
+                s.color = punch(s.color, 0.78, 1.0);
             }
         }
     }
-    mark_hero(v)
+    v.into_iter().map(Part::soft_hero).collect()
 }
 
 /// Richer, brighter colour: `sat` times the colour's distance from grey, then `val` times

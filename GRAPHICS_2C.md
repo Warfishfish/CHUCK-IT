@@ -61,7 +61,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] A3.5 Roughness and ambient occlusion maps for wood and metal (`wood_orm.png`, `metal_orm.png`, from `make_textures.py`)
 - [x] A3.6 A fabric material (`fabric.png`, `fabric_n.png`): washing, umbrella cloth, trampoline mat, pool towels. The singlet is still to do under C11.3 (the character models need their own UVs)
 - [x] A3.7 Scratches and wear: tyres in the plastic material, trampoline mat in fabric and legs in metal (chairs, bar and BBQ already had materials). The shed is still plain corrugated metal
-- [x] A3.8 Stronger colours on gameplay objects: items get 30% more colour and 10% more brightness, the bins a stronger green (the Chest and sauce bottles were already bold)
+- [x] A3.8 Stronger colours on gameplay objects: items first got 30% more colour, then (6 Oct 2026, Marcus: too much highlighting) 22% LESS colour and a thin, soft brown outline instead of the full black one; the bins a stronger green (the Chest and sauce bottles were already bold)
 
 ### A4. Environmental integration
 - [x] A4.1 Decals: grease and a scorch mark by the BBQ, a beer spill by the bar, meat drips, a wet edge round the pool, bird droppings under the magpies, grime at the back door, and fading beer stains where a VP can bursts

@@ -80,6 +80,17 @@ pub fn outline_material(mats: &mut Assets<StandardMaterial>) -> Handle<StandardM
     })
 }
 
+/// The thin outline on things you hold: a warm dark brown instead of black, so it reads as
+/// shading rather than a drawn line.
+pub fn soft_outline_material(mats: &mut Assets<StandardMaterial>) -> Handle<StandardMaterial> {
+    mats.add(StandardMaterial {
+        base_color: Color::linear_rgb(0.075, 0.05, 0.035),
+        unlit: true,
+        cull_mode: Some(bevy::render::render_resource::Face::Front),
+        ..default()
+    })
+}
+
 /// A character's skin or body material. In the clay style it gets a soft mottled clay surface
 /// (fine pores, thumb-print swirls and a bumpy normal map) and a matt finish; otherwise it is the
 /// plain colour as before.
