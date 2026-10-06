@@ -34,5 +34,16 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 - Show your choices to others online (needs the online messages extended)
 - Save the look with the settings
 
+## Lobby (new, Marcus 6 Oct 2026)
+- When players join a yard they land in a lobby (a small yard or the backyard itself) and wait there
+- In the lobby you customise your blob; behind the customise card you see the other players who have joined, walking about or standing, wearing their looks as they change them
+- The host starts the round from the lobby; everybody goes back to the lobby after the results
+- Builds on 9.6 (guests follow the host) and the customization steps
+
+## Platforms (new)
+- Steam first: online through Steam (Steam lobbies, friends invites, Steam relay so no ports or links are needed)
+- Mobile app (iOS and Android) later: touch controls, a Low graphics setting, and online through our own small server so phone and Steam players can play together
+- Cheeky mode on mobile: check App Store and Google Play age ratings before shipping it there
+
 ## Sound and shipping (later)
 - Phase 10 audio, Phase 11 settings, packaging and Steam, Phase 12 sign-off
