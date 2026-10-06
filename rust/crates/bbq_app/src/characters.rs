@@ -535,8 +535,8 @@ fn build_blobs(
     let star = meshes.add(Sphere::new(0.07).mesh().ico(1).unwrap());
     let sash = meshes.add(Torus::new(0.32, 0.43));
     let balloon = meshes.add(Sphere::new(1.0).mesh().uv(32, 20));
-    let swim_ring = meshes.add(Torus::new(0.5, 0.74));
-    let ring_stripe = meshes.add(Sphere::new(0.13).mesh().uv(10, 8));
+    let swim_ring = meshes.add(Torus::new(0.47, 0.71));
+    let ring_stripe = meshes.add(Sphere::new(0.12).mesh().uv(10, 8));
     let stripe_mat = mats.add(StandardMaterial { base_color: Color::WHITE, perceptual_roughness: 0.4, ..default() });
     let can = meshes.add(Cylinder::new(0.035, 0.12));
     let tag_font = TextFont {
@@ -651,7 +651,8 @@ fn build_blobs(
             .spawn((
                 Mesh3d(swim_ring.clone()),
                 MeshMaterial3d(ring_mat),
-                Transform::from_xyz(0.0, 0.6, 0.0),
+                // worn over one shoulder and across the chest, like the sash in the browser game
+                Transform::from_xyz(0.0, 0.86, 0.0).with_rotation(Quat::from_rotation_z(-0.72)),
                 Visibility::Hidden,
                 SwimRing,
                 Blob(i),
@@ -663,7 +664,7 @@ fn build_blobs(
             commands.spawn((
                 Mesh3d(ring_stripe.clone()),
                 MeshMaterial3d(stripe_mat.clone()),
-                Transform::from_xyz(a.cos() * 0.62, 0.0, a.sin() * 0.62)
+                Transform::from_xyz(a.cos() * 0.59, 0.0, a.sin() * 0.59)
                     .with_rotation(Quat::from_rotation_y(-a))
                     .with_scale(Vec3::new(1.15, 0.9, 0.55)),
                 RingStripe,
@@ -1269,7 +1270,12 @@ fn apply_sash(
     mut mats: ResMut<Assets<StandardMaterial>>,
     mut q: Query<(&Blob, &mut Visibility, &MeshMaterial3d<StandardMaterial>), With<Sash>>,
 ) {
+    let heist = game.rules.mode == bbq_core::GameMode::Heist;
     for (b, mut v, m) in &mut q {
+        if heist {
+            *v = Visibility::Hidden; // the swim ring is the sash there
+            continue;
+        }
         let Some(dd) = game.dummies.get(b.0) else {
             continue;
         };
