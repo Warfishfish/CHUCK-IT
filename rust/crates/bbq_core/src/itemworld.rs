@@ -231,6 +231,7 @@ impl ItemWorld {
         it.charge = charge.clamp(0.0, 1.0);
         it.power = power_ok && crate::hands::is_power(charge);
         it.flight_no += 1;
+        it.bounces = 0;
         true
     }
 

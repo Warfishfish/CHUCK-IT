@@ -70,6 +70,9 @@ pub struct Wobble {
     phase: f32,
     step: i32,
     seed: f32,
+    /// Counts down to the next little random nudge (so the toy is never quite the same twice).
+    nudge_t: f32,
+    nudges: u32,
 }
 
 impl Wobble {
@@ -86,7 +89,7 @@ impl FlopDrive {
 
 impl Default for Wobble {
     fn default() -> Self {
-        Wobble { x: 0.0, z: 0.0, vx: 0.0, vz: 0.0, wx: 0.0, wz: 0.0, prev: Quat::IDENTITY, phase: 0.0, step: i32::MIN, seed: 0.0 }
+        Wobble { x: 0.0, z: 0.0, vx: 0.0, vz: 0.0, wx: 0.0, wz: 0.0, prev: Quat::IDENTITY, phase: 0.0, step: i32::MIN, seed: 0.0, nudge_t: 0.5, nudges: 0 }
     }
 }
 
@@ -626,15 +629,34 @@ fn wobble_items(
             let ph = w.phase;
             w.vx += (ph * 2.0).cos() * (sp / 5.0).min(1.0) * dt * 9.0;
             w.vz += ph.sin() * (sp / 5.0).min(1.0) * dt * 5.0;
-            // every footstep while running gives it a little flop, side to side
+            // every footstep while running gives it a little flop, side to side. No two are quite
+            // alike (Marcus, 6 Oct 2026): each step is a bit harder or softer, now and then it
+            // goes the other way, and now and then it is a big one
             let step = (ph / std::f32::consts::PI).floor() as i32;
             if w.step != step {
                 let f = if sp > 1.5 { (sp / 6.0).min(1.3) } else { 0.0 };
                 if f > 0.0 && w.step != i32::MIN {
-                    w.vx -= 1.4 * f * d.step;
-                    w.vz += (if step % 2 != 0 { 1.0 } else { -1.0 }) * 0.8 * f * d.step * 1.5;
+                    let seed = w.seed;
+                    let r = |k: u32| rand01(step, seed, k);
+                    let big = if r(4) > 0.9 { 1.5 } else { 1.0 };
+                    let amp = (0.55 + 0.9 * r(0)) * big;
+                    let side = if (step % 2 != 0) != (r(1) < 0.2) { 1.0 } else { -1.0 };
+                    w.vx -= 1.4 * f * d.step * amp * (0.7 + 0.6 * r(2));
+                    w.vz += side * 0.8 * f * d.step * 1.5 * amp * (0.6 + 0.8 * r(3));
                 }
                 w.step = step;
+            }
+            // and every second or so a small nudge from nowhere, even standing still, so it is
+            // never frozen: a shift of the hand, a bit of wind
+            w.nudge_t -= dt;
+            if w.nudge_t <= 0.0 {
+                w.nudges = w.nudges.wrapping_add(1);
+                let (n, seed) = (w.nudges as i32, w.seed + 31.0);
+                let r = |k: u32| rand01(n, seed, k);
+                w.nudge_t = 0.7 + 1.8 * r(0);
+                let scale = if drive.mine { 0.8 } else { 0.5 };
+                w.vx += (r(1) - 0.5) * 2.2 * scale;
+                w.vz += (r(2) - 0.5) * 3.0 * scale;
             }
         }
         if drive.mode == FlopMode::Flying {
@@ -652,7 +674,7 @@ fn wobble_items(
         w.x = w.x.clamp(-d.limit, d.limit);
         w.z = w.z.clamp(-d.limit, d.limit);
         let dr = if held {
-            (d.droop + 0.02 * (t * 2.1 + w.seed).sin()) * if drive.mine { -0.6 } else { 1.0 }
+            (d.droop + 0.02 * (t * 2.1 + w.seed).sin() + 0.03 * (t * 0.55 + w.seed * 1.7).sin()) * if drive.mine { -0.6 } else { 1.0 }
         } else {
             0.0
         };
@@ -668,5 +690,33 @@ fn wobble_items(
                 );
             }
         }
+    }
+}
+
+/// A repeatable pseudo-random number between 0 and 1 from a few numbers (the step, the item's
+/// own seed, which question is being asked).
+fn rand01(a: i32, seed: f32, k: u32) -> f32 {
+    let mut x = (a as u32).wrapping_mul(0x9E37_79B1) ^ (seed.to_bits()).wrapping_mul(0x85EB_CA6B) ^ k.wrapping_mul(0xC2B2_AE35);
+    x ^= x >> 15;
+    x = x.wrapping_mul(0x2C1B_3C6D);
+    x ^= x >> 12;
+    x = x.wrapping_mul(0x297A_2D39);
+    x ^= x >> 15;
+    (x & 0xFFFF) as f32 / 65535.0
+}
+
+#[cfg(test)]
+mod flop_tests {
+    use super::*;
+
+    #[test]
+    fn the_random_numbers_are_even_and_repeatable() {
+        assert_eq!(rand01(7, 3.0, 1), rand01(7, 3.0, 1));
+        assert_ne!(rand01(7, 3.0, 1), rand01(8, 3.0, 1));
+        assert_ne!(rand01(7, 3.0, 1), rand01(7, 4.0, 1));
+        let n = 4000;
+        let mean: f32 = (0..n).map(|i| rand01(i, 1.5, 2)).sum::<f32>() / n as f32;
+        assert!((mean - 0.5).abs() < 0.02, "{mean}");
+        assert!((0..n).all(|i| (0.0..=1.0).contains(&rand01(i, 9.0, 0))));
     }
 }

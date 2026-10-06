@@ -53,6 +53,9 @@ pub struct Item {
     pub block: Option<(PlayerId, f32)>,
     /// Counts up each time it is thrown, so late hit reports can be told apart.
     pub flight_no: u32,
+    /// How many times it has bounced on the trampoline since it was last thrown (teddies bounce
+    /// like a ball and settle; see `collide_world`).
+    pub bounces: u8,
 }
 
 impl Item {
@@ -78,6 +81,7 @@ impl Item {
             team: None,
             block: None,
             flight_no: 0,
+            bounces: 0,
         }
     }
 
@@ -260,6 +264,11 @@ fn on_surface(it: &mut Item, h: f32, on: Option<&Collider>, events: &mut Vec<Fli
     Fate::Alive
 }
 
+/// A teddy's bounces on the trampoline after the first keep this share of the speed...
+const TEDDY_BOUNCE: f32 = 0.8;
+/// ...and it settles on the mat once it lands slower than this.
+const TEDDY_SETTLE: f32 = 2.2;
+
 /// Bump the flying item against the world after one sub-step.
 pub fn collide_world(
     it: &mut Item,
@@ -276,10 +285,29 @@ pub fn collide_world(
         && it.vel.y < 0.0
     {
         it.pos.y = TRAMP_H + r;
+        events.push(FlightEvent::Boing { pos: it.pos });
+        if it.kind == ItemKind::Teddy {
+            // A teddy bounces like a ball: the first bounce is the trampoline's own kick, then
+            // each one is a bit lower and stays on the mat (it loses most of its sideways
+            // speed), until it settles and sits on the mat.
+            let incoming = -it.vel.y;
+            if it.bounces > 0 && incoming < TEDDY_SETTLE {
+                it.bounces = 0;
+                let (x, z) = (it.pos.x, it.pos.z);
+                rest_item(it, TRAMP_H, None, events);
+                it.pos.x = x;
+                it.pos.z = z;
+                return Fate::Alive;
+            }
+            it.vel.y = if it.bounces == 0 { (incoming * 0.9).max(7.0) } else { incoming * TEDDY_BOUNCE };
+            it.vel.x = it.vel.x * 0.5 + rng.range(-0.3, 0.3);
+            it.vel.z = it.vel.z * 0.5 + rng.range(-0.3, 0.3);
+            it.bounces = it.bounces.saturating_add(1);
+            return Fate::Alive;
+        }
         it.vel.y = (-it.vel.y * 0.9).max(7.0);
         it.vel.x += rng.range(-1.0, 1.0);
         it.vel.z += rng.range(-1.0, 1.0);
-        events.push(FlightEvent::Boing { pos: it.pos });
         return Fate::Alive;
     }
     // the ground (or the pool's water)
@@ -619,6 +647,47 @@ mod tests {
         assert_eq!(fate, Fate::Alive);
         assert_eq!(it.state, ItemState::Ground);
         assert!((it.pos.y - (WATER_Y + 0.04)).abs() < 1e-5);
+    }
+
+    #[test]
+    fn a_teddy_bounces_on_the_trampoline_a_few_times_and_settles_on_the_mat() {
+        let yard = Yard::default();
+        let mut it = thrown(ItemKind::Teddy, V3::new(TRAMP_X + 0.4, 1.8, TRAMP_Z - 0.3), V3::new(0.5, 0.0, 0.2));
+        let mut rng = Rng::new(5);
+        let mut ev = Vec::new();
+        let mut tops: Vec<f32> = Vec::new();
+        let mut last_vy = 0.0f32;
+        for _ in 0..(12.0 / DT) as usize {
+            if it.state != ItemState::Flying {
+                break;
+            }
+            step_flight(&mut it, DT, &yard, &mut rng, &mut ev, &mut |_| false);
+            if last_vy > 0.0 && it.vel.y <= 0.0 {
+                tops.push(it.pos.y);
+            }
+            last_vy = it.vel.y;
+        }
+        let boings = ev.iter().filter(|e| matches!(e, FlightEvent::Boing { .. })).count();
+        assert!((4..=9).contains(&boings), "a few bounces, not one and not forever ({boings})");
+        assert!(tops.windows(2).all(|w| w[1] < w[0] + 0.01), "each bounce is lower: {tops:?}");
+        assert_eq!(it.state, ItemState::Ground, "and then it sits still");
+        assert!((it.ground_y - TRAMP_H).abs() < 1e-4, "on the mat, not under it");
+        assert!((it.pos.x - TRAMP_X).hypot(it.pos.z - TRAMP_Z) < TRAMP_R, "still on the mat");
+    }
+
+    #[test]
+    fn other_things_keep_the_trampolines_original_kick() {
+        let yard = Yard::default();
+        let mut it = thrown(ItemKind::Steak, V3::new(TRAMP_X, 1.5, TRAMP_Z), V3::ZERO);
+        let mut rng = Rng::new(5);
+        let mut ev = Vec::new();
+        let mut best = 0.0f32;
+        for _ in 0..(1.5 / DT) as usize {
+            step_flight(&mut it, DT, &yard, &mut rng, &mut ev, &mut |_| false);
+            best = best.max(it.vel.y);
+        }
+        assert!(best >= 7.0, "the spec's max(7, ...) kick ({best})");
+        assert_eq!(it.bounces, 0);
     }
 
     #[test]
