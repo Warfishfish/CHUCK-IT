@@ -535,8 +535,8 @@ fn build_blobs(
     let star = meshes.add(Sphere::new(0.07).mesh().ico(1).unwrap());
     let sash = meshes.add(Torus::new(0.32, 0.43));
     let balloon = meshes.add(Sphere::new(1.0).mesh().uv(32, 20));
-    let swim_ring = meshes.add(Torus::new(0.47, 0.71));
-    let ring_stripe = meshes.add(Sphere::new(0.12).mesh().uv(10, 8));
+    let swim_ring = meshes.add(Torus::new(0.4, 0.6));
+    let ring_stripe = meshes.add(Sphere::new(0.105).mesh().uv(10, 8));
     let stripe_mat = mats.add(StandardMaterial { base_color: Color::WHITE, perceptual_roughness: 0.4, ..default() });
     let can = meshes.add(Cylinder::new(0.035, 0.12));
     let tag_font = TextFont {
@@ -664,7 +664,7 @@ fn build_blobs(
             commands.spawn((
                 Mesh3d(ring_stripe.clone()),
                 MeshMaterial3d(stripe_mat.clone()),
-                Transform::from_xyz(a.cos() * 0.59, 0.0, a.sin() * 0.59)
+                Transform::from_xyz(a.cos() * 0.5, 0.0, a.sin() * 0.5)
                     .with_rotation(Quat::from_rotation_y(-a))
                     .with_scale(Vec3::new(1.15, 0.9, 0.55)),
                 RingStripe,
