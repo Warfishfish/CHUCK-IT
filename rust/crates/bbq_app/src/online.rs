@@ -150,13 +150,10 @@ impl Session {
             In::Open { .. } => vec![Do::Join(self.room.clone())],
             In::Snap { peers, .. } => {
                 if self.role == Role::Host {
-                    if peers.is_empty() {
-                        self.line();
-                        Vec::new()
-                    } else {
-                        // somebody else is already using this code
-                        self.end("That room code is already taken: pick another")
-                    }
+                    // anybody already here is a mate who got here first (they say hello again
+                    // when they see us arrive), so there is nothing to refuse
+                    self.line();
+                    Vec::new()
                 } else {
                     self.status = "Asking to join...".into();
                     vec![Do::Send { to: None, msg: self.hello() }]
@@ -209,6 +206,10 @@ impl Session {
     fn on_msg(&mut self, from: String, msg: Msg, now: f32) -> Vec<Do> {
         match (self.role, msg) {
             (Role::Host, Msg::Hello { protocol, name, character }) => {
+                // the same person saying hello twice is still one person: say welcome again
+                if let Some(&id) = self.peers.get(&from) {
+                    return vec![Do::Send { to: Some(from), msg: Msg::Welcome { id, members: self.members.clone() } }];
+                }
                 match self.roster.admit(protocol, &name, character, self.round_on) {
                     Ok(id) => {
                         self.peers.insert(from.clone(), id);
@@ -413,7 +414,7 @@ pub struct OnlinePlugin;
 impl Plugin for OnlinePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Online>()
-            .add_systems(Update, (net_requests, online_poll, online_send, online_roster, online_world_send, online_world_apply, net_test_actions, online_acts, online_hits).chain())
+            .add_systems(Update, (net_requests, online_poll, online_send, online_roster, online_world_send, online_world_apply, online_follow_host, net_test_actions, online_acts, online_hits).chain())
             .add_systems(FixedUpdate, online_puppets.after(crate::game::step_game));
     }
 }
@@ -430,6 +431,7 @@ fn net_requests(
     mut frames: Local<u32>,
     mut last_debug: Local<f32>,
     mut played: Local<bool>,
+    screen: Res<crate::menu::Screen>,
 ) {
     *frames += 1;
     if *frames == 3 {
@@ -437,6 +439,9 @@ fn net_requests(
         let after = |k: &str| args.iter().position(|a| a == k).and_then(|i| args.get(i + 1)).cloned();
         if let Some(sv) = after("--server") {
             settings.server = sv;
+        }
+        if let Some(secs) = after("--net-round").and_then(|v| v.parse::<f32>().ok()) {
+            settings.round_len = secs;
         }
         for (flag, req) in [("--net-host", NetRequest::Host), ("--net-join", NetRequest::Join)] {
             if let Some(room) = after(flag) {
@@ -465,12 +470,16 @@ fn net_requests(
             .collect();
         let bot0 = game.dummies.iter().find(|d| d.remote.is_none()).map_or("none".to_string(), |d| format!("{:.1},{:.1}", d.mover.x, d.mover.z));
         println!(
-            "ONLINE status=\"{}\" members=[{}] puppets=[{}] mirror={} items={} bot0=({bot0}) phase={:?} clock={:.0} dazza=({:.1},{:.1})",
+            "ONLINE screen={:?} status=\"{}\" members=[{}] puppets=[{}] mirror={} items={} bots={} ids={:?} remotes={} bot0=({bot0}) phase={:?} clock={:.0} dazza=({:.1},{:.1})",
+            *screen,
             online.status(),
             online.session.as_ref().map_or(String::new(), |s| s.members.iter().map(|m| format!("{}#{}", m.name, m.id)).collect::<Vec<_>>().join(",")),
             who.join("; "),
             game.mirror,
             game.world.items.len(),
+            game.dummies.iter().filter(|d| d.remote.is_none()).count(),
+            game.dummies.iter().map(|d| d.id).collect::<Vec<_>>(),
+            game.remotes.len(),
             game.rules.phase,
             game.round.time_left,
             game.life.dazza.pos.x,
@@ -619,6 +628,52 @@ fn online_world_apply(mut online: ResMut<Online>, mut game: ResMut<Game>, mut ya
     let Some(snap) = session.world.take() else { return };
     let (my_id, host) = (session.my_id, session.host_name());
     crate::online_world::apply_world(&mut game, &mut yard.0, &snap, my_id, &host);
+}
+
+/// A guest goes where the host goes: into the round when the host starts one, and back to the
+/// menu when the host leaves the round.
+fn online_follow_host(
+    online: Res<Online>,
+    screen: Res<crate::menu::Screen>,
+    game: Res<Game>,
+    mut ui: ResMut<crate::menu::MenuUi>,
+    mut last: Local<Option<(u8, bool)>>,
+) {
+    use bbq_core::scoring::Phase;
+    let Some(s) = online.session.as_ref().filter(|s| s.role == Role::Guest && s.joined()) else {
+        *last = None;
+        return;
+    };
+    if !game.mirror {
+        return;
+    }
+    // what the host is doing (as of the last picture): in a round, or standing about in its menu
+    let in_round = game.round.timed && matches!(game.rules.phase, Phase::Countdown | Phase::Play);
+    let _ = s;
+    let now = (game.rules.phase.index(), in_round);
+    if *last == Some(now) {
+        return;
+    }
+    // only act on a change we have seen, and only once a picture has arrived
+    if game.rules.phase == Phase::Menu && !game.round.timed && last.is_none() {
+        *last = Some(now);
+        return;
+    }
+    *last = Some(now);
+    if let Some(req) = follow_decision(*screen, in_round, game.round.timed) {
+        ui.request = Some(req);
+    }
+}
+
+/// What a guest does when the host's state changes: join a round that starts, go back to the
+/// menu when the host leaves the round (but not at the whistle: the results card is shown).
+pub fn follow_decision(screen: crate::menu::Screen, host_in_round: bool, host_timed: bool) -> Option<crate::menu::Request> {
+    use crate::menu::{Request, Screen};
+    match (screen, host_in_round) {
+        (Screen::Menu | Screen::Results, true) => Some(Request::Follow),
+        (Screen::Playing | Screen::Paused, false) if !host_timed => Some(Request::Menu),
+        _ => None,
+    }
 }
 
 /// Testing: `--net-give KIND` (host) hands the first person online one of those; `--net-throw`
@@ -904,11 +959,25 @@ mod tests {
     }
 
     #[test]
-    fn a_host_cannot_take_a_room_that_is_in_use() {
+    fn saying_hello_twice_does_not_make_two_people() {
         let mut h = Session::host("Marcus", Character::Gumdrop, "rbq-abc");
-        let out = h.on_event(In::Snap { room: "rbq-abc".into(), peers: vec!["someone".into()] }, 0.0);
-        assert_eq!(out, vec![Do::Disconnect]);
-        assert!(h.status.contains("taken"));
+        h.on_event(In::Snap { room: "r".into(), peers: vec![] }, 0.0);
+        let hello = Msg::Hello { protocol: PROTOCOL, name: "Davo".into(), character: 1 };
+        h.on_event(msg_in("G", &hello), 0.0);
+        let out = h.on_event(msg_in("G", &hello), 0.0);
+        assert_eq!(h.members.len(), 2, "still one guest");
+        assert!(matches!(&out[..], [Do::Send { to: Some(t), msg: Msg::Welcome { id: 2, .. } }] if t == "G"));
+    }
+
+    #[test]
+    fn a_host_who_arrives_after_a_mate_still_hosts_and_takes_their_hello() {
+        let mut h = Session::host("Marcus", Character::Gumdrop, "rbq-abc");
+        let out = h.on_event(In::Snap { room: "rbq-abc".into(), peers: vec!["early-bird".into()] }, 0.0);
+        assert!(out.is_empty());
+        assert!(!h.ended && h.status.contains("Hosting"));
+        // the early guest says hello when it sees the host arrive
+        let out = h.on_event(msg_in("early-bird", &Msg::Hello { protocol: PROTOCOL, name: "Davo".into(), character: 1 }), 0.0);
+        assert!(matches!(&out[0], Do::Send { to: Some(t), msg: Msg::Welcome { id: 2, .. } } if t == "early-bird"));
     }
 
     #[test]
@@ -959,6 +1028,22 @@ mod tests {
         p.host.on_event(msg_in("G", &Msg::World(Box::new(snap(50)))), 0.0);
         assert!(p.host.world.is_none());
         assert_eq!(p.guest.host_name(), "Marcus");
+    }
+
+    #[test]
+    fn a_guest_goes_where_the_host_goes() {
+        use crate::menu::{Request, Screen};
+        // the host starts a round: a guest waiting in the menu, or looking at the last results, joins
+        assert_eq!(follow_decision(Screen::Menu, true, true), Some(Request::Follow));
+        assert_eq!(follow_decision(Screen::Results, true, true), Some(Request::Follow));
+        // already playing: nothing to do
+        assert_eq!(follow_decision(Screen::Playing, true, true), None);
+        // the whistle: the host's round is over but still "timed": the guest stays for the results
+        assert_eq!(follow_decision(Screen::Playing, false, true), None);
+        // the host went back to its menu: the guest does too
+        assert_eq!(follow_decision(Screen::Playing, false, false), Some(Request::Menu));
+        assert_eq!(follow_decision(Screen::Paused, false, false), Some(Request::Menu));
+        assert_eq!(follow_decision(Screen::Menu, false, false), None);
     }
 
     #[test]

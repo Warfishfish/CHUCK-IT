@@ -301,6 +301,8 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
         let (x, z) = place(g, id);
         let mut fresh = Dummy::new(id, x, z, i, &mut g.rng);
         fresh.face = x.atan2(z) + std::f32::consts::PI;
+        // a person online stays a person online
+        fresh.remote = g.dummies[i].remote.take();
         g.dummies[i] = fresh;
         if let Some(b) = g.crowd.brains.get_mut(&id) {
             b.reset(&mut g.rng);

@@ -215,6 +215,9 @@ pub enum Request {
     Again,
     Menu,
     Resume,
+    /// Online guest: the host started a round, so join it (the guest's own Play button does not
+    /// start anything).
+    Follow,
 }
 
 /// Show this node only while the condition holds (the page's `hidden` toggles).
@@ -1145,6 +1148,12 @@ fn run_requests(
     }
     let Some(req) = ui.request.take() else { return };
     match req {
+        Request::Follow => {
+            begin(&settings, &mut game, &mut player, &mut yard, &mut cast);
+            *screen = Screen::Playing;
+        }
+        // a guest does not start rounds: the host does
+        Request::Play | Request::Again if game.mirror => {}
         Request::Play => {
             begin(&settings, &mut game, &mut player, &mut yard, &mut cast);
             *screen = Screen::Playing;

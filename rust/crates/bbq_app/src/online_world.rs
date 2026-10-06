@@ -240,6 +240,7 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
 
     // ---- the round ----
     let r = &snap.round;
+    let was_over = g.rules.phase == Phase::Results;
     g.rules = Rules {
         mode: mode_of_code(r.mode),
         friendly_fire: r.features & FEAT_FRIENDLY_FIRE != 0,
@@ -266,6 +267,12 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
             Some(n) if g.rules.mode == GameMode::Heist => Yard::heist(features, spot, n),
             _ => Yard::new(features, spot),
         };
+    }
+    // the whistle went: work out the results here, from the host's scores, so the results card
+    // opens for guests too
+    if !was_over && g.rules.phase == Phase::Results && g.round.timed {
+        // the board is only copied below, so do this after it is
+        g.round.results = None;
     }
     g.life.chest.stock = r.chest_stock as u32;
     g.life.chest.spot = spot;
@@ -408,6 +415,12 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
             g.teams.set(local(*id), t);
         }
     }
+    if !was_over && g.rules.phase == Phase::Results && g.round.timed {
+        crate::round::end_round(g);
+    }
+    if g.rules.phase != Phase::Results {
+        g.round.results = None;
+    }
 
     // ---- what happened ----
     for line in &snap.feed {
@@ -450,6 +463,9 @@ pub fn mirror_tick(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
     g.popups.retain(|p| p.t < 1.6);
     // our own body still wobbles, stuns and falls over on our own clock
     g.me.body.tick(dt);
+    if g.round.panel_in > 0.0 {
+        g.round.panel_in -= dt;
+    }
     let now = g.now;
     g.pending_gone.retain(|(_, until)| *until > now);
     guest_hands(g, p, wanted, dt);
@@ -919,6 +935,38 @@ mod tests {
         let kept = g.slots.selected();
         apply_world(&mut g, &mut yard, &snap, 3, "Marcus");
         assert_eq!(g.slots.selected(), kept);
+    }
+
+    #[test]
+    fn the_whistle_opens_the_results_for_guests_too() {
+        let host = busy_host();
+        let hg = host.world().resource::<Game>();
+        let hy = host.world().resource::<crate::yard_scene::YardRes>().0.clone();
+        let mut snap = build_world(hg, &hy, 1, -1.0, &[]);
+        snap.round.features |= FEAT_TIMED;
+        snap.round.phase = Phase::Play.index();
+        let mut guest = app();
+        {
+            let mut g = guest.world_mut().resource_mut::<Game>();
+            let mut yard = bbq_core::yard::Yard::default();
+            apply_world(&mut g, &mut yard, &snap, 3, "Marcus");
+            assert!(g.round.results.is_none(), "still playing");
+            // the host's scores at the whistle: the host (net 1) 250, bot 101 on -50
+            snap.round.phase = Phase::Results.index();
+            apply_world(&mut g, &mut yard, &snap, 3, "Marcus");
+            let r = g.round.results.as_ref().expect("results are worked out from the host's scores");
+            assert!(r.lines[0].contains("wins the round"), "{:?}", r.lines);
+            assert_eq!(r.winner, Some(bbq_core::matchflow::Key::Player(REMOTE_ID_BASE + 1)), "the host won");
+            assert!(g.round.panel_in > 0.0);
+            // another picture of the same whistle does not work them out again
+            let wins = g.round.mtch.wins.clone();
+            apply_world(&mut g, &mut yard, &snap, 3, "Marcus");
+            assert_eq!(g.round.mtch.wins, wins);
+            // and the next round clears them
+            snap.round.phase = Phase::Countdown.index();
+            apply_world(&mut g, &mut yard, &snap, 3, "Marcus");
+            assert!(g.round.results.is_none());
+        }
     }
 
     #[test]
