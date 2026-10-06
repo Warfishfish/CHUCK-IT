@@ -12,6 +12,7 @@
 mod bots_app;
 mod characters;
 mod decals;
+mod face;
 mod fx;
 mod game;
 mod gamepad;
@@ -96,7 +97,7 @@ fn main() {
             >::default(),
         ),
     );
-    app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin, online::OnlinePlugin));
+    app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin, online::OnlinePlugin, face::FacePlugin));
     if let Some(cfg) = shot {
         app.add_plugins(shot::ShotPlugin(cfg));
     }

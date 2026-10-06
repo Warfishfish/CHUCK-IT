@@ -197,11 +197,23 @@ pub enum Action {
     Leave,
     FocusServer,
     FocusRoom,
+    /// The Customise tab's arrows: which feature, and which way.
+    LookStep(LookRow, i32),
+    /// Customise: a random look, or back to the default.
+    LookRandom,
+    LookReset,
+}
+
+/// One row on the Customise tab.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub enum LookRow {
+    Mouth,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum Tab {
     Solo,
+    Look,
     Mates,
     How,
 }
@@ -415,7 +427,7 @@ pub fn tab_button(p: &mut ChildSpawnerCommands, tab: Tab, label: &str) {
         BorderColor::all(INK),
         Action::Tab(tab),
         TabButton(tab),
-        children![text(label, 15.0, true, INK)],
+        children![text(label, 14.0, true, INK)],
     ));
 }
 

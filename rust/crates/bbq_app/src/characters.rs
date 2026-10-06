@@ -395,6 +395,9 @@ fn spawn_model(
                         "HandL" => {
                             commands.entity(node).insert((HandL, Blob(i)));
                         }
+                        "Head" => {
+                            commands.entity(node).insert(crate::face::HeadNode { owner: crate::face::FaceOwner::Blob(i), layer: None });
+                        }
                         _ => {}
                     }
                 }

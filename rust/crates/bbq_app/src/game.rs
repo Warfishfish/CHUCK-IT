@@ -83,6 +83,8 @@ pub struct Dummy {
     pub sat_by_choice: bool,
     /// How big this bot's beer belly is (looks only; 1 = normal).
     pub belly: f32,
+    /// Its face, hair and colours (bots get a random look from their id).
+    pub look: bbq_core::appearance::Appearance,
 }
 
 impl Dummy {
@@ -113,6 +115,8 @@ impl Dummy {
             face: 0.0,
             sat_by_choice: false,
             belly: 0.5 + rng.f32() * 1.1,
+            // from its own number, so it does not change the game's random numbers
+            look: bbq_core::appearance::Appearance::random(&mut Rng::new(id as u64 * 7919 + 13)),
         }
     }
 }

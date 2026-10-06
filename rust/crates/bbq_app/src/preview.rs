@@ -117,6 +117,9 @@ fn swap_preview_model(
                     if matches!(name.as_str(), "Torso" | "Singlet") {
                         commands.entity(node).insert(PreviewBelly);
                     }
+                    if name.as_str() == "Head" {
+                        commands.entity(node).insert(crate::face::HeadNode { owner: crate::face::FaceOwner::Preview, layer: Some(LAYER) });
+                    }
                     let m = match name.as_str() {
                         "Torso" | "Belly" => Some(body.clone()),
                         "Head" | "HandR" | "HandL" => Some(head.clone()),
@@ -201,6 +204,12 @@ fn drag_preview(
     mut spin: ResMut<Spin>,
 ) {
     if *screen != Screen::Menu {
+        return;
+    }
+    // `--preview-angle A` (screenshots): hold the preview still, A radians round
+    if let Some(a) = std::env::args().position(|a| a == "--preview-angle").and_then(|i| std::env::args().nth(i + 1)).and_then(|v| v.parse::<f32>().ok()) {
+        spin.angle = a;
+        spin.vel = 0.0;
         return;
     }
     // a drag starts on the picture and keeps going until the button comes up, wherever the

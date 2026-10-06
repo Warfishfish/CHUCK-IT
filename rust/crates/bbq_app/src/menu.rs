@@ -229,6 +229,8 @@ pub enum Request {
 #[derive(Component, Clone, Copy)]
 pub enum ShowWhen {
     Panel(Tab),
+    /// The blob preview card: on the Solo and Customise tabs.
+    Preview,
     HeistTeams,
     FriendlyFire,
     HeistNote,
@@ -269,7 +271,8 @@ impl Plugin for MenuPlugin {
         app.init_resource::<ShowDev>()
             .insert_resource(Settings::load())
             .insert_resource(MenuUi {
-                tab: Tab::Solo,
+                // `--tab look` (screenshots) opens on the Customise tab
+                tab: if args.iter().any(|a| a == "look") && args.iter().any(|a| a == "--tab") { Tab::Look } else { Tab::Solo },
                 more_open: false,
                 name_focus: false,
                 request: None,
@@ -285,6 +288,8 @@ impl Plugin for MenuPlugin {
                     slider_drag,
                     name_typing,
                     net_typing,
+                    look_texts,
+                    test_looks,
                     net_texts,
                     scroll_cards,
                     run_requests,
@@ -351,10 +356,12 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                 // tabs
                 c.spawn(row(8.0)).with_children(|t| {
                     tab_button(t, Tab::Solo, "Solo");
+                    tab_button(t, Tab::Look, "Customise");
                     tab_button(t, Tab::Mates, "With mates");
                     tab_button(t, Tab::How, "How to play");
                 });
                 solo_panel(c);
+                look_panel(c);
                 mates_panel(c);
                 how_panel(c);
                 c.spawn(Node { width: Val::Percent(100.0), ..default() })
@@ -384,7 +391,7 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                     spread_radius: px(0.0),
                     blur_radius: px(0.0),
                 }]),
-                ShowWhen::Panel(Tab::Solo),
+                ShowWhen::Preview,
             ))
             .with_children(|pv| {
                 pv.spawn(legend("Your blob"));
@@ -418,6 +425,68 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                 ));
             });
         });
+}
+
+/// The value shown between a Customise row's arrows.
+#[derive(Component)]
+struct LookValue(LookRow);
+
+/// The Customise tab: a row of arrows for each feature of your blob.
+fn look_panel(c: &mut ChildSpawnerCommands) {
+    c.spawn((column(12.0), ShowWhen::Panel(Tab::Look))).with_children(|p| {
+        p.spawn(legend("Customise your blob"));
+        p.spawn(text("Looks only: every blob has the same speed and hit size. Your blob's shape and belly are on the Solo tab.", 13.0, false, MUTED));
+        for (row, label) in [(LookRow::Mouth, "Mouth")] {
+            p.spawn(Node { width: Val::Percent(100.0), align_items: AlignItems::Center, column_gap: px(8.0), ..default() })
+                .with_children(|r| {
+                    r.spawn((Node { width: px(110.0), ..default() }, children![text(label, 15.0, true, INK)]));
+                    arrow(r, Action::LookStep(row, -1), "<");
+                    r.spawn((
+                        Node { flex_grow: 1.0, justify_content: JustifyContent::Center, ..default() },
+                        children![(text("", 16.0, true, INK), LookValue(row))],
+                    ));
+                    arrow(r, Action::LookStep(row, 1), ">");
+                });
+        }
+        p.spawn(row(8.0)).with_children(|r| {
+            button(r, Action::LookRandom, "Randomise", Some(SUN));
+            button(r, Action::LookReset, "Reset", None);
+        });
+    });
+}
+
+/// A small square arrow button.
+fn arrow(p: &mut ChildSpawnerCommands, action: Action, label: &str) {
+    p.spawn((
+        Button,
+        Node {
+            width: px(40.0),
+            height: px(36.0),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            border: UiRect::all(px(2.0)),
+            border_radius: BorderRadius::all(px(10.0)),
+            ..default()
+        },
+        BackgroundColor(WHITE),
+        BorderColor::all(INK),
+        action,
+        ButtonLook { base: WHITE },
+        children![text(label, 18.0, true, INK)],
+    ));
+}
+
+/// The words between the Customise arrows.
+fn look_texts(settings: Res<Settings>, mut q: Query<(&LookValue, &mut Text)>) {
+    use bbq_core::appearance::Choice;
+    for (v, mut t) in &mut q {
+        let s = match v.0 {
+            LookRow::Mouth => settings.look.mouth.name(),
+        };
+        if t.0 != s {
+            t.0 = s.to_string();
+        }
+    }
 }
 
 fn solo_panel(c: &mut ChildSpawnerCommands) {
@@ -639,6 +708,23 @@ fn apply_loaded_settings(mut settings: ResMut<Settings>, mut player: ResMut<Play
             cast.mine = *ch;
         }
     }
+    // `--mouth smile|grin|smirk|none` (testing): your look's mouth, and every bot's
+    if let Some(m) = args.iter().position(|a| a == "--mouth").and_then(|i| args.get(i + 1)) {
+        use bbq_core::appearance::Choice;
+        if let Some(m) = bbq_core::appearance::Mouth::from_name(m) {
+            settings.look.mouth = m;
+        }
+    }
+}
+
+/// `--mouth` also dresses every bot the same (testing and screenshots).
+fn test_looks(mut game: ResMut<Game>) {
+    use bbq_core::appearance::Choice;
+    let args: Vec<String> = std::env::args().collect();
+    let Some(m) = args.iter().position(|a| a == "--mouth").and_then(|i| args.get(i + 1)).and_then(|m| bbq_core::appearance::Mouth::from_name(m)) else { return };
+    for d in &mut game.dummies {
+        d.look.mouth = m;
+    }
 }
 
 // ---------------------------------------------------------------- clicks
@@ -716,6 +802,22 @@ fn widget_clicks(
             Action::HostYard => ui.net_request = Some(crate::online::NetRequest::Host),
             Action::Join => ui.net_request = Some(crate::online::NetRequest::Join),
             Action::Leave => ui.net_request = Some(crate::online::NetRequest::Leave),
+            Action::LookStep(row, dir) => {
+                use bbq_core::appearance::Choice;
+                match row {
+                    LookRow::Mouth => settings.look.mouth = settings.look.mouth.step(*dir),
+                }
+                changed = true;
+            }
+            Action::LookRandom => {
+                let seed = (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.as_nanos() as u64)) | 1;
+                settings.look = bbq_core::appearance::Appearance::random(&mut bbq_core::rng::Rng::new(seed));
+                changed = true;
+            }
+            Action::LookReset => {
+                settings.look = bbq_core::appearance::Appearance::default();
+                changed = true;
+            }
             Action::FocusServer => ui.net_focus = Some(NetField::Server),
             Action::FocusRoom => ui.net_focus = Some(NetField::Room),
         }
@@ -965,6 +1067,7 @@ fn paint_widgets(
     for (w, mut n) in &mut shows {
         let show = match w {
             ShowWhen::Panel(t) => *t == ui.tab,
+            ShowWhen::Preview => matches!(ui.tab, Tab::Solo | Tab::Look),
             ShowWhen::HeistTeams | ShowWhen::HeistNote => heist,
             ShowWhen::FriendlyFire => teams,
             ShowWhen::MoreOpen => ui.more_open,
