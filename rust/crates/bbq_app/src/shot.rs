@@ -354,9 +354,9 @@ mod tests {
     }
 
     #[test]
-    fn the_line_up_has_ten_things_in_a_row() {
+    fn the_line_up_has_twelve_things_in_a_row() {
         let g = gallery_places();
-        assert_eq!(g.len(), 10);
+        assert_eq!(g.len(), 12);
         assert!(g.iter().all(|(_, p)| p.z == -1.0 && p.y > 29.0));
     }
 }

@@ -156,7 +156,7 @@ fn setup_camera_and_hud(mut commands: Commands, look: Res<crate::lighting::LookM
     ));
 }
 
-fn read_input(
+pub fn read_input(
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     wheel: Res<AccumulatedMouseScroll>,

@@ -14,6 +14,7 @@ mod characters;
 mod decals;
 mod fx;
 mod game;
+mod gamepad;
 mod heist_app;
 mod hud;
 mod hud_fx;
@@ -75,6 +76,7 @@ fn main() {
         (
             yard_scene::YardScenePlugin,
             player::PlayerPlugin,
+            gamepad::GamepadPlugin,
             game::GamePlugin,
             items_view::ItemsViewPlugin,
             characters::CharactersPlugin,

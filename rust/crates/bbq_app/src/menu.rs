@@ -511,6 +511,7 @@ fn how_panel(c: &mut ChildSpawnerCommands) {
                 ("T H B", "Taunt, dance, laugh"),
                 ("G", "Throw away what you are holding"),
                 ("Esc", "Pause"),
+                ("Gamepad", "Sticks walk and look, A jumps, right trigger throws, left trigger catches, bumpers swap, X is R, Y is F, B drops, Start pauses"),
             ] {
                 g.spawn(kbd(k));
                 g.spawn(text(d, 13.5, false, INK));

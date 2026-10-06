@@ -23,6 +23,7 @@ pub mod looks;
 pub mod looks_yard;
 pub mod matchflow;
 pub mod melee;
+pub mod gamepad;
 pub mod movement;
 pub mod pose;
 pub mod rng;
