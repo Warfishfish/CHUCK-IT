@@ -130,6 +130,7 @@ pub enum Tex {
     Concrete,
     /// Gum-tree bark: pale, streaky, with peeling patches.
     Bark,
+    Fabric,
 }
 
 impl Tex {
@@ -160,10 +161,11 @@ impl Tex {
             Tex::Plastic => "plastic.png",
             Tex::Concrete => "concrete.png",
             Tex::Bark => "bark.png",
+            Tex::Fabric => "fabric.png",
         }
     }
 
-    pub const ALL: [Tex; 24] = [
+    pub const ALL: [Tex; 25] = [
         Tex::VpLabel,
         Tex::Fish,
         Tex::Lawn,
@@ -188,6 +190,7 @@ impl Tex {
         Tex::Plastic,
         Tex::Concrete,
         Tex::Bark,
+        Tex::Fabric,
     ];
 
     /// The bump (normal) map that goes with a material texture, if there is one.
@@ -198,13 +201,38 @@ impl Tex {
             Tex::Plastic => Some("plastic_n.png"),
             Tex::Concrete => Some("concrete_n.png"),
             Tex::Bark => Some("bark_n.png"),
+            Tex::Fabric => Some("fabric_n.png"),
             _ => None,
+        }
+    }
+
+    /// The packed occlusion / roughness map (red = occlusion, green = roughness), if there is one.
+    pub fn orm_file(self) -> Option<&'static str> {
+        match self {
+            Tex::Wood => Some("wood_orm.png"),
+            Tex::Metal => Some("metal_orm.png"),
+            _ => None,
+        }
+    }
+
+    /// How rough the material is overall and how much light it gives back as a highlight
+    /// (`(roughness, reflectance)`), for the polished look. Wood, concrete, bark and cloth are
+    /// matt; plastic is in between; metal is the shiniest. Any roughness map multiplies this.
+    pub fn finish(self) -> (f32, f32) {
+        match self {
+            Tex::Wood => (1.0, 0.06),
+            Tex::Metal => (1.0, 0.45),
+            Tex::Plastic => (0.55, 0.3),
+            Tex::Concrete => (0.95, 0.02),
+            Tex::Bark => (0.95, 0.02),
+            Tex::Fabric => (0.95, 0.0),
+            _ => (0.5, 0.0),
         }
     }
 
     /// A surface texture (wood, metal...) rather than a picture (a sign, the lawn).
     pub fn is_material(self) -> bool {
-        matches!(self, Tex::Wood | Tex::Metal | Tex::Plastic | Tex::Concrete | Tex::Bark)
+        matches!(self, Tex::Wood | Tex::Metal | Tex::Plastic | Tex::Concrete | Tex::Bark | Tex::Fabric)
     }
 }
 
@@ -869,8 +897,25 @@ pub fn item_look(kind: crate::items::ItemKind, id: u32, variant: Option<DildoVar
     let mut v = item(kind, id, variant);
     if polished {
         v.extend(item_extras(kind));
+        // A3.8: gameplay items are bolder than the background: richer colour, a little lighter
+        for p in &mut v {
+            let s = &mut p.surface;
+            if !(s.unlit || s.additive || s.alpha < 1.0 || s.emissive != 0 || s.tex.is_some()) {
+                s.color = punch(s.color, 1.3, 1.1);
+            }
+        }
     }
     mark_hero(v)
+}
+
+/// Richer, brighter colour: `sat` times the colour's distance from grey, then `val` times
+/// everything (so 1.3, 1.1 is "30% more colour, 10% brighter"). White and black stay as they are.
+pub fn punch(color: u32, sat: f32, val: f32) -> u32 {
+    let ch = |s: u32| ((color >> s) & 0xff) as f32;
+    let (r, g, b) = (ch(16), ch(8), ch(0));
+    let lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    let f = |c: f32| (((lum + (c - lum) * sat) * val).clamp(0.0, 255.0)).round() as u32;
+    (f(r) << 16) | (f(g) << 8) | f(b)
 }
 
 /// Mark every part of a model as a hero part.

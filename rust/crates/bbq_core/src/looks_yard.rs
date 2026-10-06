@@ -842,7 +842,7 @@ fn clothesline(polished: bool) -> (Vec<Part>, Vec<Part>) {
     {
         let a = k as f32 * HALF_PI;
         head.push(
-            Part::new(Shape::Quad { w: 1.1, h: 0.85 }, matt(c).both_sides())
+            Part::new(Shape::Quad { w: 1.1, h: 0.85 }, matt(c).both_sides().textured(Tex::Fabric).repeating(4.0, 3.0))
                 .at(a.cos() * 1.5, -0.3, -a.sin() * 1.5)
                 .turn(0.0, a + HALF_PI, 0.0),
         );
@@ -1025,7 +1025,7 @@ fn props(polished: bool) -> Vec<Part> {
         TRAMP_R,
         0.04,
         28,
-        matt(0x1d1f22),
+        if polished { matt(0x1d1f22).textured(Tex::Fabric).repeating(10.0, 10.0) } else { matt(0x1d1f22) },
         TRAMP_X,
         TRAMP_H,
         TRAMP_Z,
@@ -1042,7 +1042,7 @@ fn props(polished: bool) -> Vec<Part> {
             0.04,
             TRAMP_H,
             6,
-            matt(0x444a50),
+            if polished { matt(0x444a50).material(Tex::Metal, 1.2) } else { matt(0x444a50) },
             TRAMP_X + a.cos() * TRAMP_R,
             TRAMP_H / 2.0,
             TRAMP_Z + a.sin() * TRAMP_R,
@@ -1096,7 +1096,8 @@ fn props(polished: bool) -> Vec<Part> {
     }
     // wheelie bins
     for (x, c) in [(31.1, 0xd63a2f), (31.95, 0xf2c230)] {
-        v.push(cuboid(0.72, 1.0, 0.76, matt(0x2e6b3a), x, 0.5, 19.5));
+        // A3.8: in the polished look the bins are a stronger, lighter green so they stand out
+        v.push(cuboid(0.72, 1.0, 0.76, matt(if polished { 0x2f9a4c } else { 0x2e6b3a }), x, 0.5, 19.5));
         v.push(cuboid(0.76, 0.07, 0.82, matt(c), x, 1.04, 19.5));
     }
     // crates
@@ -1115,7 +1116,7 @@ fn props(polished: bool) -> Vec<Part> {
         -3.0,
     ));
     // stack of old tyres
-    let tyre = matt(0x26282b);
+    let tyre = if polished { matt(0x26282b).material(Tex::Plastic, 1.5) } else { matt(0x26282b) };
     for (n, (x, z)) in [(12.0f32, 2.0f32), (13.2, 2.4)].into_iter().enumerate() {
         for k in 0..(if n == 1 { 2 } else { 3 }) {
             v.push(
@@ -1392,7 +1393,7 @@ fn smoko(polished: bool) -> Vec<Part> {
             },
             // in the polished look the top is one-sided: its underside is a separate glowing
             // cone a little lower (two surfaces in the same place flickered)
-            if polished { matt(0xf2c230) } else { matt(0xf2c230).both_sides() },
+            if polished { matt(0xf2c230).textured(Tex::Fabric).repeating(5.0, 2.0) } else { matt(0xf2c230).both_sides() },
         )
         .at(sx, 2.55, sz),
     );
@@ -1948,6 +1949,145 @@ fn neighbourhood(seed: u64) -> Vec<Part> {
     v
 }
 
+/// A soft dark or pale patch lying on the ground (a see-through disc with a soft edge), `rx` and
+/// `rz` wide, turned by `yaw`. `y` is its height above the ground: every kind of patch has its own
+/// height so two of them never sit in exactly the same plane (that flickered before).
+fn ground_patch(x: f32, z: f32, rx: f32, rz: f32, yaw: f32, col: u32, alpha: f32, y: f32) -> Part {
+    Part::new(Shape::Disc { r: 1.0, seg: 12 }, matt(col).textured(Tex::SoftDot).see_through(alpha).no_shadow())
+        .at(x, y, z)
+        .turn(-HALF_PI, 0.0, yaw)
+        .stretch(rx, rz, 1.0)
+}
+
+/// A little tuft of dry grass or weed.
+fn tuft(rng: &mut Rng, x: f32, z: f32, c: u32) -> Vec<Part> {
+    let mut v = Vec::new();
+    for _ in 0..(3 + rng.index(3)) {
+        let (h, r) = (rng.range(0.16, 0.4), rng.range(0.025, 0.05));
+        let (a, tilt) = (rng.range(0.0, 2.0 * PI), rng.range(0.1, 0.5));
+        v.push(
+            Part::new(Shape::Cone { r: 0.04, h: 0.3, seg: 4 }, matt(c))
+                .at(x + rng.range(-0.08, 0.08), h / 2.0, z + rng.range(-0.08, 0.08))
+                .turn(tilt * a.cos(), 0.0, tilt * a.sin())
+                .stretch(r / 0.04, h / 0.3, r / 0.04)
+                .no_shadow_part(),
+        );
+    }
+    v
+}
+
+/// The ground "story" round the props (step 2c, A4.2 to A4.6): dirt and weeds at the foot of the
+/// fence, grease and scraps round the BBQ, a worn dark patch and weeds under the tyres, a wet
+/// band and left-behind towels and thongs round the pool, and soft blob shadows under the bigger
+/// props where the screen-space shading misses. Flat and see-through, so it adds no collision.
+fn ground_story(seed: u64) -> Vec<Part> {
+    let mut rng = Rng::new(seed ^ 0x570A1);
+    let mut v = Vec::new();
+    let dry = [0xcdb86e_u32, 0xb9a45c, 0xd8c47a];
+    let green = [0x7f9a4a_u32, 0x6c8a3e];
+    // A4.2: along each fence, a dark worn strip of earth at the foot, with weeds pushing through
+    for (len, horizontal, cx, cz, sx, sz) in [
+        (2.0 * W, true, 0.0, -D, 0.0, 1.0f32),
+        (2.0 * W, true, 0.0, D, 0.0, -1.0),
+        (2.0 * D, false, -W, 0.0, 1.0, 0.0),
+        (2.0 * D, false, W, 0.0, -1.0, 0.0),
+    ] {
+        let n = (len / 1.7) as usize;
+        for k in 0..n {
+            let t = -len / 2.0 + len * (k as f32 + rng.range(0.2, 0.8)) / n as f32;
+            let off = rng.range(0.25, 0.5);
+            let (x, z) = if horizontal { (cx + t, cz + sz * off) } else { (cx + sx * off, cz + t) };
+            let yaw = if horizontal { 0.0 } else { HALF_PI };
+            let (rx, rz) = (rng.range(0.8, 1.3), rng.range(0.3, 0.5));
+            v.push(ground_patch(x, z, rx, rz, yaw, 0x4a3b24, rng.range(0.4, 0.65), 0.008));
+            if rng.chance(0.55) {
+                let c = if rng.chance(0.7) { dry[rng.index(3)] } else { green[rng.index(2)] };
+                let (x2, z2) = if horizontal { (x + rng.range(-0.6, 0.6), cz + sz * rng.range(0.1, 0.35)) } else { (cx + sx * rng.range(0.1, 0.35), z + rng.range(-0.6, 0.6)) };
+                v.extend(tuft(&mut rng, x2, z2, c));
+            }
+        }
+    }
+    // A4.3: round the BBQ and the meat table: flattened, greasy ground, scraps and bottle caps
+    for (x, z, rx, rz) in [(-6.0f32, -17.2f32, 1.5f32, 1.0f32), (-8.7, -17.6, 1.2, 0.9), (-7.3, -16.6, 1.8, 0.7)] {
+        v.push(ground_patch(x, z, rx, rz, rng.range(0.0, PI), 0x6a5a38, 0.5, 0.010));
+    }
+    for _ in 0..7 {
+        let (x, z) = (-7.2 + rng.range(-2.0, 2.0), -17.0 + rng.range(-1.0, 1.0));
+        v.push(ground_patch(x, z, rng.range(0.15, 0.4), rng.range(0.12, 0.3), rng.range(0.0, PI), 0x1f1810, rng.range(0.45, 0.7), 0.012));
+    }
+    for k in 0..9 {
+        let (x, z) = (-7.2 + rng.range(-2.2, 2.2), -17.0 + rng.range(-1.1, 1.1));
+        match k % 3 {
+            // a bottle cap
+            0 => v.push(cyl(0.017, 0.017, 0.006, 8, matt(0xc9ced3), x, 0.006, z)),
+            // a bit of sausage or steak that missed the plate
+            1 => v.push(Part::new(Shape::Cuboid { w: 0.09, h: 0.025, d: 0.035 }, matt(0x8a4a30)).at(x, 0.014, z).turn(0.0, rng.range(0.0, PI), 0.0).no_shadow_part()),
+            // an onion ring of grease-soaked bread
+            _ => v.push(Part::new(Shape::Cuboid { w: 0.07, h: 0.012, d: 0.07 }, matt(0xd7b777)).at(x, 0.008, z).turn(0.0, rng.range(0.0, PI), 0.0).no_shadow_part()),
+        }
+    }
+    // A4.4: the tyre stacks sit on a worn dark patch with weeds growing round them
+    for (x, z) in [(12.0f32, 2.0f32), (13.2, 2.4)] {
+        v.push(ground_patch(x, z, 0.85, 0.85, 0.0, 0x241c12, 0.6, 0.010));
+        v.push(ground_patch(x + rng.range(-0.1, 0.1), z, 1.3, 1.2, 0.5, 0x3a2e1c, 0.35, 0.009));
+        for _ in 0..3 {
+            let a = rng.range(0.0, 2.0 * PI);
+            let c = if rng.chance(0.6) { green[rng.index(2)] } else { dry[rng.index(3)] };
+            v.extend(tuft(&mut rng, x + a.cos() * 0.75, z + a.sin() * 0.75, c));
+        }
+    }
+    // A4.5: the pool: a wet dark band all round and worn bare ground beyond it
+    let (pw, pd) = (POOL_X1 - POOL_X0, POOL_Z1 - POOL_Z0);
+    let (pcx, pcz) = ((POOL_X0 + POOL_X1) / 2.0, (POOL_Z0 + POOL_Z1) / 2.0);
+    for side in [-1.0f32, 1.0] {
+        for k in 0..6 {
+            let t = -pw / 2.0 + pw * (k as f32 + 0.5) / 6.0;
+            v.push(ground_patch(pcx + t, pcz + side * (pd / 2.0 + 0.65), 1.55, 0.6, 0.0, 0x39452a, 0.55, 0.014));
+            v.push(ground_patch(pcx + t, pcz + side * (pd / 2.0 + 1.5), 1.6, 0.7, 0.0, 0xa89868, 0.28, 0.011));
+        }
+        for k in 0..4 {
+            let t = -pd / 2.0 + pd * (k as f32 + 0.5) / 4.0;
+            v.push(ground_patch(pcx + side * (pw / 2.0 + 0.65), pcz + t, 0.6, 1.1, 0.0, 0x39452a, 0.55, 0.014));
+            v.push(ground_patch(pcx + side * (pw / 2.0 + 1.5), pcz + t, 0.7, 1.15, 0.0, 0xa89868, 0.28, 0.011));
+        }
+    }
+    // towels left on the pool's edge (striped cloth) and a pair of thongs
+    let towels = [(0xe8443a_u32, 0xf1ead8_u32, -22.5f32, 14.75f32, 0.2f32), (0x2f8ee8, 0xf4c20d, -19.0, 14.7, -0.15), (0x3fa9a0, 0xf1ead8, -15.2, 5.25, 0.3)];
+    for (a, b, x, z, yaw) in towels {
+        let cloth = matt(a).material(Tex::Fabric, 2.5);
+        v.push(cuboid(0.85, 0.035, 0.45, cloth, x, 0.02, z).turn(0.0, yaw, 0.0));
+        // two stripes across it
+        for sx in [-0.22f32, 0.22] {
+            let o = V3::new(x + sx * yaw.cos(), 0.0, z - sx * yaw.sin());
+            v.push(cuboid(0.08, 0.037, 0.46, matt(b).material(Tex::Fabric, 2.5), o.x, 0.021, o.z).turn(0.0, yaw, 0.0));
+        }
+    }
+    for (k, (x, z, yaw)) in [(-24.6f32, 14.9f32, 0.5f32), (-24.2, 15.2, 2.2)].into_iter().enumerate() {
+        v.push(
+            Part::new(Shape::Sphere { r: 0.12, ws: 10, hs: 6 }, matt([0xf4c20d, 0xe8443a][k]))
+                .at(x, 0.012, z)
+                .stretch(1.0, 0.1, 2.1)
+                .turn(0.0, yaw, 0.0),
+        );
+    }
+    // A4.6: soft blob shadows under the bigger props (shed, bins, bar, crates, woodpile, trampoline,
+    // brick wall, tyres, table, hedge), a touch bigger than each one
+    for (x, z, rx, rz, a) in [
+        (22.5f32, -16.5f32, 3.0f32, 2.5f32, 0.45f32),
+        (31.5, 19.5, 1.2, 0.9, 0.4),
+        (0.0, -21.5, 2.5, 1.2, 0.4),
+        (-25.5, -13.5, 1.5, 1.0, 0.4),
+        (-12.0, -3.0, 1.9, 0.9, 0.35),
+        (15.0, 12.0, 2.2, 2.2, 0.3),
+        (20.0, -4.0, 2.7, 0.7, 0.35),
+        (6.0, -16.5, 1.5, 1.0, 0.3),
+        (-31.6, -3.0, 0.9, 4.8, 0.35),
+    ] {
+        v.push(ground_patch(x, z, rx, rz, 0.0, 0x14130a, a, 0.016));
+    }
+    v
+}
+
 /// The whole yard in the browser game's look. `seed` picks where the gum trees and clouds go.
 pub fn yard(seed: u64) -> YardLook {
     yard_styled(seed, false)
@@ -2056,6 +2196,7 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         let mut sr = Rng::new(seed ^ 0x5CA7);
         world.extend(weeds(&mut sr));
         world.extend(clutter(&mut sr));
+        world.extend(ground_story(seed));
         world.extend(table_bottles());
         // a cracked concrete pad inside the back gate, where the paths start
         world.push(cuboid(3.4, 0.04, 2.0, matt(0xc9c4b8).material(Tex::Concrete, 0.7), 3.0, 0.02, -22.9).no_shadow_part());

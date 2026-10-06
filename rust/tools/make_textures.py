@@ -231,3 +231,27 @@ mott_n = (mott - mott.mean()) / mott.std()
 clay = 0.88 + 0.07 * mott_n - pores * 0.10 + 0.06 * swirl
 save("clay.png", grey(np.clip(clay, 0.6, 1.0), (1.0, 0.98, 0.95)))
 save_normal("clay_n.png", 0.5 * (mott - 0.5) + 0.5 * swirl + 0.4 * fbm(14, 2) - pores * 0.35, 3.0)
+
+# ---- fabric: a fine woven cloth (towels, washing, the umbrella). Light grey, tiles, with a
+# threads-over-and-under weave, a few soft creases and slubs.
+threads = 48
+wx = np.sin(xx / N * 2 * np.pi * threads)
+wy = np.sin(yy / N * 2 * np.pi * threads)
+weave = 0.5 + 0.25 * wx * wy + 0.15 * (np.abs(wx) - np.abs(wy)) * 0.5
+crease = fbm(3, 3, sx=2, sy=1)
+slub = fbm(24, 2, sx=1, sy=6)
+fabric = 0.90 + 0.07 * (weave - 0.5) - 0.05 * np.clip(crease - 0.55, 0, 1) * 2 - 0.03 * (slub - 0.5)
+save("fabric.png", grey(np.clip(fabric, 0.6, 1.0), (1.0, 0.99, 0.97)))
+save_normal("fabric_n.png", weave * 0.6 + 0.3 * crease + 0.1 * slub, 1.6)
+
+# ---- packed maps for wood and metal: red = ambient occlusion (dark in the grain lines, knots and
+# grime), green = roughness, blue = metallic (0: the game has no sky reflections to give metal).
+# The material multiplies them by its own roughness, so these only vary it across the surface.
+def save_orm(name, ao, rough):
+    a = np.stack([np.clip(ao, 0, 1), np.clip(rough, 0, 1), np.zeros_like(ao)], axis=-1)
+    save(name, a)
+
+wn = (wood - 0.42) / 0.58
+save_orm("wood_orm.png", 0.55 + 0.45 * wn, 0.80 + 0.20 * (1 - wn))
+mn = np.clip((metal - 0.4) / 0.6, 0, 1)
+save_orm("metal_orm.png", 0.60 + 0.40 * mn - 0.2 * rust, 0.55 + 0.45 * (1 - mn) + 0.35 * rust)

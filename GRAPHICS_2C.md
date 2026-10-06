@@ -57,19 +57,19 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] A3.1 Generated textures: wood, worn metal, sun-faded plastic, cracked concrete, laid by real size (`make_textures.py`, `texture_pass`)
 - [x] A3.2 Wood on the table, fence posts, crates, bar and veranda; metal on the BBQ and shed roof; plastic on the chairs and eskies; a concrete pad
 - [x] A3.3 Use the normal maps that are already made (`wood_n`, `metal_n`, `plastic_n`, `concrete_n`, `bark_n`) on their materials, polished look only
-- [ ] A3.4 Roughness and metal per material instead of one matt value (cans and BBQ metal shiny, wood and fabric matt, plastic in between)
-- [ ] A3.5 Roughness maps and ambient occlusion maps for wood and metal (generated with the others)
-- [ ] A3.6 A fabric material: towels, washing, the umbrella cloth, the singlet (soft, matt, a little weave)
-- [ ] A3.7 Scratches, dirt and fading on the chairs, shed, bar, trampoline and tyres (more of A3.2's style on props that are still flat)
-- [ ] A3.8 Stronger, cleaner colours on gameplay objects (Chest, bins, sauce bottles, items) than on the background
+- [x] A3.4 Roughness per material instead of one matt value (polished look: wood, concrete, bark and cloth matt, plastic in between, metal shinier). Metallic stays 0 because the game has no sky reflections for metal to show
+- [x] A3.5 Roughness and ambient occlusion maps for wood and metal (`wood_orm.png`, `metal_orm.png`, from `make_textures.py`)
+- [x] A3.6 A fabric material (`fabric.png`, `fabric_n.png`): washing, umbrella cloth, trampoline mat, pool towels. The singlet is still to do under C11.3 (the character models need their own UVs)
+- [x] A3.7 Scratches and wear: tyres in the plastic material, trampoline mat in fabric and legs in metal (chairs, bar and BBQ already had materials). The shed is still plain corrugated metal
+- [x] A3.8 Stronger colours on gameplay objects: items get 30% more colour and 10% more brightness, the bins a stronger green (the Chest and sauce bottles were already bold)
 
 ### A4. Environmental integration
 - [x] A4.1 Decals: grease and a scorch mark by the BBQ, a beer spill by the bar, meat drips, a wet edge round the pool, bird droppings under the magpies, grime at the back door, and fading beer stains where a VP can bursts
-- [ ] A4.2 Fence: dirt and weeds at the base of the posts and boards, and darker ground where the fence shades it
-- [ ] A4.3 BBQ area: flattened grass, more grease and sauce stains, food scraps and bottle caps close to the BBQ and table
-- [ ] A4.4 Tyres: compressed grass and dirt under them, a few weeds round the stack, a soft contact shadow
-- [ ] A4.5 Pool: worn grass at the edges, a wetter darker ground band all round (more than the two decals now), towels and thongs left on the edge
-- [ ] A4.6 A soft blob shadow under props that SSAO misses (the shed, bins, bar legs)
+- [x] A4.2 Fence: dirt and weeds at the base of the posts and boards, and darker ground where the fence shades it
+- [x] A4.3 BBQ area: flattened grass, more grease and sauce stains, food scraps and bottle caps close to the BBQ and table
+- [x] A4.4 Tyres: compressed grass and dirt under them, a few weeds round the stack, a soft contact shadow
+- [x] A4.5 Pool: worn grass at the edges, a wetter darker ground band all round (more than the two decals now), towels and thongs left on the edge
+- [x] A4.6 A soft blob shadow under props that SSAO misses (the shed, bins, bar legs)
 
 ## PHASE B: World character
 

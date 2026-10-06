@@ -207,6 +207,8 @@ pub struct ModelCache {
     textures: HashMap<Tex, Handle<Image>>,
     /// Bump maps for the material textures (polished look only, A3.3).
     normals: HashMap<Tex, Handle<Image>>,
+    /// Packed occlusion / roughness maps for wood and metal (polished look only, A3.5).
+    orms: HashMap<Tex, Handle<Image>>,
     built: HashMap<ModelKey, Vec<Built>>,
     /// Meshes and materials already made, by what they are (see `build_part`).
     shared_meshes: HashMap<String, Handle<Mesh>>,
@@ -257,6 +259,10 @@ fn load_textures(mut cache: ResMut<ModelCache>, assets: Res<AssetServer>) {
             if let Some(n) = t.normal_file() {
                 let h = assets.load_builder().with_settings(load).load(format!("textures/{n}"));
                 cache.normals.insert(t, h);
+            }
+            if let Some(n) = t.orm_file() {
+                let h = assets.load_builder().with_settings(load).load(format!("textures/{n}"));
+                cache.orms.insert(t, h);
             }
         }
     }
@@ -343,7 +349,11 @@ fn add_mipmaps(mut events: MessageReader<AssetEvent<Image>>, mut images: ResMut<
 pub fn material(s: &Surface, cache: &ModelCache) -> StandardMaterial {
     // Bevy's diffuse light is brighter at glancing angles the rougher a surface is, which three's
     // flat "Lambert" never is. A roughness of about 0.7 keeps it close to Lambert (see compare.md).
-    let rough = if s.shine > 0.0 {
+    // the polished look's materials (those with a bump map) each have their own finish
+    let finish = s.tex.filter(|t| s.shine == 0.0 && cache.normals.contains_key(t)).map(|t| t.finish());
+    let rough = if let Some((r, _)) = finish {
+        r
+    } else if s.shine > 0.0 {
         (2.0 / (s.shine + 2.0)).sqrt()
     } else if s.ground {
         GROUND_ROUGHNESS
@@ -358,7 +368,9 @@ pub fn material(s: &Surface, cache: &ModelCache) -> StandardMaterial {
         uv_transform: bevy::math::Affine2::from_scale(Vec2::new(s.repeat.0, s.repeat.1)),
         emissive,
         perceptual_roughness: rough,
-        reflectance: if s.shine > 0.0 { 0.5 } else { 0.0 },
+        reflectance: if let Some((_, f)) = finish { f } else if s.shine > 0.0 { 0.5 } else { 0.0 },
+        occlusion_texture: s.tex.and_then(|t| cache.orms.get(&t).cloned()),
+        metallic_roughness_texture: s.tex.and_then(|t| cache.orms.get(&t).cloned()),
         unlit: s.unlit,
         alpha_mode: if s.additive {
             AlphaMode::Add
