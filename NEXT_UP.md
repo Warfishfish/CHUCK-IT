@@ -37,7 +37,9 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 ## Lobby (new, Marcus 6 Oct 2026)
 - When players join a yard they land in a lobby (a small yard or the backyard itself) and wait there
 - In the lobby you customise your blob; behind the customise card you see the other players who have joined, walking about or standing, wearing their looks as they change them
-- The host starts the round from the lobby; everybody goes back to the lobby after the results
+- Everybody has a Ready button; when everyone is ready the round starts by itself (a short countdown that stops if someone un-readies)
+- The host can also start the round at any time with a Start button, ready or not
+- Everybody goes back to the lobby after the results, with Ready cleared
 - Builds on 9.6 (guests follow the host) and the customization steps
 
 ## Platforms (new)
