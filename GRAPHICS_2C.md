@@ -41,14 +41,14 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] A1.6 Fallen leaves and bark bits under the gum trees and along the fence lines (about 170 leaves and some bark strips along the fences, a light scatter on the lawn, a few under each tree; flat, tiny, no shadow, clear of the pool and smoko pad; Marcus asked for fewer leaves)
 - [ ] A1.7 (on hold, Marcus 6 Oct 2026: the ground already has enough going on) A few small bits of backyard debris on the lawn (bottle caps and stubbies are in; add sticks, a crushed can, a lid). Also bring back the four empty yard eskies that open onto nothing: switch them on again with `bbq_core::yard::set_empty_eskies(true)` in `main.rs`; they are red, green, orange and grey, openable with R, and could hold other things later
 - [x] A1.8 Paddock and far trees get dry grass and a dusty colour, still very simple (dry khaki paddock with dust patches, far trees dusted, 22 extra far trees; plus a neighbourhood: 12 simple neighbour houses round the yard, visual only)
-- [ ] A1.9 Check the ground still reads clearly for moving and for seeing items (a readability check on Marcus's Mac)
+- [x] A1.9 Check the ground still reads clearly for moving and for seeing items (checked by screenshots and a colour check: every item differs in hue from the lawn, but the teddy, steak, gnome and purple dildo are about as bright as the lawn, so they lean on A3.8 (stronger item colours). Marcus to judge on his Mac)
 
 ### A2. Lighting
 - [x] A2.1 Warm sun, cooler shadows, a stronger sun and slightly lower ambient for depth (first pass; tune on Marcus's Mac)
 - [x] A2.2 Shadows: 4096 shadow map and Gaussian filter in the polished look
 - [x] A2.3 A rim or back light so characters separate from the lawn
 - [x] A2.4 Ambient occlusion so things sit on the ground (SSAO, subtle, strongest under the BBQ and in creases)
-- [ ] A2.5 Tune the shadow cascades so near shadows are crisp and far tree shadows still reach (cascade tuning)
+- [x] A2.5 Tune the shadow cascades so near shadows are crisp and far tree shadows still reach (4 cascades, first one ends at 8 m, last reaches 110 m; the difference is small)
 - [ ] A2.6 Check tree shadows on the lawn and fence; thicken or soften them if they look patchy
 - [ ] A2.7 Under the shed roof and under the veranda get a darker, cooler feel
 - [ ] A2.8 Tune the whole afternoon feel on Marcus's Mac (sun angle, warmth, how dark the shadows are), still clearly daytime, not orange
@@ -56,7 +56,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 ### A3. Materials
 - [x] A3.1 Generated textures: wood, worn metal, sun-faded plastic, cracked concrete, laid by real size (`make_textures.py`, `texture_pass`)
 - [x] A3.2 Wood on the table, fence posts, crates, bar and veranda; metal on the BBQ and shed roof; plastic on the chairs and eskies; a concrete pad
-- [ ] A3.3 Use the normal maps that are already made (`wood_n`, `metal_n`, `plastic_n`, `concrete_n`, `bark_n`) on their materials, polished look only
+- [x] A3.3 Use the normal maps that are already made (`wood_n`, `metal_n`, `plastic_n`, `concrete_n`, `bark_n`) on their materials, polished look only
 - [ ] A3.4 Roughness and metal per material instead of one matt value (cans and BBQ metal shiny, wood and fabric matt, plastic in between)
 - [ ] A3.5 Roughness maps and ambient occlusion maps for wood and metal (generated with the others)
 - [ ] A3.6 A fabric material: towels, washing, the umbrella cloth, the singlet (soft, matt, a little weave)

@@ -151,7 +151,12 @@ fn build_part(
     let mesh = match cache.shared_meshes.get(&mesh_key) {
         Some(h) => h.clone(),
         None => {
-            let h = meshes.add(crate::shapes::build_mesh_uv(&p.shape, s.uv_per_m));
+            let mut m = crate::shapes::build_mesh_uv(&p.shape, s.uv_per_m);
+            if s.tex.is_some_and(|t| cache.normals.contains_key(&t)) {
+                // bump maps need a tangent on every corner
+                let _ = m.generate_tangents();
+            }
+            let h = meshes.add(m);
             cache.shared_meshes.insert(mesh_key, h.clone());
             h
         }
@@ -200,6 +205,8 @@ fn outline_scale(shape: &bbq_core::looks::Shape, part_scale: bbq_core::vec::V3) 
 #[derive(Resource, Default)]
 pub struct ModelCache {
     textures: HashMap<Tex, Handle<Image>>,
+    /// Bump maps for the material textures (polished look only, A3.3).
+    normals: HashMap<Tex, Handle<Image>>,
     built: HashMap<ModelKey, Vec<Built>>,
     /// Meshes and materials already made, by what they are (see `build_part`).
     shared_meshes: HashMap<String, Handle<Mesh>>,
@@ -246,6 +253,12 @@ fn load_textures(mut cache: ResMut<ModelCache>, assets: Res<AssetServer>) {
             .with_settings(load)
             .load(format!("textures/{}", t.file()));
         cache.textures.insert(t, h);
+        if POLISHED.load(std::sync::atomic::Ordering::Relaxed) {
+            if let Some(n) = t.normal_file() {
+                let h = assets.load_builder().with_settings(load).load(format!("textures/{n}"));
+                cache.normals.insert(t, h);
+            }
+        }
     }
 }
 
@@ -341,6 +354,7 @@ pub fn material(s: &Surface, cache: &ModelCache) -> StandardMaterial {
     StandardMaterial {
         base_color: hex(s.color).with_alpha(s.alpha),
         base_color_texture: s.tex.and_then(|t| cache.textures.get(&t).cloned()),
+        normal_map_texture: s.tex.and_then(|t| cache.normals.get(&t).cloned()),
         uv_transform: bevy::math::Affine2::from_scale(Vec2::new(s.repeat.0, s.repeat.1)),
         emissive,
         perceptual_roughness: rough,

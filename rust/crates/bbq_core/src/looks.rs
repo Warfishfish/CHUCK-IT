@@ -190,6 +190,18 @@ impl Tex {
         Tex::Bark,
     ];
 
+    /// The bump (normal) map that goes with a material texture, if there is one.
+    pub fn normal_file(self) -> Option<&'static str> {
+        match self {
+            Tex::Wood => Some("wood_n.png"),
+            Tex::Metal => Some("metal_n.png"),
+            Tex::Plastic => Some("plastic_n.png"),
+            Tex::Concrete => Some("concrete_n.png"),
+            Tex::Bark => Some("bark_n.png"),
+            _ => None,
+        }
+    }
+
     /// A surface texture (wood, metal...) rather than a picture (a sign, the lawn).
     pub fn is_material(self) -> bool {
         matches!(self, Tex::Wood | Tex::Metal | Tex::Plastic | Tex::Concrete | Tex::Bark)

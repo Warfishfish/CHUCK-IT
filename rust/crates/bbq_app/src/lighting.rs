@@ -255,6 +255,20 @@ pub fn sun(look: LookMode) -> (DirectionalLight, Transform) {
     )
 }
 
+/// How the sun's shadow map is shared out by distance (A2.5). The default spends a lot of the map
+/// on far away things; here the first slice stops at 8 m, so shadows around the player are
+/// crisp, and the last slice reaches 110 m so shadows of the far trees and houses still land.
+pub fn sun_cascades() -> bevy::light::CascadeShadowConfig {
+    bevy::light::CascadeShadowConfigBuilder {
+        num_cascades: 4,
+        minimum_distance: 0.1,
+        maximum_distance: 110.0,
+        first_cascade_far_bound: 8.0,
+        overlap_proportion: 0.3,
+    }
+    .build()
+}
+
 /// Whether the polished look's screen effects (ambient occlusion, bloom, SMAA) are on. They are
 /// on by default in the polished look; `--fx off` switches them off (to compare, or on a slow
 /// computer).

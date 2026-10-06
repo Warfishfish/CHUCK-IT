@@ -269,7 +269,10 @@ fn build_yard(
     }
 
     // the sun, with shadows, and the soft light from the sky
-    commands.spawn(crate::lighting::sun(*mode));
+    let sun = commands.spawn(crate::lighting::sun(*mode)).id();
+    if *mode == crate::lighting::LookMode::Polished {
+        commands.entity(sun).insert(crate::lighting::sun_cascades());
+    }
     if *mode == crate::lighting::LookMode::Polished {
         // a cool, weak light from the far side: it lifts the shaded sides so blobs and props stand
         // out against the lawn
