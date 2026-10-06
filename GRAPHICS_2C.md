@@ -122,11 +122,11 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] C10.1 Eyeballs bounce and bob while walking and running, each character in its own style (springs, footstep kicks, jolts), pupils riding on them; strength set to 60%
 - [x] C10.2 Belly bounce on every step, squash on landing, swing when speeding up or stopping
 - [x] C10.3 Feet step as the blob walks
-- [ ] C10.4 Eyes lag a little in fast turns
-- [ ] C10.5 Body leans forward when speeding up and back when stopping
-- [ ] C10.6 Exaggerated arm swing when walking and running
-- [ ] C10.7 Thong flap: the thongs lift and slap with each step
-- [ ] C10.8 Controlled squash and stretch on strong impacts (a big hit, a hard landing)
+- [x] C10.4 Eyes lag a little in fast turns
+- [x] C10.5 Body leans forward when speeding up and back when stopping
+- [x] C10.6 Exaggerated arm swing when walking and running
+- [x] C10.7 Thong flap: the thongs lift and slap with each step
+- [x] C10.8 Controlled squash and stretch on strong impacts (a big hit, a hard landing)
 - [ ] C10.9 Simple expressive faces: brows and a mouth that changes (stunned, drinking, throwing, drunk)
 
 ### C11. Character materials and looks

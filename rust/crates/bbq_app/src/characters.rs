@@ -72,6 +72,8 @@ struct BellyNode;
 struct FootPart {
     right: bool,
     base: Vec3,
+    /// A thong or its strap: it lifts and slaps with each step (C10.7).
+    thong: bool,
 }
 #[derive(Component)]
 struct Crown;
@@ -368,7 +370,7 @@ fn spawn_model(
                         }
                         "FootL" | "FootR" | "ThongL" | "ThongR" | "StrapL" | "StrapR" => {
                             commands.entity(node).insert((
-                                FootPart { right: name.as_str().ends_with('R'), base },
+                                FootPart { right: name.as_str().ends_with('R'), base, thong: name.starts_with("Thong") || name.starts_with("Strap") },
                                 Blob(i),
                             ));
                         }
@@ -1449,6 +1451,16 @@ struct EyeDrive {
     sag_v: f32,
     swell: f32,
     swell_v: f32,
+    /// The body's lean (forward and sideways) and its squash on impacts, each on a spring.
+    lean: f32,
+    lean_v: f32,
+    roll: f32,
+    roll_v: f32,
+    sq: f32,
+    sq_v: f32,
+    /// Last frame's facing and stun, to see turns and hits.
+    face: f32,
+    stunned: bool,
 }
 
 /// Walking makes the eyeballs bounce and pop (each character in its own style), the pupils
@@ -1462,6 +1474,9 @@ fn animate_face_and_feet(
     mut pupils: Query<(&Blob, &mut PupilPart, &mut Transform), (Without<EyePart>, Without<FootPart>)>,
     mut feet: Query<(&Blob, &FootPart, &mut Transform), (Without<EyePart>, Without<PupilPart>)>,
     mut bellies: Query<(&Blob, &mut bevy::mesh::morph::MorphWeights), With<BellyNode>>,
+    mut bodies: Query<(&Blob, &mut Transform), (With<BlobBody>, Without<EyePart>, Without<PupilPart>, Without<FootPart>, Without<HandR>, Without<HandL>)>,
+    mut hands_r: Query<(&Blob, &mut Transform), (With<HandR>, Without<HandL>, Without<EyePart>, Without<PupilPart>, Without<FootPart>, Without<BlobBody>)>,
+    mut hands_l: Query<(&Blob, &mut Transform), (With<HandL>, Without<HandR>, Without<EyePart>, Without<PupilPart>, Without<FootPart>, Without<BlobBody>)>,
 ) {
     let dt = time.delta_secs().clamp(0.0001, 0.05);
     let t = time.elapsed_secs();
@@ -1501,8 +1516,44 @@ fn animate_face_and_feet(
         dr.swell_v += (dr.swell * -110.0 - dr.swell_v * 5.0) * dt;
         dr.sag = (dr.sag + dr.sag_v * dt).clamp(-0.6, 1.0);
         dr.swell = (dr.swell + dr.swell_v * dt).clamp(-0.35, 0.35);
+        // body lean: forward when speeding up, back when stopping, a roll into turns (C10.5)
+        let fwd_lean = (accel[i].z * 0.0045 + speed[i] * 0.012).clamp(-0.22, 0.3);
+        let yaw_rate = {
+            let mut dy = d.face - dr.face;
+            while dy > std::f32::consts::PI {
+                dy -= std::f32::consts::TAU;
+            }
+            while dy < -std::f32::consts::PI {
+                dy += std::f32::consts::TAU;
+            }
+            (dy / dt).clamp(-8.0, 8.0)
+        };
+        let roll_target = (yaw_rate * speed[i] * 0.006 - accel[i].x * 0.004).clamp(-0.18, 0.18);
+        dr.lean_v += ((fwd_lean - dr.lean) * 90.0 - dr.lean_v * 11.0) * dt;
+        dr.lean += dr.lean_v * dt;
+        dr.roll_v += ((roll_target - dr.roll) * 90.0 - dr.roll_v * 11.0) * dt;
+        dr.roll += dr.roll_v * dt;
+        // squash on hard landings and when something big hits (C10.8)
+        if d.mover.grounded && !dr.grounded {
+            dr.sq_v += (-dr.vel.y / 8.0).clamp(0.0, 1.6) * 9.0;
+        }
+        let stunned = d.body.stun > 0.0 || d.body.is_down();
+        if stunned && !dr.stunned {
+            dr.sq_v += 7.0;
+        }
+        dr.stunned = stunned;
+        dr.sq_v += (dr.sq * -190.0 - dr.sq_v * 9.0) * dt;
+        dr.sq = (dr.sq + dr.sq_v * dt).clamp(-0.22, 0.28);
+        dr.face = d.face;
         dr.vel = local;
         dr.grounded = d.mover.grounded;
+    }
+    for (b, mut tf) in &mut bodies {
+        let Some(dr) = drive.get(b.0) else { continue };
+        // each blob stands a little crooked, one shoulder lower than the other (C9.4)
+        let crooked = ((b.0 * 53 % 9) as f32 - 4.0) * 0.007;
+        tf.rotation *= Quat::from_rotation_x(dr.lean) * Quat::from_rotation_z(dr.roll + crooked);
+        tf.scale *= Vec3::new(1.0 + dr.sq * 0.55, 1.0 - dr.sq, 1.0 + dr.sq * 0.55);
     }
     for (b, mut w) in &mut bellies {
         let Some(dr) = drive.get(b.0) else { continue };
@@ -1541,6 +1592,8 @@ fn animate_face_and_feet(
         // speeding up throws them back, stopping throws them forward; turning swings them out
         let a = accel[b.0].clamp_length_max(60.0);
         e.vel -= Vec3::new(a.x, 0.0, a.z) * st.lag * dt * 60.0 * 0.05;
+        // a fast turn leaves the eyes behind for a moment (C10.4)
+        e.vel.x += drive[b.0].roll_v * st.lag * 6.0;
         // the spring back into the socket
         let force = -e.off * st.k * q - e.vel * st.c;
         e.vel += force * dt;
@@ -1609,6 +1662,29 @@ fn animate_face_and_feet(
         let (ph, k) = (drive[b.0].phase, walk(b.0));
         let a = ph + if f.right { std::f32::consts::PI } else { 0.0 };
         tf.translation = f.base + Vec3::new(0.0, a.cos().max(0.0) * 0.06 * k, a.sin() * 0.11 * k);
+        if f.thong {
+            // the thong lifts with the foot and slaps back down on the heel (C10.7)
+            let lift = a.cos().max(0.0);
+            let slap = (-a.sin()).max(0.0) * (1.0 - lift);
+            tf.rotation = Quat::from_rotation_x(-(lift * 0.5 + slap * 0.22) * k);
+        }
+    }
+    // arms swing opposite the feet while walking (C10.6); the throwing hand stays up when winding up
+    for (b, mut tf) in &mut hands_l {
+        let Some(dr) = drive.get(b.0) else { continue };
+        let k = walk(b.0);
+        let ph = dr.phase;
+        tf.translation += Vec3::new(0.0, (ph.cos()).abs() * 0.02 * k, ph.sin() * 0.16 * k);
+    }
+    for (b, mut tf) in &mut hands_r {
+        let Some(dr) = drive.get(b.0) else { continue };
+        let Some(d) = game.dummies.get(b.0) else { continue };
+        let busy = d.bot.winding || d.body.stun > 0.0 || d.body.is_down() || d.seat.is_some() || d.bot.swing_t > 0.0;
+        let k = if busy { 0.0 } else { walk(b.0) };
+        let ph = dr.phase + std::f32::consts::PI;
+        tf.translation += Vec3::new(0.0, (ph.cos()).abs() * 0.02 * k, ph.sin() * 0.16 * k);
+        // the lower shoulder hangs a touch lower
+        tf.translation.y -= ((b.0 * 53 % 9) as f32 - 4.0) * 0.004;
     }
 }
 
