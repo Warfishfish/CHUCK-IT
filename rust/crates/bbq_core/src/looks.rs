@@ -779,9 +779,59 @@ pub fn dildo_colour(v: DildoVariant) -> u32 {
     }
 }
 
-/// The cheeky item, in one of its four sizes: a suction-cup base and a stack of ribbed, veiny
-/// segments with a rounded tip. (The JavaScript game also lets it flop about; that comes later.)
+/// The surface of a dildo (Marcus, 6 Oct 2026): each one gets one at random, so no two in a yard
+/// need look alike. The shape and size come from the type; the skin is only the texture.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum DildoSkin {
+    /// Raised bumps, thin rings and veins (the original look).
+    Studded,
+    /// Plain and smooth.
+    Smooth,
+    /// Fat rings round it, like a stack of rubber bands.
+    Ribbed,
+    /// Fine grooves running up and down.
+    Rilled,
+    /// A ridge winding round it like a barber's pole.
+    Spiral,
+    /// Lots of fat veins.
+    Veiny,
+}
+
+impl DildoSkin {
+    pub const ALL: [DildoSkin; 6] = [
+        DildoSkin::Studded,
+        DildoSkin::Smooth,
+        DildoSkin::Ribbed,
+        DildoSkin::Rilled,
+        DildoSkin::Spiral,
+        DildoSkin::Veiny,
+    ];
+
+    /// A random-looking but repeatable pick from the item's number (the same item always has the
+    /// same skin, on every computer).
+    pub fn from_id(id: u32) -> DildoSkin {
+        let mut x = id.wrapping_mul(0x9E37_79B1) ^ 0x85EB_CA6B;
+        x ^= x >> 15;
+        x = x.wrapping_mul(0x2C1B_3C6D);
+        x ^= x >> 12;
+        DildoSkin::ALL[(x % DildoSkin::ALL.len() as u32) as usize]
+    }
+
+    /// The smallest item number that has this skin (so every dildo with the same skin and size
+    /// can share one model).
+    pub fn canonical_id(self) -> u32 {
+        (0..).find(|n| DildoSkin::from_id(*n) == self).unwrap_or(0)
+    }
+}
+
+/// The original look (studded), used by the chest display and the tests.
 pub fn dildo(variant: DildoVariant) -> Vec<Part> {
+    dildo_skin(variant, DildoSkin::Studded)
+}
+
+/// The cheeky item, in one of its sizes and one of its skins: a suction-cup base and a stack of
+/// segments with a rounded tip. (The JavaScript game also lets it flop about; that comes later.)
+pub fn dildo_skin(variant: DildoVariant, skin: DildoSkin) -> Vec<Part> {
     let base_c = dildo_colour(variant);
     let mk = |mul: f32, spec: u32, shine: f32| {
         let c = shade(base_c, mul);
@@ -793,6 +843,7 @@ pub fn dildo(variant: DildoVariant) -> Vec<Part> {
     // surface texture (step 2c): darker ribbing rings and lighter raised bumps
     let rib = mk(0.8, 0x9a70b0, 40.0);
     let bump = mk(1.14, 0xc8a0d8, 70.0);
+    let groove = mk(0.7, 0x604070, 30.0);
 
     let dr = 0.1f32;
     let h = 0.155f32;
@@ -814,44 +865,102 @@ pub fn dildo(variant: DildoVariant) -> Vec<Part> {
         if i < 6 {
             v.push(Part::new(sphere(r1, 14, 8), body).at(0.0, y + h, 0.0).in_seg(i, pv));
         }
-        // ribbing: two thin rings round every link, a little wider than the shaft
-        for f in [0.3f32, 0.72] {
-            v.push(
-                Part::new(torus(r0 - 0.0015, 0.0085, 5, 18, 2.0 * PI), rib)
-                    .at(0.0, y + h * f, 0.0)
-                    .turn(HALF_PI, 0.0, 0.0)
-                    .in_seg(i, pv),
-            );
-        }
-        // little raised bumps scattered round the shaft (the same every time)
-        for k in 0..5usize {
-            let a = (i * 5 + k) as f32 * 2.399 + 0.5; // golden-angle spread
-            let f = 0.18 + 0.64 * ((k * 3 + i * 2) % 5) as f32 / 4.0;
-            v.push(
-                Part::new(sphere(0.0125, 6, 4), bump)
-                    .at(a.cos() * (r0 + 0.002), y + h * f, a.sin() * (r0 + 0.002))
-                    .stretch(1.0, 0.8, 1.0)
-                    .in_seg(i, pv),
-            );
-        }
-        if i <= 4 {
-            let r = r0;
-            let a = i as f32 * 1.9;
-            v.push(
-                Part::new(cyl(0.012, 0.012, 0.16, 5), vein)
-                    .at(a.cos() * r * 0.93, y + h / 2.0, a.sin() * r * 0.93)
-                    .turn(a.sin() * 0.22, 0.0, -a.cos() * 0.22)
-                    .in_seg(i, pv),
-            );
-            if i % 2 == 0 {
-                let b = a + 2.4;
+        match skin {
+            DildoSkin::Studded => {
+            // ribbing: two thin rings round every link, a little wider than the shaft
+            for f in [0.3f32, 0.72] {
                 v.push(
-                    Part::new(cyl(0.012, 0.012, 0.16, 5), vein)
-                        .at(b.cos() * r * 0.93, y + h * 0.55, b.sin() * r * 0.93)
-                        .stretch(1.0, 0.7, 1.0)
-                        .turn(-b.sin() * 0.3, 0.0, b.cos() * 0.3)
+                    Part::new(torus(r0 - 0.0015, 0.0085, 5, 18, 2.0 * PI), rib)
+                        .at(0.0, y + h * f, 0.0)
+                        .turn(HALF_PI, 0.0, 0.0)
                         .in_seg(i, pv),
                 );
+            }
+            // little raised bumps scattered round the shaft (the same every time)
+            for k in 0..5usize {
+                let a = (i * 5 + k) as f32 * 2.399 + 0.5; // golden-angle spread
+                let f = 0.18 + 0.64 * ((k * 3 + i * 2) % 5) as f32 / 4.0;
+                v.push(
+                    Part::new(sphere(0.0125, 6, 4), bump)
+                        .at(a.cos() * (r0 + 0.002), y + h * f, a.sin() * (r0 + 0.002))
+                        .stretch(1.0, 0.8, 1.0)
+                        .in_seg(i, pv),
+                );
+            }
+            if i <= 4 {
+                let r = r0;
+                let a = i as f32 * 1.9;
+                v.push(
+                    Part::new(cyl(0.012, 0.012, 0.16, 5), vein)
+                        .at(a.cos() * r * 0.93, y + h / 2.0, a.sin() * r * 0.93)
+                        .turn(a.sin() * 0.22, 0.0, -a.cos() * 0.22)
+                        .in_seg(i, pv),
+                );
+                if i % 2 == 0 {
+                    let b = a + 2.4;
+                    v.push(
+                        Part::new(cyl(0.012, 0.012, 0.16, 5), vein)
+                            .at(b.cos() * r * 0.93, y + h * 0.55, b.sin() * r * 0.93)
+                            .stretch(1.0, 0.7, 1.0)
+                            .turn(-b.sin() * 0.3, 0.0, b.cos() * 0.3)
+                            .in_seg(i, pv),
+                    );
+                }
+            }
+
+            }
+            DildoSkin::Smooth => {}
+            DildoSkin::Ribbed => {
+                // five fat rings round every link
+                for k in 0..5usize {
+                    let f = 0.12 + 0.76 * k as f32 / 4.0;
+                    v.push(
+                        Part::new(torus(r0 + 0.002, 0.015, 5, 18, 2.0 * PI), rib)
+                            .at(0.0, y + h * f, 0.0)
+                            .turn(HALF_PI, 0.0, 0.0)
+                            .in_seg(i, pv),
+                    );
+                }
+            }
+            DildoSkin::Rilled => {
+                // twelve fine grooves up and down every link (thin dark rods lying in the surface)
+                for k in 0..12usize {
+                    let a = k as f32 / 12.0 * 2.0 * PI;
+                    v.push(
+                        Part::new(cyl(0.0045, 0.0045, 0.15, 4), groove)
+                            .at(a.cos() * (r0 - 0.0005), y + h / 2.0, a.sin() * (r0 - 0.0005))
+                            .in_seg(i, pv),
+                    );
+                }
+            }
+            DildoSkin::Spiral => {
+                // twelve short ridges per link, each lying along the winding path (a bit over
+                // half a turn per link), so they join into one spiral from link to link
+                for k in 0..12usize {
+                    let f = (k as f32 + 0.5) / 12.0;
+                    let a = (i as f32 + f) * 2.0 * PI * 0.55;
+                    let rr = r0 - (r0 - r1) * f;
+                    v.push(
+                        Part::new(cyl(0.0075, 0.0075, 0.075, 4), rib)
+                            .at(a.cos() * (rr + 0.0015), y + h * f, a.sin() * (rr + 0.0015))
+                            // lean the ridge sideways along the surface, the way the spiral goes
+                            .turn(a.cos() * 0.85, 0.0, a.sin() * 0.85)
+                            .in_seg(i, pv),
+                    );
+                }
+            }
+            DildoSkin::Veiny => {
+                // three long, slightly sideways veins on every link, wandering round the shaft
+                // from one link to the next
+                for k in 0..3usize {
+                    let a = k as f32 * 2.1 + i as f32 * 0.35;
+                    v.push(
+                        Part::new(cyl(0.011, 0.011, 0.19, 5), vein)
+                            .at(a.cos() * r0 * 0.98, y + h / 2.0, a.sin() * r0 * 0.98)
+                            .turn(a.cos() * 0.22, 0.0, a.sin() * 0.22)
+                            .in_seg(i, pv),
+                    );
+                }
             }
         }
     }
@@ -876,9 +985,11 @@ pub fn dildo(variant: DildoVariant) -> Vec<Part> {
             .turn(HALF_PI, 0.0, 0.0)
             .in_seg(6, last),
     );
-    for k in 0..8usize {
-        let a = k as f32 / 8.0 * 2.0 * PI;
-        v.push(Part::new(sphere(0.014, 6, 4), bump).at(a.cos() * 0.155, -0.176, a.sin() * 0.155));
+    if skin == DildoSkin::Studded {
+        for k in 0..8usize {
+            let a = k as f32 / 8.0 * 2.0 * PI;
+            v.push(Part::new(sphere(0.014, 6, 4), bump).at(a.cos() * 0.155, -0.176, a.sin() * 0.155));
+        }
     }
     scaled(v, dildo_scale(variant))
 }
@@ -899,7 +1010,7 @@ pub fn item(kind: crate::items::ItemKind, id: u32, variant: Option<DildoVariant>
         K::Steak | K::Snag => steak(),
         K::Fish => fish(),
         K::Noodle => noodle(id),
-        K::Dildo => dildo(variant.unwrap_or(DildoVariant::Classic)),
+        K::Dildo => dildo_skin(variant.unwrap_or(DildoVariant::Classic), DildoSkin::from_id(id)),
     }
 }
 
@@ -917,7 +1028,19 @@ pub fn item_look(kind: crate::items::ItemKind, id: u32, variant: Option<DildoVar
             }
         }
     }
-    v.into_iter().map(Part::soft_hero).collect()
+    // the skin details of a dildo are tiny: an outline round each would drown them
+    let fine = kind == crate::items::ItemKind::Dildo;
+    v.into_iter().map(|p| if fine && is_fine(&p) { p } else { p.soft_hero() }).collect()
+}
+
+/// A tiny detail (a groove, a bump, a thin ring) that is too small to carry its own outline.
+fn is_fine(p: &Part) -> bool {
+    match p.shape {
+        Shape::Cylinder { top, bottom, .. } => top.max(bottom) < 0.02,
+        Shape::Torus { tube, .. } => tube < 0.02,
+        Shape::Sphere { r, .. } => r < 0.03,
+        _ => false,
+    }
 }
 
 /// Richer, brighter colour: `sat` times the colour's distance from grey, then `val` times
@@ -1035,6 +1158,54 @@ mod tests {
         // the nose (lip) sits at 0.235 * 3 along x
         let lip = fish().into_iter().rev().nth(1).unwrap();
         assert!((lip.pos.x - 0.705).abs() < 1e-5);
+    }
+
+    #[test]
+    fn every_dildo_gets_a_skin_at_random_but_always_the_same_one() {
+        let mut seen = std::collections::HashSet::new();
+        let mut counts = [0usize; 6];
+        for id in 0..600u32 {
+            let s = DildoSkin::from_id(id);
+            assert_eq!(s, DildoSkin::from_id(id), "repeatable");
+            seen.insert(s);
+            counts[DildoSkin::ALL.iter().position(|x| *x == s).unwrap()] += 1;
+        }
+        assert_eq!(seen.len(), 6, "all six turn up");
+        assert!(counts.iter().all(|c| (60..140).contains(c)), "roughly an equal share each: {counts:?}");
+        // neighbouring items do not all look alike
+        let run = (0..12u32).map(DildoSkin::from_id).collect::<std::collections::HashSet<_>>();
+        assert!(run.len() >= 3);
+    }
+
+    #[test]
+    fn each_skin_is_a_different_dildo_on_the_same_body() {
+        let studded = dildo_skin(DildoVariant::Classic, DildoSkin::Studded);
+        assert_eq!(studded.len(), dildo(DildoVariant::Classic).len(), "studded is the original");
+        let mut lens = std::collections::HashSet::new();
+        for skin in DildoSkin::ALL {
+            let parts = dildo_skin(DildoVariant::Classic, skin);
+            // every skin keeps the body: seven links with their joints, so it still flops
+            let links: std::collections::HashSet<u8> = parts.iter().filter_map(|p| p.seg.map(|(i, _)| i)).collect();
+            assert_eq!(links.len(), 7, "{skin:?}");
+            assert!(parts.iter().all(|p| p.pos.x.is_finite() && p.pos.y.is_finite()));
+            lens.insert(parts.len());
+        }
+        assert!(lens.len() >= 5, "the skins are built differently ({lens:?})");
+        assert!(dildo_skin(DildoVariant::Classic, DildoSkin::Smooth).len() < studded.len());
+        // the item model uses the item's own skin
+        let want = dildo_skin(DildoVariant::Jumbo, DildoSkin::from_id(77)).len();
+        assert_eq!(item(crate::items::ItemKind::Dildo, 77, Some(DildoVariant::Jumbo)).len(), want);
+    }
+
+    #[test]
+    fn the_tiny_skin_details_get_no_outline_but_the_body_does() {
+        use crate::items::ItemKind;
+        let parts = item_look(ItemKind::Dildo, 5, Some(DildoVariant::Classic), true);
+        let outlined = parts.iter().filter(|p| p.hero).count();
+        assert!(outlined > 5 && outlined < parts.len(), "{outlined} of {}", parts.len());
+        assert!(parts.iter().filter(|p| p.hero).all(|p| p.soft), "thin soft line only");
+        // everything else keeps its outline
+        assert!(item_look(ItemKind::Teddy, 1, None, true).iter().all(|p| p.hero));
     }
 
     #[test]

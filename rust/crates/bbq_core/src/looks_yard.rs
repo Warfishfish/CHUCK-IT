@@ -1566,7 +1566,7 @@ pub fn esky_with(body: u32, dark: u32) -> (Vec<Part>, Vec<Part>) {
 /// The toy in slot `k` of the chest (the sizes cycle: classic, mini, jumbo).
 pub fn chest_toy(k: usize) -> Vec<Part> {
     let v = DildoVariant::ALL[k % DildoVariant::ALL.len()];
-    let toy = looks::dildo(v);
+    let toy = looks::dildo_skin(v, looks::DildoSkin::ALL[(k * 2 + 1) % looks::DildoSkin::ALL.len()]);
     let (at, rot, s) = chest_toy_place(k);
     place(toy, at, rot, s)
 }

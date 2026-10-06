@@ -48,13 +48,17 @@ pub enum ModelKey {
 
 impl ModelKey {
     pub fn item(kind: ItemKind, variant: Option<DildoVariant>, id: u32) -> Self {
-        // only the noodle's colour and the dildo's size change the look
+        // only the noodle's colour and the dildo's size and skin change the look
         let v = if kind == ItemKind::Dildo {
             Some(variant.unwrap_or(DildoVariant::Classic))
         } else {
             None
         };
-        let n = if kind == ItemKind::Noodle { id % 4 } else { 0 };
+        let n = match kind {
+            ItemKind::Noodle => id % 4,
+            ItemKind::Dildo => bbq_core::looks::DildoSkin::from_id(id).canonical_id(),
+            _ => 0,
+        };
         ModelKey::Item(kind, v, n)
     }
 

@@ -213,3 +213,4 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] Dildo and noodle flop is back to the browser game's own spring numbers for everyone, first person included (a physics-chain version was tried twice and only squiggled at the tips; a copy is kept outside the repo). More natural flop, if wanted, would start from these numbers
 - [x] Dazza walk glitch: his walk cycle was spinning about 19 times a second (30 rad per metre instead of 2.4), and his drawn position now eases after the 60 Hz brain so it does not judder
 - [x] The BBQ is turned round so the knobs, hood handle and open side face Dazza (he stands behind it, on the fence side)
+- [x] Dildo skins (6 Oct 2026): six random surfaces per dildo (studded, smooth, ribbed, rilled, spiral, veiny); tiny skin details get no outline (`DildoSkin` in `looks.rs`)

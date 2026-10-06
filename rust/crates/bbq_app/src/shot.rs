@@ -104,6 +104,14 @@ pub fn gallery_places() -> Vec<(ModelKey, Vec3)> {
             Vec3::new((i as f32 - 2.0) * 0.6, 29.7, -1.0),
         ));
     }
+    // one of each skin, in a row of their own
+    for (i, skin) in bbq_core::looks::DildoSkin::ALL.into_iter().enumerate() {
+        let id = (0..).find(|n| bbq_core::looks::DildoSkin::from_id(*n) == skin).unwrap_or(0);
+        v.push((
+            ModelKey::item(ItemKind::Dildo, Some(DildoVariant::Classic), id),
+            Vec3::new((i as f32 - 2.5) * 0.5, 29.05, -1.0),
+        ));
+    }
     v
 }
 
@@ -354,9 +362,9 @@ mod tests {
     }
 
     #[test]
-    fn the_line_up_has_twelve_things_in_a_row() {
+    fn the_line_up_has_eighteen_things_in_a_row() {
         let g = gallery_places();
-        assert_eq!(g.len(), 12);
+        assert_eq!(g.len(), 18);
         assert!(g.iter().all(|(_, p)| p.z == -1.0 && p.y > 29.0));
     }
 }
