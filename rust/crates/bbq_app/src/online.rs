@@ -11,6 +11,7 @@
 use std::collections::HashMap;
 
 use bbq_core::character::Character;
+use bbq_core::net_act::{GuestAct, HitMsg};
 use bbq_core::net::{Member, Msg, PROTOCOL, PlayerState, Refusal, Roster, STATE_HZ, clean};
 use bevy::prelude::*;
 
@@ -59,6 +60,10 @@ pub struct Session {
     /// Guest: the host's latest picture of the yard, until the game has used it.
     pub world: Option<bbq_core::net_world::WorldSnap>,
     world_seq: u32,
+    /// Host: what guests have asked for (who, what), until the game has done it.
+    pub acts: Vec<(u32, GuestAct)>,
+    /// Guest: what happened to us, until the game has applied it.
+    pub hits: Vec<HitMsg>,
     /// A line for the menu.
     pub status: String,
     /// The yard is closed to newcomers (a round is on).
@@ -85,6 +90,8 @@ impl Session {
             heard: HashMap::new(),
             world: None,
             world_seq: 0,
+            acts: Vec::new(),
+            hits: Vec::new(),
             status: "Connecting...".into(),
             round_on: false,
             ended: false,
@@ -105,6 +112,8 @@ impl Session {
             heard: HashMap::new(),
             world: None,
             world_seq: 0,
+            acts: Vec::new(),
+            hits: Vec::new(),
             status: "Connecting...".into(),
             round_on: false,
             ended: false,
@@ -251,6 +260,22 @@ impl Session {
                 }
                 Vec::new()
             }
+            (Role::Host, Msg::Act(a)) => {
+                // a guest asks for something: only from somebody we let in, and only sane things
+                if let Some(&id) = self.peers.get(&from)
+                    && a.sane()
+                    && self.acts.len() < 64
+                {
+                    self.acts.push((id, a));
+                }
+                Vec::new()
+            }
+            (Role::Guest, Msg::Hit(h)) => {
+                if self.my_id != 0 && self.host_peer.as_deref() == Some(from.as_str()) && self.hits.len() < 16 {
+                    self.hits.push(h);
+                }
+                Vec::new()
+            }
             (Role::Guest, Msg::State(s)) => {
                 if self.my_id != 0 && s.id != self.my_id && self.members.iter().any(|m| m.id == s.id) {
                     self.heard.insert(s.id, Heard { state: s, at: now });
@@ -259,6 +284,16 @@ impl Session {
             }
             _ => Vec::new(),
         }
+    }
+
+    /// Guest: who the host is on the relay.
+    pub fn host_peer(&self) -> Option<&str> {
+        self.host_peer.as_deref()
+    }
+
+    /// Host: the relay peer of a player (to send them something privately).
+    pub fn peer_of(&self, id: u32) -> Option<&str> {
+        self.peers.iter().find(|(_, v)| **v == id).map(|(k, _)| k.as_str())
     }
 
     /// The host's name (for the feed lines that say "You").
@@ -378,7 +413,7 @@ pub struct OnlinePlugin;
 impl Plugin for OnlinePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Online>()
-            .add_systems(Update, (net_requests, online_poll, online_send, online_roster, online_world_send, online_world_apply).chain())
+            .add_systems(Update, (net_requests, online_poll, online_send, online_roster, online_world_send, online_world_apply, net_test_actions, online_acts, online_hits).chain())
             .add_systems(FixedUpdate, online_puppets.after(crate::game::step_game));
     }
 }
@@ -430,8 +465,9 @@ fn net_requests(
             .collect();
         let bot0 = game.dummies.iter().find(|d| d.remote.is_none()).map_or("none".to_string(), |d| format!("{:.1},{:.1}", d.mover.x, d.mover.z));
         println!(
-            "ONLINE status=\"{}\" puppets=[{}] mirror={} items={} bot0=({bot0}) phase={:?} clock={:.0} dazza=({:.1},{:.1})",
+            "ONLINE status=\"{}\" members=[{}] puppets=[{}] mirror={} items={} bot0=({bot0}) phase={:?} clock={:.0} dazza=({:.1},{:.1})",
             online.status(),
+            online.session.as_ref().map_or(String::new(), |s| s.members.iter().map(|m| format!("{}#{}", m.name, m.id)).collect::<Vec<_>>().join(",")),
             who.join("; "),
             game.mirror,
             game.world.items.len(),
@@ -451,6 +487,12 @@ fn online_poll(mut online: ResMut<Online>, game: Res<Game>) {
     };
     let now = game.now;
     while let Some(ev) = link.poll() {
+        if std::env::args().any(|a| a == "--net-debug") {
+            match &ev {
+                In::Msg { from, data, .. } => println!("NET-EVENT msg from {from}: {:?}", Msg::decode(data).map(|m| format!("{m:?}").chars().take(60).collect::<String>())),
+                other => println!("NET-EVENT {other:?}"),
+            }
+        }
         for act in session.on_event(ev, now) {
             match act {
                 Do::Join(room) => {
@@ -577,6 +619,103 @@ fn online_world_apply(mut online: ResMut<Online>, mut game: ResMut<Game>, mut ya
     let Some(snap) = session.world.take() else { return };
     let (my_id, host) = (session.my_id, session.host_name());
     crate::online_world::apply_world(&mut game, &mut yard.0, &snap, my_id, &host);
+}
+
+/// Testing: `--net-give KIND` (host) hands the first person online one of those; `--net-throw`
+/// (guest) throws whatever it holds, a moment after getting it. Both print what happened.
+fn net_test_actions(
+    online: Res<Online>,
+    mut game: ResMut<Game>,
+    mut wanted: ResMut<crate::player::Wanted>,
+    mut given: Local<bool>,
+    mut stage: Local<(u32, bool)>,
+) {
+    let args: Vec<String> = std::env::args().collect();
+    let Some(session) = online.session.as_ref().filter(|s| s.joined()) else { return };
+    if session.role == Role::Host && !*given && game.rules.phase == bbq_core::scoring::Phase::Play {
+        if let Some(kind) = args.iter().position(|a| a == "--net-give").and_then(|i| args.get(i + 1)) {
+            let want = match kind.as_str() {
+                "steak" => bbq_core::items::ItemKind::Steak,
+                _ => bbq_core::items::ItemKind::Teddy,
+            };
+            if let Some(i) = game.dummies.iter().position(|d| d.remote.is_some()) {
+                let (id, x, z) = (game.dummies[i].id, game.dummies[i].mover.x, game.dummies[i].mover.z);
+                let mut rng = game.rng.clone();
+                let item = game.world.spawn(want, x, z, false, &mut rng);
+                game.world.give(item, id);
+                game.dummies[i].bot.slots.add(item);
+                *given = true;
+                println!("NET-TEST host gave {want:?} {item} to {id}");
+            }
+        }
+    }
+    if session.role == Role::Guest && args.iter().any(|a| a == "--net-throw") {
+        if !game.slots.is_empty() && game.rules.phase == bbq_core::scoring::Phase::Play {
+            stage.0 += 1;
+            if stage.0 == 30 {
+                wanted.throw_down = true;
+            }
+            if stage.0 == 55 && !stage.1 {
+                wanted.throw_up = true;
+                stage.1 = true;
+                println!("NET-TEST guest let go of a throw");
+            }
+        }
+    }
+}
+
+/// A guest sends what it wants done to the host; the host does what guests have asked.
+fn online_acts(
+    mut online: ResMut<Online>,
+    mut game: ResMut<Game>,
+    mut player: ResMut<Player>,
+) {
+    let Online { link, session, .. } = &mut *online;
+    let (Some(link), Some(session)) = (link.as_ref(), session.as_mut()) else {
+        game.net_acts.clear();
+        return;
+    };
+    match session.role {
+        Role::Guest => {
+            let acts = std::mem::take(&mut game.net_acts);
+            if let (true, Some(host)) = (session.joined(), session.host_peer().map(str::to_string)) {
+                for a in acts {
+                    link.send(&session.room, Some(&host), Msg::Act(a).encode());
+                }
+            }
+        }
+        Role::Host => {
+            game.net_acts.clear();
+            for (id, act) in std::mem::take(&mut session.acts) {
+                crate::online_world::apply_guest_act(&mut game, &mut player, id, &act);
+            }
+        }
+    }
+}
+
+/// The host tells people when they were hit; a guest gets knocked about to match.
+fn online_hits(mut online: ResMut<Online>, mut game: ResMut<Game>, mut player: ResMut<Player>) {
+    let Online { link, session, .. } = &mut *online;
+    let (Some(link), Some(session)) = (link.as_ref(), session.as_mut()) else {
+        game.net_hits.clear();
+        return;
+    };
+    match session.role {
+        Role::Host => {
+            for (victim, hit) in std::mem::take(&mut game.net_hits) {
+                let net = crate::online_world::net_of_local(victim, 1);
+                if let Some(peer) = session.peer_of(net).map(str::to_string) {
+                    link.send(&session.room, Some(&peer), Msg::Hit(hit).encode());
+                }
+            }
+        }
+        Role::Guest => {
+            game.net_hits.clear();
+            for hit in std::mem::take(&mut session.hits) {
+                crate::online_world::apply_hit(&mut game, &mut player, &hit);
+            }
+        }
+    }
 }
 
 /// Move each puppet to where its person says they are (a little ahead, by their speed, and

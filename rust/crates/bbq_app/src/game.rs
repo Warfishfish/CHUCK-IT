@@ -49,6 +49,8 @@ pub struct Dummy {
     pub remote: Option<RemoteInfo>,
     /// Online guest: where the host last said this bot is (position, speed, game time heard).
     pub net_target: Option<(V3, (f32, f32), f32)>,
+    /// Online host: when this person last swung at somebody (so they cannot swing too often).
+    pub net_slap_at: f32,
     pub mover: Mover,
     pub body: Body,
     pub home: (f32, f32),
@@ -90,6 +92,7 @@ impl Dummy {
             id,
             remote: None,
             net_target: None,
+            net_slap_at: -9.0,
             mover: Mover::new(x, z),
             body: Body::default(),
             home: (x, z),
@@ -186,6 +189,13 @@ pub struct Game {
     /// Online host: keep a copy of the particle effects for the guests (`fx_out`).
     pub net_fx: bool,
     pub fx_out: Vec<crate::fx::FxEvent>,
+    /// Online guest: what to ask the host to do, until it is sent.
+    pub net_acts: Vec<bbq_core::net_act::GuestAct>,
+    /// Online guest: things we threw or dropped that the host has not yet taken off our hands
+    /// (item, until when), so they do not flicker back into the hand.
+    pub pending_gone: Vec<(u32, f32)>,
+    /// Online host: what happened to people playing online, to tell them (their id here, what).
+    pub net_hits: Vec<(PlayerId, bbq_core::net_act::HitMsg)>,
     /// Goes up whenever the people in the yard are rebuilt, so the blobs are rebuilt too.
     pub dummies_version: u32,
 }
@@ -287,6 +297,9 @@ impl Plugin for GamePlugin {
             mirror: false,
             net_fx: false,
             fx_out: Vec::new(),
+            net_acts: Vec::new(),
+            pending_gone: Vec::new(),
+            net_hits: Vec::new(),
             dummies_version: 0,
         })
         .add_systems(FixedUpdate, step_game.run_if(crate::menu::world_runs));
@@ -333,7 +346,7 @@ pub fn step_game(
     let g = &mut *g;
     let p = &mut *player;
     if g.mirror {
-        crate::online_world::mirror_tick(g, &mut wanted, dt);
+        crate::online_world::mirror_tick(g, p, &mut wanted, dt);
         return;
     }
 
@@ -715,6 +728,10 @@ pub fn step_game(
                 let res = hitting::apply_item_hit(&mut d.body, &mut d.mover, &item, dir, flatten);
                 let sign = if g.rng.chance(0.5) { -1.0 } else { 1.0 };
                 d.anim.tumble(dir, kind.def().knock, sign);
+                if d.remote.is_some() {
+                    // a person online: their own computer knocks them about too
+                    g.net_hits.push((victim, bbq_core::net_act::HitMsg::Item { kind: crate::online_world::kind_code(kind), dir: (dir.x, dir.y, dir.z), flatten }));
+                }
                 let out = g.board.thrown_hit(
                     &g.rules,
                     thrower,

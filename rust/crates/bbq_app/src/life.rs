@@ -256,6 +256,7 @@ pub fn slap_dummy(
             d.anim.tumble(dir, fx.knock, sign);
             d.anim.dizzy = fx.dizzy;
             d.anim.start_swing();
+            crate::online_world::note_slap(g, i, dir, &fx);
             // steak, fish and noodle all pay 50
             let gain = g
                 .board
@@ -295,6 +296,7 @@ pub fn slap_dummy(
             let res = melee::apply(&mut d.body, &mut d.mover, dir, &fx);
             d.anim.start_slap(roll.pose, roll.down);
             d.anim.tumble(dir, fx.knock * 0.4, sign);
+            crate::online_world::note_slap(g, i, dir, &fx);
             let out = g.board.dildo_slap(
                 &g.rules,
                 att.id,

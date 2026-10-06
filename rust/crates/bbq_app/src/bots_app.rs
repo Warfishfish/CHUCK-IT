@@ -266,7 +266,8 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &Yard) {
     for i in 0..g.dummies.len() {
         let id = g.dummies[i].id;
         if g.dummies[i].remote.is_some() {
-            // a person online: they are in charge of themselves
+            // a person online: they are in charge of themselves (their pick-ups are done for them)
+            crate::online_world::puppet_pickup(g, i);
             continue;
         }
         if g.dummies[i].dragged.is_some() || g.dummies[i].naughty_t > 0.0 {
@@ -460,7 +461,7 @@ fn use_up(g: &mut Game, i: usize, item: ItemId) {
     }
 }
 
-fn swing(g: &mut Game, p: &mut Player, i: usize, sw: Swing) {
+pub fn swing(g: &mut Game, p: &mut Player, i: usize, sw: Swing) {
     let Some(item) = g.dummies[i].bot.slots.selected() else {
         return;
     };

@@ -100,6 +100,10 @@ pub enum Msg {
     Bye { id: u32 },
     /// Host to everybody: how the whole yard looks right now (about 15 times a second).
     World(Box<crate::net_world::WorldSnap>),
+    /// Guest to host: "do this for me" (throw, slap, drop, select, catch).
+    Act(crate::net_act::GuestAct),
+    /// Host to one guest: "this just happened to you" (you were hit).
+    Hit(crate::net_act::HitMsg),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -242,6 +246,11 @@ const K_ROSTER: u8 = 4;
 const K_STATE: u8 = 5;
 const K_BYE: u8 = 6;
 const K_WORLD: u8 = 7;
+const K_ACT: u8 = 8;
+const K_HIT: u8 = 9;
+/// For the tests in `net_act.rs`.
+#[cfg(test)]
+pub(crate) const K_ACT_FOR_TESTS: u8 = K_ACT;
 
 const F_GROUNDED: u16 = 1;
 const F_STUNNED: u16 = 2;
@@ -305,6 +314,14 @@ impl Msg {
                 w.u8(K_WORLD);
                 snap.write(&mut w);
             }
+            Msg::Act(a) => {
+                w.u8(K_ACT);
+                a.write(&mut w);
+            }
+            Msg::Hit(h) => {
+                w.u8(K_HIT);
+                h.write(&mut w);
+            }
         }
         w.0
     }
@@ -346,6 +363,8 @@ impl Msg {
             }
             K_BYE => Msg::Bye { id: r.u32()? },
             K_WORLD => Msg::World(Box::new(crate::net_world::WorldSnap::read(&mut r)?)),
+            K_ACT => Msg::Act(crate::net_act::GuestAct::read(&mut r)?),
+            K_HIT => Msg::Hit(crate::net_act::HitMsg::read(&mut r)?),
             k => return Err(DecodeError::UnknownKind(k)),
         };
         if !r.0.is_empty() {
