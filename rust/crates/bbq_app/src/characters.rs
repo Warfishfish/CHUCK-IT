@@ -151,6 +151,7 @@ impl Plugin for CharactersPlugin {
                 Update,
                 (
                     viewer_keys,
+                    sync_cast_overrides,
                     rebuild_blobs,
                     swap_models,
                     compute_poses,
@@ -179,16 +180,29 @@ impl Plugin for CharactersPlugin {
 #[derive(Resource, Default)]
 pub struct Cast {
     pub mine: Character,
+    /// Blobs that are people playing online wear their own pick (set from the game every frame).
+    pub overrides: Vec<Option<Character>>,
 }
 
 impl Cast {
     /// The character shown on practice blob `i`: blob 0 wears your pick, the others the next ones.
     fn character_of(&self, i: usize) -> Character {
+        if let Some(Some(c)) = self.overrides.get(i) {
+            return *c;
+        }
         let start = Character::ALL
             .iter()
             .position(|c| *c == self.mine)
             .unwrap_or(0);
         Character::ALL[(start + i) % Character::ALL.len()]
+    }
+}
+
+/// Online players' blobs wear what they picked, and carry their names.
+fn sync_cast_overrides(game: Res<Game>, mut cast: ResMut<Cast>) {
+    let want: Vec<Option<Character>> = game.dummies.iter().map(|d| d.remote.as_ref().map(|r| r.character)).collect();
+    if cast.overrides != want {
+        cast.overrides = want;
     }
 }
 
@@ -448,7 +462,7 @@ fn rebuild_blobs(
     cast: Res<Cast>,
     mut looks: ResMut<Looks>,
     game: Res<Game>,
-    mut shown: Local<Option<usize>>,
+    mut shown: Local<Option<(usize, u32)>>,
     old: Query<
         Entity,
         Or<(
@@ -459,7 +473,7 @@ fn rebuild_blobs(
         )>,
     >,
 ) {
-    let n = game.dummies.len();
+    let n = (game.dummies.len(), game.dummies_version);
     match *shown {
         None => {
             *shown = Some(n); // the first ones were built at startup
@@ -633,7 +647,10 @@ fn build_blobs(
 
         // name tag
         commands.spawn((
-            Text2d::new(BLOB_NAMES[i % BLOB_NAMES.len()]),
+            Text2d::new(match &d.remote {
+                Some(r) => r.name.clone(),
+                None => BLOB_NAMES[i % BLOB_NAMES.len()].to_string(),
+            }),
             tag_font.clone(),
             TextColor(Color::WHITE),
             Transform::from_xyz(0.0, 3.0, 0.0).with_scale(Vec3::splat(0.0085)),

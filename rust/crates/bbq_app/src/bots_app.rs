@@ -96,8 +96,9 @@ pub fn name_of(g: &Game, id: PlayerId) -> String {
         g.dummies
             .iter()
             .position(|d| d.id == id)
-            .map(|i| {
-                crate::characters::BLOB_NAMES[i % crate::characters::BLOB_NAMES.len()].to_string()
+            .map(|i| match &g.dummies[i].remote {
+                Some(r) => r.name.clone(),
+                None => crate::characters::BLOB_NAMES[i % crate::characters::BLOB_NAMES.len()].to_string(),
             })
             .unwrap_or_else(|| "Somebody".to_string())
     }
@@ -264,6 +265,10 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &Yard) {
 
     for i in 0..g.dummies.len() {
         let id = g.dummies[i].id;
+        if g.dummies[i].remote.is_some() {
+            // a person online: they are in charge of themselves
+            continue;
+        }
         if g.dummies[i].dragged.is_some() || g.dummies[i].naughty_t > 0.0 {
             // being dragged, or in the corner: not thinking about anything
             g.dummies[i].bot.wish = (0.0, 0.0);

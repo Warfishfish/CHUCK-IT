@@ -25,6 +25,8 @@ mod models;
 mod player;
 mod preview;
 mod menu;
+mod net_link;
+mod online;
 mod results;
 mod round;
 mod shapes;
@@ -93,7 +95,7 @@ fn main() {
             >::default(),
         ),
     );
-    app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin));
+    app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin, online::OnlinePlugin));
     if let Some(cfg) = shot {
         app.add_plugins(shot::ShotPlugin(cfg));
     }

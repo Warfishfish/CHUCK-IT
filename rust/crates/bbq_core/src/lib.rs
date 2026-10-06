@@ -25,6 +25,7 @@ pub mod matchflow;
 pub mod melee;
 pub mod gamepad;
 pub mod movement;
+pub mod net;
 pub mod pose;
 pub mod rng;
 pub mod scoring;

@@ -10,6 +10,7 @@ const PUBLIC = path.join(__dirname, 'public');
 const ROOM_NAME = /^[a-z0-9][a-z0-9_.-]{0,47}$/;
 const MAX_PER_ROOM = 16;
 const MAX_PRESENCE_BYTES = 8192;
+const MAX_MSG_BYTES = 12288; // one relayed game message, after base64
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.ico': 'image/x-icon', '.svg': 'image/svg+xml' };
 
 const server = http.createServer((req, res) => {
@@ -44,7 +45,7 @@ function leave(ws, room) {
 
 wss.on('connection', ws => {
   ws.peer = (++counter).toString(36) + Math.random().toString(36).slice(2, 8);
-  ws.rooms = new Set(); ws.alive = true; ws.budget = 120;
+  ws.rooms = new Set(); ws.alive = true; ws.budget = 400;
   ws.on('pong', () => { ws.alive = true; });
   send(ws, { t: 'you', peer: ws.peer });
 
@@ -66,6 +67,14 @@ wss.on('connection', ws => {
       if (Buffer.byteLength(JSON.stringify(m.presence)) > MAX_PRESENCE_BYTES) return;
       me.presence = m.presence;
       broadcast(room, { t: 'up', room, peer: ws.peer, presence: m.presence }, ws.peer);
+    } else if (m.t === 'msg') {
+      // The Rust version's game messages: relayed as they are (base64 text) to one peer (`to`)
+      // or to everybody else in the room. The server never looks inside.
+      const r = rooms.get(room);
+      if (!r || !r.has(ws.peer) || typeof m.d !== 'string' || m.d.length > MAX_MSG_BYTES) return;
+      const out = JSON.stringify({ t: 'msg', room, from: ws.peer, d: m.d });
+      if (typeof m.to === 'string') { const dest = r.get(m.to); if (dest) send(dest.ws, out); }
+      else for (const [peer, v] of r) if (peer !== ws.peer) send(v.ws, out);
     } else if (m.t === 'leave') {
       leave(ws, room);
     }
@@ -73,7 +82,7 @@ wss.on('connection', ws => {
   ws.on('close', () => { for (const room of [...ws.rooms]) leave(ws, room); });
 });
 
-setInterval(() => { for (const ws of wss.clients) ws.budget = 120; }, 1000);
+setInterval(() => { for (const ws of wss.clients) ws.budget = 400; }, 1000);
 setInterval(() => {
   for (const ws of wss.clients) { if (!ws.alive) { ws.terminate(); continue; } ws.alive = false; ws.ping(); }
 }, 20000);

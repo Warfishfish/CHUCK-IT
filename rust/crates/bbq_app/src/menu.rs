@@ -57,6 +57,10 @@ pub struct Settings {
     /// How big your beer belly is: 0 none, 1 normal, 2 enormous (looks only).
     pub belly: f32,
     pub sound: bool,
+    /// Online: the relay's address (`npm start` on the host's computer, or a cloudflared link).
+    pub server: String,
+    /// Online: the room code to host or join (a new one is made when hosting with this empty).
+    pub room: String,
 }
 
 impl Default for Settings {
@@ -79,6 +83,8 @@ impl Default for Settings {
             character: Character::default(),
             belly: 1.0,
             sound: true,
+            server: "localhost:3000".into(),
+            room: String::new(),
         }
     }
 }
@@ -115,10 +121,11 @@ impl Settings {
         };
         let f = &self.features;
         let s = format!(
-            "name={}\nfov={}\nbots={}\nmode={mode}\nheist_teams={}\ncheeky={}\nround_len={}\nskill={skill}\nrounds={}\nfriendly_fire={}\nbar={}\nbbq={}\nchest={}\nsmoko={}\nnaughty={}\nfalls={}\ndrunk_all={}\ncharacter={}\nbelly={}\nsound={}\n",
+            "name={}\nfov={}\nbots={}\nmode={mode}\nheist_teams={}\ncheeky={}\nround_len={}\nskill={skill}\nrounds={}\nfriendly_fire={}\nbar={}\nbbq={}\nchest={}\nsmoko={}\nnaughty={}\nfalls={}\ndrunk_all={}\ncharacter={}\nbelly={}\nsound={}\nserver={}\nroom={}\n",
             self.name, self.fov, self.bots, self.heist_teams, self.cheeky, self.round_len,
             self.rounds, self.friendly_fire, f.bar, f.bbq, f.chest, f.smoko, self.naughty,
-            self.falls, self.drunk_all, self.character.name(), self.belly, self.sound
+            self.falls, self.drunk_all, self.character.name(), self.belly, self.sound,
+            self.server, self.room
         );
         let _ = std::fs::write(p, s);
     }
@@ -168,6 +175,8 @@ impl Settings {
                 }
                 "belly" => s.belly = v.parse().unwrap_or(1.0f32).clamp(0.0, 2.0),
                 "sound" => s.sound = b,
+                "server" => s.server = v.chars().take(80).collect(),
+                "room" => s.room = crate::online::clean_room(v),
                 _ => {}
             }
         }
@@ -182,7 +191,23 @@ pub struct MenuUi {
     pub more_open: bool,
     pub name_focus: bool,
     pub request: Option<Request>,
+    /// Online: which box is being typed in (server address or room code).
+    pub net_focus: Option<NetField>,
+    /// Online: Host, Join or Leave was pressed (`online.rs` acts on it).
+    pub net_request: Option<crate::online::NetRequest>,
 }
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum NetField {
+    Server,
+    Room,
+}
+
+#[derive(Component)]
+struct NetFieldText(NetField);
+
+#[derive(Component)]
+struct NetStatusText;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Request {
@@ -240,6 +265,8 @@ impl Plugin for MenuPlugin {
                 more_open: false,
                 name_focus: false,
                 request: None,
+                net_focus: None,
+                net_request: None,
             })
             .insert_resource(if direct && !menu_shot { Screen::Playing } else { Screen::Menu })
             .add_systems(Startup, (spawn_menu, spawn_pause, apply_loaded_settings).chain())
@@ -249,6 +276,8 @@ impl Plugin for MenuPlugin {
                     widget_clicks,
                     slider_drag,
                     name_typing,
+                    net_typing,
+                    net_texts,
                     scroll_cards,
                     run_requests,
                     flow_keys,
@@ -466,14 +495,36 @@ fn mates_panel(c: &mut ChildSpawnerCommands) {
     c.spawn((column(12.0), ShowWhen::Panel(Tab::Mates))).with_children(|p| {
         p.spawn(legend("Play with mates"));
         p.spawn(text(
-            "Online play arrives with Phase 9. For now: pick a game on the Solo tab.",
+            "One of you hosts, the others join with the room code. Run npm start on the host's computer (or share a cloudflared link) and type its address below. For now you can walk about in the same yard; hits and scores online come next.",
             13.0,
             false,
             MUTED,
         ));
-        p.spawn(row(0.0)).with_children(|r| {
-            button(r, Action::HostYard, "Host a yard (soon)", None);
+        for (label, field, action) in [("Server", NetField::Server, Action::FocusServer), ("Room code", NetField::Room, Action::FocusRoom)] {
+            p.spawn(column(6.0)).with_children(|f| {
+                f.spawn(legend(label));
+                f.spawn((
+                    Button,
+                    Node {
+                        width: Val::Percent(100.0),
+                        padding: UiRect::axes(px(12.0), px(10.0)),
+                        border: UiRect::all(px(2.0)),
+                        border_radius: BorderRadius::all(px(12.0)),
+                        ..default()
+                    },
+                    BackgroundColor(WHITE),
+                    BorderColor::all(INK),
+                    action,
+                    children![(text("", 15.0, true, INK), NetFieldText(field))],
+                ));
+            });
+        }
+        p.spawn(row(8.0)).with_children(|r| {
+            button(r, Action::HostYard, "Host a yard", Some(SUN));
+            button(r, Action::Join, "Join", None);
+            button(r, Action::Leave, "Leave", None);
         });
+        p.spawn((text("", 14.0, true, INK), NetStatusText));
     });
 }
 
@@ -650,10 +701,17 @@ fn widget_clicks(
             Action::Resume => ui.request = Some(Request::Resume),
             Action::Quit | Action::ToMenu => ui.request = Some(Request::Menu),
             Action::Again => ui.request = Some(Request::Again),
-            Action::HostYard | Action::Join => {}
+            Action::HostYard => ui.net_request = Some(crate::online::NetRequest::Host),
+            Action::Join => ui.net_request = Some(crate::online::NetRequest::Join),
+            Action::Leave => ui.net_request = Some(crate::online::NetRequest::Leave),
+            Action::FocusServer => ui.net_focus = Some(NetField::Server),
+            Action::FocusRoom => ui.net_focus = Some(NetField::Room),
         }
         if *a != Action::FocusName {
             ui.name_focus = false;
+        }
+        if !matches!(a, Action::FocusServer | Action::FocusRoom) {
+            ui.net_focus = None;
         }
     }
     if changed {
@@ -731,6 +789,75 @@ fn name_typing(
             _ => {}
         }
         settings.save();
+    }
+}
+
+/// Typing into the server and room boxes.
+fn net_typing(
+    mut ev: MessageReader<KeyboardInput>,
+    mut settings: ResMut<Settings>,
+    mut ui: ResMut<MenuUi>,
+    screen: Res<Screen>,
+) {
+    let Some(field) = ui.net_focus else {
+        ev.clear();
+        return;
+    };
+    if *screen != Screen::Menu {
+        ev.clear();
+        return;
+    }
+    for e in ev.read() {
+        if !e.state.is_pressed() {
+            continue;
+        }
+        let (text, max) = match field {
+            NetField::Server => (&mut settings.server, 80),
+            NetField::Room => (&mut settings.room, 24),
+        };
+        match &e.logical_key {
+            Key::Backspace => {
+                text.pop();
+            }
+            Key::Enter | Key::Escape => ui.net_focus = None,
+            Key::Character(s) => {
+                for ch in s.chars() {
+                    let ok = match field {
+                        NetField::Server => ch.is_ascii_alphanumeric() || ":./-_".contains(ch),
+                        NetField::Room => ch.is_ascii_alphanumeric() || ch == '-',
+                    };
+                    if ok && text.chars().count() < max {
+                        text.push(if field == NetField::Room { ch.to_ascii_lowercase() } else { ch });
+                    }
+                }
+            }
+            _ => {}
+        }
+        settings.save();
+    }
+}
+
+/// The server and room boxes, and the line saying how it is going.
+fn net_texts(
+    settings: Res<Settings>,
+    ui: Res<MenuUi>,
+    online: Res<crate::online::Online>,
+    mut fields: Query<(&NetFieldText, &mut Text), Without<NetStatusText>>,
+    mut status: Query<&mut Text, With<NetStatusText>>,
+) {
+    for (f, mut t) in &mut fields {
+        let (value, blank) = match f.0 {
+            NetField::Server => (&settings.server, "address of the host's server"),
+            NetField::Room => (&settings.room, "leave empty to make a new one"),
+        };
+        let caret = if ui.net_focus == Some(f.0) { "|" } else { "" };
+        t.0 = if value.is_empty() && caret.is_empty() { blank.to_string() } else { format!("{value}{caret}") };
+    }
+    for mut t in &mut status {
+        let s = online.status();
+        if t.0 != s {
+            t.0 = s;
+        }
     }
 }
 
@@ -912,7 +1039,8 @@ pub fn begin(settings: &Settings, g: &mut Game, p: &mut Player, yard: &mut YardR
     g.round.setup = Setup {
         mode: settings.mode,
         heist_teams: settings.heist_teams,
-        bots: settings.bots,
+        // with mates in the yard the bots stay out of it (for now)
+        bots: if g.remotes.is_empty() { settings.bots } else { 0 },
         round_len: settings.round_len,
         match_len: if settings.mode == GameMode::Heist { 1 } else { settings.rounds },
         friendly_fire: settings.mode == GameMode::Teams && settings.friendly_fire,
@@ -1055,6 +1183,7 @@ fn flow_keys(
             }
             Screen::Paused => *screen = Screen::Playing,
             Screen::Menu if ui.name_focus => ui.name_focus = false,
+            Screen::Menu if ui.net_focus.is_some() => ui.net_focus = None,
             _ => {}
         }
     }

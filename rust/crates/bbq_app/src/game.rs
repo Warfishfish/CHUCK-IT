@@ -24,8 +24,29 @@ use crate::player::{PLAYER_ID, Player, Wanted};
 use crate::yard_scene::YardRes;
 
 /// A stand-in person to throw things at until real bots arrive in Phase 5.
+/// Another human in an online yard (their blob is a puppet that copies what they say they do).
+#[derive(Clone, Debug, PartialEq)]
+pub struct RemoteInfo {
+    /// Their number in the yard (the host is 1).
+    pub net_id: u32,
+    pub name: String,
+    pub character: bbq_core::character::Character,
+}
+
+impl RemoteInfo {
+    /// The id their puppet has in this game (yours is `PLAYER_ID`; bots are 100 up).
+    pub fn local_id(&self) -> PlayerId {
+        REMOTE_ID_BASE + self.net_id
+    }
+}
+
+/// Puppets for people online have ids from here up.
+pub const REMOTE_ID_BASE: PlayerId = 200;
+
 pub struct Dummy {
     pub id: PlayerId,
+    /// Set for a person playing online: the bot brain leaves them alone.
+    pub remote: Option<RemoteInfo>,
     pub mover: Mover,
     pub body: Body,
     pub home: (f32, f32),
@@ -65,6 +86,7 @@ impl Dummy {
     pub fn new(id: PlayerId, x: f32, z: f32, i: usize, rng: &mut Rng) -> Self {
         Dummy {
             id,
+            remote: None,
             mover: Mover::new(x, z),
             body: Body::default(),
             home: (x, z),
@@ -153,6 +175,10 @@ pub struct Game {
     pub attract: bool,
     /// Things that just happened, for the particle effects to show (see `fx.rs`).
     pub fx: Vec<crate::fx::FxEvent>,
+    /// The other people in an online yard (empty when playing alone).
+    pub remotes: Vec<RemoteInfo>,
+    /// Goes up whenever the people in the yard are rebuilt, so the blobs are rebuilt too.
+    pub dummies_version: u32,
 }
 
 impl Game {
@@ -245,6 +271,8 @@ impl Plugin for GamePlugin {
             heist: None,
             attract: false,
             fx: Vec::new(),
+            remotes: Vec::new(),
+            dummies_version: 0,
         })
         .add_systems(FixedUpdate, step_game.run_if(crate::menu::world_runs));
     }

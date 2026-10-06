@@ -302,13 +302,17 @@ Phase 3 result: `bbq_core` gained `flight`, `hands`, `hitting`, `itemworld`, `ve
 - [x] Gamepad support (new): sticks walk and look (dead zone, smooth curve), A jump, right trigger throw/slap, left trigger catch, bumpers swap, X interact, Y grab, B drop, stick press boost, D-pad emotes, Start pauses, A/B on the menu and cards (`bbq_core/src/gamepad.rs`, `bbq_app/src/gamepad.rs`, listed on the How to play card). Not tried on a real controller yet (none in the cloud or here): Marcus to test. SIMPLIFIED: the menus' tabs and tick boxes still need the mouse; no rumble; no button remapping
 
 ### Phase 9: Multiplayer
-- [ ] Network messages: inputs, synced components and events (port the 31 fx events)
-- [ ] The server decides everything; your own player is predicted, others smoothed
-- [ ] Throws and hits decided by the server, with lag compensation; drag and Heist online
-- [ ] Lobby: list yards, join by code, waiting yard, host settings, Start round, back to the lobby after the game
-- [ ] Connections: UDP for desktop, WebTransport/WebSocket for browser, Steam relay later
-- [ ] Leaving and rejoining mid-game
-- [ ] Tests with 2–4 players and simulated lag
+How it works (decided 6 Oct 2026, close to the browser game): one player hosts and runs the rules (bots, items, Dazza, scores). Everybody moves their own blob so the controls feel instant, and says where it is 20 times a second; the others' blobs are puppets that follow. The relay is the same `server.js` the browser game uses (it now also passes game messages along, `rust/tools/relay_test.js` checks it), so friends join over the internet the way they do today (`npm start`, cloudflared). The messages are in `bbq_core/src/net.rs` (small binary, tested against junk), the conversation is `bbq_app/src/online.rs` (`Session`, no sockets, tested), the WebSocket is `bbq_app/src/net_link.rs` (tested against the real relay).
+- [x] 9.1 Network messages: hello / welcome / refused / roster / player state / bye, the host's roster (ids, unique names, 16 players, version check)
+- [x] 9.2 Connection: relay passes messages, Rust WebSocket thread, "With mates" tab with server address, room code, Host / Join / Leave and a status line, settings saved
+- [x] 9.3 See each other: puppets for everybody else (their name, blob, position, facing, winding up), bots stay out while mates are in; `--net-host ROOM`, `--net-join ROOM`, `--server ADDRESS`, `--net-debug` for testing. Tried with two copies on one computer and a local relay; NOT yet tried over the internet or with a real friend
+- [ ] 9.4 The host's world reaches the guests: items on the lawn, bots, Dazza, chest, smoko, round clock and scores, feed and effects (the 31 fx events)
+- [ ] 9.5 Guests' actions: throw, catch, pick up, slap, drink, chest, smoko, grab and drag, emotes (the 20 action kinds); the host decides, hits are reported by the victim and checked within 1.8 s, guests see their own throws at once as ghosts
+- [ ] 9.6 Rounds online: host starts the round for everybody, results for everybody, back to the lobby; late joiners wait
+- [ ] 9.7 Leaving and rejoining mid-game (no host migration: when the host leaves the yard ends)
+- [ ] 9.8 Teddy Heist online; character looks (belly, held item) on puppets; the lobby list of open yards
+- [ ] 9.9 Tests with 2 to 4 players and simulated lag; speed and bandwidth check
+- NOT doing for now: UDP/WebTransport/Steam relay (the WebSocket relay does the job, as in the browser game)
 
 ### Phase 10: Audio
 - [ ] Record today's ~35 synthesised sounds to files (or rebuild them as synths)

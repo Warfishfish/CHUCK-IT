@@ -194,6 +194,9 @@ pub enum Action {
     FocusName,
     HostYard,
     Join,
+    Leave,
+    FocusServer,
+    FocusRoom,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]

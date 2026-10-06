@@ -145,6 +145,12 @@ pub fn name_of(g: &Game, id: PlayerId) -> String {
 /// Keep exactly `want` bots in the yard.
 pub fn sync_bot_count(g: &mut Game, want: usize) {
     let want = want.min(MAX_BOTS);
+    // people playing online are puppets at the end of the list; they are put back last
+    let before: Vec<crate::game::RemoteInfo> = g.dummies.iter().filter_map(|d| d.remote.clone()).collect();
+    while let Some(i) = g.dummies.iter().rposition(|d| d.remote.is_some()) {
+        let d = g.dummies.remove(i);
+        g.board.remove(d.id);
+    }
     while g.dummies.len() > want {
         if let Some(d) = g.dummies.pop() {
             g.crowd.brains.remove(&d.id);
@@ -160,6 +166,17 @@ pub fn sync_bot_count(g: &mut Game, want: usize) {
         g.crowd.add(id, &mut g.rng);
         g.dummies.push(d);
         i += 1;
+    }
+    for r in g.remotes.clone() {
+        let (x, z) = CHAR_SPAWNS[(g.dummies.len() + 1) % CHAR_SPAWNS.len()];
+        let mut d = Dummy::new(r.local_id(), x, z, g.dummies.len(), &mut g.rng);
+        g.board.ensure(d.id);
+        d.remote = Some(r);
+        g.dummies.push(d);
+    }
+    let after: Vec<_> = g.dummies.iter().filter_map(|d| d.remote.clone()).collect();
+    if before != after || g.dummies.len() != g.life.grab_immune.len() {
+        g.dummies_version = g.dummies_version.wrapping_add(1);
     }
     g.life.grab_immune.resize(g.dummies.len(), 0.0);
 }
