@@ -59,6 +59,8 @@ pub struct Settings {
     pub sound: bool,
     /// Online: the relay's address (`npm start` on the host's computer, or a cloudflared link).
     pub server: String,
+    /// Your blob's customised look: mouth, brows, hair and colours.
+    pub look: bbq_core::appearance::Appearance,
     /// Online: the room code to host or join (a new one is made when hosting with this empty).
     pub room: String,
 }
@@ -84,6 +86,7 @@ impl Default for Settings {
             belly: 1.0,
             sound: true,
             server: "localhost:3000".into(),
+            look: bbq_core::appearance::Appearance::default(),
             room: String::new(),
         }
     }
@@ -126,7 +129,7 @@ impl Settings {
             self.rounds, self.friendly_fire, f.bar, f.bbq, f.chest, f.smoko, self.naughty,
             self.falls, self.drunk_all, self.character.name(), self.belly, self.sound,
             self.server, self.room
-        );
+        ) + &self.look.to_lines();
         let _ = std::fs::write(p, s);
     }
 
@@ -177,7 +180,9 @@ impl Settings {
                 "sound" => s.sound = b,
                 "server" => s.server = v.chars().take(80).collect(),
                 "room" => s.room = crate::online::clean_room(v),
-                _ => {}
+                k => {
+                    s.look.read_line(k, v);
+                }
             }
         }
         s
