@@ -641,7 +641,7 @@ fn net_requests(
             "ONLINE screen={:?} status=\"{}\" members=[{}] puppets=[{}] mirror={} items={} bots={} ids={:?} remotes={} bot0=({bot0}) phase={:?} clock={:.0} dazza=({:.1},{:.1})",
             *screen,
             online.status(),
-            online.session.as_ref().map_or(String::new(), |s| s.members.iter().map(|m| format!("{}#{}", m.name, m.id)).collect::<Vec<_>>().join(",")),
+            online.session.as_ref().map_or(String::new(), |s| s.members.iter().map(|m| format!("{}#{}{}", m.name, m.id, if m.ready { "R" } else { "" })).collect::<Vec<_>>().join(",")),
             who.join("; "),
             game.mirror,
             game.world.items.len(),
