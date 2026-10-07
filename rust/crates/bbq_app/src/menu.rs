@@ -231,6 +231,8 @@ pub enum ShowWhen {
     Panel(Tab),
     /// The blob preview card: on the Solo and Customise tabs.
     Preview,
+    /// Everything but the Customise tab (the title and field of view make room for it).
+    NotLook,
     HeistTeams,
     FriendlyFire,
     HeistNote,
@@ -288,7 +290,7 @@ impl Plugin for MenuPlugin {
                     slider_drag,
                     name_typing,
                     net_typing,
-                    look_texts,
+                    look_marks,
                     test_looks,
                     net_texts,
                     scroll_cards,
@@ -315,15 +317,15 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
         .spawn((overlay(false), MenuRoot))
         .with_children(|o| {
             o.spawn(card(452.0)).with_children(|c| {
-                // brand
-                c.spawn(Node {
+                // brand (hidden on the Customise tab, to make room)
+                c.spawn((Node {
                     flex_direction: FlexDirection::Column,
                     align_items: AlignItems::FlexStart,
                     row_gap: px(10.0),
                     padding: UiRect::top(px(4.0)),
                     flex_shrink: 0.0,
                     ..default()
-                })
+                }, ShowWhen::NotLook))
                 .with_children(|b| {
                     b.spawn(tag_pill("Backyard Brawl · Rust prototype"));
                     outlined_title(b, "Australian\nBBQ", 54.0);
@@ -352,7 +354,9 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                         children![(text("", 15.0, true, INK), NameText)],
                     ));
                 });
-                slider(c, SliderId::Fov, "Field of view", 60.0, 105.0);
+                c.spawn((column(0.0), ShowWhen::NotLook)).with_children(|w| {
+                    slider(w, SliderId::Fov, "Field of view", 60.0, 105.0);
+                });
                 // tabs
                 c.spawn(row(8.0)).with_children(|t| {
                     tab_button(t, Tab::Solo, "Solo");
@@ -427,35 +431,81 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
         });
 }
 
-/// The value shown between a Customise row's arrows.
-#[derive(Component)]
-struct LookValue(LookRow);
-
 /// The Customise tab: a row of arrows for each feature of your blob.
 fn look_panel(c: &mut ChildSpawnerCommands) {
-    c.spawn((column(12.0), ShowWhen::Panel(Tab::Look))).with_children(|p| {
-        p.spawn(legend("Customise your blob"));
-        p.spawn(text("Looks only: every blob has the same speed and hit size. Your blob's shape and belly are on the Solo tab.", 13.0, false, MUTED));
-        for (row, label) in [
-            (LookRow::Body, "Body colour"),
-            (LookRow::Singlet, "Singlet"),
-            (LookRow::Thongs, "Thongs"),
-            (LookRow::Hair, "Hair"),
-            (LookRow::HairColour, "Hair colour"),
-            (LookRow::Mouth, "Mouth"),
-            (LookRow::Brows, "Eyebrows"),
-            (LookRow::BrowColour, "Brow colour"),
-        ] {
-            p.spawn(Node { width: Val::Percent(100.0), align_items: AlignItems::Center, column_gap: px(8.0), ..default() })
-                .with_children(|r| {
-                    r.spawn((Node { width: px(110.0), ..default() }, children![text(label, 15.0, true, INK)]));
-                    arrow(r, Action::LookStep(row, -1), "<");
-                    r.spawn((
-                        Node { flex_grow: 1.0, justify_content: JustifyContent::Center, ..default() },
-                        children![(text("", 16.0, true, INK), LookValue(row))],
-                    ));
-                    arrow(r, Action::LookStep(row, 1), ">");
+    use bbq_core::appearance::{Brows, Choice, Hair, Mouth, Palette};
+    c.spawn((column(10.0), ShowWhen::Panel(Tab::Look))).with_children(|p| {
+        p.spawn(text("Looks only: every blob has the same speed and hit size.", 13.0, false, MUTED));
+        // the styles: a row of buttons each
+        p.spawn(legend("Face and hair"));
+        let styles: [(LookRow, &str, Vec<&str>); 3] = [
+            (LookRow::Hair, "Hair", Hair::ALL.iter().map(|x| x.name()).collect()),
+            (LookRow::Mouth, "Mouth", Mouth::ALL.iter().map(|x| x.name()).collect()),
+            (LookRow::Brows, "Brows", Brows::ALL.iter().map(|x| x.name()).collect()),
+        ];
+        for (row, label, names) in styles {
+            look_row(p, label, |r| {
+                r.spawn(Node {
+                    flex_grow: 1.0,
+                    border: UiRect::all(px(2.0)),
+                    border_radius: BorderRadius::all(px(10.0)),
+                    overflow: Overflow::clip(),
+                    ..default()
+                })
+                .insert((BackgroundColor(WHITE), BorderColor::all(INK)))
+                .with_children(|g| {
+                    for (i, name) in names.iter().enumerate() {
+                        g.spawn((
+                            Button,
+                            Node {
+                                flex_grow: 1.0,
+                                flex_basis: px(0.0),
+                                padding: UiRect::axes(px(2.0), px(6.0)),
+                                justify_content: JustifyContent::Center,
+                                border: UiRect::left(px(if i == 0 { 0.0 } else { 2.0 })),
+                                ..default()
+                            },
+                            BorderColor::all(INK),
+                            BackgroundColor(WHITE),
+                            Action::LookSet(row, i as u8),
+                            LookChoice(row, i as u8),
+                            children![text(*name, 13.0, true, INK)],
+                        ));
+                    }
                 });
+            });
+        }
+        // the colours: a row of swatches each
+        p.spawn(legend("Colours"));
+        let colours = [
+            (LookRow::Body, "Body", Palette::Body),
+            (LookRow::Singlet, "Singlet", Palette::Singlet),
+            (LookRow::Thongs, "Thongs", Palette::Thong),
+            (LookRow::HairColour, "Hair", Palette::Hair),
+            (LookRow::BrowColour, "Brows", Palette::Brow),
+        ];
+        for (row, label, pal) in colours {
+            look_row(p, label, |r| {
+                r.spawn(Node { flex_grow: 1.0, flex_wrap: FlexWrap::Wrap, column_gap: px(5.0), row_gap: px(5.0), ..default() })
+                    .with_children(|w| {
+                        for (i, c) in pal.colours().iter().enumerate() {
+                            w.spawn((
+                                Button,
+                                Node {
+                                    width: px(26.0),
+                                    height: px(26.0),
+                                    border: UiRect::all(px(2.0)),
+                                    border_radius: BorderRadius::all(px(13.0)),
+                                    ..default()
+                                },
+                                BackgroundColor(crate::models::hex(*c)),
+                                BorderColor::all(INK),
+                                Action::LookSet(row, i as u8),
+                                LookChoice(row, i as u8),
+                            ));
+                        }
+                    });
+            });
         }
         p.spawn(row(8.0)).with_children(|r| {
             button(r, Action::LookRandom, "Randomise", Some(SUN));
@@ -464,54 +514,55 @@ fn look_panel(c: &mut ChildSpawnerCommands) {
     });
 }
 
-/// A small square arrow button.
-fn arrow(p: &mut ChildSpawnerCommands, action: Action, label: &str) {
-    p.spawn((
-        Button,
-        Node {
-            width: px(40.0),
-            height: px(36.0),
-            justify_content: JustifyContent::Center,
-            align_items: AlignItems::Center,
-            border: UiRect::all(px(2.0)),
-            border_radius: BorderRadius::all(px(10.0)),
-            ..default()
-        },
-        BackgroundColor(WHITE),
-        BorderColor::all(INK),
-        action,
-        ButtonLook { base: WHITE },
-        children![text(label, 18.0, true, INK)],
-    ));
+/// One line on the Customise tab: a label on the left, the choices to its right.
+fn look_row(p: &mut ChildSpawnerCommands, label: &str, f: impl FnOnce(&mut ChildSpawnerCommands)) {
+    p.spawn(Node { width: Val::Percent(100.0), align_items: AlignItems::Center, column_gap: px(10.0), ..default() })
+        .with_children(|r| {
+            r.spawn((Node { width: px(62.0), flex_shrink: 0.0, ..default() }, children![text(label, 14.0, true, INK)]));
+            f(r);
+        });
 }
 
-/// Names for the body, singlet and thong colours (same order as the palettes in `appearance.rs`).
-const COLOUR_NAMES_BODY: [&str; 10] = ["Sunny yellow", "Orange", "Tomato", "Pink", "Purple", "Sky blue", "Teal", "Grass green", "Tan", "Grey"];
-const COLOUR_NAMES_SINGLET: [&str; 8] = ["White", "Navy", "Red", "Blue", "Green", "Yellow", "Purple", "Black"];
-const COLOUR_NAMES_THONG: [&str; 8] = ["Red", "Blue", "Yellow", "Green", "Pink", "Black", "White", "Orange"];
+/// A choice on the Customise tab (which row, which number): it shows when it is picked.
+#[derive(Component)]
+struct LookChoice(LookRow, u8);
 
-/// Names for the hair and brow colours (same order as `HAIR_COLOURS`).
-const COLOUR_NAMES_HAIR: [&str; 8] = ["Dark brown", "Brown", "Ginger", "Blonde", "Grey", "Black", "Red", "Teal"];
-
-/// The words between the Customise arrows.
-fn look_texts(settings: Res<Settings>, mut q: Query<(&LookValue, &mut Text)>) {
+/// Show which choices are picked: the style buttons go yellow, the picked swatch gets a thick
+/// ring.
+fn look_marks(settings: Res<Settings>, mut q: Query<(&LookChoice, &mut BackgroundColor, &mut Node, &mut BorderColor)>) {
     use bbq_core::appearance::Choice;
-    for (v, mut t) in &mut q {
-        let s = match v.0 {
-            LookRow::Body => COLOUR_NAMES_BODY[settings.look.body as usize % COLOUR_NAMES_BODY.len()],
-            LookRow::Singlet => COLOUR_NAMES_SINGLET[settings.look.singlet as usize % COLOUR_NAMES_SINGLET.len()],
-            LookRow::Thongs => COLOUR_NAMES_THONG[settings.look.thong as usize % COLOUR_NAMES_THONG.len()],
-            LookRow::Hair => settings.look.hair.name(),
-            LookRow::HairColour => COLOUR_NAMES_HAIR[settings.look.hair_colour as usize % COLOUR_NAMES_HAIR.len()],
-            LookRow::Mouth => settings.look.mouth.name(),
-            LookRow::Brows => settings.look.brows.name(),
-            LookRow::BrowColour => COLOUR_NAMES_HAIR[settings.look.brow_colour as usize % COLOUR_NAMES_HAIR.len()],
+    let l = settings.look;
+    for (c, mut bg, mut node, mut border) in &mut q {
+        let picked = match c.0 {
+            LookRow::Hair => l.hair.index() == c.1,
+            LookRow::Mouth => l.mouth.index() == c.1,
+            LookRow::Brows => l.brows.index() == c.1,
+            LookRow::Body => l.body == c.1,
+            LookRow::Singlet => l.singlet == c.1,
+            LookRow::Thongs => l.thong == c.1,
+            LookRow::HairColour => l.hair_colour == c.1,
+            LookRow::BrowColour => l.brow_colour == c.1,
         };
-        if t.0 != s {
-            t.0 = s.to_string();
+        let style = matches!(c.0, LookRow::Hair | LookRow::Mouth | LookRow::Brows);
+        if style {
+            let want = if picked { SUN } else { WHITE };
+            if bg.0 != want {
+                bg.0 = want;
+            }
+        } else {
+            // a swatch: a thick ink ring (and slightly bigger) when picked
+            let (w, size) = if picked { (4.0, 30.0) } else { (2.0, 26.0) };
+            if node.width != px(size) {
+                node.width = px(size);
+                node.height = px(size);
+                node.border = UiRect::all(px(w));
+                node.border_radius = BorderRadius::all(px(size / 2.0));
+                *border = BorderColor::all(if picked { INK } else { Color::srgba(0.09, 0.14, 0.09, 0.45) });
+            }
         }
     }
 }
+
 
 fn solo_panel(c: &mut ChildSpawnerCommands) {
     c.spawn((column(14.0), ShowWhen::Panel(Tab::Solo))).with_children(|p| {
@@ -871,6 +922,22 @@ fn widget_clicks(
                 }
                 changed = true;
             }
+            Action::LookSet(row, v) => {
+                use bbq_core::appearance::{Brows, Choice, Hair, Mouth};
+                let l = &mut settings.look;
+                match row {
+                    LookRow::Hair => l.hair = Hair::from_index(*v),
+                    LookRow::Mouth => l.mouth = Mouth::from_index(*v),
+                    LookRow::Brows => l.brows = Brows::from_index(*v),
+                    LookRow::Body => l.body = *v,
+                    LookRow::Singlet => l.singlet = *v,
+                    LookRow::Thongs => l.thong = *v,
+                    LookRow::HairColour => l.hair_colour = *v,
+                    LookRow::BrowColour => l.brow_colour = *v,
+                }
+                *l = l.tidy();
+                changed = true;
+            }
             Action::LookRandom => {
                 let seed = (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.as_nanos() as u64)) | 1;
                 settings.look = bbq_core::appearance::Appearance::random(&mut bbq_core::rng::Rng::new(seed));
@@ -1130,6 +1197,7 @@ fn paint_widgets(
         let show = match w {
             ShowWhen::Panel(t) => *t == ui.tab,
             ShowWhen::Preview => matches!(ui.tab, Tab::Solo | Tab::Look),
+            ShowWhen::NotLook => ui.tab != Tab::Look,
             ShowWhen::HeistTeams | ShowWhen::HeistNote => heist,
             ShowWhen::FriendlyFire => teams,
             ShowWhen::MoreOpen => ui.more_open,

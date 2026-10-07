@@ -202,6 +202,8 @@ pub enum Action {
     /// Customise: a random look, or back to the default.
     LookRandom,
     LookReset,
+    /// Customise: pick this choice (a style or a colour, by its number).
+    LookSet(LookRow, u8),
 }
 
 /// One row on the Customise tab.
