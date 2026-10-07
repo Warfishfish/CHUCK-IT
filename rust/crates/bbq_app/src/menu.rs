@@ -420,9 +420,8 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                     crate::preview::PreviewDrag,
                 ));
                 pv.spawn(text("Hold the left button and drag to spin", 12.0, false, MUTED));
-                slider(pv, SliderId::Belly, "Beer belly", 0.0, 2.0);
                 pv.spawn(text(
-                    "Only the look changes. Every blob has the same speed and the same hit size. (Classic has no belly.)",
+                    "Change your blob on the Customise tab. Only the look changes: every blob has the same speed and hit size.",
                     12.5,
                     false,
                     MUTED,
@@ -435,7 +434,11 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
 fn look_panel(c: &mut ChildSpawnerCommands) {
     use bbq_core::appearance::{Brows, Choice, Hair, Mouth, Palette};
     c.spawn((column(10.0), ShowWhen::Panel(Tab::Look))).with_children(|p| {
-        p.spawn(text("Looks only: every blob has the same speed and hit size.", 13.0, false, MUTED));
+        // the body: its shape and its belly
+        p.spawn(legend("Body"));
+        let shapes: Vec<&str> = Character::ALL.iter().map(|c| c.name()).collect();
+        style_buttons(p, LookRow::Shape, "Shape", &shapes);
+        slider(p, SliderId::Belly, "Beer belly (Classic has none)", 0.0, 2.0);
         // the styles: a row of buttons each
         p.spawn(legend("Face and hair"));
         let styles: [(LookRow, &str, Vec<&str>); 3] = [
@@ -444,36 +447,7 @@ fn look_panel(c: &mut ChildSpawnerCommands) {
             (LookRow::Brows, "Brows", Brows::ALL.iter().map(|x| x.name()).collect()),
         ];
         for (row, label, names) in styles {
-            look_row(p, label, |r| {
-                r.spawn(Node {
-                    flex_grow: 1.0,
-                    border: UiRect::all(px(2.0)),
-                    border_radius: BorderRadius::all(px(10.0)),
-                    overflow: Overflow::clip(),
-                    ..default()
-                })
-                .insert((BackgroundColor(WHITE), BorderColor::all(INK)))
-                .with_children(|g| {
-                    for (i, name) in names.iter().enumerate() {
-                        g.spawn((
-                            Button,
-                            Node {
-                                flex_grow: 1.0,
-                                flex_basis: px(0.0),
-                                padding: UiRect::axes(px(2.0), px(6.0)),
-                                justify_content: JustifyContent::Center,
-                                border: UiRect::left(px(if i == 0 { 0.0 } else { 2.0 })),
-                                ..default()
-                            },
-                            BorderColor::all(INK),
-                            BackgroundColor(WHITE),
-                            Action::LookSet(row, i as u8),
-                            LookChoice(row, i as u8),
-                            children![text(*name, 13.0, true, INK)],
-                        ));
-                    }
-                });
-            });
+            style_buttons(p, row, label, &names);
         }
         // the colours: a row of swatches each
         p.spawn(legend("Colours"));
@@ -514,6 +488,40 @@ fn look_panel(c: &mut ChildSpawnerCommands) {
     });
 }
 
+/// A Customise row of buttons, one per choice.
+fn style_buttons(p: &mut ChildSpawnerCommands, row: LookRow, label: &str, names: &[&str]) {
+    look_row(p, label, |r| {
+        r.spawn(Node {
+            flex_grow: 1.0,
+            border: UiRect::all(px(2.0)),
+            border_radius: BorderRadius::all(px(10.0)),
+            overflow: Overflow::clip(),
+            ..default()
+        })
+        .insert((BackgroundColor(WHITE), BorderColor::all(INK)))
+        .with_children(|g| {
+            for (i, name) in names.iter().enumerate() {
+                g.spawn((
+                    Button,
+                    Node {
+                        flex_grow: 1.0,
+                        flex_basis: px(0.0),
+                        padding: UiRect::axes(px(2.0), px(6.0)),
+                        justify_content: JustifyContent::Center,
+                        border: UiRect::left(px(if i == 0 { 0.0 } else { 2.0 })),
+                        ..default()
+                    },
+                    BorderColor::all(INK),
+                    BackgroundColor(WHITE),
+                    Action::LookSet(row, i as u8),
+                    LookChoice(row, i as u8),
+                    children![text(*name, 13.0, true, INK)],
+                ));
+            }
+        });
+    });
+}
+
 /// One line on the Customise tab: a label on the left, the choices to its right.
 fn look_row(p: &mut ChildSpawnerCommands, label: &str, f: impl FnOnce(&mut ChildSpawnerCommands)) {
     p.spawn(Node { width: Val::Percent(100.0), align_items: AlignItems::Center, column_gap: px(10.0), ..default() })
@@ -534,6 +542,7 @@ fn look_marks(settings: Res<Settings>, mut q: Query<(&LookChoice, &mut Backgroun
     let l = settings.look;
     for (c, mut bg, mut node, mut border) in &mut q {
         let picked = match c.0 {
+            LookRow::Shape => Character::ALL.iter().position(|x| *x == settings.character) == Some(c.1 as usize),
             LookRow::Hair => l.hair.index() == c.1,
             LookRow::Mouth => l.mouth.index() == c.1,
             LookRow::Brows => l.brows.index() == c.1,
@@ -543,7 +552,7 @@ fn look_marks(settings: Res<Settings>, mut q: Query<(&LookChoice, &mut Backgroun
             LookRow::HairColour => l.hair_colour == c.1,
             LookRow::BrowColour => l.brow_colour == c.1,
         };
-        let style = matches!(c.0, LookRow::Hair | LookRow::Mouth | LookRow::Brows);
+        let style = matches!(c.0, LookRow::Shape | LookRow::Hair | LookRow::Mouth | LookRow::Brows);
         if style {
             let want = if picked { SUN } else { WHITE };
             if bg.0 != want {
@@ -599,12 +608,6 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
                 });
             f.spawn(text("Off is fine for the kids.", 13.0, false, MUTED));
         });
-        seg(
-            p,
-            SegId::Character,
-            "Your blob",
-            &[("Classic", 0), ("Pear", 1), ("Egg", 2), ("Gumdrop", 3)],
-        );
         // more options
         p.spawn(column(8.0)).with_children(|m| {
             m.spawn((
@@ -911,6 +914,7 @@ fn widget_clicks(
             Action::LookStep(row, dir) => {
                 use bbq_core::appearance::Choice;
                 match row {
+                    LookRow::Shape => {}
                     LookRow::Body => settings.look.step_colour(bbq_core::appearance::Palette::Body, *dir),
                     LookRow::Singlet => settings.look.step_colour(bbq_core::appearance::Palette::Singlet, *dir),
                     LookRow::Thongs => settings.look.step_colour(bbq_core::appearance::Palette::Thong, *dir),
@@ -924,8 +928,13 @@ fn widget_clicks(
             }
             Action::LookSet(row, v) => {
                 use bbq_core::appearance::{Brows, Choice, Hair, Mouth};
+                if *row == LookRow::Shape {
+                    settings.character = Character::ALL[(*v as usize).min(Character::ALL.len() - 1)];
+                    cast.mine = settings.character;
+                }
                 let l = &mut settings.look;
                 match row {
+                    LookRow::Shape => {}
                     LookRow::Hair => l.hair = Hair::from_index(*v),
                     LookRow::Mouth => l.mouth = Mouth::from_index(*v),
                     LookRow::Brows => l.brows = Brows::from_index(*v),

@@ -209,6 +209,8 @@ pub enum Action {
 /// One row on the Customise tab.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum LookRow {
+    /// The body shape (Classic, Pear, Egg, Gumdrop).
+    Shape,
     Body,
     Singlet,
     Thongs,
