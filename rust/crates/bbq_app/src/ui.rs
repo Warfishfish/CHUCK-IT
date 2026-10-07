@@ -204,6 +204,10 @@ pub enum Action {
     LookReset,
     /// Customise: pick this choice (a style or a colour, by its number).
     LookSet(LookRow, u8),
+    /// Lobby: press (or un-press) Ready.
+    LobbyReady,
+    /// Lobby (host): start the round now, ready or not.
+    LobbyStart,
 }
 
 /// One row on the Customise tab.

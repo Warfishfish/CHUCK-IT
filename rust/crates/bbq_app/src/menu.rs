@@ -200,6 +200,8 @@ pub struct MenuUi {
     pub net_focus: Option<NetField>,
     /// Online: Host, Join or Leave was pressed (`online.rs` acts on it).
     pub net_request: Option<crate::online::NetRequest>,
+    /// Lobby: the Ready button was pressed (`online.rs` toggles it).
+    pub toggle_ready: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -233,6 +235,10 @@ pub enum ShowWhen {
     Preview,
     /// Everything but the Customise tab (the title and field of view make room for it).
     NotLook,
+    /// The lobby card (online, waiting for a round).
+    Lobby,
+    /// Only the host sees this in the lobby (the Start button).
+    LobbyHost,
     HeistTeams,
     FriendlyFire,
     HeistNote,
@@ -280,6 +286,7 @@ impl Plugin for MenuPlugin {
                 request: None,
                 net_focus: None,
                 net_request: None,
+                toggle_ready: false,
             })
             .insert_resource(if direct && !menu_shot { Screen::Playing } else { Screen::Menu })
             .add_systems(Startup, (spawn_menu, spawn_pause, apply_loaded_settings).chain())
@@ -291,6 +298,7 @@ impl Plugin for MenuPlugin {
                     name_typing,
                     net_typing,
                     look_marks,
+                    paint_lobby,
                     test_looks,
                     net_texts,
                     scroll_cards,
@@ -427,7 +435,167 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                     MUTED,
                 ));
             });
+            lobby_card(o);
         });
+}
+
+/// The lobby card (online, waiting for the round): the room code to share, who is here and who
+/// is ready, the Ready button, and the host's Start button. Everybody's blob stands in the yard
+/// behind the cards (see `lobby.rs`).
+fn lobby_card(o: &mut ChildSpawnerCommands) {
+    o.spawn((
+        Node {
+            // at the right-hand edge, so the line-up stands in the middle between the cards
+            position_type: PositionType::Absolute,
+            right: px(24.0),
+            top: px(20.0),
+            width: px(320.0),
+            padding: UiRect::all(px(16.0)),
+            flex_direction: FlexDirection::Column,
+            row_gap: px(10.0),
+            border: UiRect::all(px(3.0)),
+            border_radius: BorderRadius::all(px(18.0)),
+            align_self: AlignSelf::FlexStart,
+            display: Display::None,
+            ..default()
+        },
+        BackgroundColor(PAPER),
+        BorderColor::all(INK),
+        BoxShadow(vec![ShadowStyle { color: INK, x_offset: px(7.0), y_offset: px(7.0), spread_radius: px(0.0), blur_radius: px(0.0) }]),
+        ShowWhen::Lobby,
+    ))
+    .with_children(|c| {
+        c.spawn(legend("Lobby: room code"));
+        c.spawn((Text::new(""), display_font(34.0), TextColor(INK), LobbyCode));
+        c.spawn(text("Mates join with this code and your server link (With mates tab).", 12.5, false, MUTED));
+        c.spawn(legend("Players"));
+        c.spawn(column(5.0)).with_children(|list| {
+            for i in 0..bbq_core::net::MAX_PLAYERS {
+                list.spawn((
+                    Node {
+                        width: Val::Percent(100.0),
+                        justify_content: JustifyContent::SpaceBetween,
+                        align_items: AlignItems::Center,
+                        padding: UiRect::axes(px(10.0), px(5.0)),
+                        border: UiRect::all(px(2.0)),
+                        border_radius: BorderRadius::all(px(10.0)),
+                        display: Display::None,
+                        ..default()
+                    },
+                    BackgroundColor(WHITE),
+                    BorderColor::all(INK),
+                    LobbyRow(i),
+                ))
+                .with_children(|r| {
+                    r.spawn((text("", 14.0, true, INK), LobbyRowName(i)));
+                    r.spawn((text("", 13.0, true, MUTED), LobbyRowState(i)));
+                });
+            }
+        });
+        c.spawn((text("", 14.0, true, INK), LobbyStatus));
+        c.spawn(row(8.0)).with_children(|r| {
+            let b = button(r, Action::LobbyReady, "Ready!", Some(SUN));
+            r.commands().entity(b).insert(LobbyReadyButton);
+        });
+        c.spawn((row(8.0), ShowWhen::LobbyHost)).with_children(|r| {
+            button(r, Action::LobbyStart, "Start now", Some(TOMATO));
+        });
+        c.spawn(row(8.0)).with_children(|r| {
+            button(r, Action::Leave, "Leave the yard", None);
+        });
+    });
+}
+
+#[derive(Component)]
+struct LobbyCode;
+#[derive(Component)]
+struct LobbyStatus;
+#[derive(Component)]
+struct LobbyReadyButton;
+#[derive(Component)]
+struct LobbyRow(usize);
+#[derive(Component)]
+struct LobbyRowName(usize);
+#[derive(Component)]
+struct LobbyRowState(usize);
+
+/// Fill the lobby card: the code, everybody with their ready state, the countdown, and the
+/// Ready button's words.
+fn paint_lobby(
+    lobby: Res<crate::online::Lobby>,
+    online: Res<crate::online::Online>,
+    mut code: Query<&mut Text, (With<LobbyCode>, Without<LobbyStatus>, Without<LobbyRowName>, Without<LobbyRowState>)>,
+    mut status: Query<&mut Text, (With<LobbyStatus>, Without<LobbyCode>, Without<LobbyRowName>, Without<LobbyRowState>)>,
+    mut rows: Query<(&LobbyRow, &mut Node, &mut BackgroundColor)>,
+    mut names: Query<(&LobbyRowName, &mut Text), (Without<LobbyCode>, Without<LobbyStatus>, Without<LobbyRowState>)>,
+    mut states: Query<(&LobbyRowState, &mut Text, &mut TextColor), (Without<LobbyCode>, Without<LobbyStatus>, Without<LobbyRowName>)>,
+    ready_btn: Query<&Children, With<LobbyReadyButton>>,
+    mut btn_text: Query<&mut Text, (Without<LobbyCode>, Without<LobbyStatus>, Without<LobbyRowName>, Without<LobbyRowState>)>,
+) {
+    if !lobby.active {
+        return;
+    }
+    let Some(s) = online.session.as_ref() else { return };
+    let set = |t: &mut Text, v: String| {
+        if t.0 != v {
+            t.0 = v;
+        }
+    };
+    for mut t in &mut code {
+        set(&mut t, s.room.to_uppercase());
+    }
+    for (r, mut node, mut bg) in &mut rows {
+        let m = s.members.get(r.0);
+        let want = if m.is_some() { Display::Flex } else { Display::None };
+        if node.display != want {
+            node.display = want;
+        }
+        let ready = m.is_some_and(|m| m.ready);
+        let colour = if ready { GOOD } else { WHITE };
+        if bg.0 != colour {
+            bg.0 = colour;
+        }
+    }
+    for (n, mut t) in &mut names {
+        let v = s.members.get(n.0).map_or(String::new(), |m| {
+            let mut v = m.name.clone();
+            if m.id == s.my_id {
+                v += " (you)";
+            }
+            if m.host {
+                v += " · host";
+            }
+            v
+        });
+        set(&mut t, v);
+    }
+    for (n, mut t, mut colour) in &mut states {
+        let ready = s.members.get(n.0).is_some_and(|m| m.ready);
+        set(&mut t, if ready { "READY".to_string() } else { "not ready".to_string() });
+        let c = if ready { INK } else { MUTED };
+        if colour.0 != c {
+            colour.0 = c;
+        }
+    }
+    let ready_count = s.members.iter().filter(|m| m.ready).count();
+    let line = if s.start_in > 0.0 {
+        format!("Everybody's ready! Starting in {}...", s.start_in.ceil() as u32)
+    } else if s.members.len() < 2 {
+        "Waiting for mates to join...".to_string()
+    } else {
+        format!("{ready_count} of {} ready. Everybody presses Ready to start.", s.members.len())
+    };
+    for mut t in &mut status {
+        set(&mut t, line.clone());
+    }
+    let label = if s.i_am_ready() { "Not ready" } else { "Ready!" };
+    for kids in &ready_btn {
+        for k in kids.iter() {
+            if let Ok(mut t) = btn_text.get_mut(k) {
+                set(&mut t, label.to_string());
+            }
+        }
+    }
 }
 
 /// The Customise tab: a row of arrows for each feature of your blob.
@@ -786,6 +954,10 @@ fn apply_loaded_settings(mut settings: ResMut<Settings>, mut player: ResMut<Play
             cast.mine = *ch;
         }
     }
+    // `--name NAME` (testing two copies on one computer)
+    if let Some(n) = args.iter().position(|a| a == "--name").and_then(|i| args.get(i + 1)) {
+        settings.name = n.chars().take(14).collect();
+    }
     // `--hair tuft|mullet|bowl|none` and `--body N` (testing)
     if let Some(m) = args.iter().position(|a| a == "--hair").and_then(|i| args.get(i + 1)) {
         use bbq_core::appearance::Choice;
@@ -947,6 +1119,8 @@ fn widget_clicks(
                 *l = l.tidy();
                 changed = true;
             }
+            Action::LobbyReady => ui.toggle_ready = true,
+            Action::LobbyStart => ui.request = Some(Request::Play),
             Action::LookRandom => {
                 let seed = (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.as_nanos() as u64)) | 1;
                 settings.look = bbq_core::appearance::Appearance::random(&mut bbq_core::rng::Rng::new(seed));
@@ -1136,6 +1310,7 @@ fn scroll_cards(
 fn paint_widgets(
     settings: Res<Settings>,
     ui: Res<MenuUi>,
+    lobby: Res<crate::online::Lobby>,
     mut segs: Query<(&SegOption, &mut BackgroundColor, &Children), (Without<CheckBox>, Without<TabButton>)>,
     mut checks: Query<(&CheckBox, &mut BackgroundColor, &Children), (Without<SegOption>, Without<TabButton>)>,
     mut marks: Query<&mut BackgroundColor, (With<CheckMark>, Without<SegOption>, Without<CheckBox>, Without<TabButton>)>,
@@ -1205,7 +1380,9 @@ fn paint_widgets(
     for (w, mut n) in &mut shows {
         let show = match w {
             ShowWhen::Panel(t) => *t == ui.tab,
-            ShowWhen::Preview => matches!(ui.tab, Tab::Solo | Tab::Look),
+            ShowWhen::Preview => matches!(ui.tab, Tab::Solo | Tab::Look) && !lobby.active,
+            ShowWhen::Lobby => lobby.active,
+            ShowWhen::LobbyHost => lobby.active && lobby.host,
             ShowWhen::NotLook => ui.tab != Tab::Look,
             ShowWhen::HeistTeams | ShowWhen::HeistNote => heist,
             ShowWhen::FriendlyFire => teams,
@@ -1463,9 +1640,18 @@ fn sync_cursor(screen: Res<Screen>, mut cursor: Single<&mut CursorOptions, With<
 fn menu_camera(
     screen: Res<Screen>,
     time: Res<Time>,
+    lobby: Res<crate::online::Lobby>,
     mut cam: Query<&mut Transform, With<crate::player::EyeCamera>>,
 ) {
     if *screen != Screen::Menu {
+        return;
+    }
+    if lobby.active {
+        // the online lobby: looking at everybody's blobs in a row on the lawn
+        for mut tf in &mut cam {
+            let (at, look) = crate::lobby::stage_camera(lobby.count);
+            *tf = Transform::from_translation(at).looking_at(look, Vec3::Y);
+        }
         return;
     }
     let a = time.elapsed_secs() * 0.05;
@@ -1493,8 +1679,11 @@ fn open_results(
     mut screen: ResMut<Screen>,
     game: Res<Game>,
     settings: Res<Settings>,
+    online: Res<crate::online::Online>,
     old: Query<Entity, With<ResultsRoot>>,
 ) {
+    // online, the host chooses what happens next; a guest waits for the host
+    let online_role = online.session.as_ref().filter(|s| s.joined()).map(|s| s.role);
     if *screen == Screen::Results && game.round.results.is_none() {
         // a new round began behind our back
         *screen = Screen::Playing;
@@ -1535,10 +1724,26 @@ fn open_results(
                     ));
                 }
                 crate::results::table(c, &t);
-                c.spawn(row(10.0)).with_children(|r| {
-                    button(r, Action::Again, &t.again_label, Some(SUN));
-                    button(r, Action::ToMenu, "Menu", None);
-                });
+                match online_role {
+                    Some(crate::online::Role::Guest) => {
+                        c.spawn(text("Waiting for the host to play again or go back to the lobby...", 14.0, true, INK));
+                        c.spawn(row(10.0)).with_children(|r| {
+                            button(r, Action::Leave, "Leave the yard", None);
+                        });
+                    }
+                    Some(crate::online::Role::Host) => {
+                        c.spawn(row(10.0)).with_children(|r| {
+                            button(r, Action::Again, &t.again_label, Some(SUN));
+                            button(r, Action::ToMenu, "Back to the lobby", None);
+                        });
+                    }
+                    None => {
+                        c.spawn(row(10.0)).with_children(|r| {
+                            button(r, Action::Again, &t.again_label, Some(SUN));
+                            button(r, Action::ToMenu, "Menu", None);
+                        });
+                    }
+                }
             });
         });
     *screen = Screen::Results;

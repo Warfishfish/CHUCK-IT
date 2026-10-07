@@ -21,6 +21,7 @@ mod hud;
 mod hud_fx;
 mod items_view;
 mod life;
+mod lobby;
 mod lighting;
 mod models;
 mod player;
@@ -97,7 +98,7 @@ fn main() {
             >::default(),
         ),
     );
-    app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin, online::OnlinePlugin, face::FacePlugin));
+    app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin, online::OnlinePlugin, face::FacePlugin, lobby::LobbyPlugin));
     if let Some(cfg) = shot {
         app.add_plugins(shot::ShotPlugin(cfg));
     }

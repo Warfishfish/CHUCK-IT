@@ -20,6 +20,8 @@ pub enum FaceOwner {
     Blob(usize),
     /// The menu preview (your own look).
     Preview,
+    /// Somebody's figure in the online lobby's line-up (by their number in the yard).
+    Lobby(u32),
 }
 
 /// A blob's head: the face goes on it.
@@ -41,6 +43,8 @@ pub enum Mood {
     Sip,
     /// Winding up a throw: gritted teeth.
     Grit,
+    /// Ready in the lobby: a big open grin and raised brows.
+    Cheer,
 }
 
 /// The mouth that is on a head now (so it is only rebuilt when something changes).
@@ -115,6 +119,7 @@ fn sync_tints(
     mut commands: Commands,
     game: Res<Game>,
     settings: Res<Settings>,
+    online: Option<Res<crate::online::Online>>,
     assets: Res<AssetServer>,
     mut mats: ResMut<Assets<StandardMaterial>>,
     mut cache: Local<std::collections::HashMap<(u32, bool), Handle<StandardMaterial>>>,
@@ -123,6 +128,10 @@ fn sync_tints(
     for (e, t, shown) in &q {
         let (look, own_body) = match t.owner {
             FaceOwner::Preview => (settings.look, true),
+            FaceOwner::Lobby(id) => match online.as_deref().and_then(|o| crate::lobby::lobby_look(o, &settings, id)) {
+                Some(l) => (l.1, true),
+                None => continue,
+            },
             FaceOwner::Blob(i) => match game.dummies.get(i) {
                 Some(d) => (d.look, d.remote.is_some()),
                 None => continue,
@@ -231,6 +240,7 @@ pub fn mouth_shape(mouth: Mouth, mood: Mood) -> Vec<Blip> {
         Mood::Ouch => vec![b(0.0, -0.01, 0.025, 0.15, 0.19, 0.08, Colour::Dark), b(0.0, -0.06, 0.05, 0.08, 0.05, 0.04, Colour::Tongue)],
         Mood::Sip => vec![b(0.0, 0.0, 0.02, 0.085, 0.085, 0.07, Colour::Dark)],
         Mood::Grit => vec![b(0.0, 0.0, 0.02, 0.32, 0.1, 0.07, Colour::Dark), b(0.0, 0.0, 0.045, 0.29, 0.065, 0.05, Colour::Teeth)],
+        Mood::Cheer => mouth_shape(Mouth::Grin, Mood::Normal),
         Mood::Normal => match mouth {
             Mouth::None => Vec::new(),
             // a small, happy smile
@@ -285,6 +295,8 @@ pub fn brow_shape(brows: Brows, mood: Mood) -> (Vec<Blip>, f32, f32) {
         Mood::Ouch => (0.04, -0.35),
         // sipping: eyebrows up, pleased
         Mood::Sip => (0.05, -0.1),
+        // ready to go: eyebrows right up
+        Mood::Cheer => (0.07, -0.15),
     };
     (pieces, lift, tilt)
 }
@@ -317,6 +329,7 @@ pub fn hair_shape(hair: Hair) -> Vec<Blip> {
 fn sync_faces(
     mut commands: Commands,
     kit: Option<ResMut<FaceKit>>,
+    online: Option<Res<crate::online::Online>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
     game: Res<Game>,
     settings: Res<Settings>,
@@ -330,6 +343,11 @@ fn sync_faces(
     for (head, node, shown) in &heads {
         let (look, mood): (Appearance, Mood) = match node.owner {
             FaceOwner::Preview => (settings.look, Mood::Normal),
+            FaceOwner::Lobby(id) => match online.as_deref().and_then(|o| crate::lobby::lobby_look(o, &settings, id)) {
+                // ready: a big grin with teeth (the ready face), otherwise their own mouth
+                Some(l) => (l.1, if l.3 { Mood::Cheer } else { Mood::Normal }),
+                None => continue,
+            },
             FaceOwner::Blob(i) => {
                 let Some(d) = game.dummies.get(i) else { continue };
                 (d.look, mood_of(d.body.stun > 0.0, d.body.is_down(), d.bot.drunk.is_drinking(), d.bot.winding))
@@ -449,7 +467,7 @@ fn wobble_mouths(time: Res<Time>, game: Res<Game>, mut q: Query<(&MouthRoot, &mu
         }
         let drunk = match m.owner {
             FaceOwner::Blob(i) => game.dummies.get(i).map_or(0.0, |d| d.drunk),
-            FaceOwner::Preview => 0.0,
+            FaceOwner::Preview | FaceOwner::Lobby(_) => 0.0,
         };
         let k = ((drunk - 40.0) / 60.0).clamp(0.0, 1.0);
         // keep the "facing out" part, add a roll about the mouth's own forward axis
@@ -464,6 +482,7 @@ fn m_seed(m: &MouthRoot) -> f32 {
     match m.owner {
         FaceOwner::Blob(i) => i as f32 * 1.7,
         FaceOwner::Preview => 0.0,
+        FaceOwner::Lobby(id) => id as f32 * 0.9,
     }
 }
 
@@ -545,7 +564,7 @@ mod tests {
     #[test]
     fn mouths_fit_on_the_face() {
         for m in Mouth::ALL {
-            for mood in [Mood::Normal, Mood::Ouch, Mood::Sip, Mood::Grit] {
+            for mood in [Mood::Normal, Mood::Ouch, Mood::Sip, Mood::Grit, Mood::Cheer] {
                 for b in mouth_shape(*m, mood) {
                     assert!(b.at.x.abs() + b.size.x * 0.5 < 0.45, "{m:?} {mood:?} too wide");
                     assert!(b.at.y.abs() + b.size.y * 0.5 < 0.25, "{m:?} {mood:?} too tall");

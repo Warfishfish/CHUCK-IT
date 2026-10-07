@@ -31,6 +31,9 @@ pub struct RemoteInfo {
     pub net_id: u32,
     pub name: String,
     pub character: bbq_core::character::Character,
+    /// Their customised look and beer belly.
+    pub look: bbq_core::appearance::Appearance,
+    pub belly: f32,
 }
 
 impl RemoteInfo {

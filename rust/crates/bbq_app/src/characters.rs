@@ -176,6 +176,7 @@ impl Plugin for CharactersPlugin {
                     apply_clouds,
                     animate_dazza,
                     face_camera,
+                    hide_in_lobby,
                 )
                     .chain(),
             );
@@ -1420,6 +1421,22 @@ fn animate_dazza(
         };
     }
     let _ = dz.face;
+}
+
+/// In the online lobby the line-up shows everybody (see `lobby.rs`): the game's own blobs and
+/// their name tags hide until the round starts.
+fn hide_in_lobby(
+    lobby: Res<crate::online::Lobby>,
+    mut roots: Query<&mut Visibility, Or<(With<BlobRoot>, With<NameTag>)>>,
+    mut was: Local<bool>,
+) {
+    if lobby.active == *was {
+        return;
+    }
+    *was = lobby.active;
+    for mut v in &mut roots {
+        *v = if lobby.active { Visibility::Hidden } else { Visibility::Inherited };
+    }
 }
 
 /// Name tags, speech bubbles and signs float above their blob and face the camera.

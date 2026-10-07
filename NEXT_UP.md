@@ -34,7 +34,7 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 - Show your choices to others online (needs the online messages extended)
 - Save the look with the settings
 
-## Lobby (new, Marcus 6 Oct 2026)
+## Lobby (new, Marcus 6 Oct 2026) — first version built 8 Oct 2026 (lobby.rs, lobby card in menu.rs)
 - When players join a yard they land in a lobby (a small yard or the backyard itself) and wait there
 - In the lobby you customise your blob; behind the customise card you see the other players who have joined, walking about or standing, wearing their looks as they change them
 - Everybody has a Ready button; when everyone is ready the round starts by itself (a short countdown that stops if someone un-readies)

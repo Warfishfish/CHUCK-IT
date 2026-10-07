@@ -669,7 +669,7 @@ mod tests {
             let mut g = app.world_mut().resource_mut::<Game>();
             g.world.clear();
             g.rules.phase = Phase::Play;
-            g.remotes = vec![crate::game::RemoteInfo { net_id: 2, name: "Davo".into(), character: bbq_core::character::Character::Pear }];
+            g.remotes = vec![crate::game::RemoteInfo { net_id: 2, name: "Davo".into(), character: bbq_core::character::Character::Pear, look: Default::default(), belly: 1.0 }];
             crate::round::sync_bot_count(&mut g, bots);
             let d = g.dummies.iter_mut().find(|d| d.remote.is_some()).unwrap();
             d.mover.x = 8.0;

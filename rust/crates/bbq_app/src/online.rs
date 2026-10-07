@@ -47,6 +47,13 @@ pub struct Session {
     pub room: String,
     name: String,
     character: u8,
+    /// Our own look and beer belly (sent with the hello, and again when it changes).
+    look: bbq_core::appearance::Appearance,
+    belly: u8,
+    /// The lobby countdown: seconds until the round starts by itself (0 = not counting).
+    pub start_in: f32,
+    /// Host: when the countdown was last sent.
+    sent_count: u8,
     /// Our number in the yard (the host is 1; a guest has 0 until the host says).
     pub my_id: u32,
     roster: Roster,
@@ -84,6 +91,10 @@ impl Session {
             roster,
             name,
             character,
+            look: Default::default(),
+            belly: 128,
+            start_in: 0.0,
+            sent_count: 0,
             my_id: 1,
             peers: HashMap::new(),
             host_peer: None,
@@ -104,6 +115,10 @@ impl Session {
             room: room.to_string(),
             name: clean(name),
             character: char_code(character),
+            look: Default::default(),
+            belly: 128,
+            start_in: 0.0,
+            sent_count: 0,
             my_id: 0,
             roster: Roster::default(),
             members: Vec::new(),
@@ -120,13 +135,124 @@ impl Session {
         }
     }
 
+    /// Start with this look (before connecting).
+    pub fn with_look(mut self, look: bbq_core::appearance::Appearance, belly: u8) -> Self {
+        self.look = look.tidy();
+        self.belly = belly;
+        self.roster.set_look(1, self.character, self.look, belly);
+        if self.role == Role::Host {
+            self.members = self.roster.members().to_vec();
+        }
+        self
+    }
+
+    fn roster_msg(&self) -> Msg {
+        Msg::Roster { members: self.members.clone(), start_in: (self.start_in * 10.0).ceil().clamp(0.0, 255.0) as u8 }
+    }
+
+    /// Our look changed (in the menu or lobby): tell the others.
+    pub fn my_look_changed(&mut self, character: Character, look: bbq_core::appearance::Appearance, belly: u8) -> Vec<Do> {
+        let character = char_code(character);
+        if (character, look.tidy(), belly) == (self.character, self.look, self.belly) {
+            return Vec::new();
+        }
+        self.character = character;
+        self.look = look.tidy();
+        self.belly = belly;
+        match self.role {
+            Role::Host => {
+                if self.roster.set_look(1, character, self.look, belly) {
+                    self.members = self.roster.members().to_vec();
+                    return vec![Do::Send { to: None, msg: self.roster_msg() }];
+                }
+                Vec::new()
+            }
+            Role::Guest => match (self.joined(), self.host_peer.clone()) {
+                (true, Some(h)) => vec![Do::Send { to: Some(h), msg: Msg::Look { character, look: self.look, belly } }],
+                _ => Vec::new(),
+            },
+        }
+    }
+
+    /// Am I ready (as the host last said)?
+    pub fn i_am_ready(&self) -> bool {
+        self.members.iter().any(|m| m.id == self.my_id && m.ready)
+    }
+
+    /// Press (or un-press) Ready.
+    pub fn set_ready(&mut self, ready: bool) -> Vec<Do> {
+        if !self.joined() {
+            return Vec::new();
+        }
+        match self.role {
+            Role::Host => {
+                if self.roster.set_ready(1, ready) {
+                    self.members = self.roster.members().to_vec();
+                    return vec![Do::Send { to: None, msg: self.roster_msg() }];
+                }
+                Vec::new()
+            }
+            Role::Guest => {
+                // show it at once; the host's next roster confirms it
+                if let Some(m) = self.members.iter_mut().find(|m| m.id == self.my_id) {
+                    m.ready = ready;
+                }
+                match self.host_peer.clone() {
+                    Some(h) => vec![Do::Send { to: Some(h), msg: Msg::Ready(ready) }],
+                    None => Vec::new(),
+                }
+            }
+        }
+    }
+
+    /// Host, every frame while in the lobby: count down once everybody is ready. Returns what
+    /// to send, and true when it is time to start the round.
+    pub fn lobby_tick(&mut self, dt: f32, in_lobby: bool) -> (Vec<Do>, bool) {
+        if self.role != Role::Host || !self.joined() {
+            return (Vec::new(), false);
+        }
+        let counting = in_lobby && self.roster.all_ready();
+        let was = self.start_in;
+        if counting {
+            if self.start_in <= 0.0 {
+                self.start_in = LOBBY_COUNTDOWN;
+            } else {
+                self.start_in = (self.start_in - dt).max(0.001);
+            }
+        } else {
+            self.start_in = 0.0;
+        }
+        let mut out = Vec::new();
+        // tell everybody when it starts, stops, and every half second in between
+        let halves = (self.start_in * 2.0).ceil() as u8;
+        if (was > 0.0) != (self.start_in > 0.0) || halves != self.sent_count {
+            self.sent_count = halves;
+            out.push(Do::Send { to: None, msg: self.roster_msg() });
+        }
+        let go = counting && was > 0.0 && was - dt <= 0.0;
+        if go {
+            self.start_in = 0.0;
+        }
+        (out, go)
+    }
+
+    /// Host: a round has started (by the countdown or the Start button): nobody is ready now.
+    pub fn round_started(&mut self) -> Vec<Do> {
+        self.start_in = 0.0;
+        if self.role == Role::Host && self.roster.clear_ready() {
+            self.members = self.roster.members().to_vec();
+            return vec![Do::Send { to: None, msg: self.roster_msg() }];
+        }
+        Vec::new()
+    }
+
     /// Are we in the yard (host: connected; guest: welcomed)?
     pub fn joined(&self) -> bool {
         self.my_id != 0 && !self.ended
     }
 
     fn hello(&self) -> Msg {
-        Msg::Hello { protocol: PROTOCOL, name: self.name.clone(), character: self.character }
+        Msg::Hello { protocol: PROTOCOL, name: self.name.clone(), character: self.character, look: self.look, belly: self.belly }
     }
 
     fn end(&mut self, why: &str) -> Vec<Do> {
@@ -174,7 +300,7 @@ impl Session {
                         self.heard.remove(&id);
                         self.members = self.roster.members().to_vec();
                         self.line();
-                        vec![Do::Send { to: None, msg: Msg::Roster(self.members.clone()) }]
+                        vec![Do::Send { to: None, msg: self.roster_msg() }]
                     }
                     None => Vec::new(),
                 },
@@ -205,19 +331,19 @@ impl Session {
 
     fn on_msg(&mut self, from: String, msg: Msg, now: f32) -> Vec<Do> {
         match (self.role, msg) {
-            (Role::Host, Msg::Hello { protocol, name, character }) => {
+            (Role::Host, Msg::Hello { protocol, name, character, look, belly }) => {
                 // the same person saying hello twice is still one person: say welcome again
                 if let Some(&id) = self.peers.get(&from) {
                     return vec![Do::Send { to: Some(from), msg: Msg::Welcome { id, members: self.members.clone() } }];
                 }
-                match self.roster.admit(protocol, &name, character, self.round_on) {
+                match self.roster.admit_with(protocol, &name, character, look, belly, self.round_on) {
                     Ok(id) => {
                         self.peers.insert(from.clone(), id);
                         self.members = self.roster.members().to_vec();
                         self.line();
                         vec![
                             Do::Send { to: Some(from), msg: Msg::Welcome { id, members: self.members.clone() } },
-                            Do::Send { to: None, msg: Msg::Roster(self.members.clone()) },
+                            Do::Send { to: None, msg: self.roster_msg() },
                         ]
                     }
                     Err(r) => vec![Do::Send { to: Some(from), msg: Msg::Refused(r) }],
@@ -244,12 +370,31 @@ impl Session {
                 Refusal::Full => "That yard is full",
                 Refusal::InProgress => "A round is already on: wait for it to finish",
             }),
-            (Role::Guest, Msg::Roster(ms)) => {
+            (Role::Guest, Msg::Roster { members: ms, start_in }) => {
                 if self.my_id != 0 && self.host_peer.as_deref() == Some(from.as_str()) {
                     // forget the people who have left
                     self.heard.retain(|id, _| ms.iter().any(|m| m.id == *id));
                     self.members = ms;
+                    self.start_in = start_in as f32 / 10.0;
                     self.line();
+                }
+                Vec::new()
+            }
+            (Role::Host, Msg::Look { character, look, belly }) => {
+                if let Some(&id) = self.peers.get(&from)
+                    && self.roster.set_look(id, character, look, belly)
+                {
+                    self.members = self.roster.members().to_vec();
+                    return vec![Do::Send { to: None, msg: self.roster_msg() }];
+                }
+                Vec::new()
+            }
+            (Role::Host, Msg::Ready(ready)) => {
+                if let Some(&id) = self.peers.get(&from)
+                    && self.roster.set_ready(id, ready)
+                {
+                    self.members = self.roster.members().to_vec();
+                    return vec![Do::Send { to: None, msg: self.roster_msg() }];
                 }
                 Vec::new()
             }
@@ -307,9 +452,17 @@ impl Session {
         self.members
             .iter()
             .filter(|m| m.id != self.my_id && self.my_id != 0)
-            .map(|m| RemoteInfo { net_id: m.id, name: m.name.clone(), character: code_char(m.character) })
+            .map(|m| RemoteInfo { net_id: m.id, name: m.name.clone(), character: code_char(m.character), look: m.look, belly: m.belly as f32 / 255.0 * 2.0 })
             .collect()
     }
+}
+
+/// How long everybody-ready waits before the round starts by itself.
+pub const LOBBY_COUNTDOWN: f32 = 3.0;
+
+/// The beer belly slider (0.0 to 2.0) as one byte.
+pub fn belly_byte(b: f32) -> u8 {
+    (b.clamp(0.0, 2.0) / 2.0 * 255.0).round() as u8
 }
 
 pub fn char_code(c: Character) -> u8 {
@@ -404,7 +557,8 @@ impl Online {
         self.session = Some(match req {
             NetRequest::Host => Session::host(&s.name, s.character, &room),
             _ => Session::guest(&s.name, s.character, &room),
-        });
+        }
+        .with_look(s.look, belly_byte(s.belly)));
         self.link = Some(Link::connect(url));
     }
 }
@@ -414,7 +568,8 @@ pub struct OnlinePlugin;
 impl Plugin for OnlinePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Online>()
-            .add_systems(Update, (net_requests, online_poll, online_send, online_roster, online_world_send, online_world_apply, online_follow_host, net_test_actions, online_acts, online_hits).chain())
+            .init_resource::<Lobby>()
+            .add_systems(Update, (net_requests, online_poll, online_send, online_roster, online_world_send, online_world_apply, online_follow_host, net_test_actions, online_acts, online_hits, lobby_logic).chain())
             .add_systems(FixedUpdate, online_puppets.after(crate::game::step_game));
     }
 }
@@ -431,6 +586,7 @@ fn net_requests(
     mut frames: Local<u32>,
     mut last_debug: Local<f32>,
     mut played: Local<bool>,
+    mut readied: Local<bool>,
     screen: Res<crate::menu::Screen>,
 ) {
     *frames += 1;
@@ -457,7 +613,16 @@ fn net_requests(
             ui.request = Some(crate::menu::Request::Play);
         }
     }
+    // `--net-ready` (testing): press Ready once, a moment after getting into the yard
+    if *frames > 200 && !*readied && std::env::args().any(|a| a == "--net-ready") && online.session.as_ref().is_some_and(|s| s.joined()) {
+        *readied = true;
+        ui.toggle_ready = true;
+    }
     if let Some(req) = ui.net_request.take() {
+        if req == NetRequest::Leave {
+            // out of the yard: back to the normal menu (from the lobby, a round or the results)
+            ui.request = Some(crate::menu::Request::Menu);
+        }
         let seed = (time.elapsed_secs_f64() * 1000.0) as u64 ^ std::process::id() as u64;
         online.start(req, &settings, seed);
     }
@@ -586,9 +751,97 @@ fn online_roster(mut online: ResMut<Online>, mut game: ResMut<Game>, screen: Res
     }
     game.net_fx = host_with_mates;
     if game.remotes != want {
-        game.remotes = want;
-        let bots = game.dummies.iter().filter(|d| d.remote.is_none()).count();
-        crate::round::sync_bot_count(&mut game, bots);
+        // only their looks changed (the lobby): dress the puppets in place, no rebuild
+        let same_people = game.remotes.len() == want.len()
+            && game.remotes.iter().zip(&want).all(|(a, b)| (a.net_id, &a.name, a.character) == (b.net_id, &b.name, b.character));
+        if same_people {
+            for r in &want {
+                if let Some(d) = game.dummies.iter_mut().find(|d| d.remote.as_ref().is_some_and(|x| x.net_id == r.net_id)) {
+                    d.look = r.look;
+                    d.belly = r.belly;
+                    d.remote = Some(r.clone());
+                }
+            }
+            game.remotes = want;
+        } else {
+            game.remotes = want;
+            let bots = game.dummies.iter().filter(|d| d.remote.is_none()).count();
+            crate::round::sync_bot_count(&mut game, bots);
+        }
+    }
+}
+
+/// Whether we are in an online lobby right now: in a yard with mates (or waiting for them), not
+/// in a round. The menu shows the lobby card and the line-up of everybody's blobs.
+#[derive(Resource, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Lobby {
+    pub active: bool,
+    /// We are the host (the Start button shows).
+    pub host: bool,
+    /// How many people are in the yard (the camera fits them all in).
+    pub count: usize,
+}
+
+/// The lobby: send our look when it changes, count down when everybody is ready (host), start
+/// the round, and keep the yard quiet (no bots wandering through the line-up).
+fn lobby_logic(
+    time: Res<Time>,
+    mut online: ResMut<Online>,
+    mut lobby: ResMut<Lobby>,
+    mut game: ResMut<Game>,
+    settings: Res<crate::menu::Settings>,
+    screen: Res<crate::menu::Screen>,
+    mut ui: ResMut<crate::menu::MenuUi>,
+    mut was_playing: Local<bool>,
+) {
+    let Online { link, session, .. } = &mut *online;
+    let active = session.as_ref().is_some_and(|s| s.joined()) && *screen == crate::menu::Screen::Menu;
+    if active && !lobby.active {
+        // just arrived: open on the Customise tab, with the line-up behind it
+        ui.tab = crate::ui::Tab::Look;
+    }
+    let host = session.as_ref().is_some_and(|s| s.role == Role::Host);
+    // left the yard (or it closed) while in the lobby: back to the normal menu yard, with bots
+    if lobby.active && !active && *screen == crate::menu::Screen::Menu {
+        ui.request = Some(crate::menu::Request::Menu);
+    }
+    let count = session.as_ref().map_or(0, |s| s.members.len());
+    if (lobby.active, lobby.host, lobby.count) != (active, host, count) {
+        lobby.active = active;
+        lobby.host = host;
+        lobby.count = count;
+    }
+    let (Some(link), Some(session)) = (link.as_ref(), session.as_mut()) else {
+        *was_playing = false;
+        return;
+    };
+    let room = session.room.clone();
+    let send = |todo: Vec<Do>| {
+        for d in todo {
+            if let Do::Send { to, msg } = d {
+                link.send(&room, to.as_deref(), msg.encode());
+            }
+        }
+    };
+    let mut todo = session.my_look_changed(settings.character, settings.look, belly_byte(settings.belly));
+    if std::mem::take(&mut ui.toggle_ready) {
+        let now = session.i_am_ready();
+        todo.extend(session.set_ready(!now));
+    }
+    let playing = matches!(*screen, crate::menu::Screen::Playing | crate::menu::Screen::Paused);
+    if playing && !*was_playing {
+        todo.extend(session.round_started());
+    }
+    *was_playing = playing;
+    let (more, go) = session.lobby_tick(time.delta_secs(), active);
+    todo.extend(more);
+    send(todo);
+    if go {
+        ui.request = Some(crate::menu::Request::Play);
+    }
+    // the host's yard stays empty of bots while everybody waits (guests copy the host)
+    if active && session.role == Role::Host && !game.round.timed && game.dummies.iter().any(|d| d.remote.is_none()) {
+        crate::round::sync_bot_count(&mut game, 0);
     }
 }
 
@@ -920,7 +1173,7 @@ mod tests {
     fn a_guest_leaving_is_dropped_and_everyone_is_told() {
         let mut p = Pair::new();
         let out = p.host.on_event(In::Left { room: "r".into(), peer: "G".into() }, 1.0);
-        assert!(matches!(&out[..], [Do::Send { to: None, msg: Msg::Roster(ms) }] if ms.len() == 1));
+        assert!(matches!(&out[..], [Do::Send { to: None, msg: Msg::Roster { members: ms, .. } }] if ms.len() == 1));
         assert_eq!(p.host.members.len(), 1);
         assert!(p.host.others().is_empty());
         assert!(p.host.status.contains("waiting for mates"));
@@ -944,7 +1197,7 @@ mod tests {
     fn the_host_says_no_politely() {
         let mut h = Session::host("Marcus", Character::Gumdrop, "rbq-abc");
         h.on_event(In::Snap { room: "r".into(), peers: vec![] }, 0.0);
-        let hello = |protocol| Msg::Hello { protocol, name: "Kev".into(), character: 0 };
+        let hello = |protocol| Msg::Hello { protocol, name: "Kev".into(), character: 0, look: Default::default(), belly: 128 };
         let out = h.on_event(msg_in("K", &hello(PROTOCOL + 5)), 0.0);
         assert_eq!(out, vec![Do::Send { to: Some("K".into()), msg: Msg::Refused(Refusal::WrongVersion) }]);
         h.round_on = true;
@@ -962,7 +1215,7 @@ mod tests {
     fn saying_hello_twice_does_not_make_two_people() {
         let mut h = Session::host("Marcus", Character::Gumdrop, "rbq-abc");
         h.on_event(In::Snap { room: "r".into(), peers: vec![] }, 0.0);
-        let hello = Msg::Hello { protocol: PROTOCOL, name: "Davo".into(), character: 1 };
+        let hello = Msg::Hello { protocol: PROTOCOL, name: "Davo".into(), character: 1, look: Default::default(), belly: 128 };
         h.on_event(msg_in("G", &hello), 0.0);
         let out = h.on_event(msg_in("G", &hello), 0.0);
         assert_eq!(h.members.len(), 2, "still one guest");
@@ -976,7 +1229,7 @@ mod tests {
         assert!(out.is_empty());
         assert!(!h.ended && h.status.contains("Hosting"));
         // the early guest says hello when it sees the host arrive
-        let out = h.on_event(msg_in("early-bird", &Msg::Hello { protocol: PROTOCOL, name: "Davo".into(), character: 1 }), 0.0);
+        let out = h.on_event(msg_in("early-bird", &Msg::Hello { protocol: PROTOCOL, name: "Davo".into(), character: 1, look: Default::default(), belly: 128 }), 0.0);
         assert!(matches!(&out[0], Do::Send { to: Some(t), msg: Msg::Welcome { id: 2, .. } } if t == "early-bird"));
     }
 
@@ -991,11 +1244,11 @@ mod tests {
         assert_eq!(p.host.members, before);
         assert!(p.guest.joined());
         // a host does not obey Welcome or Roster messages, and a guest ignores Hello
-        p.host.on_event(msg_in("G", &Msg::Roster(vec![])), 0.0);
+        p.host.on_event(msg_in("G", &Msg::Roster { members: vec![], start_in: 0 }), 0.0);
         assert_eq!(p.host.members, before);
-        assert!(p.guest.on_event(msg_in("G", &Msg::Hello { protocol: PROTOCOL, name: "x".into(), character: 0 }), 0.0).is_empty());
+        assert!(p.guest.on_event(msg_in("G", &Msg::Hello { protocol: PROTOCOL, name: "x".into(), character: 0, look: Default::default(), belly: 1 }), 0.0).is_empty());
         // a roster from somebody who is not the host is ignored
-        p.guest.on_event(msg_in("Z", &Msg::Roster(vec![])), 0.0);
+        p.guest.on_event(msg_in("Z", &Msg::Roster { members: vec![], start_in: 0 }), 0.0);
         assert_eq!(p.guest.members.len(), 2);
     }
 
@@ -1028,6 +1281,122 @@ mod tests {
         p.host.on_event(msg_in("G", &Msg::World(Box::new(snap(50)))), 0.0);
         assert!(p.host.world.is_none());
         assert_eq!(p.guest.host_name(), "Marcus");
+    }
+
+    impl Pair {
+        /// Deliver what the guest wants sent to the host, and the host's answers back.
+        fn from_guest(&mut self, dos: Vec<Do>) {
+            for d in dos {
+                if let Do::Send { to, msg } = d {
+                    assert!(to.as_deref().is_none_or(|t| t == "H"));
+                    for b in self.host.on_event(msg_in("G", &msg), 1.0) {
+                        if let Do::Send { msg, .. } = b {
+                            let _ = self.guest.on_event(msg_in("H", &msg), 1.0);
+                        }
+                    }
+                }
+            }
+        }
+        /// Deliver what the host wants sent to everybody.
+        fn from_host(&mut self, dos: Vec<Do>) {
+            for d in dos {
+                if let Do::Send { msg, .. } = d {
+                    let _ = self.guest.on_event(msg_in("H", &msg), 1.0);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn looks_travel_both_ways() {
+        use bbq_core::appearance::{Appearance, Hair, Mouth};
+        let mullet = Appearance { hair: Hair::Mullet, mouth: Mouth::Grin, body: 4, ..Default::default() };
+        let mut host = Session::host("Marcus", Character::Gumdrop, "rbq-abc").with_look(mullet, 200);
+        host.on_event(In::Snap { room: "r".into(), peers: vec![] }, 0.0);
+        let bowl = Appearance { hair: Hair::Bowl, ..Default::default() };
+        let guest = Session::guest("Davo", Character::Pear, "rbq-abc").with_look(bowl, 20);
+        let mut p = Pair { host, guest };
+        p.deliver_guest(vec![In::Open { peer: "G".into() }, In::Snap { room: "rbq-abc".into(), peers: vec!["H".into()] }]);
+        // each sees the other's look
+        let host_sees = &p.host.others()[0];
+        assert_eq!((host_sees.look, host_sees.character), (bowl, Character::Pear));
+        let guest_sees = &p.guest.others()[0];
+        assert_eq!(guest_sees.look, mullet);
+        assert!((guest_sees.belly - 200.0 / 255.0 * 2.0).abs() < 1e-4);
+        // the guest changes their hair in the lobby: the host hears it and tells everybody
+        let tuft = Appearance { hair: Hair::Tuft, ..bowl };
+        let dos = p.guest.my_look_changed(Character::Egg, tuft, 20);
+        assert_eq!(dos.len(), 1);
+        p.from_guest(dos);
+        assert_eq!(p.host.others()[0].look.hair, Hair::Tuft);
+        assert_eq!(p.host.others()[0].character, Character::Egg);
+        assert!(p.guest.members.iter().any(|m| m.id == 2 && m.look.hair == Hair::Tuft), "echoed back in the roster");
+        // no change, no message
+        assert!(p.guest.my_look_changed(Character::Egg, tuft, 20).is_empty());
+        // the host changes too
+        let dos = p.host.my_look_changed(Character::Classic, bowl, 0);
+        p.from_host(dos);
+        assert_eq!(p.guest.others()[0].character, Character::Classic);
+    }
+
+    #[test]
+    fn everybody_ready_counts_down_and_starts_and_unready_stops_it() {
+        let mut p = Pair::new();
+        let dos = p.guest.set_ready(true);
+        p.from_guest(dos);
+        assert!(p.guest.i_am_ready());
+        assert!(p.host.members.iter().any(|m| m.id == 2 && m.ready));
+        // only the guest is ready: no countdown
+        let (_, go) = p.host.lobby_tick(0.1, true);
+        assert!(!go && p.host.start_in == 0.0);
+        let dos = p.host.set_ready(true);
+        p.from_host(dos);
+        // both ready: 3 seconds, and the guest sees the countdown
+        let (dos, go) = p.host.lobby_tick(0.1, true);
+        assert!(!go);
+        assert!((p.host.start_in - LOBBY_COUNTDOWN).abs() < 1e-4);
+        p.from_host(dos);
+        assert!((p.guest.start_in - LOBBY_COUNTDOWN).abs() < 0.11, "{}", p.guest.start_in);
+        // somebody changes their mind: it stops
+        let dos = p.guest.set_ready(false);
+        p.from_guest(dos);
+        let (dos, go) = p.host.lobby_tick(0.1, true);
+        assert!(!go && p.host.start_in == 0.0);
+        p.from_host(dos);
+        assert_eq!(p.guest.start_in, 0.0, "the guest's countdown stops too");
+        // ready again and wait it out
+        let dos = p.guest.set_ready(true);
+        p.from_guest(dos);
+        let mut went = false;
+        for _ in 0..40 {
+            let (_, go) = p.host.lobby_tick(0.1, true);
+            if go {
+                went = true;
+                break;
+            }
+        }
+        assert!(went, "starts by itself");
+        // the round starts: nobody is ready any more, for next time
+        let dos = p.host.round_started();
+        p.from_host(dos);
+        assert!(p.host.members.iter().all(|m| !m.ready));
+        assert!(!p.guest.i_am_ready());
+        // out of the lobby (in a round) it never counts
+        p.host.set_ready(true);
+        let (_, go) = p.host.lobby_tick(5.0, false);
+        assert!(!go && p.host.start_in == 0.0);
+    }
+
+    #[test]
+    fn a_guest_cannot_make_somebody_else_ready() {
+        let mut p = Pair::new();
+        // a stranger's Ready is ignored
+        p.host.on_event(msg_in("Z", &Msg::Ready(true)), 0.0);
+        assert!(p.host.members.iter().all(|m| !m.ready));
+        // and a guest's own Ready only marks the guest
+        p.host.on_event(msg_in("G", &Msg::Ready(true)), 0.0);
+        assert!(p.host.members.iter().any(|m| m.id == 2 && m.ready));
+        assert!(p.host.members.iter().any(|m| m.id == 1 && !m.ready));
     }
 
     #[test]

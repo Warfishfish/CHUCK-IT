@@ -13,7 +13,7 @@
 
 /// Bump this whenever a message changes, so old and new copies of the game refuse each other
 /// politely instead of misreading each other.
-pub const PROTOCOL: u16 = 1;
+pub const PROTOCOL: u16 = 2;
 /// The most people in one yard (the browser game's limit).
 pub const MAX_PLAYERS: usize = 16;
 /// How often each player reports where they are.
@@ -40,6 +40,18 @@ pub struct Member {
     /// Which blob they chose (0 = Classic, 1 = Pear, 2 = Egg, 3 = Gumdrop).
     pub character: u8,
     pub host: bool,
+    /// Their customised look (face, hair, colours) and beer belly (0 to 255 over 0.0 to 2.0).
+    pub look: crate::appearance::Appearance,
+    pub belly: u8,
+    /// In the lobby: they have pressed Ready.
+    pub ready: bool,
+}
+
+impl Member {
+    /// A member with the default look (tests and the host's first entry).
+    pub fn plain(id: u32, name: &str, character: u8, host: bool) -> Self {
+        Member { id, name: name.to_string(), character, host, look: Default::default(), belly: 128, ready: false }
+    }
 }
 
 /// Where a player is and what they are doing, enough to draw them (not to run the rules).
@@ -87,13 +99,14 @@ impl PlayerState {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Msg {
     /// Guest to host: "can I play?"
-    Hello { protocol: u16, name: String, character: u8 },
+    Hello { protocol: u16, name: String, character: u8, look: crate::appearance::Appearance, belly: u8 },
     /// Host to one guest: "yes, you are `id`", with everyone already here.
     Welcome { id: u32, members: Vec<Member> },
     /// Host to one guest: "no".
     Refused(Refusal),
-    /// Host to everyone: who is here now (sent when somebody joins or leaves).
-    Roster(Vec<Member>),
+    /// Host to everyone: who is here now, how they look and who is ready (sent when that
+    /// changes). `start_in` is the lobby countdown in tenths of a second (0 = not counting).
+    Roster { members: Vec<Member>, start_in: u8 },
     /// Everybody to everybody: where I am (about 20 times a second).
     State(PlayerState),
     /// "I am leaving" (the host also sends it for a guest who vanished).
@@ -104,6 +117,10 @@ pub enum Msg {
     Act(crate::net_act::GuestAct),
     /// Host to one guest: "this just happened to you" (you were hit).
     Hit(crate::net_act::HitMsg),
+    /// Guest to host: "I have changed my look" (in the lobby).
+    Look { character: u8, look: crate::appearance::Appearance, belly: u8 },
+    /// Guest to host: "I am ready" (or not any more).
+    Ready(bool),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -159,7 +176,9 @@ impl Writer {
         self.u32(m.id);
         self.text(&m.name);
         self.u8(m.character);
-        self.u8(m.host as u8);
+        self.u8(m.host as u8 | (m.ready as u8) << 1);
+        self.0.extend_from_slice(&m.look.to_bytes());
+        self.u8(m.belly);
     }
     fn members(&mut self, ms: &[Member]) {
         self.u8(ms.len().min(MAX_PLAYERS) as u8);
@@ -225,8 +244,13 @@ impl<'a> Reader<'a> {
         }
         Ok(s.to_string())
     }
+    fn look(&mut self) -> Result<crate::appearance::Appearance, DecodeError> {
+        let b: [u8; 8] = self.take(8)?.try_into().unwrap();
+        Ok(crate::appearance::Appearance::from_bytes(b))
+    }
     fn member(&mut self) -> Result<Member, DecodeError> {
-        Ok(Member { id: self.u32()?, name: self.text()?, character: self.u8()?, host: self.u8()? != 0 })
+        let (id, name, character, flags) = (self.u32()?, self.text()?, self.u8()?.min(3), self.u8()?);
+        Ok(Member { id, name, character, host: flags & 1 != 0, ready: flags & 2 != 0, look: self.look()?, belly: self.u8()? })
     }
     fn members(&mut self) -> Result<Vec<Member>, DecodeError> {
         let n = self.u8()? as usize;
@@ -248,6 +272,8 @@ const K_BYE: u8 = 6;
 const K_WORLD: u8 = 7;
 const K_ACT: u8 = 8;
 const K_HIT: u8 = 9;
+const K_LOOK: u8 = 10;
+const K_READY: u8 = 11;
 /// For the tests in `net_act.rs`.
 #[cfg(test)]
 pub(crate) const K_ACT_FOR_TESTS: u8 = K_ACT;
@@ -261,11 +287,23 @@ impl Msg {
     pub fn encode(&self) -> Vec<u8> {
         let mut w = Writer(Vec::with_capacity(48));
         match self {
-            Msg::Hello { protocol, name, character } => {
+            Msg::Hello { protocol, name, character, look, belly } => {
                 w.u8(K_HELLO);
                 w.u16(*protocol);
                 w.text(name);
                 w.u8(*character);
+                w.0.extend_from_slice(&look.to_bytes());
+                w.u8(*belly);
+            }
+            Msg::Look { character, look, belly } => {
+                w.u8(K_LOOK);
+                w.u8(*character);
+                w.0.extend_from_slice(&look.to_bytes());
+                w.u8(*belly);
+            }
+            Msg::Ready(on) => {
+                w.u8(K_READY);
+                w.u8(*on as u8);
             }
             Msg::Welcome { id, members } => {
                 w.u8(K_WELCOME);
@@ -280,9 +318,10 @@ impl Msg {
                     Refusal::InProgress => 2,
                 });
             }
-            Msg::Roster(ms) => {
+            Msg::Roster { members, start_in } => {
                 w.u8(K_ROSTER);
-                w.members(ms);
+                w.members(members);
+                w.u8(*start_in);
             }
             Msg::State(s) => {
                 w.u8(K_STATE);
@@ -329,7 +368,13 @@ impl Msg {
     pub fn decode(bytes: &[u8]) -> Result<Msg, DecodeError> {
         let mut r = Reader(bytes);
         let msg = match r.u8()? {
-            K_HELLO => Msg::Hello { protocol: r.u16()?, name: r.text()?, character: r.u8()? },
+            K_HELLO => Msg::Hello { protocol: r.u16()?, name: r.text()?, character: r.u8()?.min(3), look: r.look()?, belly: r.u8()? },
+            K_LOOK => Msg::Look { character: r.u8()?.min(3), look: r.look()?, belly: r.u8()? },
+            K_READY => Msg::Ready(match r.u8()? {
+                0 => false,
+                1 => true,
+                k => return Err(DecodeError::UnknownKind(k)),
+            }),
             K_WELCOME => Msg::Welcome { id: r.u32()?, members: r.members()? },
             K_REFUSED => Msg::Refused(match r.u8()? {
                 0 => Refusal::WrongVersion,
@@ -337,7 +382,7 @@ impl Msg {
                 2 => Refusal::InProgress,
                 k => return Err(DecodeError::UnknownKind(k)),
             }),
-            K_ROSTER => Msg::Roster(r.members()?),
+            K_ROSTER => Msg::Roster { members: r.members()?, start_in: r.u8()? },
             K_STATE => {
                 let id = r.u32()?;
                 let pos = (r.f32()?, r.f32()?, r.f32()?);
@@ -387,10 +432,45 @@ pub struct Roster {
 impl Roster {
     /// A yard with just its host (always id 1).
     pub fn new(host_name: &str, character: u8) -> Self {
-        Roster {
-            members: vec![Member { id: 1, name: clean(host_name), character, host: true }],
-            next_id: 2,
+        Roster { members: vec![Member::plain(1, &clean(host_name), character, true)], next_id: 2 }
+    }
+
+    /// Somebody changed their look (the host for itself, or a guest's `Look`).
+    pub fn set_look(&mut self, id: u32, character: u8, look: crate::appearance::Appearance, belly: u8) -> bool {
+        match self.members.iter_mut().find(|m| m.id == id) {
+            Some(m) if (m.character, m.look, m.belly) != (character.min(3), look.tidy(), belly) => {
+                m.character = character.min(3);
+                m.look = look.tidy();
+                m.belly = belly;
+                true
+            }
+            _ => false,
         }
+    }
+
+    /// Somebody pressed Ready (or un-pressed it). Returns true if anything changed.
+    pub fn set_ready(&mut self, id: u32, ready: bool) -> bool {
+        match self.members.iter_mut().find(|m| m.id == id) {
+            Some(m) if m.ready != ready => {
+                m.ready = ready;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Back from a round: nobody is ready any more.
+    pub fn clear_ready(&mut self) -> bool {
+        let any = self.members.iter().any(|m| m.ready);
+        for m in &mut self.members {
+            m.ready = false;
+        }
+        any
+    }
+
+    /// Everybody is ready, and there is somebody to play with.
+    pub fn all_ready(&self) -> bool {
+        self.members.len() >= 2 && self.members.iter().all(|m| m.ready)
     }
 
     pub fn members(&self) -> &[Member] {
@@ -399,6 +479,19 @@ impl Roster {
 
     /// Somebody said hello: let them in (`Ok(their id)`) or say why not.
     pub fn admit(&mut self, protocol: u16, name: &str, character: u8, round_on: bool) -> Result<u32, Refusal> {
+        self.admit_with(protocol, name, character, Default::default(), 128, round_on)
+    }
+
+    /// `admit` with the newcomer's look.
+    pub fn admit_with(
+        &mut self,
+        protocol: u16,
+        name: &str,
+        character: u8,
+        look: crate::appearance::Appearance,
+        belly: u8,
+        round_on: bool,
+    ) -> Result<u32, Refusal> {
         if protocol != PROTOCOL {
             return Err(Refusal::WrongVersion);
         }
@@ -410,7 +503,8 @@ impl Roster {
         }
         let id = self.next_id;
         self.next_id += 1;
-        self.members.push(Member { id, name: self.unique_name(&clean(name)), character, host: false });
+        let name = self.unique_name(&clean(name));
+        self.members.push(Member { id, name, character: character.min(3), host: false, look: look.tidy(), belly, ready: false });
         Ok(id)
     }
 
@@ -468,21 +562,27 @@ mod tests {
 
     fn members() -> Vec<Member> {
         vec![
-            Member { id: 1, name: "Marcus".into(), character: 3, host: true },
-            Member { id: 2, name: "Dävo ✓".into(), character: 0, host: false },
+            Member { ready: true, belly: 200, ..Member::plain(1, "Marcus", 3, true) },
+            Member {
+                look: crate::appearance::Appearance { hair: crate::appearance::Hair::Mullet, body: 6, ..Default::default() },
+                ..Member::plain(2, "Dävo ✓", 0, false)
+            },
         ]
     }
 
     #[test]
     fn every_message_survives_the_trip() {
         for m in [
-            Msg::Hello { protocol: PROTOCOL, name: "Shazza".into(), character: 2 },
+            Msg::Hello { protocol: PROTOCOL, name: "Shazza".into(), character: 2, look: Default::default(), belly: 77 },
+            Msg::Look { character: 1, look: crate::appearance::Appearance { mouth: crate::appearance::Mouth::Grin, ..Default::default() }, belly: 3 },
+            Msg::Ready(true),
+            Msg::Ready(false),
             Msg::Welcome { id: 4, members: members() },
             Msg::Refused(Refusal::Full),
             Msg::Refused(Refusal::WrongVersion),
             Msg::Refused(Refusal::InProgress),
-            Msg::Roster(members()),
-            Msg::Roster(vec![]),
+            Msg::Roster { members: members(), start_in: 0 },
+            Msg::Roster { members: vec![], start_in: 25 },
             Msg::State(state()),
             Msg::Bye { id: 9 },
         ] {
@@ -508,7 +608,7 @@ mod tests {
     #[test]
     fn rubbish_never_panics_and_is_refused() {
         // every cut-off version of every message
-        for m in [Msg::State(state()), Msg::Welcome { id: 2, members: members() }, Msg::Hello { protocol: 1, name: "x".into(), character: 0 }] {
+        for m in [Msg::State(state()), Msg::Welcome { id: 2, members: members() }, Msg::Hello { protocol: 1, name: "x".into(), character: 0, look: Default::default(), belly: 1 }] {
             let bytes = m.encode();
             for n in 0..bytes.len() {
                 assert!(Msg::decode(&bytes[..n]).is_err(), "{m:?} cut to {n}");
@@ -552,11 +652,11 @@ mod tests {
 
     #[test]
     fn long_names_are_cut_not_refused() {
-        let m = Msg::Hello { protocol: 1, name: "ABCDEFGHIJKLMNOPQRSTUVWXYZ".into(), character: 0 };
+        let m = Msg::Hello { protocol: 1, name: "ABCDEFGHIJKLMNOPQRSTUVWXYZ".into(), character: 0, look: Default::default(), belly: 1 };
         let Ok(Msg::Hello { name, .. }) = Msg::decode(&m.encode()) else { panic!() };
         assert_eq!(name, "ABCDEFGHIJKLMNOP");
         // and 16 four-byte characters still fit the one-byte length
-        let m = Msg::Hello { protocol: 1, name: "😀".repeat(20), character: 0 };
+        let m = Msg::Hello { protocol: 1, name: "😀".repeat(20), character: 0, look: Default::default(), belly: 1 };
         let Ok(Msg::Hello { name, .. }) = Msg::decode(&m.encode()) else { panic!() };
         assert_eq!(name.chars().count(), 16);
     }
@@ -580,6 +680,35 @@ mod tests {
             r.admit(PROTOCOL, "x", 0, false).unwrap();
         }
         assert_eq!(r.admit(PROTOCOL, "late", 0, false), Err(Refusal::Full));
+    }
+
+    #[test]
+    fn the_roster_keeps_looks_and_who_is_ready() {
+        use crate::appearance::{Appearance, Hair};
+        let mut r = Roster::new("Marcus", 3);
+        let mullet = Appearance { hair: Hair::Mullet, ..Default::default() };
+        let id = r.admit_with(PROTOCOL, "Davo", 1, mullet, 40, false).unwrap();
+        assert_eq!(r.members()[1].look, mullet);
+        assert_eq!(r.members()[1].belly, 40);
+        assert!(!r.all_ready(), "nobody is ready yet");
+        assert!(r.set_ready(1, true));
+        assert!(!r.set_ready(1, true), "no change the second time");
+        assert!(!r.all_ready());
+        assert!(r.set_ready(id, true));
+        assert!(r.all_ready(), "both ready");
+        // a look change shows up, and the same look again is no change
+        let bowl = Appearance { hair: Hair::Bowl, ..Default::default() };
+        assert!(r.set_look(id, 2, bowl, 99));
+        assert!(!r.set_look(id, 2, bowl, 99));
+        assert_eq!((r.members()[1].character, r.members()[1].belly), (2, 99));
+        assert!(!r.set_look(77, 0, bowl, 1), "nobody with that id");
+        // back from a round
+        assert!(r.clear_ready());
+        assert!(!r.all_ready());
+        // alone in the yard is never "all ready" (there is nobody to play with)
+        let mut alone = Roster::new("Marcus", 0);
+        alone.set_ready(1, true);
+        assert!(!alone.all_ready());
     }
 
     #[test]

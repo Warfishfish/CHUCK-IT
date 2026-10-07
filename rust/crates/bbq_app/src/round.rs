@@ -171,6 +171,8 @@ pub fn sync_bot_count(g: &mut Game, want: usize) {
         let (x, z) = CHAR_SPAWNS[(g.dummies.len() + 1) % CHAR_SPAWNS.len()];
         let mut d = Dummy::new(r.local_id(), x, z, g.dummies.len(), &mut g.rng);
         g.board.ensure(d.id);
+        d.look = r.look;
+        d.belly = r.belly;
         d.remote = Some(r);
         g.dummies.push(d);
     }
