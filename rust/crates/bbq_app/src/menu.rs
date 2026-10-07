@@ -519,6 +519,11 @@ fn lobby_card(o: &mut ChildSpawnerCommands) {
                 });
             }
         });
+        // the host picks the game right here
+        c.spawn((column(0.0), ShowWhen::LobbyHost)).with_children(|w| {
+            // Teddy Heist does not work online yet (9.8 in the plan)
+            seg(w, SegId::Mode, "Game mode", &[("Free for all", 0), ("Teams", 1)]);
+        });
         c.spawn((text("", 14.0, true, INK), LobbyStatus));
         c.spawn(row(8.0)).with_children(|r| {
             let b = button(r, Action::LobbyReady, "Ready!", Some(SUN));

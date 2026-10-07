@@ -794,11 +794,12 @@ fn lobby_logic(
     mut online: ResMut<Online>,
     mut lobby: ResMut<Lobby>,
     mut game: ResMut<Game>,
-    settings: Res<crate::menu::Settings>,
+    mut settings: ResMut<crate::menu::Settings>,
     screen: Res<crate::menu::Screen>,
     mut ui: ResMut<crate::menu::MenuUi>,
     mut was_playing: Local<bool>,
 ) {
+    let mut heist_off = false;
     let Online { link, session, .. } = &mut *online;
     let active = session.as_ref().is_some_and(|s| s.joined()) && *screen == crate::menu::Screen::Menu;
     if active && !lobby.active {
@@ -846,9 +847,16 @@ fn lobby_logic(
     if go {
         ui.request = Some(crate::menu::Request::Play);
     }
+    // Teddy Heist is not online yet: a host who had it picked plays Free for all
+    if active && session.role == Role::Host && settings.mode == bbq_core::GameMode::Heist {
+        heist_off = true;
+    }
     // the host's yard stays empty of bots while everybody waits (guests copy the host)
     if active && session.role == Role::Host && !game.round.timed && game.dummies.iter().any(|d| d.remote.is_none()) {
         crate::round::sync_bot_count(&mut game, 0);
+    }
+    if heist_off {
+        settings.mode = bbq_core::GameMode::FreeForAll;
     }
 }
 
