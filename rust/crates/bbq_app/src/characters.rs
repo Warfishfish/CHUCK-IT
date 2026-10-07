@@ -352,6 +352,22 @@ fn spawn_model(
                             }
                         }
                     }
+                    // the look's colours (body for people online, singlet and thongs for everyone)
+                    let part = match name.as_str() {
+                        "Torso" | "Belly" => Some(crate::face::TintPart::Body),
+                        "Head" | "HandR" | "HandL" => Some(crate::face::TintPart::Head),
+                        "FootL" | "FootR" => Some(crate::face::TintPart::Foot),
+                        "Singlet" => Some(crate::face::TintPart::Singlet),
+                        "ThongL" | "ThongR" => Some(crate::face::TintPart::Thong),
+                        _ => None,
+                    };
+                    if let Some(part) = part {
+                        for e in std::iter::once(node).chain(children.iter_descendants(node)) {
+                            if has_mat.contains(e) {
+                                commands.entity(e).insert(crate::face::LookTint { owner: crate::face::FaceOwner::Blob(i), part });
+                            }
+                        }
+                    }
                     let base = tfs.get(node).map(|t| t.translation).unwrap_or_default();
                     if matches!(name.as_str(), "Torso" | "Singlet") {
                         commands.entity(node).insert((BellyNode, Blob(i)));

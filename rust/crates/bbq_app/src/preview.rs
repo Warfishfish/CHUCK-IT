@@ -134,6 +134,22 @@ fn swap_preview_model(
                             }
                         }
                     }
+                    // your look's colours
+                    let part = match name.as_str() {
+                        "Torso" | "Belly" => Some(crate::face::TintPart::Body),
+                        "Head" | "HandR" | "HandL" => Some(crate::face::TintPart::Head),
+                        "FootL" | "FootR" => Some(crate::face::TintPart::Foot),
+                        "Singlet" => Some(crate::face::TintPart::Singlet),
+                        "ThongL" | "ThongR" => Some(crate::face::TintPart::Thong),
+                        _ => None,
+                    };
+                    if let Some(part) = part {
+                        for e in std::iter::once(node).chain(children.iter_descendants(node)) {
+                            if has_mat.contains(e) {
+                                commands.entity(e).insert(crate::face::LookTint { owner: crate::face::FaceOwner::Preview, part });
+                            }
+                        }
+                    }
                 }
             },
         );

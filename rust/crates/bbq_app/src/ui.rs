@@ -207,6 +207,11 @@ pub enum Action {
 /// One row on the Customise tab.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum LookRow {
+    Body,
+    Singlet,
+    Thongs,
+    Hair,
+    HairColour,
     Mouth,
     Brows,
     BrowColour,

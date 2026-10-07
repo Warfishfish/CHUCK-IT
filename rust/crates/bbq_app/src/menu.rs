@@ -436,7 +436,16 @@ fn look_panel(c: &mut ChildSpawnerCommands) {
     c.spawn((column(12.0), ShowWhen::Panel(Tab::Look))).with_children(|p| {
         p.spawn(legend("Customise your blob"));
         p.spawn(text("Looks only: every blob has the same speed and hit size. Your blob's shape and belly are on the Solo tab.", 13.0, false, MUTED));
-        for (row, label) in [(LookRow::Mouth, "Mouth"), (LookRow::Brows, "Eyebrows"), (LookRow::BrowColour, "Brow colour")] {
+        for (row, label) in [
+            (LookRow::Body, "Body colour"),
+            (LookRow::Singlet, "Singlet"),
+            (LookRow::Thongs, "Thongs"),
+            (LookRow::Hair, "Hair"),
+            (LookRow::HairColour, "Hair colour"),
+            (LookRow::Mouth, "Mouth"),
+            (LookRow::Brows, "Eyebrows"),
+            (LookRow::BrowColour, "Brow colour"),
+        ] {
             p.spawn(Node { width: Val::Percent(100.0), align_items: AlignItems::Center, column_gap: px(8.0), ..default() })
                 .with_children(|r| {
                     r.spawn((Node { width: px(110.0), ..default() }, children![text(label, 15.0, true, INK)]));
@@ -476,6 +485,11 @@ fn arrow(p: &mut ChildSpawnerCommands, action: Action, label: &str) {
     ));
 }
 
+/// Names for the body, singlet and thong colours (same order as the palettes in `appearance.rs`).
+const COLOUR_NAMES_BODY: [&str; 10] = ["Sunny yellow", "Orange", "Tomato", "Pink", "Purple", "Sky blue", "Teal", "Grass green", "Tan", "Grey"];
+const COLOUR_NAMES_SINGLET: [&str; 8] = ["White", "Navy", "Red", "Blue", "Green", "Yellow", "Purple", "Black"];
+const COLOUR_NAMES_THONG: [&str; 8] = ["Red", "Blue", "Yellow", "Green", "Pink", "Black", "White", "Orange"];
+
 /// Names for the hair and brow colours (same order as `HAIR_COLOURS`).
 const COLOUR_NAMES_HAIR: [&str; 8] = ["Dark brown", "Brown", "Ginger", "Blonde", "Grey", "Black", "Red", "Teal"];
 
@@ -484,6 +498,11 @@ fn look_texts(settings: Res<Settings>, mut q: Query<(&LookValue, &mut Text)>) {
     use bbq_core::appearance::Choice;
     for (v, mut t) in &mut q {
         let s = match v.0 {
+            LookRow::Body => COLOUR_NAMES_BODY[settings.look.body as usize % COLOUR_NAMES_BODY.len()],
+            LookRow::Singlet => COLOUR_NAMES_SINGLET[settings.look.singlet as usize % COLOUR_NAMES_SINGLET.len()],
+            LookRow::Thongs => COLOUR_NAMES_THONG[settings.look.thong as usize % COLOUR_NAMES_THONG.len()],
+            LookRow::Hair => settings.look.hair.name(),
+            LookRow::HairColour => COLOUR_NAMES_HAIR[settings.look.hair_colour as usize % COLOUR_NAMES_HAIR.len()],
             LookRow::Mouth => settings.look.mouth.name(),
             LookRow::Brows => settings.look.brows.name(),
             LookRow::BrowColour => COLOUR_NAMES_HAIR[settings.look.brow_colour as usize % COLOUR_NAMES_HAIR.len()],
@@ -713,6 +732,18 @@ fn apply_loaded_settings(mut settings: ResMut<Settings>, mut player: ResMut<Play
             cast.mine = *ch;
         }
     }
+    // `--hair tuft|mullet|bowl|none` and `--body N` (testing)
+    if let Some(m) = args.iter().position(|a| a == "--hair").and_then(|i| args.get(i + 1)) {
+        use bbq_core::appearance::Choice;
+        if let Some(m) = bbq_core::appearance::Hair::from_name(m) {
+            settings.look.hair = m;
+            settings.look.hair_colour = 1;
+        }
+    }
+    if let Some(n) = args.iter().position(|a| a == "--body").and_then(|i| args.get(i + 1)).and_then(|v| v.parse::<u8>().ok()) {
+        settings.look.body = n;
+        settings.look = settings.look.tidy();
+    }
     // `--brows flat|arched|bushy|none` (testing)
     if let Some(m) = args.iter().position(|a| a == "--brows").and_then(|i| args.get(i + 1)) {
         use bbq_core::appearance::Choice;
@@ -735,7 +766,12 @@ fn test_looks(mut game: ResMut<Game>) {
     let args: Vec<String> = std::env::args().collect();
     let mouth = args.iter().position(|a| a == "--mouth").and_then(|i| args.get(i + 1)).and_then(|m| bbq_core::appearance::Mouth::from_name(m));
     let brows = args.iter().position(|a| a == "--brows").and_then(|i| args.get(i + 1)).and_then(|m| bbq_core::appearance::Brows::from_name(m));
+    let hair = args.iter().position(|a| a == "--hair").and_then(|i| args.get(i + 1)).and_then(|m| bbq_core::appearance::Hair::from_name(m));
     for d in &mut game.dummies {
+        if let Some(h) = hair {
+            d.look.hair = h;
+            d.look.hair_colour = 0;
+        }
         if let Some(m) = mouth {
             d.look.mouth = m;
         }
@@ -824,6 +860,11 @@ fn widget_clicks(
             Action::LookStep(row, dir) => {
                 use bbq_core::appearance::Choice;
                 match row {
+                    LookRow::Body => settings.look.step_colour(bbq_core::appearance::Palette::Body, *dir),
+                    LookRow::Singlet => settings.look.step_colour(bbq_core::appearance::Palette::Singlet, *dir),
+                    LookRow::Thongs => settings.look.step_colour(bbq_core::appearance::Palette::Thong, *dir),
+                    LookRow::Hair => settings.look.hair = settings.look.hair.step(*dir),
+                    LookRow::HairColour => settings.look.step_colour(bbq_core::appearance::Palette::Hair, *dir),
                     LookRow::Mouth => settings.look.mouth = settings.look.mouth.step(*dir),
                     LookRow::Brows => settings.look.brows = settings.look.brows.step(*dir),
                     LookRow::BrowColour => settings.look.step_colour(bbq_core::appearance::Palette::Brow, *dir),

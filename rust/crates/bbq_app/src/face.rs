@@ -6,7 +6,7 @@
 //! (it is only a handful of little parts). The mouth sits on the front of the head just below
 //! the eyes, sized to the head, and moves with the head (and its wonky tilt).
 
-use bbq_core::appearance::{Appearance, Brows, Mouth, Palette};
+use bbq_core::appearance::{Appearance, Brows, Hair, Mouth, Palette};
 use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
 
@@ -49,6 +49,8 @@ struct FaceShown {
     mouth: Mouth,
     brows: Brows,
     brow_colour: u32,
+    hair: Hair,
+    hair_colour: u32,
     mood: Mood,
 }
 
@@ -70,11 +72,98 @@ struct FaceKit {
     tongue: Handle<StandardMaterial>,
 }
 
+/// Which part of the body a mesh is, so it can be painted in the look's colours.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TintPart {
+    Body,
+    Head,
+    Foot,
+    Singlet,
+    Thong,
+}
+
+/// A mesh that wears one of the look's colours.
+#[derive(Component, Clone, Copy)]
+pub struct LookTint {
+    pub owner: FaceOwner,
+    pub part: TintPart,
+}
+
+/// The colour a tinted mesh has now.
+#[derive(Component, Clone, Copy, PartialEq)]
+struct TintShown(u32);
+
+/// The body, head and foot colours from a body colour (the head and hands a little lighter, the
+/// feet a little darker, as the blobs have always been).
+pub fn shade_of(part: TintPart, base: u32) -> u32 {
+    let k = match part {
+        TintPart::Head => 1.18,
+        TintPart::Foot => 0.78,
+        _ => 1.0,
+    };
+    let ch = |s: u32| {
+        let c = ((base >> s) & 0xff) as f32;
+        let v = if k > 1.0 { c + (255.0 - c) * (k - 1.0) * 1.6 } else { c * k };
+        v.clamp(0.0, 255.0).round() as u32
+    };
+    (ch(16) << 16) | (ch(8) << 8) | ch(0)
+}
+
+/// Paint every tinted mesh in its owner's colours. Bots keep their own body colours (only their
+/// singlet and thongs follow their look); you in the preview, and people online, wear your look.
+fn sync_tints(
+    mut commands: Commands,
+    game: Res<Game>,
+    settings: Res<Settings>,
+    assets: Res<AssetServer>,
+    mut mats: ResMut<Assets<StandardMaterial>>,
+    mut cache: Local<std::collections::HashMap<(u32, bool), Handle<StandardMaterial>>>,
+    q: Query<(Entity, &LookTint, Option<&TintShown>)>,
+) {
+    for (e, t, shown) in &q {
+        let (look, own_body) = match t.owner {
+            FaceOwner::Preview => (settings.look, true),
+            FaceOwner::Blob(i) => match game.dummies.get(i) {
+                Some(d) => (d.look, d.remote.is_some()),
+                None => continue,
+            },
+        };
+        let colour = match t.part {
+            TintPart::Body | TintPart::Head | TintPart::Foot => {
+                if !own_body {
+                    continue;
+                }
+                shade_of(t.part, look.colour(Palette::Body))
+            }
+            TintPart::Singlet => look.colour(Palette::Singlet),
+            TintPart::Thong => look.colour(Palette::Thong),
+        };
+        if shown.map(|s| s.0) == Some(colour) {
+            continue;
+        }
+        let skin = matches!(t.part, TintPart::Body | TintPart::Head | TintPart::Foot);
+        let m = cache
+            .entry((colour, skin))
+            .or_insert_with(|| {
+                if skin {
+                    mats.add(crate::style::body_material(crate::models::hex(colour), &assets))
+                } else if t.part == TintPart::Singlet {
+                    mats.add(StandardMaterial { base_color: crate::models::hex(colour), perceptual_roughness: 0.95, reflectance: 0.1, ..default() })
+                } else {
+                    mats.add(StandardMaterial { base_color: crate::models::hex(colour), perceptual_roughness: 0.45, reflectance: 0.35, ..default() })
+                }
+            })
+            .clone();
+        commands.entity(e).try_insert((MeshMaterial3d(m), TintShown(colour)));
+    }
+}
+
 pub struct FacePlugin;
 
 impl Plugin for FacePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, make_kit).add_systems(Update, (sync_faces, wobble_mouths).chain());
+        app.add_systems(Startup, make_kit)// after Update, so a model swapped or thrown away this frame is already gone
+            .add_systems(PostUpdate, (sync_faces, wobble_mouths, sync_tints).chain());
     }
 }
 
@@ -116,8 +205,10 @@ pub enum Colour {
     Dark,
     Teeth,
     Tongue,
-    /// The look's brow (or hair) colour.
+    /// The look's brow colour.
     Hair,
+    /// The look's hair colour.
+    HairTop,
 }
 
 /// The shapes of a mouth, for a head of radius 1 (scaled to the head when built). Kept apart
@@ -198,6 +289,30 @@ pub fn brow_shape(brows: Brows, mood: Mood) -> (Vec<Blip>, f32, f32) {
     (pieces, lift, tilt)
 }
 
+/// The hair, for a head of radius 1 centred on the origin (x right, y up, z out of the face).
+pub fn hair_shape(hair: Hair) -> Vec<Blip> {
+    let b = |x: f32, y: f32, z: f32, sx: f32, sy: f32, sz: f32| Blip { at: Vec3::new(x, y, z), size: Vec3::new(sx, sy, sz), colour: Colour::HairTop };
+    match hair {
+        Hair::None => Vec::new(),
+        // a little tuft sticking up on top
+        Hair::Tuft => vec![
+            b(0.0, 1.02, 0.05, 0.4, 0.8, 0.4),
+            b(-0.2, 0.96, 0.0, 0.32, 0.6, 0.32),
+            b(0.19, 0.97, -0.1, 0.32, 0.64, 0.32),
+            b(0.05, 1.28, 0.2, 0.22, 0.44, 0.22),
+        ],
+        // business at the front, party at the back: a short cap on top and a long flap behind
+        Hair::Mullet => vec![
+            b(0.0, 0.7, -0.3, 1.98, 0.95, 1.75),
+            b(0.0, 0.1, -0.7, 1.7, 1.5, 0.9),
+            b(0.0, -0.45, -0.78, 1.45, 1.0, 0.7),
+            b(0.0, -0.85, -0.72, 1.1, 0.6, 0.5),
+        ],
+        // a round bowl cut with a straight fringe
+        Hair::Bowl => vec![b(0.0, 0.58, -0.12, 2.14, 1.15, 2.1), b(0.0, 0.84, 0.55, 1.35, 0.3, 0.5)],
+    }
+}
+
 /// Build or rebuild the mouth on every head whose look or mood has changed.
 fn sync_faces(
     mut commands: Commands,
@@ -220,7 +335,7 @@ fn sync_faces(
                 (d.look, mood_of(d.body.stun > 0.0, d.body.is_down(), d.bot.drunk.is_drinking(), d.bot.winding))
             }
         };
-        let want = FaceShown { mouth: look.mouth, brows: look.brows, brow_colour: look.colour(Palette::Brow), mood };
+        let want = FaceShown { mouth: look.mouth, brows: look.brows, brow_colour: look.colour(Palette::Brow), hair: look.hair, hair_colour: look.colour(Palette::Hair), mood };
         if shown == Some(&want) {
             continue;
         }
@@ -254,17 +369,23 @@ fn sync_faces(
                 commands.entity(e).despawn();
             }
         }
-        commands.entity(head).insert(want);
+        commands.entity(head).try_insert(want);
         let hair_mat = kit
             .hair
             .entry(want.brow_colour)
             .or_insert_with(|| mats.add(StandardMaterial { base_color: crate::models::hex(want.brow_colour), perceptual_roughness: 0.8, ..default() }))
+            .clone();
+        let top_mat = kit
+            .hair
+            .entry(want.hair_colour)
+            .or_insert_with(|| mats.add(StandardMaterial { base_color: crate::models::hex(want.hair_colour), perceptual_roughness: 0.8, ..default() }))
             .clone();
         let pick = |c: Colour| match c {
             Colour::Dark => kit.dark.clone(),
             Colour::Teeth => kit.teeth.clone(),
             Colour::Tongue => kit.tongue.clone(),
             Colour::Hair => hair_mat.clone(),
+            Colour::HairTop => top_mat.clone(),
         };
         // a point on the face: (x, y) across and up from the head's middle, in head radii; the
         // part sits on the surface facing out, turned `roll` about that facing
@@ -279,6 +400,11 @@ fn sync_faces(
         let mouth = mouth_shape(look.mouth, mood);
         if !mouth.is_empty() {
             parts.push((on_face(0.0, -0.45, 0.0), mouth, true));
+        }
+        let hair = hair_shape(look.hair);
+        if !hair.is_empty() {
+            // hair is placed round the head's middle, not on the face
+            parts.push((Transform::from_translation(centre), hair, false));
         }
         let (brow, lift, tilt) = brow_shape(look.brows, mood);
         if !brow.is_empty() {
@@ -395,6 +521,25 @@ mod tests {
         assert!(brow_shape(Brows::Flat, Mood::Grit).2 > 0.2, "angry when winding up");
         assert!(brow_shape(Brows::Flat, Mood::Ouch).2 < -0.2, "worried when hurt");
         assert_eq!(brow_shape(Brows::Flat, Mood::Normal).2, 0.0);
+    }
+
+    #[test]
+    fn each_hair_style_is_different_and_leaves_the_eyes_and_mouth_clear() {
+        assert!(hair_shape(Hair::None).is_empty());
+        let kinds: Vec<Vec<Blip>> = [Hair::Tuft, Hair::Mullet, Hair::Bowl].iter().map(|h| hair_shape(*h)).collect();
+        assert!(kinds.iter().all(|k| !k.is_empty()));
+        assert_ne!(kinds[0], kinds[1]);
+        assert_ne!(kinds[1], kinds[2]);
+        // the eyes sit at about (±0.37, 0.2, 0.85) and the mouth at (0, -0.45, 0.89): no hair there
+        for h in &kinds {
+            for p in h {
+                for spot in [Vec3::new(0.37, 0.2, 0.9), Vec3::new(-0.37, 0.2, 0.9), Vec3::new(0.0, -0.45, 0.9)] {
+                    let d = (spot - p.at) / (p.size * 0.5);
+                    assert!(d.length() > 1.0, "{p:?} covers {spot}");
+                }
+            }
+        }
+        assert!(kinds[1].iter().any(|p| p.at.z < -0.5 && p.at.y < 0.1), "the mullet hangs down the back");
     }
 
     #[test]
