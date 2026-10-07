@@ -436,7 +436,7 @@ fn look_panel(c: &mut ChildSpawnerCommands) {
     c.spawn((column(12.0), ShowWhen::Panel(Tab::Look))).with_children(|p| {
         p.spawn(legend("Customise your blob"));
         p.spawn(text("Looks only: every blob has the same speed and hit size. Your blob's shape and belly are on the Solo tab.", 13.0, false, MUTED));
-        for (row, label) in [(LookRow::Mouth, "Mouth")] {
+        for (row, label) in [(LookRow::Mouth, "Mouth"), (LookRow::Brows, "Eyebrows"), (LookRow::BrowColour, "Brow colour")] {
             p.spawn(Node { width: Val::Percent(100.0), align_items: AlignItems::Center, column_gap: px(8.0), ..default() })
                 .with_children(|r| {
                     r.spawn((Node { width: px(110.0), ..default() }, children![text(label, 15.0, true, INK)]));
@@ -476,12 +476,17 @@ fn arrow(p: &mut ChildSpawnerCommands, action: Action, label: &str) {
     ));
 }
 
+/// Names for the hair and brow colours (same order as `HAIR_COLOURS`).
+const COLOUR_NAMES_HAIR: [&str; 8] = ["Dark brown", "Brown", "Ginger", "Blonde", "Grey", "Black", "Red", "Teal"];
+
 /// The words between the Customise arrows.
 fn look_texts(settings: Res<Settings>, mut q: Query<(&LookValue, &mut Text)>) {
     use bbq_core::appearance::Choice;
     for (v, mut t) in &mut q {
         let s = match v.0 {
             LookRow::Mouth => settings.look.mouth.name(),
+            LookRow::Brows => settings.look.brows.name(),
+            LookRow::BrowColour => COLOUR_NAMES_HAIR[settings.look.brow_colour as usize % COLOUR_NAMES_HAIR.len()],
         };
         if t.0 != s {
             t.0 = s.to_string();
@@ -708,6 +713,13 @@ fn apply_loaded_settings(mut settings: ResMut<Settings>, mut player: ResMut<Play
             cast.mine = *ch;
         }
     }
+    // `--brows flat|arched|bushy|none` (testing)
+    if let Some(m) = args.iter().position(|a| a == "--brows").and_then(|i| args.get(i + 1)) {
+        use bbq_core::appearance::Choice;
+        if let Some(m) = bbq_core::appearance::Brows::from_name(m) {
+            settings.look.brows = m;
+        }
+    }
     // `--mouth smile|grin|smirk|none` (testing): your look's mouth, and every bot's
     if let Some(m) = args.iter().position(|a| a == "--mouth").and_then(|i| args.get(i + 1)) {
         use bbq_core::appearance::Choice;
@@ -721,9 +733,16 @@ fn apply_loaded_settings(mut settings: ResMut<Settings>, mut player: ResMut<Play
 fn test_looks(mut game: ResMut<Game>) {
     use bbq_core::appearance::Choice;
     let args: Vec<String> = std::env::args().collect();
-    let Some(m) = args.iter().position(|a| a == "--mouth").and_then(|i| args.get(i + 1)).and_then(|m| bbq_core::appearance::Mouth::from_name(m)) else { return };
+    let mouth = args.iter().position(|a| a == "--mouth").and_then(|i| args.get(i + 1)).and_then(|m| bbq_core::appearance::Mouth::from_name(m));
+    let brows = args.iter().position(|a| a == "--brows").and_then(|i| args.get(i + 1)).and_then(|m| bbq_core::appearance::Brows::from_name(m));
     for d in &mut game.dummies {
-        d.look.mouth = m;
+        if let Some(m) = mouth {
+            d.look.mouth = m;
+        }
+        if let Some(b) = brows {
+            d.look.brows = b;
+            d.look.brow_colour = 0;
+        }
     }
 }
 
@@ -806,6 +825,8 @@ fn widget_clicks(
                 use bbq_core::appearance::Choice;
                 match row {
                     LookRow::Mouth => settings.look.mouth = settings.look.mouth.step(*dir),
+                    LookRow::Brows => settings.look.brows = settings.look.brows.step(*dir),
+                    LookRow::BrowColour => settings.look.step_colour(bbq_core::appearance::Palette::Brow, *dir),
                 }
                 changed = true;
             }

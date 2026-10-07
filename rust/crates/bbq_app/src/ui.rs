@@ -208,6 +208,8 @@ pub enum Action {
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum LookRow {
     Mouth,
+    Brows,
+    BrowColour,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]

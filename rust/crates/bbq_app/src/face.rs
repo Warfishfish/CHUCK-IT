@@ -6,7 +6,7 @@
 //! (it is only a handful of little parts). The mouth sits on the front of the head just below
 //! the eyes, sized to the head, and moves with the head (and its wonky tilt).
 
-use bbq_core::appearance::{Appearance, Mouth};
+use bbq_core::appearance::{Appearance, Brows, Mouth, Palette};
 use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
 
@@ -47,6 +47,8 @@ pub enum Mood {
 #[derive(Component, Clone, Copy, PartialEq)]
 struct FaceShown {
     mouth: Mouth,
+    brows: Brows,
+    brow_colour: u32,
     mood: Mood,
 }
 
@@ -54,11 +56,15 @@ struct FaceShown {
 #[derive(Component)]
 struct MouthRoot {
     owner: FaceOwner,
+    /// The mouth wobbles when drunk; brows do not.
+    mouth: bool,
 }
 
 #[derive(Resource)]
 struct FaceKit {
     ball: Handle<Mesh>,
+    /// One material per hair or brow colour, made when first needed.
+    hair: std::collections::HashMap<u32, Handle<StandardMaterial>>,
     dark: Handle<StandardMaterial>,
     teeth: Handle<StandardMaterial>,
     tongue: Handle<StandardMaterial>,
@@ -76,6 +82,7 @@ fn make_kit(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut mats: 
     let m = |c: u32, rough: f32| StandardMaterial { base_color: crate::models::hex(c), perceptual_roughness: rough, reflectance: 0.25, ..default() };
     commands.insert_resource(FaceKit {
         ball: meshes.add(Sphere::new(1.0).mesh().uv(16, 10)),
+        hair: Default::default(),
         dark: mats.add(m(0x3a1812, 0.55)),
         teeth: mats.add(m(0xf7f4ea, 0.35)),
         tongue: mats.add(m(0xd9606a, 0.5)),
@@ -109,6 +116,8 @@ pub enum Colour {
     Dark,
     Teeth,
     Tongue,
+    /// The look's brow (or hair) colour.
+    Hair,
 }
 
 /// The shapes of a mouth, for a head of radius 1 (scaled to the head when built). Kept apart
@@ -153,10 +162,47 @@ pub fn mouth_shape(mouth: Mouth, mood: Mood) -> Vec<Blip> {
     }
 }
 
+/// One eyebrow (the right one; the left is its mirror), for a head of radius 1: the pieces in
+/// the brow's own space (x along it, towards the middle of the face; y up) and how it sits:
+/// (lift above its resting place, tilt in radians: positive = the inner end lower, angry).
+pub fn brow_shape(brows: Brows, mood: Mood) -> (Vec<Blip>, f32, f32) {
+    let bead = |x: f32, y: f32, w: f32, h: f32| Blip { at: Vec3::new(x, y, 0.0), size: Vec3::new(w, h, h * 0.7), colour: Colour::Hair };
+    let pieces: Vec<Blip> = match brows {
+        Brows::None => return (Vec::new(), 0.0, 0.0),
+        // thick and straight
+        Brows::Flat => (0..7).map(|k| bead(-0.17 + k as f32 * 0.057, 0.0, 0.13, 0.1)).collect(),
+        // thin and arched: the middle higher than the ends
+        Brows::Arched => (0..8)
+            .map(|k| {
+                let u = k as f32 / 7.0 * 2.0 - 1.0;
+                bead(u * 0.19, (1.0 - u * u) * 0.08, 0.09, 0.065)
+            })
+            .collect(),
+        // big and bushy: fat, a bit uneven
+        Brows::Bushy => (0..6)
+            .map(|k| {
+                let wob = [0.0, 0.02, -0.012, 0.024, -0.006, 0.016][k];
+                bead(-0.18 + k as f32 * 0.072, wob, 0.17, 0.15)
+            })
+            .collect(),
+    };
+    let (lift, tilt) = match mood {
+        Mood::Normal => (0.0, 0.0),
+        // winding up: angry, inner ends pulled down
+        Mood::Grit => (-0.02, 0.38),
+        // hurt: worried, inner ends up
+        Mood::Ouch => (0.04, -0.35),
+        // sipping: eyebrows up, pleased
+        Mood::Sip => (0.05, -0.1),
+    };
+    (pieces, lift, tilt)
+}
+
 /// Build or rebuild the mouth on every head whose look or mood has changed.
 fn sync_faces(
     mut commands: Commands,
-    kit: Option<Res<FaceKit>>,
+    kit: Option<ResMut<FaceKit>>,
+    mut mats: ResMut<Assets<StandardMaterial>>,
     game: Res<Game>,
     settings: Res<Settings>,
     heads: Query<(Entity, &HeadNode, Option<&FaceShown>)>,
@@ -165,7 +211,7 @@ fn sync_faces(
     roots: Query<(Entity, &ChildOf), With<MouthRoot>>,
     meshes: Res<Assets<Mesh>>,
 ) {
-    let Some(kit) = kit else { return };
+    let Some(mut kit) = kit else { return };
     for (head, node, shown) in &heads {
         let (look, mood): (Appearance, Mood) = match node.owner {
             FaceOwner::Preview => (settings.look, Mood::Normal),
@@ -174,7 +220,7 @@ fn sync_faces(
                 (d.look, mood_of(d.body.stun > 0.0, d.body.is_down(), d.bot.drunk.is_drinking(), d.bot.winding))
             }
         };
-        let want = FaceShown { mouth: look.mouth, mood };
+        let want = FaceShown { mouth: look.mouth, brows: look.brows, brow_colour: look.colour(Palette::Brow), mood };
         if shown == Some(&want) {
             continue;
         }
@@ -209,39 +255,60 @@ fn sync_faces(
             }
         }
         commands.entity(head).insert(want);
-        let blips = mouth_shape(look.mouth, mood);
-        if blips.is_empty() {
-            continue;
+        let hair_mat = kit
+            .hair
+            .entry(want.brow_colour)
+            .or_insert_with(|| mats.add(StandardMaterial { base_color: crate::models::hex(want.brow_colour), perceptual_roughness: 0.8, ..default() }))
+            .clone();
+        let pick = |c: Colour| match c {
+            Colour::Dark => kit.dark.clone(),
+            Colour::Teeth => kit.teeth.clone(),
+            Colour::Tongue => kit.tongue.clone(),
+            Colour::Hair => hair_mat.clone(),
+        };
+        // a point on the face: (x, y) across and up from the head's middle, in head radii; the
+        // part sits on the surface facing out, turned `roll` about that facing
+        let on_face = |x: f32, y: f32, roll: f32| -> Transform {
+            let (x, y) = (x * r, y * r);
+            let z = (r * r - x * x - y * y).max(0.0).sqrt();
+            let normal = Vec3::new(x, y, z).normalize();
+            Transform::from_translation(centre + normal * r * 0.985)
+                .with_rotation(Quat::from_rotation_arc(Vec3::Z, normal) * Quat::from_rotation_z(roll))
+        };
+        let mut parts: Vec<(Transform, Vec<Blip>, bool)> = Vec::new();
+        let mouth = mouth_shape(look.mouth, mood);
+        if !mouth.is_empty() {
+            parts.push((on_face(0.0, -0.45, 0.0), mouth, true));
         }
-        // on the front of the head, a little below the eyes, facing out
-        let y = -0.45 * r;
-        let normal = Vec3::new(0.0, y, (r * r - y * y).max(0.0).sqrt()).normalize();
-        let at = centre + normal * r * 0.985;
-        let mut root = commands.spawn((
-            Transform::from_translation(at).with_rotation(Quat::from_rotation_arc(Vec3::Z, normal)),
-            Visibility::default(),
-            MouthRoot { owner: node.owner },
-            ChildOf(head),
-        ));
-        if let Some(l) = node.layer {
-            root.insert(RenderLayers::layer(l));
+        let (brow, lift, tilt) = brow_shape(look.brows, mood);
+        if !brow.is_empty() {
+            for side in [1.0f32, -1.0] {
+                // above each eye; the right brow's x runs towards the middle, the left is mirrored
+                let mut pieces = brow.clone();
+                for p in &mut pieces {
+                    p.at.x *= -side;
+                }
+                parts.push((on_face(side * 0.36, 0.55 + lift, side * tilt), pieces, false));
+            }
         }
-        let root = root.id();
-        for p in blips {
-            let mat = match p.colour {
-                Colour::Dark => kit.dark.clone(),
-                Colour::Teeth => kit.teeth.clone(),
-                Colour::Tongue => kit.tongue.clone(),
-            };
-            let mut e = commands.spawn((
-                Mesh3d(kit.ball.clone()),
-                MeshMaterial3d(mat),
-                Transform::from_translation(p.at * r).with_scale(p.size * r * 0.5),
-                bevy::light::NotShadowCaster,
-                ChildOf(root),
-            ));
+        for (tf, blips, is_mouth) in parts {
+            let mut root = commands.spawn((tf, Visibility::default(), ChildOf(head)));
+            root.insert(MouthRoot { owner: node.owner, mouth: is_mouth });
             if let Some(l) = node.layer {
-                e.insert(RenderLayers::layer(l));
+                root.insert(RenderLayers::layer(l));
+            }
+            let root = root.id();
+            for p in blips {
+                let mut e = commands.spawn((
+                    Mesh3d(kit.ball.clone()),
+                    MeshMaterial3d(pick(p.colour)),
+                    Transform::from_translation(p.at * r).with_scale(p.size * r * 0.5),
+                    bevy::light::NotShadowCaster,
+                    ChildOf(root),
+                ));
+                if let Some(l) = node.layer {
+                    e.insert(RenderLayers::layer(l));
+                }
             }
         }
     }
@@ -251,6 +318,9 @@ fn sync_faces(
 fn wobble_mouths(time: Res<Time>, game: Res<Game>, mut q: Query<(&MouthRoot, &mut Transform)>) {
     let t = time.elapsed_secs();
     for (m, mut tf) in &mut q {
+        if !m.mouth {
+            continue;
+        }
         let drunk = match m.owner {
             FaceOwner::Blob(i) => game.dummies.get(i).map_or(0.0, |d| d.drunk),
             FaceOwner::Preview => 0.0,
@@ -309,6 +379,22 @@ mod tests {
         assert_eq!(mood_of(false, false, true, true), Mood::Sip);
         assert_eq!(mood_of(false, false, false, true), Mood::Grit);
         assert_eq!(mood_of(false, false, false, false), Mood::Normal);
+    }
+
+    #[test]
+    fn each_brow_is_different_and_moods_tilt_them() {
+        assert!(brow_shape(Brows::None, Mood::Grit).0.is_empty());
+        let kinds: Vec<Vec<Blip>> = [Brows::Flat, Brows::Arched, Brows::Bushy].iter().map(|b| brow_shape(*b, Mood::Normal).0).collect();
+        assert!(kinds.iter().all(|k| !k.is_empty() && k.iter().all(|b| b.colour == Colour::Hair)));
+        assert_ne!(kinds[0], kinds[1]);
+        assert_ne!(kinds[1], kinds[2]);
+        let arched = &kinds[1];
+        assert!(arched[arched.len() / 2].at.y > arched[0].at.y, "arched is higher in the middle");
+        let bushy_h = kinds[2][0].size.y;
+        assert!(bushy_h > kinds[0][0].size.y && bushy_h > kinds[1][0].size.y, "bushy is the fattest");
+        assert!(brow_shape(Brows::Flat, Mood::Grit).2 > 0.2, "angry when winding up");
+        assert!(brow_shape(Brows::Flat, Mood::Ouch).2 < -0.2, "worried when hurt");
+        assert_eq!(brow_shape(Brows::Flat, Mood::Normal).2, 0.0);
     }
 
     #[test]
