@@ -43,6 +43,9 @@ use bevy::prelude::*;
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let shot = shot::parse(&args);
+    if args.iter().any(|a| menu::TEST_FLAGS.contains(&a.as_str())) {
+        menu::NO_SAVE.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
     style::init(&args);
     // the polished look has no empty eskies for now (A1.7 brings them back)
     if lighting::LookMode::from_args(&args) == lighting::LookMode::Polished {

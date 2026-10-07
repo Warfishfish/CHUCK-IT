@@ -92,6 +92,15 @@ impl Default for Settings {
     }
 }
 
+/// Set for test runs (any of `TEST_FLAGS` on the command line): settings are read but never saved.
+pub static NO_SAVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Command-line flags that mean "this is a test run".
+pub const TEST_FLAGS: [&str; 14] = [
+    "--shot", "--net-host", "--net-join", "--net-play", "--net-ready", "--net-give", "--net-throw", "--server", "--name", "--hair",
+    "--mouth", "--brows", "--body", "--belly",
+];
+
 impl Settings {
     fn path() -> Option<std::path::PathBuf> {
         let base = if let Ok(h) = std::env::var("HOME") {
@@ -110,6 +119,10 @@ impl Settings {
 
     /// Plain `key=value` lines, so Marcus can read and edit the file by hand.
     pub fn save(&self) {
+        // test runs (screenshots, two copies online) never write over Marcus's own settings
+        if NO_SAVE.load(std::sync::atomic::Ordering::Relaxed) {
+            return;
+        }
         let Some(p) = Self::path() else { return };
         let _ = std::fs::create_dir_all(p.parent().unwrap());
         let mode = match self.mode {
@@ -233,7 +246,8 @@ pub enum ShowWhen {
     Panel(Tab),
     /// The blob preview card: on the Solo and Customise tabs.
     Preview,
-    /// Everything but the Customise tab (the title and field of view make room for it).
+    /// Only the Solo and How to play tabs (the title and field of view make room for the
+    /// Customise and With mates tabs).
     NotLook,
     /// The lobby card (online, waiting for a round).
     Lobby,
@@ -280,7 +294,12 @@ impl Plugin for MenuPlugin {
             .insert_resource(Settings::load())
             .insert_resource(MenuUi {
                 // `--tab look` (screenshots) opens on the Customise tab
-                tab: if args.iter().any(|a| a == "look") && args.iter().any(|a| a == "--tab") { Tab::Look } else { Tab::Solo },
+                tab: match args.iter().position(|a| a == "--tab").and_then(|i| args.get(i + 1)).map(String::as_str) {
+                    Some("look") => Tab::Look,
+                    Some("mates") => Tab::Mates,
+                    Some("how") => Tab::How,
+                    _ => Tab::Solo,
+                },
                 more_open: false,
                 name_focus: false,
                 request: None,
@@ -819,39 +838,45 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
 struct PlayLabelMarker;
 
 fn mates_panel(c: &mut ChildSpawnerCommands) {
+    let field = |p: &mut ChildSpawnerCommands, label: &str, field: NetField, action: Action| {
+        p.spawn(column(6.0)).with_children(|f| {
+            f.spawn(legend(label));
+            f.spawn((
+                Button,
+                Node {
+                    width: Val::Percent(100.0),
+                    padding: UiRect::axes(px(12.0), px(10.0)),
+                    border: UiRect::all(px(2.0)),
+                    border_radius: BorderRadius::all(px(12.0)),
+                    ..default()
+                },
+                BackgroundColor(WHITE),
+                BorderColor::all(INK),
+                action,
+                children![(text("", 15.0, true, INK), NetFieldText(field))],
+            ));
+        });
+    };
     c.spawn((column(12.0), ShowWhen::Panel(Tab::Mates))).with_children(|p| {
-        p.spawn(legend("Play with mates"));
         p.spawn(text(
-            "One of you hosts, the others join with the room code. Run npm start on the host's computer (or share a cloudflared link) and type its address below. For now you can walk about in the same yard; hits and scores online come next.",
+            "One of you hosts and gets a room code. Your mates type the host's server link and the code, then join. Everybody meets in the lobby, customises, and presses Ready.",
             13.0,
             false,
             MUTED,
         ));
-        for (label, field, action) in [("Server", NetField::Server, Action::FocusServer), ("Room code", NetField::Room, Action::FocusRoom)] {
-            p.spawn(column(6.0)).with_children(|f| {
-                f.spawn(legend(label));
-                f.spawn((
-                    Button,
-                    Node {
-                        width: Val::Percent(100.0),
-                        padding: UiRect::axes(px(12.0), px(10.0)),
-                        border: UiRect::all(px(2.0)),
-                        border_radius: BorderRadius::all(px(12.0)),
-                        ..default()
-                    },
-                    BackgroundColor(WHITE),
-                    BorderColor::all(INK),
-                    action,
-                    children![(text("", 15.0, true, INK), NetFieldText(field))],
-                ));
-            });
-        }
-        p.spawn(row(8.0)).with_children(|r| {
+        field(p, "Server link (the host's)", NetField::Server, Action::FocusServer);
+        p.spawn(row(0.0)).with_children(|r| {
             button(r, Action::HostYard, "Host a yard", Some(SUN));
-            button(r, Action::Join, "Join", None);
-            button(r, Action::Leave, "Leave", None);
+        });
+        p.spawn(legend("Or join a mate's yard"));
+        field(p, "Room code", NetField::Room, Action::FocusRoom);
+        p.spawn(row(0.0)).with_children(|r| {
+            button(r, Action::Join, "Join their yard", None);
         });
         p.spawn((text("", 14.0, true, INK), NetStatusText));
+        p.spawn((row(0.0), ShowWhen::Lobby)).with_children(|r| {
+            button(r, Action::Leave, "Leave the yard", None);
+        });
     });
 }
 
@@ -1274,7 +1299,7 @@ fn net_texts(
     for (f, mut t) in &mut fields {
         let (value, blank) = match f.0 {
             NetField::Server => (&settings.server, "address of the host's server"),
-            NetField::Room => (&settings.room, "leave empty to make a new one"),
+            NetField::Room => (&settings.room, "the code your mate gives you"),
         };
         let caret = if ui.net_focus == Some(f.0) { "|" } else { "" };
         t.0 = if value.is_empty() && caret.is_empty() { blank.to_string() } else { format!("{value}{caret}") };
@@ -1383,7 +1408,7 @@ fn paint_widgets(
             ShowWhen::Preview => matches!(ui.tab, Tab::Solo | Tab::Look) && !lobby.active,
             ShowWhen::Lobby => lobby.active,
             ShowWhen::LobbyHost => lobby.active && lobby.host,
-            ShowWhen::NotLook => ui.tab != Tab::Look,
+            ShowWhen::NotLook => matches!(ui.tab, Tab::Solo | Tab::How),
             ShowWhen::HeistTeams | ShowWhen::HeistNote => heist,
             ShowWhen::FriendlyFire => teams,
             ShowWhen::MoreOpen => ui.more_open,

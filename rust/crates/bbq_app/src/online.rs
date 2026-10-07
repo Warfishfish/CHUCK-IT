@@ -549,7 +549,10 @@ impl Online {
             self.note = "Type the server's address first (the one running npm start)".into();
             return;
         };
-        let room = if req == NetRequest::Host && clean_room(&s.room).len() < 3 { new_room_code(now_seed) } else { clean_room(&s.room) };
+        // the host always gets a fresh code (the code box is for joining); `--net-host CODE` in
+        // tests sets one on purpose
+        let test_code = std::env::args().any(|a| a == "--net-host");
+        let room = if req == NetRequest::Host && !test_code { new_room_code(now_seed) } else { clean_room(&s.room) };
         if room.len() < 3 {
             self.note = "Type the room code your mate gave you".into();
             return;
