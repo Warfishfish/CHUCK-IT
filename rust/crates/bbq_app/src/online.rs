@@ -783,6 +783,8 @@ pub struct Lobby {
     pub host: bool,
     /// How many people are in the yard (the camera fits them all in).
     pub count: usize,
+    /// In a yard online at all (lobby or round).
+    pub in_yard: bool,
 }
 
 /// The lobby: send our look when it changes, count down when everybody is ready (host), start
@@ -809,10 +811,12 @@ fn lobby_logic(
         ui.request = Some(crate::menu::Request::Menu);
     }
     let count = session.as_ref().map_or(0, |s| s.members.len());
-    if (lobby.active, lobby.host, lobby.count) != (active, host, count) {
+    let in_yard = session.as_ref().is_some_and(|s| s.joined());
+    if (lobby.active, lobby.host, lobby.count, lobby.in_yard) != (active, host, count, in_yard) {
         lobby.active = active;
         lobby.host = host;
         lobby.count = count;
+        lobby.in_yard = in_yard;
     }
     let (Some(link), Some(session)) = (link.as_ref(), session.as_mut()) else {
         *was_playing = false;

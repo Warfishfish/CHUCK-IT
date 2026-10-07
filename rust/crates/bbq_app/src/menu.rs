@@ -253,6 +253,14 @@ pub enum ShowWhen {
     Lobby,
     /// Only the host sees this in the lobby (the Start button).
     LobbyHost,
+    /// Not online.
+    Offline,
+    /// Online, in a yard (host or guest).
+    InYard,
+    /// Online as a guest.
+    Guest,
+    /// Anything but an online guest.
+    NotGuest,
     HeistTeams,
     FriendlyFire,
     HeistNote,
@@ -761,12 +769,27 @@ fn look_marks(settings: Res<Settings>, mut q: Query<(&LookChoice, &mut Backgroun
 
 
 fn solo_panel(c: &mut ChildSpawnerCommands) {
-    c.spawn((column(14.0), ShowWhen::Panel(Tab::Solo))).with_children(|p| {
-        p.spawn(row(0.0)).with_children(|r| {
+    c.spawn((column(14.0), ShowWhen::Panel(Tab::Solo))).with_children(|outer| {
+    // online as a guest: the host picks the game
+    outer.spawn((
+        Node { display: Display::None, ..default() },
+        ShowWhen::Guest,
+        children![text("You're in a mate's yard: the host picks the game mode and the rules. Customise your blob and press Ready in the lobby.", 14.0, true, INK)],
+    ));
+    outer.spawn((column(14.0), ShowWhen::NotGuest)).with_children(|p| {
+        // online as the host: no bots, and the round starts from the lobby card
+        p.spawn((
+            Node { display: Display::None, ..default() },
+            ShowWhen::InYard,
+            children![text("Pick the game mode here, then press Start now in the lobby card (or wait for everybody to be Ready).", 13.0, true, INK)],
+        ));
+        p.spawn((row(0.0), ShowWhen::Offline)).with_children(|r| {
             let b = button(r, Action::Play, "Play", Some(TOMATO));
             r.commands().entity(b).insert(PlayLabelMarker);
         });
-        seg(p, SegId::Bots, "Bots", &[("None", 0), ("1", 1), ("2", 2), ("3", 3)]);
+        p.spawn((column(0.0), ShowWhen::Offline)).with_children(|w| {
+            seg(w, SegId::Bots, "Bots", &[("None", 0), ("1", 1), ("2", 2), ("3", 3)]);
+        });
         seg(
             p,
             SegId::Mode,
@@ -831,6 +854,7 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
                 });
             });
         });
+    });
     });
 }
 
@@ -950,16 +974,28 @@ fn spawn_pause(mut commands: Commands) {
                     display_font(34.0),
                     TextColor(INK),
                 ));
-                c.spawn(text(
-                    "Round paused. Resume grabs the mouse again.",
-                    14.0,
-                    false,
-                    MUTED,
+                c.spawn((
+                    Node { display: Display::Flex, ..default() },
+                    ShowWhen::Offline,
+                    children![text("Round paused. Resume grabs the mouse again.", 14.0, false, MUTED)],
+                ));
+                c.spawn((
+                    Node { display: Display::None, ..default() },
+                    ShowWhen::InYard,
+                    children![text("Playing online: the round keeps going for everybody while you're here.", 14.0, false, MUTED)],
                 ));
                 slider(c, SliderId::Fov, "Field of view", 60.0, 105.0);
                 c.spawn(row(10.0)).with_children(|r| {
                     button(r, Action::Resume, "Resume", Some(SUN));
-                    button(r, Action::Quit, "Quit to menu", None);
+                    // online, a guest cannot end the round for everybody: they leave instead
+                    r.spawn((Node { flex_grow: 1.0, flex_basis: px(0.0), display: Display::Flex, ..default() }, ShowWhen::NotGuest))
+                        .with_children(|w| {
+                            button(w, Action::Quit, "Quit to menu", None);
+                        });
+                    r.spawn((Node { flex_grow: 1.0, flex_basis: px(0.0), display: Display::None, ..default() }, ShowWhen::Guest))
+                        .with_children(|w| {
+                            button(w, Action::Leave, "Leave the yard", None);
+                        });
                 });
             });
         });
@@ -1408,6 +1444,10 @@ fn paint_widgets(
             ShowWhen::Preview => matches!(ui.tab, Tab::Solo | Tab::Look) && !lobby.active,
             ShowWhen::Lobby => lobby.active,
             ShowWhen::LobbyHost => lobby.active && lobby.host,
+            ShowWhen::Offline => !lobby.in_yard,
+            ShowWhen::InYard => lobby.in_yard,
+            ShowWhen::Guest => lobby.in_yard && !lobby.host,
+            ShowWhen::NotGuest => !(lobby.in_yard && !lobby.host),
             ShowWhen::NotLook => matches!(ui.tab, Tab::Solo | Tab::How),
             ShowWhen::HeistTeams | ShowWhen::HeistNote => heist,
             ShowWhen::FriendlyFire => teams,
