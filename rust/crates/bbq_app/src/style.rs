@@ -59,6 +59,21 @@ pub fn current() -> Style {
     }
 }
 
+/// Which set of models the current style draws (each has its own proportions).
+pub fn model_set() -> bbq_core::character::ModelSet {
+    use bbq_core::character::ModelSet;
+    match current() {
+        Style::Pop => ModelSet::Pop,
+        Style::Clay => ModelSet::Clay,
+        Style::Current => ModelSet::Plain,
+    }
+}
+
+/// Where the hands, head and shoulders are on a character in the current style.
+pub fn measure(c: Character) -> bbq_core::character::Measure {
+    c.measure(model_set())
+}
+
 /// The model file for a character in the current style.
 pub fn model_path(c: Character) -> String {
     let suffix = match current() {

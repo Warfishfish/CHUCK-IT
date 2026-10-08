@@ -6,7 +6,7 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 - A1.7 lawn debris and the four yard eskies (on hold)
 - A2.6 tree shadows, A2.7 darker under the shed and veranda, A2.8 afternoon feel
 - B5 trees (lean, dead trees, variety, haze), B6 fence (variety, warping, damage, gaps), B7 clusters (pool, shed, clothesline, bins, hose and sprinkler), B8 sky and haze
-- C9 proportions, C10 secondary animation (thong flap, faces, lean, squash), C11 character looks (hats, skin, singlet)
+- C9 proportions (C9.5 different body shapes done 8 Oct; next C9.6 legs, ask Marcus first; C9.7 clipping check), C10 secondary animation (thong flap, faces, lean, squash), C11 character looks (hats, skin, singlet)
 - D12 BBQ, D13 Chest, D14 props and Cheeky-mode bottles, D15 animals
 - E16 more particles, Low/High graphics option; E17 Blender pipeline; E18 LOD; E19 final pass
 - Street and power poles round the neighbourhood (when asked)

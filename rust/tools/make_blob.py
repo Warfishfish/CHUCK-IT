@@ -50,11 +50,13 @@ def pos(x, up, fwd):
 # Body shapes. Radius at the top and at the bottom of the body, plus its height (the old capsule
 # was 0.36 round everywhere and 1.42 tall). The body is egg-shaped: the radius changes smoothly
 # from the bottom value to the top value, and both ends stay round.
+# C9.5 (8 Oct 2026): four clearly different outlines, so you can tell who is who from across the
+# yard. Looks only: hit and catch sizes are fixed in the game code and do not read these.
 SHAPES = {
-    "classic": dict(bottom=0.37, top=0.37, height=1.42, capsule=True),  # the original capsule
-    "pear": dict(bottom=0.47, top=0.31, height=1.42),     # gentle: round bottom, slimmer shoulders
-    "egg": dict(bottom=0.45, top=0.26, height=1.46),      # stronger taper, a bit taller
-    "gumdrop": dict(bottom=0.52, top=0.30, height=1.34),  # wide and low, the cutest
+    "classic": dict(bottom=0.37, top=0.37, height=1.42, capsule=True),  # the original capsule: straight sides
+    "pear": dict(bottom=0.56, top=0.25, height=1.34),     # a proper pear: big round bottom, narrow shoulders
+    "egg": dict(bottom=0.41, top=0.33, height=1.62),      # tall and slim, round at both ends
+    "gumdrop": dict(bottom=0.57, top=0.42, height=1.12),  # short, wide and squat
 }
 # Step 2c caricature: bigger head, hands and feet, a tummy, thongs, a wonky head. Visual only: the
 # game's hit and catch sizes are fixed in code and do not read this. Classic is left as the
@@ -64,9 +66,9 @@ CARICATURE = {
     # Classic (updated 5 Oct 2026 at Marcus's request): still the original capsule body, now with the
     # same caricature as the others: bigger head, hands and feet, thongs, a singlet and a tummy
     "classic": dict(head=0.32, hand=0.12, foot=0.16, belly=0.12, belly_y=0.76, belly_h=0.32, tilt=0.05, thong="ThongClassic"),
-    "pear": dict(head=0.33, hand=0.125, foot=0.165, belly=0.15, belly_y=0.72, belly_h=0.34, tilt=-0.07, thong="ThongPear"),
-    "egg": dict(head=0.34, hand=0.13, foot=0.17, belly=0.13, belly_y=0.78, belly_h=0.32, tilt=0.09, thong="ThongEgg"),
-    "gumdrop": dict(head=0.34, hand=0.13, foot=0.18, belly=0.18, belly_y=0.66, belly_h=0.36, tilt=-0.05, thong="ThongGumdrop"),
+    "pear": dict(head=0.30, hand=0.125, foot=0.17, belly=0.15, belly_y=0.66, belly_h=0.34, tilt=-0.07, thong="ThongPear"),
+    "egg": dict(head=0.33, hand=0.125, foot=0.16, belly=0.12, belly_y=0.84, belly_h=0.34, tilt=0.09, thong="ThongEgg"),
+    "gumdrop": dict(head=0.37, hand=0.14, foot=0.19, belly=0.19, belly_y=0.56, belly_h=0.32, tilt=-0.05, thong="ThongGumdrop"),
 }
 # Style experiment (S1 in GRAPHICS_2C.md): `--style pop` or `--style clay` writes
 # blob_<name>_<style>.glb next to the normal ones, with different proportions.
@@ -278,10 +280,12 @@ def make_blob(shape, dx=0.0):
         egg_body("Torso", shape, M["Body"], parent=body)
     c = CARICATURE.get(shape)
     k = c["head"] / 0.30 if c else 1.0           # how much bigger the head and eyes are
-    head = sphere("Head", c["head"] if c else 0.30, (0, 1.50 + (0.03 if c else 0.0), 0), M["Head"], parent=body)
+    # the head sits on top of the body, wherever its top is (taller bodies, higher heads)
+    lift = SHAPES[shape]["height"] - 1.42
+    head = sphere("Head", c["head"] if c else 0.30, (0, 1.50 + lift + (0.03 if c else 0.0), 0), M["Head"], parent=body)
     if c:
         head.rotation_euler = (0.0, c["tilt"], 0.0)   # a wonky head: leaning to one side
-    hy = 1.56 + (0.03 if c else 0.0) + (0.02 * (k - 1.0) if c else 0.0)
+    hy = 1.56 + lift + (0.03 if c else 0.0) + (0.02 * (k - 1.0) if c else 0.0)
     for side, sg in (("L", -1), ("R", 1)):
         er = 0.085 * (k if c else 1.0)
         sphere("Eye" + side, er, (sg * 0.11 * k, hy, 0.24 * k), M["White"], parent=body, seg=20, rings=11)
@@ -303,7 +307,7 @@ def make_blob(shape, dx=0.0):
             if ob.name.startswith("Torso"):
                 torso = ob
         add_belly_keys(torso, c)
-        sing = singlet(shape, c["belly_y"] - 0.04, 1.22, M["Singlet"], body, seed=len(shape), front_lift=0.12)
+        sing = singlet(shape, c["belly_y"] - 0.04, 1.22 + (SHAPES[shape]["height"] - 1.42), M["Singlet"], body, seed=len(shape), front_lift=0.12)
         add_belly_keys(sing, c)
     # HandR is the one the game animates (it swings), HandL is the other side.
     # Hands rest just outside the body at arm height (0.88 up).
@@ -311,7 +315,20 @@ def make_blob(shape, dx=0.0):
     hx = body_radius(shape, 0.88) + 0.1
     sphere("HandR", hr, (-hx, 0.88, 0.05), M["Head"], parent=body, seg=24, rings=13)
     sphere("HandL", hr, (hx, 0.88, 0.05), M["Head"], parent=body, seg=24, rings=13)
+    measure(shape, body, head, hx)
     return body
+
+
+def measure(shape, body, head, hx):
+    """Print where things sit on this model, for `Character::measure` in bbq_core."""
+    bpy.context.view_layer.update()
+    torso = [ob for ob in body.children if ob.name.startswith("Torso")][0]
+    ox = body.location.x
+    tv = [torso.matrix_world @ v.co for v in torso.data.vertices]
+    hv = [head.matrix_world @ v.co for v in head.data.vertices]
+    print("MEASURE %-8s %-6s hand_x %.3f head_top %.3f body_top %.3f body_w %.3f" % (
+        shape, STYLE or "plain", hx, max(v.z for v in hv), max(v.z for v in tv),
+        max(abs(v.x - ox) for v in tv)))
 
 
 SHEET = "--sheet" in sys.argv

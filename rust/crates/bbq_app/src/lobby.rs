@@ -188,7 +188,9 @@ fn sync_figures(
             .as_ref()
             .and_then(|s| s.members.iter().find(|m| m.id == id).map(|m| if m.id == s.my_id { format!("{} (you)", m.name) } else { m.name.clone() }))
             .unwrap_or_default();
-        for (ready_sign, label, height) in [(false, name, 2.45f32), (true, "READY".to_string(), 2.2)] {
+        // over this shape's head (the shapes are different heights)
+        let top = crate::style::measure(*character).head_top;
+        for (ready_sign, label, height) in [(false, name, top + 0.5), (true, "READY".to_string(), top + 0.25)] {
             let (bg, fg) = if ready_sign { (crate::ui::GOOD, crate::ui::INK) } else { (crate::ui::HUD, Color::WHITE) };
             commands.spawn((
                 Node {

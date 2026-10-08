@@ -114,7 +114,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] C9.3 Beer bellies are part of the body (shape keys), full and round, with a "Beer belly" slider in the menu
 - [ ] C9.4 Slight asymmetry: one shoulder lower, a wonky grin (head tilt is done)
 - [x] C9.4b Classic updated (6 Oct 2026): same caricature as the others (bigger head, hands, feet, thongs, singlet, belly), its Beer belly slider now works; also fixed `--char` and the saved pick not reaching the on-screen characters
-- [ ] C9.5 Clearly different silhouettes between the four characters
+- [x] C9.5 Clearly different silhouettes between the four characters (8 Oct 2026): Classic the straight capsule, Pear a big round bottom and narrow shoulders with a smaller head, Egg tall and slim, Gumdrop short, wide and squat with a big head. Heads sit on each body's top; hands rest against each body; looks only (hit and catch sizes unchanged). `make_blob.py` prints MEASURE lines that go into `Character::measure`
 - [ ] C9.6 Skinny lower legs (the blobs have no legs, so this needs a pose change; decide with Marcus first)
 - [ ] C9.7 Walk, throw, stunned and fall poses re-checked with the bigger feet and hands (no clipping)
 
@@ -135,7 +135,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [ ] C11.3 Singlet in the fabric material (A3.6), and shorts or stubbies for the blobs
 - [ ] C11.4 A cap or hat on some characters
 - [ ] C11.5 Skin and body roughness (a soft sheen, a little sunburn on the nose and shoulders)
-- [ ] C11.6 Leader crown, stars, sash and name tag still read clearly on the new bodies
+- [x] C11.6 Leader crown, stars, sash and name tag still read clearly on the new bodies (8 Oct 2026): the crown sits on each head (it was half inside the bigger pop heads), the stun stars just above it, name tags over each head (lobby too); the team sash, the Heist swim ring and the team bubble are sized and placed for each body
 
 ## PHASE D: Hero assets
 

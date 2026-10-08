@@ -96,9 +96,9 @@ impl Default for Settings {
 pub static NO_SAVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Command-line flags that mean "this is a test run".
-pub const TEST_FLAGS: [&str; 14] = [
+pub const TEST_FLAGS: [&str; 15] = [
     "--shot", "--net-host", "--net-join", "--net-play", "--net-ready", "--net-give", "--net-throw", "--server", "--name", "--hair",
-    "--mouth", "--brows", "--body", "--belly",
+    "--mouth", "--brows", "--body", "--belly", "--char",
 ];
 
 impl Settings {
@@ -638,7 +638,7 @@ fn look_panel(c: &mut ChildSpawnerCommands) {
         p.spawn(legend("Body"));
         let shapes: Vec<&str> = Character::ALL.iter().map(|c| c.name()).collect();
         style_buttons(p, LookRow::Shape, "Shape", &shapes);
-        slider(p, SliderId::Belly, "Beer belly (Classic has none)", 0.0, 2.0);
+        slider(p, SliderId::Belly, "Beer belly", 0.0, 2.0);
         // the styles: a row of buttons each
         p.spawn(legend("Face and hair"));
         let styles: [(LookRow, &str, Vec<&str>); 3] = [
@@ -1018,6 +1018,7 @@ fn apply_loaded_settings(mut settings: ResMut<Settings>, mut player: ResMut<Play
     if let Some(c) = args.iter().position(|a| a == "--char").and_then(|i| args.get(i + 1)) {
         if let Some(ch) = Character::ALL.iter().find(|x| x.name().eq_ignore_ascii_case(c)) {
             cast.mine = *ch;
+            settings.character = *ch; // the Customise preview shows it too (never saved: a test flag)
         }
     }
     // `--name NAME` (testing two copies on one computer)

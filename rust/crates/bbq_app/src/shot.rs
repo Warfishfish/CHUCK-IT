@@ -187,9 +187,17 @@ fn shot_camera(
             0.0
         };
         let head = args.iter().any(|a| a == "--bot-head");
+        // `--bot-far`: the whole blob, head to toe, with room round it
+        let far = args.iter().any(|a| a == "--bot-far");
         let a = d.face + side;
         let (dx, dz) = (a.sin(), a.cos());
-        let (dist, y, fov) = if head { (4.2, 1.45 + d.mover.y, 22.0f32) } else { (3.0, 1.05, 42.0) };
+        let (dist, y, fov) = if head {
+            (4.2, 1.45 + d.mover.y, 22.0f32)
+        } else if far {
+            (5.0, 1.15 + d.mover.y, 32.0)
+        } else {
+            (3.0, 1.05, 42.0)
+        };
         let (tf, proj) = &mut *cam;
         tf.translation = Vec3::new(d.mover.x + dx * dist, y, d.mover.z + dz * dist);
         tf.rotation = Quat::from_euler(EulerRot::YXZ, a, if head { -0.06 } else { -0.05 }, 0.0);

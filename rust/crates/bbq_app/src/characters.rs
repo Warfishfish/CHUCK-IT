@@ -100,6 +100,9 @@ struct Floating {
 }
 #[derive(Component)]
 struct NameTag;
+/// Which blob a name tag belongs to (so it can sit above that blob's head).
+#[derive(Component)]
+struct TagOf(usize);
 #[derive(Component)]
 struct HelpSign;
 #[derive(Component)]
@@ -166,6 +169,7 @@ impl Plugin for CharactersPlugin {
                     apply_roots,
                     apply_bodies,
                     apply_hands,
+                    fit_to_shape,
                     animate_face_and_feet,
                     apply_crown,
                     apply_stars,
@@ -721,6 +725,7 @@ fn build_blobs(
                 height: 2.3,
             },
             NameTag,
+            TagOf(i),
         ));
         // HELP ME sign (hidden until they stack it)
         commands.spawn((
@@ -1204,7 +1209,7 @@ fn apply_hands(
             continue;
         };
         let h = pp.hand_r;
-        let dx = cast.character_of(b.0).hand_x() - 0.47; // sit against this body shape
+        let dx = crate::style::measure(cast.character_of(b.0)).hand_x - 0.47; // sit against this body shape
         tf.translation = Vec3::new(h.x - dx, h.y, h.z);
     }
     for (b, mut tf) in &mut left {
@@ -1212,8 +1217,57 @@ fn apply_hands(
             continue;
         };
         let h = pp.hand_l;
-        let dx = cast.character_of(b.0).hand_x() - 0.47;
+        let dx = crate::style::measure(cast.character_of(b.0)).hand_x - 0.47;
         tf.translation = Vec3::new(h.x + dx, h.y, h.z);
+    }
+}
+
+/// The body shapes are different heights and widths (C9.5), so the crown sits on top of each
+/// head, the stun stars spin just above it, the name tag floats over it, and the team sash, the
+/// Heist swim ring and the team bubble fit round each body. The sizes were set on Classic.
+#[allow(clippy::type_complexity)]
+fn fit_to_shape(
+    cast: Res<Cast>,
+    mut parts: ParamSet<(
+        Query<(&Blob, &mut Transform), With<Crown>>,
+        Query<(&Blob, &mut Transform), With<Stars>>,
+        Query<(&Blob, &mut Transform), With<SwimRing>>,
+        Query<(&Blob, &mut Transform), With<Sash>>,
+        Query<(&Blob, &mut Transform), With<Balloon>>,
+    )>,
+    mut tags: Query<(&TagOf, &mut Floating)>,
+) {
+    let classic = crate::style::measure(Character::Classic);
+    let fit = |i: usize| {
+        let m = crate::style::measure(cast.character_of(i));
+        // a height on Classic's body moved to the same spot on this body, and how much wider it is
+        let up = move |y: f32| 0.07 + (y - 0.07) * (m.body_top - 0.07) / (classic.body_top - 0.07);
+        (m, up, m.body_w / classic.body_w)
+    };
+    for (b, mut tf) in &mut parts.p0() {
+        tf.translation.y = fit(b.0).0.head_top - 0.05;
+    }
+    for (b, mut tf) in &mut parts.p1() {
+        tf.translation.y = fit(b.0).0.head_top + 0.1;
+    }
+    for (b, mut tf) in &mut parts.p2() {
+        let (_, up, wide) = fit(b.0);
+        tf.translation.y = up(0.86);
+        tf.scale = Vec3::splat(wide);
+    }
+    for (b, mut tf) in &mut parts.p3() {
+        let (_, up, wide) = fit(b.0);
+        tf.translation.y = up(0.92);
+        tf.scale = Vec3::splat(wide);
+    }
+    for (b, mut tf) in &mut parts.p4() {
+        // big enough to take in the whole blob, head and all
+        let r = BALLOON_RADIUS.max((fit(b.0).0.head_top + 0.18) / 2.0);
+        tf.translation.y = r - 0.13;
+        tf.scale = Vec3::splat(r);
+    }
+    for (t, mut f) in &mut tags {
+        f.height = fit(t.0).0.head_top + 0.4;
     }
 }
 

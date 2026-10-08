@@ -61,7 +61,7 @@ fn spawn_preview_rig(
             fov: 34f32.to_radians(),
             ..default()
         }),
-        Transform::from_xyz(0.0, 1.0, 4.4).looking_at(Vec3::new(0.0, 0.82, 0.0), Vec3::Y),
+        Transform::from_xyz(0.0, 1.1, 4.7).looking_at(Vec3::new(0.0, 0.92, 0.0), Vec3::Y),
         crate::lighting::camera_style(*look),
         ambient,
         layers.clone(),
