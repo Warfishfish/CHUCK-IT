@@ -38,7 +38,7 @@ impl Plugin for PreviewPlugin {
         app.insert_resource(PreviewImage(handle))
             .init_resource::<Spin>()
             .add_systems(Startup, spawn_preview_rig)
-            .add_systems(Update, (swap_preview_model, drag_preview, spin_preview, preview_on_only_in_menu).chain());
+            .add_systems(Update, (swap_preview_model, drag_preview, spin_preview, frame_preview, preview_on_only_in_menu).chain());
     }
 }
 
@@ -256,6 +256,20 @@ fn spin_preview(
             ws[0] = settings.belly.powf(0.8);
             ws[1] = jiggle * settings.belly;
         }
+    }
+}
+
+/// Tall blobs (the Egg, and anyone on legs) are seen from a little further back so all of them
+/// fits, hair and all; the others keep the usual close view. The camera glides to it.
+fn frame_preview(time: Res<Time>, settings: Res<Settings>, mut cam: Query<&mut Transform, With<PreviewCamera>>) {
+    let top = crate::style::measure(settings.character).head_top + settings.look.legs.lift() + 0.15;
+    let aim = (top * 0.5 - 0.2).max(0.92);
+    let back = ((top * 0.5 + 0.3) / 17f32.to_radians().tan()).max(4.7);
+    let want = Transform::from_xyz(0.0, aim + 0.18, back).looking_at(Vec3::new(0.0, aim, 0.0), Vec3::Y);
+    let k = 1.0 - (-8.0 * time.delta_secs()).exp();
+    for mut tf in &mut cam {
+        tf.translation = tf.translation.lerp(want.translation, k);
+        tf.rotation = tf.rotation.slerp(want.rotation, k);
     }
 }
 

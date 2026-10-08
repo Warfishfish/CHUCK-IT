@@ -13,7 +13,7 @@
 
 /// Bump this whenever a message changes, so old and new copies of the game refuse each other
 /// politely instead of misreading each other.
-pub const PROTOCOL: u16 = 2;
+pub const PROTOCOL: u16 = 3;
 /// The most people in one yard (the browser game's limit).
 pub const MAX_PLAYERS: usize = 16;
 /// How often each player reports where they are.
@@ -245,7 +245,8 @@ impl<'a> Reader<'a> {
         Ok(s.to_string())
     }
     fn look(&mut self) -> Result<crate::appearance::Appearance, DecodeError> {
-        let b: [u8; 8] = self.take(8)?.try_into().unwrap();
+        use crate::appearance::LOOK_BYTES;
+        let b: [u8; LOOK_BYTES] = self.take(LOOK_BYTES)?.try_into().unwrap();
         Ok(crate::appearance::Appearance::from_bytes(b))
     }
     fn member(&mut self) -> Result<Member, DecodeError> {

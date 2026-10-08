@@ -1225,9 +1225,11 @@ fn apply_hands(
 /// The body shapes are different heights and widths (C9.5), so the crown sits on top of each
 /// head, the stun stars spin just above it, the name tag floats over it, and the team sash, the
 /// Heist swim ring and the team bubble fit round each body. The sizes were set on Classic.
+/// Legs (C9.6) lift all of it.
 #[allow(clippy::type_complexity)]
 fn fit_to_shape(
     cast: Res<Cast>,
+    game: Res<Game>,
     mut parts: ParamSet<(
         Query<(&Blob, &mut Transform), With<Crown>>,
         Query<(&Blob, &mut Transform), With<Stars>>,
@@ -1239,9 +1241,13 @@ fn fit_to_shape(
 ) {
     let classic = crate::style::measure(Character::Classic);
     let fit = |i: usize| {
-        let m = crate::style::measure(cast.character_of(i));
-        // a height on Classic's body moved to the same spot on this body, and how much wider it is
-        let up = move |y: f32| 0.07 + (y - 0.07) * (m.body_top - 0.07) / (classic.body_top - 0.07);
+        let mut m = crate::style::measure(cast.character_of(i));
+        let lift = crate::legs::lift_of(&game, i);
+        // a height on Classic's body moved to the same spot on this body (and up its legs), and
+        // how much wider it is
+        let up = move |y: f32| lift + 0.07 + (y - 0.07) * (m.body_top - 0.07) / (classic.body_top - 0.07);
+        m.head_top += lift;
+        m.body_top += lift;
         (m, up, m.body_w / classic.body_w)
     };
     for (b, mut tf) in &mut parts.p0() {

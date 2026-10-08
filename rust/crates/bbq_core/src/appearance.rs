@@ -1,10 +1,10 @@
-//! How a player has customised their blob (Marcus, 6 Oct 2026): mouth, eyebrows, hair and the
-//! colours of the body, singlet, thongs, hair and brows. Looks only: nothing here changes speed
-//! or hit sizes. The body shape itself is `Character`.
+//! How a player has customised their blob (Marcus, 6 Oct 2026): mouth, eyebrows, hair, legs
+//! (8 Oct 2026) and the colours of the body, singlet, thongs, hair and brows. Looks only:
+//! nothing here changes speed or hit sizes. The body shape itself is `Character`.
 //!
 //! Colours are picked from small palettes (an index each), not a free colour wheel, so every
 //! blob still looks good in the yard. Saved in `settings.txt` as plain words and numbers
-//! (`to_lines` / `read_line`), and sent online as 8 bytes (`to_bytes` / `from_bytes`). Anything
+//! (`to_lines` / `read_line`), and sent online as 9 bytes (`to_bytes` / `from_bytes`). Anything
 //! odd or old falls back to the default instead of failing.
 
 use crate::rng::Rng;
@@ -102,6 +102,52 @@ impl Choice for Hair {
     }
 }
 
+/// Legs (C9.6, Marcus 8 Oct 2026): the blobs have none unless you pick some. Legs stand the
+/// blob up a little taller; only the drawing changes, the hit sizes stay the same.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub enum Legs {
+    #[default]
+    None,
+    /// Short and stumpy.
+    Stumpy,
+    /// Thin stick legs.
+    Skinny,
+}
+
+impl Choice for Legs {
+    const ALL: &'static [Legs] = &[Legs::None, Legs::Stumpy, Legs::Skinny];
+    fn name(self) -> &'static str {
+        match self {
+            Legs::None => "None",
+            Legs::Stumpy => "Stumpy",
+            Legs::Skinny => "Skinny",
+        }
+    }
+}
+
+impl Legs {
+    /// How far the legs lift the body, head and hands (m). The feet stay on the ground.
+    pub fn lift(self) -> f32 {
+        match self {
+            Legs::None => 0.0,
+            Legs::Stumpy => 0.15,
+            Legs::Skinny => 0.30,
+        }
+    }
+
+    /// How thick a leg is: its radius at the hip and at the ankle (m).
+    pub fn radii(self) -> (f32, f32) {
+        match self {
+            Legs::None => (0.0, 0.0),
+            Legs::Stumpy => (0.10, 0.09),
+            Legs::Skinny => (0.055, 0.035),
+        }
+    }
+}
+
+/// How many bytes a look takes in the online messages.
+pub const LOOK_BYTES: usize = 9;
+
 /// The colour palettes (0xRRGGBB). Sun-baked but clear, picked to sit well in the yard.
 pub const BODY_COLOURS: [u32; 10] = [
     0xffd23f, // sunny yellow (the old fixed preview colour)
@@ -131,11 +177,22 @@ pub struct Appearance {
     pub hair_colour: u8,
     /// The brows' colour (from the hair palette).
     pub brow_colour: u8,
+    pub legs: Legs,
 }
 
 impl Default for Appearance {
     fn default() -> Self {
-        Appearance { mouth: Mouth::Smile, brows: Brows::Flat, hair: Hair::None, body: 0, singlet: 0, thong: 0, hair_colour: 0, brow_colour: 0 }
+        Appearance {
+            mouth: Mouth::Smile,
+            brows: Brows::Flat,
+            hair: Hair::None,
+            body: 0,
+            singlet: 0,
+            thong: 0,
+            hair_colour: 0,
+            brow_colour: 0,
+            legs: Legs::None,
+        }
     }
 }
 
@@ -201,10 +258,11 @@ impl Appearance {
         self
     }
 
-    /// A random look (the Randomise button, and the bots).
+    /// A random look (the Randomise button, and the bots). Half of them have no legs (the look
+    /// Marcus likes best); legs are picked last so the rest of a bot's look is as it was.
     pub fn random(rng: &mut Rng) -> Self {
         let pick = |rng: &mut Rng, n: usize| rng.index(n) as u8;
-        Appearance {
+        let mut a = Appearance {
             mouth: Mouth::from_index(pick(rng, Mouth::ALL.len())),
             brows: Brows::from_index(pick(rng, Brows::ALL.len())),
             hair: Hair::from_index(pick(rng, Hair::ALL.len())),
@@ -213,13 +271,20 @@ impl Appearance {
             thong: pick(rng, THONG_COLOURS.len()),
             hair_colour: pick(rng, HAIR_COLOURS.len()),
             brow_colour: pick(rng, HAIR_COLOURS.len()),
-        }
+            legs: Legs::None,
+        };
+        a.legs = match rng.index(4) {
+            0 | 1 => Legs::None,
+            2 => Legs::Stumpy,
+            _ => Legs::Skinny,
+        };
+        a
     }
 
     /// `key=value` lines for `settings.txt`.
     pub fn to_lines(&self) -> String {
         format!(
-            "mouth={}\nbrows={}\nhair={}\nbody_colour={}\nsinglet_colour={}\nthong_colour={}\nhair_colour={}\nbrow_colour={}\n",
+            "mouth={}\nbrows={}\nhair={}\nbody_colour={}\nsinglet_colour={}\nthong_colour={}\nhair_colour={}\nbrow_colour={}\nlegs={}\n",
             self.mouth.name(),
             self.brows.name(),
             self.hair.name(),
@@ -227,7 +292,8 @@ impl Appearance {
             self.singlet,
             self.thong,
             self.hair_colour,
-            self.brow_colour
+            self.brow_colour,
+            self.legs.name()
         )
     }
 
@@ -244,14 +310,15 @@ impl Appearance {
             "thong_colour" => self.thong = num(value).unwrap_or(self.thong),
             "hair_colour" => self.hair_colour = num(value).unwrap_or(self.hair_colour),
             "brow_colour" => self.brow_colour = num(value).unwrap_or(self.brow_colour),
+            "legs" => self.legs = Legs::from_name(value).unwrap_or(self.legs),
             _ => return false,
         }
         *self = self.tidy();
         true
     }
 
-    /// The look as 8 bytes, for the online messages.
-    pub fn to_bytes(&self) -> [u8; 8] {
+    /// The look as 9 bytes, for the online messages.
+    pub fn to_bytes(&self) -> [u8; LOOK_BYTES] {
         [
             self.mouth.index(),
             self.brows.index(),
@@ -261,11 +328,12 @@ impl Appearance {
             self.thong,
             self.hair_colour,
             self.brow_colour,
+            self.legs.index(),
         ]
     }
 
-    /// From 8 bytes; anything out of range becomes something sensible.
-    pub fn from_bytes(b: [u8; 8]) -> Self {
+    /// From 9 bytes; anything out of range becomes something sensible.
+    pub fn from_bytes(b: [u8; LOOK_BYTES]) -> Self {
         Appearance {
             mouth: Mouth::from_index(b[0]),
             brows: Brows::from_index(b[1]),
@@ -275,6 +343,7 @@ impl Appearance {
             thong: b[5],
             hair_colour: b[6],
             brow_colour: b[7],
+            legs: Legs::from_index(b[8]),
         }
         .tidy()
     }
@@ -285,7 +354,17 @@ mod tests {
     use super::*;
 
     fn odd() -> Appearance {
-        Appearance { mouth: Mouth::Smirk, brows: Brows::Bushy, hair: Hair::Mullet, body: 7, singlet: 3, thong: 5, hair_colour: 2, brow_colour: 6 }
+        Appearance {
+            mouth: Mouth::Smirk,
+            brows: Brows::Bushy,
+            hair: Hair::Mullet,
+            body: 7,
+            singlet: 3,
+            thong: 5,
+            hair_colour: 2,
+            brow_colour: 6,
+            legs: Legs::Skinny,
+        }
     }
 
     #[test]
@@ -296,6 +375,19 @@ mod tests {
         assert_eq!(Mouth::ALL[0], Mouth::None);
         assert_eq!(Brows::ALL[0], Brows::None);
         assert_eq!(Hair::ALL[0], Hair::None);
+        // legs: none (the default, Marcus likes it best), stumpy or skinny
+        assert_eq!(Legs::ALL, &[Legs::None, Legs::Stumpy, Legs::Skinny]);
+        assert_eq!(Appearance::default().legs, Legs::None);
+    }
+
+    #[test]
+    fn legs_lift_the_blob_and_skinny_ones_are_thinner_and_longer() {
+        assert_eq!(Legs::None.lift(), 0.0);
+        assert!(Legs::Skinny.lift() > Legs::Stumpy.lift() && Legs::Stumpy.lift() > 0.0);
+        let (st, sb) = Legs::Stumpy.radii();
+        let (kt, kb) = Legs::Skinny.radii();
+        assert!(kt < st && kb < sb, "skinny legs are thinner");
+        assert!(st >= sb && kt >= kb, "a leg is no thinner at the hip than at the ankle");
     }
 
     #[test]
@@ -341,11 +433,12 @@ mod tests {
     }
 
     #[test]
-    fn the_look_fits_in_8_bytes_and_junk_is_made_safe() {
+    fn the_look_fits_in_9_bytes_and_junk_is_made_safe() {
         let a = odd();
         assert_eq!(Appearance::from_bytes(a.to_bytes()), a);
-        let junk = Appearance::from_bytes([255; 8]);
+        let junk = Appearance::from_bytes([255; LOOK_BYTES]);
         assert_eq!(junk.mouth, Mouth::None);
+        assert_eq!(junk.legs, Legs::None);
         for p in [Palette::Body, Palette::Singlet, Palette::Thong, Palette::Hair, Palette::Brow] {
             assert!((junk.colour_index(p) as usize) < p.colours().len());
             let _ = junk.colour(p);
@@ -356,11 +449,15 @@ mod tests {
     fn random_looks_stay_inside_the_choices_and_vary() {
         let mut rng = Rng::new(7);
         let mut seen = std::collections::HashSet::new();
+        let mut legs = [0; 3];
         for _ in 0..300 {
             let a = Appearance::random(&mut rng);
             assert_eq!(a, a.tidy());
             seen.insert((a.mouth, a.hair, a.body));
+            legs[a.legs.index() as usize] += 1;
         }
         assert!(seen.len() > 50, "lots of different blobs ({})", seen.len());
+        // about half have no legs, and both kinds of legs turn up
+        assert!((110..=190).contains(&legs[0]) && legs[1] > 30 && legs[2] > 30, "{legs:?}");
     }
 }

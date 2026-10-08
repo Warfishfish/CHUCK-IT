@@ -332,13 +332,53 @@ def measure(shape, body, head, hx):
 
 
 SHEET = "--sheet" in sys.argv
+# C9.6 (8 Oct 2026): `--legs stumpy|skinny` stands the blob on a pair of legs in the preview
+# pictures. The game models have no legs: the game adds them itself (`legs.rs`, same sizes as
+# `Legs` in bbq_core). Everything but the feet is lifted by the leg length.
+LEGS = sys.argv[sys.argv.index("--legs") + 1] if "--legs" in sys.argv else None
+LEG_KINDS = {
+    # lift (m), leg radius at the hip, at the ankle
+    "stumpy": (0.15, 0.10, 0.09),
+    "skinny": (0.30, 0.055, 0.035),
+}
+
+
+def add_legs(body, kind):
+    lift, r_top, r_bot = LEG_KINDS[kind]
+    for ob in body.children:
+        if not ob.name.startswith(("Foot", "Thong", "Strap")):
+            ob.location.z += lift
+    bottom, top = 0.14, BODY_BASE + lift + 0.16   # from inside the foot to inside the body
+    for side, sg in (("L", -1), ("R", 1)):
+        bm = bmesh.new()
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=20, radius1=r_bot, radius2=r_top, depth=top - bottom)
+        me = bpy.data.meshes.new("Leg" + side)
+        bm.to_mesh(me)
+        bm.free()
+        for p_ in me.polygons:
+            p_.use_smooth = True
+        ob = bpy.data.objects.new("Leg" + side, me)
+        ob.data.materials.append(M["Head"])
+        ob.location = pos(sg * 0.2, (top + bottom) / 2, 0.04)
+        scn.collection.objects.link(ob)
+        ob.parent = body
+        # round ends: a ball at the hip and one at the ankle
+        hip = sphere("Hip" + side, r_top, (sg * 0.2, top, 0.04), M["Head"], parent=body, seg=20, rings=11)
+        ankle = sphere("Ankle" + side, r_bot, (sg * 0.2, bottom, 0.04), M["Head"], parent=body, seg=20, rings=11)
+        # placed in the body's own space (the body may already be moved along the sheet)
+        for part in (ob, hip, ankle):
+            part.matrix_parent_inverse.identity()
 ORDER = ["classic", "pear", "egg", "gumdrop"]
 
 if SHEET:
     for i, name in enumerate(ORDER):
         b = make_blob(name, dx=(i - 1.5) * 1.3)
+        if LEGS in LEG_KINDS:
+            add_legs(b, LEGS)
         if "--side" in sys.argv:
             b.rotation_euler = (0, 0, math.radians(-90))  # facing right, to see the tummy
+        elif "--turn" in sys.argv:
+            b.rotation_euler = (0, 0, math.radians(-35))  # three-quarter view
 elif not PREVIEW:
     pass  # exporting happens below, one file per character
 else:
@@ -360,9 +400,10 @@ if PREVIEW:
     sun.data.energy = 4; sun.rotation_euler = (math.radians(50), 0, math.radians(-30))
     scn.collection.objects.link(sun)
     cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam"))
-    cam.location = ((0.0, -8.2, 2.2) if SHEET else (2.0, -3.6, 1.7)); scn.collection.objects.link(cam)
+    cam.location = ((0.0, -9.6, 2.5) if LEGS else (0.0, -8.2, 2.2)) if SHEET else (2.0, -3.6, 1.7)
+    scn.collection.objects.link(cam)
     d = cam.constraints.new("TRACK_TO"); d.track_axis = "TRACK_NEGATIVE_Z"; d.up_axis = "UP_Y"
-    t = bpy.data.objects.new("t", None); t.location = (0, 0, 0.85); scn.collection.objects.link(t); d.target = t
+    t = bpy.data.objects.new("t", None); t.location = (0, 0, 1.0 if LEGS else 0.85); scn.collection.objects.link(t); d.target = t
     scn.camera = cam
     scn.render.engine = "CYCLES"; scn.cycles.device = "CPU"; scn.cycles.samples = 32
     scn.render.resolution_x, scn.render.resolution_y = ((1400, 560) if SHEET else (600, 700))

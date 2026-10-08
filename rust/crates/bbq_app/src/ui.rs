@@ -215,6 +215,8 @@ pub enum Action {
 pub enum LookRow {
     /// The body shape (Classic, Pear, Egg, Gumdrop).
     Shape,
+    /// No legs, stubby or skinny.
+    Legs,
     Body,
     Singlet,
     Thongs,

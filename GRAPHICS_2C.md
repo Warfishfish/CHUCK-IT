@@ -115,7 +115,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [ ] C9.4 Slight asymmetry: one shoulder lower, a wonky grin (head tilt is done)
 - [x] C9.4b Classic updated (6 Oct 2026): same caricature as the others (bigger head, hands, feet, thongs, singlet, belly), its Beer belly slider now works; also fixed `--char` and the saved pick not reaching the on-screen characters
 - [x] C9.5 Clearly different silhouettes between the four characters (8 Oct 2026): Classic the straight capsule, Pear a big round bottom and narrow shoulders with a smaller head, Egg tall and slim, Gumdrop short, wide and squat with a big head. Heads sit on each body's top; hands rest against each body; looks only (hit and catch sizes unchanged). `make_blob.py` prints MEASURE lines that go into `Character::measure`
-- [ ] C9.6 Skinny lower legs (the blobs have no legs, so this needs a pose change; decide with Marcus first)
+- [x] C9.6 Legs as a customisation (8 Oct 2026, Marcus: "I like the look with no legs"): Legs row on the Customise tab, None (default), Stubby or Skinny. The game adds the legs to the model (`legs.rs`): the feet stay on the ground, the body, head and hands are lifted, and each leg runs from the hip to its foot so it follows the steps. Legs are the hands' colour. Crown, stars, name tags, sash, ring, bubble and held items go up with them; looks only, hit sizes unchanged. Half the bots get legs
 - [ ] C9.7 Walk, throw, stunned and fall poses re-checked with the bigger feet and hands (no clipping)
 
 ### C10. Secondary animation

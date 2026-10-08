@@ -264,8 +264,11 @@ fn place_tags(
     let (camera, cam_gt) = *cam;
     for (tag, mut node, computed, mut vis) in &mut tags {
         let Ok(gt) = targets.get(tag.target) else { continue };
-        let p = gt.translation() + Vec3::Y * tag.height;
-        let shown = !tag.ready_sign || lobby_look(&online, &settings, tag.net_id).is_some_and(|l| l.3);
+        let look = lobby_look(&online, &settings, tag.net_id);
+        // legs stand the figure up taller (C9.6)
+        let lift = look.map_or(0.0, |l| l.1.legs.lift());
+        let p = gt.translation() + Vec3::Y * (tag.height + lift);
+        let shown = !tag.ready_sign || look.is_some_and(|l| l.3);
         let at = camera.world_to_viewport(cam_gt, p).ok();
         let want = if shown && at.is_some() { Visibility::Inherited } else { Visibility::Hidden };
         if *vis != want {
