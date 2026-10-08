@@ -100,14 +100,21 @@ fn legs_of(owner: FaceOwner, game: &Game, settings: &Settings, online: Option<&c
     match owner {
         FaceOwner::Preview => Some(settings.look.legs),
         FaceOwner::Lobby(id) => online.and_then(|o| crate::lobby::lobby_look(o, settings, id)).map(|l| l.1.legs),
-        FaceOwner::Blob(i) => game.dummies.get(i).map(|d| d.look.legs),
+        FaceOwner::Blob(i) => game.dummies.get(i).map(legs_shown),
     }
+}
+
+/// The legs a yard blob has on show: none while it sits at smoko or in the Naughty Corner,
+/// because the sitting pose already lowers the whole blob onto the chair (so a seated blob looks
+/// just as it does without legs).
+pub fn legs_shown(d: &crate::game::Dummy) -> Legs {
+    if d.seat.is_some() || d.naughty_t > 0.0 { Legs::None } else { d.look.legs }
 }
 
 /// How much a yard blob's legs lift it (0 without legs). Things that sit on a blob (the crown,
 /// the stars, the name tag, a held item) go up by this much.
 pub fn lift_of(game: &Game, i: usize) -> f32 {
-    game.dummies.get(i).map_or(0.0, |d| d.look.legs.lift())
+    game.dummies.get(i).map_or(0.0, |d| legs_shown(d).lift())
 }
 
 /// A model has just loaded (its head was found): move its feet out from under the body and add

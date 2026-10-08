@@ -154,7 +154,8 @@ pub struct CharactersPlugin;
 
 impl Plugin for CharactersPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (spawn_blobs, spawn_dazza))
+        app.add_systems(Update, test_pose.before(compute_poses))
+            .add_systems(Startup, (spawn_blobs, spawn_dazza))
             .init_resource::<Poses>()
             .init_resource::<Cast>()
             .init_resource::<Looks>()
@@ -1120,6 +1121,54 @@ fn viewer_keys(keys: Res<ButtonInput<KeyCode>>, mut game: ResMut<Game>, mut cast
     if keys.just_pressed(KeyCode::KeyX) {
         if let Some(d) = g.dummies.get_mut(1) {
             d.smelly = !d.smelly;
+        }
+    }
+}
+
+/// `--pose flying|cartwheel|timber|fall|sit|drag|taunt|laugh|dance` (testing and screenshots): every
+/// practice blob strikes that pose a moment after the round starts (the same as pressing J, K, L,
+/// N or M), so pictures can check the poses against the bodies, feet and legs.
+fn test_pose(mut game: ResMut<Game>, mut frame: Local<u32>, mut want: Local<Option<Option<String>>>) {
+    let want = want.get_or_insert_with(|| {
+        let args: Vec<String> = std::env::args().collect();
+        args.iter().position(|a| a == "--pose").and_then(|i| args.get(i + 1)).cloned()
+    });
+    let Some(pose) = want.as_deref() else { return };
+    *frame += 1;
+    // sitting is held for as long as the test runs (the smoko code would let them up again)
+    if pose == "sit" && *frame >= 300 {
+        for d in game.dummies.iter_mut() {
+            d.seat = Some(0);
+        }
+        return;
+    }
+    if *frame != 300 {
+        return;
+    }
+    let g = &mut *game;
+    let dur = bbq_core::items::DOWN_TIME;
+    for d in g.dummies.iter_mut() {
+        match pose {
+            "flying" | "cartwheel" | "timber" => {
+                let kind = match pose {
+                    "flying" => SlapKind::SentFlying,
+                    "cartwheel" => SlapKind::Cartwheel,
+                    _ => SlapKind::Timber,
+                };
+                d.anim.start_slap(kind, dur);
+                d.anim.tumble(V3::new(0.0, 0.0, 1.0), 6.0, 1.0);
+            }
+            "fall" => d.body.start_fall(g.options.fall_duration),
+            // seated at smoko, and dragged along by someone (just the pose; they stay where they are)
+            "sit" => {}
+            "drag" => {
+                d.dragged = Some(bbq_core::pose::DraggerInfo { face: d.face, speed: 2.0, walk: 0.0, grounded: true });
+                d.body.start_fall(g.options.fall_duration);
+            }
+            "taunt" => d.anim.start_emote(Emote::Taunt),
+            "laugh" => d.anim.start_emote(Emote::Laugh),
+            "dance" => d.anim.start_emote(Emote::Dance),
+            _ => {}
         }
     }
 }

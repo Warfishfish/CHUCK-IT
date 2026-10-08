@@ -189,10 +189,14 @@ fn shot_camera(
         let head = args.iter().any(|a| a == "--bot-head");
         // `--bot-far`: the whole blob, head to toe, with room round it
         let far = args.iter().any(|a| a == "--bot-far");
+        // `--bot-wide`: further back still, for blobs that are lying down or tumbling
+        let wide = args.iter().any(|a| a == "--bot-wide");
         let a = d.face + side;
         let (dx, dz) = (a.sin(), a.cos());
         let (dist, y, fov) = if head {
             (4.2, 1.45 + d.mover.y, 22.0f32)
+        } else if wide {
+            (7.5, 1.0 + d.mover.y, 36.0)
         } else if far {
             (5.0, 1.15 + d.mover.y, 32.0)
         } else {

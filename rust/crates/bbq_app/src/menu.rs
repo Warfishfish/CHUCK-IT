@@ -96,9 +96,9 @@ impl Default for Settings {
 pub static NO_SAVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Command-line flags that mean "this is a test run".
-pub const TEST_FLAGS: [&str; 16] = [
+pub const TEST_FLAGS: [&str; 17] = [
     "--shot", "--net-host", "--net-join", "--net-play", "--net-ready", "--net-give", "--net-throw", "--server", "--name", "--hair",
-    "--mouth", "--brows", "--body", "--belly", "--char", "--legs",
+    "--mouth", "--brows", "--body", "--belly", "--char", "--legs", "--pose",
 ];
 
 impl Settings {

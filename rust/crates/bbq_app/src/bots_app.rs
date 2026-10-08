@@ -787,7 +787,7 @@ pub fn held_item_pos(g: &Game, holder: PlayerId) -> Option<V3> {
     let right = (f.1, -f.0);
     Some(V3::new(
         d.mover.x + f.0 * 0.3 + right.0 * 0.45,
-        d.mover.y + 0.95 - d.mover.sink + d.look.legs.lift(), // legs lift the hands too (looks only)
+        d.mover.y + 0.95 - d.mover.sink + crate::legs::legs_shown(d).lift(), // legs lift the hands too (looks only)
         d.mover.z + f.1 * 0.3 + right.1 * 0.45,
     ))
 }
