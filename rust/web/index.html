@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Australian BBQ</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #88b4f4; overflow: hidden; font-family: system-ui, sans-serif; }
+    #wrap { position: fixed; inset: 0; }
+    canvas#bbq { display: block; width: 100%; height: 100%; outline: none; }
+    #msg { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
+           color: #1b1b1b; font-size: 22px; font-weight: 700; padding: 24px; pointer-events: none; }
+    #msg small { display: block; font-weight: 400; font-size: 15px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div id="wrap"><canvas id="bbq" tabindex="0"></canvas></div>
+  <div id="msg">Firing up the barbie…<small>Loading the game (the first time takes a little while).</small></div>
+  <script type="module">
+    const msg = document.getElementById('msg');
+    if (!navigator.gpu) {
+      msg.innerHTML = 'This browser cannot run the game yet.<small>It needs WebGPU: use a recent Chrome, Edge, Safari or Firefox on a computer.</small>';
+    } else {
+      try {
+        const game = await import('./bbq.js');
+        // the game takes over from here; hide the message once its first frame is drawn
+        const hide = () => { msg.style.display = 'none'; };
+        setTimeout(hide, 4000);
+        document.getElementById('bbq').focus();
+        await game.default();
+      } catch (e) {
+        // Bevy ends its start-up by throwing a harmless "this is not an error" exception
+        if (!String(e).includes('Using exceptions for control flow')) {
+          msg.innerHTML = 'The game could not start.<small>' + String(e).replace(/</g, '&lt;') + '</small>';
+          msg.style.display = 'flex';
+          console.error(e);
+        }
+      }
+    }
+  </script>
+</body>
+</html>

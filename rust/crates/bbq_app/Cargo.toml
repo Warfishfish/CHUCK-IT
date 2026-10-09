@@ -7,9 +7,22 @@ license.workspace = true
 
 [dependencies]
 # Pinned to one Bevy release on purpose: Bevy breaks things every few months.
-bevy = { version = "=0.19.1", features = ["system_font_discovery"] }
+bevy = { version = "=0.19.1" }
 bbq_core = { path = "../bbq_core" }
 bevy_hanabi = "0.19"
-tungstenite = { version = "0.30.0", default-features = false, features = ["handshake", "native-tls"] }
 serde_json = "1.0.151"
 base64 = "0.23.1"
+
+# On the desktop: system fonts, and a WebSocket on its own thread.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+bevy = { version = "=0.19.1", features = ["system_font_discovery"] }
+tungstenite = { version = "0.30.0", default-features = false, features = ["handshake", "native-tls"] }
+
+# In the browser (WebAssembly): WebGPU drawing (the particle library needs it), the browser's own
+# WebSocket and local storage.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+bevy = { version = "=0.19.1", features = ["web", "webgpu"] }
+wasm-bindgen = "=0.2.129"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["WebSocket", "MessageEvent", "CloseEvent", "ErrorEvent", "BinaryType", "Window", "Storage", "Location"] }
+getrandom = { version = "0.3", features = ["wasm_js"] }

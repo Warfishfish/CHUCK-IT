@@ -4,3 +4,4 @@ node_modules/
 public/_ref.html
 rust/screenshots/
 dist/
+public/rust/

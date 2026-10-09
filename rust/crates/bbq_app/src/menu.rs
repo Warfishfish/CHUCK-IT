@@ -101,7 +101,49 @@ pub const TEST_FLAGS: [&str; 24] = [
     "--mouth", "--brows", "--body", "--belly", "--char", "--legs", "--pose", "--swim", "--swim-dive", "--shorts", "--singlet", "--shorts-col", "--hat", "--hat-col",
 ];
 
+/// The settings text: a file on the desktop, the browser's local storage on the web.
+#[cfg(not(target_arch = "wasm32"))]
+fn read_settings() -> Option<String> {
+    Settings::path().and_then(|p| std::fs::read_to_string(p).ok())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn write_settings(text: &str) {
+    let Some(p) = Settings::path() else { return };
+    let _ = std::fs::create_dir_all(p.parent().unwrap());
+    let _ = std::fs::write(p, text);
+}
+
+#[cfg(target_arch = "wasm32")]
+const STORE_KEY: &str = "australian-bbq-settings";
+
+#[cfg(target_arch = "wasm32")]
+fn read_settings() -> Option<String> {
+    web_sys::window()?.local_storage().ok()??.get_item(STORE_KEY).ok()?
+}
+
+#[cfg(target_arch = "wasm32")]
+fn write_settings(text: &str) {
+    if let Some(store) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
+        let _ = store.set_item(STORE_KEY, text);
+    }
+}
+
+/// A fresh random seed (the clock on the desktop; the browser's random numbers on the web,
+/// where the clock cannot be read that way).
+pub fn fresh_seed() -> u64 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        (js_sys::Math::random() * 9.0e15) as u64 | 1
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.as_nanos() as u64) | 1
+    }
+}
+
 impl Settings {
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     fn path() -> Option<std::path::PathBuf> {
         let base = if let Ok(h) = std::env::var("HOME") {
             if cfg!(target_os = "macos") {
@@ -123,8 +165,6 @@ impl Settings {
         if NO_SAVE.load(std::sync::atomic::Ordering::Relaxed) {
             return;
         }
-        let Some(p) = Self::path() else { return };
-        let _ = std::fs::create_dir_all(p.parent().unwrap());
         let mode = match self.mode {
             GameMode::FreeForAll => "ffa",
             GameMode::Teams => "teams",
@@ -143,12 +183,17 @@ impl Settings {
             self.falls, self.drunk_all, self.character.name(), self.belly, self.sound,
             self.server, self.room
         ) + &self.look.to_lines();
-        let _ = std::fs::write(p, s);
+        write_settings(&s);
     }
 
     pub fn load() -> Self {
         let mut s = Settings::default();
-        let Some(text) = Self::path().and_then(|p| std::fs::read_to_string(p).ok()) else {
+        // in the browser the relay is the server the page came from
+        #[cfg(target_arch = "wasm32")]
+        if let Some(host) = web_sys::window().and_then(|w| w.location().host().ok()) {
+            s.server = host;
+        }
+        let Some(text) = read_settings() else {
             return s;
         };
         for line in text.lines() {
@@ -1258,7 +1303,7 @@ fn widget_clicks(
             Action::LobbyReady => ui.toggle_ready = true,
             Action::LobbyStart => ui.request = Some(Request::Play),
             Action::LookRandom => {
-                let seed = (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.as_nanos() as u64)) | 1;
+                let seed = fresh_seed();
                 settings.look = bbq_core::appearance::Appearance::random(&mut bbq_core::rng::Rng::new(seed));
                 changed = true;
             }

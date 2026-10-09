@@ -67,14 +67,26 @@ fn main() {
     } else {
         Window {
             title: "Australian BBQ (Rust, Phase 4)".into(),
+            // in the browser: draw into the page's canvas and fill it
+            canvas: Some("#bbq".into()),
+            fit_canvas_to_parent: true,
+            prevent_default_event_handling: true,
             ..default()
         }
     };
     let mut app = App::new();
-    app.add_plugins(DefaultPlugins.set(WindowPlugin {
-        primary_window: Some(window),
-        ..default()
-    }))
+    app.add_plugins(
+        DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(window),
+                ..default()
+            })
+            // the web server has no `.meta` files next to the assets: do not ask for them
+            .set(AssetPlugin {
+                meta_check: bevy::asset::AssetMetaCheck::Never,
+                ..default()
+            }),
+    )
     .insert_resource(lighting::LookMode::from_args(&args))
     .insert_resource(bevy::light::DirectionalLightShadowMap {
         // crisper, steadier shadows in the polished look

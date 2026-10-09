@@ -11,18 +11,25 @@ const ROOM_NAME = /^[a-z0-9][a-z0-9_.-]{0,47}$/;
 const MAX_PER_ROOM = 16;
 const MAX_PRESENCE_BYTES = 8192;
 const MAX_MSG_BYTES = 12288; // one relayed game message, after base64
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.ico': 'image/x-icon', '.svg': 'image/svg+xml' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.ico': 'image/x-icon', '.svg': 'image/svg+xml',
+  // the Rust game in the browser (public/rust, built by rust/tools/build_web.sh)
+  '.wasm': 'application/wasm', '.glb': 'model/gltf-binary', '.ttf': 'font/ttf', '.wgsl': 'text/plain; charset=utf-8', '.txt': 'text/plain; charset=utf-8' };
 
 const server = http.createServer((req, res) => {
   let p;
   try { p = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch { res.writeHead(400); return res.end(); }
   if (p === '/healthz') { res.writeHead(200); return res.end('ok'); }
   if (p === '/') p = '/index.html';
+  else if (p.endsWith('/')) p += 'index.html'; // e.g. /rust/ -> the Rust game's page
   const file = path.join(PUBLIC, path.normalize(p));
   if (!file.startsWith(PUBLIC)) { res.writeHead(403); return res.end(); }
-  fs.readFile(file, (err, data) => {
+  // a squeezed copy next to the file (the Rust game's .wasm) goes to browsers that accept it
+  const gz = /\bgzip\b/.test(req.headers['accept-encoding'] || '') && fs.existsSync(file + '.gz');
+  fs.readFile(gz ? file + '.gz' : file, (err, data) => {
     if (err) { res.writeHead(404, { 'Content-Type': 'text/plain' }); return res.end('Not found'); }
-    res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
+    const head = { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' };
+    if (gz) head['Content-Encoding'] = 'gzip';
+    res.writeHead(200, head);
     res.end(data);
   });
 });

@@ -314,6 +314,7 @@ How it works (decided 6 Oct 2026, close to the browser game): one player hosts a
 - [x] 9.8b The lobby: in a yard, not in a round, everybody's blob stands in a row on the lawn with their name; the Customise tab is open; a lobby card shows the room code, who is here and who is ready; Ready (arms up, READY sign, a grin) and the host's Start now; when everybody is ready a 3 s countdown starts the round; after the results the host goes back to the lobby and guests follow
 - [x] 9.8c Legs online (8 Oct 2026): the look is 9 bytes with the legs (protocol 3, so a mate needs the new build)
 - [x] 9.8d Dive online (8 Oct 2026): the state message carries how deep you have dived (protocol 4), so everyone sees swimmers lie along the water
+- [x] 9.10 Browser version (9 Oct 2026, Marcus asked for it ahead of the desktop-first plan): the same Rust game built for WebAssembly with WebGPU (`rust/tools/build_web.sh` -> `public/rust/`, served by `server.js` at `/rust/`). Online play uses the same relay and rules; only the connection differs (the browser's WebSocket instead of a thread, `net_link.rs`). Settings live in the browser's local storage. Checked: two browser tabs hosted, joined, readied and played a round
 - [ ] 9.8 Teddy Heist online; held items on puppets; a list of open yards
 - [ ] 9.9 Tests with 2 to 4 players and simulated lag; speed and bandwidth check
 - NOT doing for now: UDP/WebTransport/Steam relay (the WebSocket relay does the job, as in the browser game)

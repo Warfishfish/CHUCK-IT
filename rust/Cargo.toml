@@ -18,3 +18,9 @@ opt-level = 3
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+# The browser build (tools/build_web.sh): like release, with the debug names stripped out so the
+# download is smaller.
+[profile.web]
+inherits = "release"
+strip = true

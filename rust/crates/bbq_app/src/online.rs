@@ -626,7 +626,7 @@ fn net_requests(
             // out of the yard: back to the normal menu (from the lobby, a round or the results)
             ui.request = Some(crate::menu::Request::Menu);
         }
-        let seed = (time.elapsed_secs_f64() * 1000.0) as u64 ^ std::process::id() as u64;
+        let seed = (time.elapsed_secs_f64() * 1000.0) as u64 ^ crate::menu::fresh_seed();
         online.start(req, &settings, seed);
     }
     if std::env::args().any(|a| a == "--net-debug") && time.elapsed_secs() - *last_debug >= 1.0 {
