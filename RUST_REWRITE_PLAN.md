@@ -313,6 +313,7 @@ How it works (decided 6 Oct 2026, close to the browser game): one player hosts a
 - [x] 9.8a Looks online (8 Oct 2026): everybody's body shape, face, hair, colours and belly travel with the hello and whenever they change (protocol 2); puppets in a round wear them
 - [x] 9.8b The lobby: in a yard, not in a round, everybody's blob stands in a row on the lawn with their name; the Customise tab is open; a lobby card shows the room code, who is here and who is ready; Ready (arms up, READY sign, a grin) and the host's Start now; when everybody is ready a 3 s countdown starts the round; after the results the host goes back to the lobby and guests follow
 - [x] 9.8c Legs online (8 Oct 2026): the look is 9 bytes with the legs (protocol 3, so a mate needs the new build)
+- [x] 9.8d Dive online (8 Oct 2026): the state message carries how deep you have dived (protocol 4), so everyone sees swimmers lie along the water
 - [ ] 9.8 Teddy Heist online; held items on puppets; a list of open yards
 - [ ] 9.9 Tests with 2 to 4 players and simulated lag; speed and bandwidth check
 - NOT doing for now: UDP/WebTransport/Steam relay (the WebSocket relay does the job, as in the browser game)

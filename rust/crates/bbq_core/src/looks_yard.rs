@@ -961,6 +961,17 @@ fn pool() -> Vec<Part> {
         .at(pcx, WATER_Y, pcz)
         .turn(-HALF_PI, 0.0, 0.0),
     );
+    // the water seen from underneath (9 Oct 2026): a big opaque ceiling that only shows from below,
+    // so when you dive you see a blue sheet over you instead of the lawn and trees cut off by the
+    // pool's edge half way up the screen
+    v.push(
+        Part::new(
+            Shape::Quad { w: 1800.0, h: 1800.0 },
+            matt(0x2f93c4).unlit().no_shadow(),
+        )
+        .at(pcx, WATER_Y - 0.004, pcz)
+        .turn(HALF_PI, 0.0, 0.0),
+    );
     // chrome ladder on the house side
     let chrome = matt(0xd8dde2).glow(0x202428);
     for o in [-0.28f32, 0.28] {

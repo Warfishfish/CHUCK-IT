@@ -559,6 +559,12 @@ fn start_from_args(mut game: ResMut<Game>, mut player: ResMut<Player>, mut yard:
         _ => GameMode::FreeForAll,
     };
     start_round(&mut game, &mut player, &mut yard);
+    // `--swim` (testing): start in the middle of the pool, facing the length of it
+    if args.iter().any(|a| a == "--swim") {
+        player.mover.x = -20.0;
+        player.mover.z = 10.0;
+        player.yaw = std::f32::consts::FRAC_PI_2;
+    }
     // `--give noodle|dildo|steak|fish|teddy|stubby|gnome`: start with one in your hand (testing)
     if let Some(k) = args.iter().position(|a| a == "--give").and_then(|i| args.get(i + 1)) {
         let kind = match k.as_str() {

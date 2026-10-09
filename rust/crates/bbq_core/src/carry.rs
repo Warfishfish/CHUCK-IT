@@ -1,11 +1,18 @@
 //! Grab, drag and throw someone who is down (spec section 6).
 
+// Marcus, 8 Oct 2026: "make it easier to pick up people and take them to the Naughty Corner".
+// Longer to drag (10 s, was 6), a longer reach, you walk at 80% while dragging (was 55%), anyone
+// stunned can be grabbed too (not just someone lying down), and bots wriggle free more slowly.
 /// Longest anyone can be dragged, seconds.
-pub const MAX_DRAG: f32 = 6.0;
+pub const MAX_DRAG: f32 = 10.0;
 /// Reach to start a grab (client check), metres.
-pub const REACH: f32 = 1.9;
+pub const REACH: f32 = 2.6;
 /// Reach the host allows, metres.
-pub const HOST_REACH: f32 = 2.8;
+pub const HOST_REACH: f32 = 3.4;
+/// A bot's drag timer runs this much faster than a person's (it wriggles by itself).
+pub const BOT_WRIGGLE: f32 = 1.25;
+/// A stunned person can be grabbed once they have been stunned for at least this long left.
+pub const GRAB_STUN: f32 = 0.2;
 /// Each wriggle (Space press) adds this much to the drag timer, seconds.
 pub const WIGGLE: f32 = 0.8;
 /// After release nobody can grab the same person for this long.
@@ -13,7 +20,7 @@ pub const IMMUNE: f32 = 8.0;
 /// Hold F this long to throw instead of put down.
 pub const HOLD: f32 = 0.4;
 /// Grabber's speed multiplier while dragging.
-pub const SLOW: f32 = 0.55;
+pub const SLOW: f32 = 0.8;
 /// The dragged person trails this far behind.
 pub const DRAG_DISTANCE: f32 = 1.15;
 /// Throw velocity (horizontal, up).
@@ -72,8 +79,8 @@ pub struct Party {
     pub carrying: bool,
 }
 
-/// Can `grabber` grab `target`? Only someone actually down (knocked flat or stacked it) can
-/// be grabbed, not merely stunned. `round_active` is play or warm-up.
+/// Can `grabber` grab `target`? Someone who is down (knocked flat or stacked it) or stunned can
+/// be grabbed. `round_active` is play or warm-up.
 pub fn can_grab(round_active: bool, grabber: &Party, target: &Party) -> bool {
     round_active
         && !grabber.carried
@@ -89,7 +96,7 @@ pub fn can_grab(round_active: bool, grabber: &Party, target: &Party) -> bool {
         && !grabber.in_pool
         && !target.in_pool
         && target.height < 0.6
-        && (target.down_t > 0.0 || target.fall_t > 0.0)
+        && (target.down_t > 0.0 || target.fall_t > 0.0 || target.stun > GRAB_STUN)
 }
 
 /// Is a held F a throw (rather than a put-down)?
@@ -161,7 +168,7 @@ impl Drag {
         }
         self.t += dt;
         if victim_is_bot {
-            self.t += dt * 0.7;
+            self.t += dt * (BOT_WRIGGLE - 1.0);
         }
         if self.t >= MAX_DRAG {
             return Some(if self.wriggles > 0 || victim_is_bot {
@@ -189,11 +196,11 @@ mod tests {
     }
 
     #[test]
-    fn only_someone_down_can_be_grabbed() {
+    fn only_someone_down_or_stunned_can_be_grabbed() {
         assert!(can_grab(true, &standing(), &down()));
         assert!(!can_grab(true, &standing(), &standing()));
-        // merely stunned is not enough
-        assert!(!can_grab(
+        // stunned is enough now (8 Oct 2026), a flicker of stun is not
+        assert!(can_grab(
             true,
             &standing(),
             &Party {
@@ -270,7 +277,7 @@ mod tests {
     }
 
     #[test]
-    fn no_wriggling_means_dropped_after_six_seconds() {
+    fn no_wriggling_means_dropped_after_the_longest_drag() {
         let mut d = Drag::new();
         let mut result = None;
         let mut secs = 0.0_f32;
@@ -279,32 +286,31 @@ mod tests {
             secs += 1.0 / 60.0;
         }
         assert_eq!(result, Some(Release::Dropped));
-        assert!((secs - 6.0).abs() < 0.05, "took {secs}s");
+        assert!((secs - MAX_DRAG).abs() < 0.05, "took {secs}s");
     }
 
     #[test]
-    fn about_eight_wriggles_free_you() {
+    fn about_a_dozen_wriggles_free_you() {
         let mut d = Drag::new();
-        // 8 presses, 0.1 s apart
+        let n = (MAX_DRAG / WIGGLE).ceil() as usize; // 13 presses at 0.8 s each
         let mut now = 0.0;
-        for _ in 0..8 {
+        for _ in 0..n {
             now += 0.1;
             d.wriggle(now);
             d.tick(0.1, false, true);
         }
-        // 8 presses * 0.8 = 6.4 >= 6
         assert!(d.time() >= MAX_DRAG);
         assert_eq!(d.tick(0.0, false, true), Some(Release::Wriggled));
-        assert_eq!(d.wriggles(), 8);
+        assert_eq!(d.wriggles() as usize, n);
     }
 
     #[test]
-    fn seven_wriggles_is_not_quite_enough_straight_away() {
+    fn one_wriggle_short_is_not_quite_enough_straight_away() {
         let mut d = Drag::new();
-        for i in 0..7 {
+        for i in 0..(MAX_DRAG / WIGGLE).ceil() as usize - 1 {
             d.wriggle(i as f32 * 0.1);
         }
-        assert!(d.time() < MAX_DRAG); // 5.6
+        assert!(d.time() < MAX_DRAG);
     }
 
     #[test]
@@ -328,7 +334,7 @@ mod tests {
             secs += 1.0 / 60.0;
         }
         assert_eq!(r, Some(Release::Wriggled));
-        assert!((secs - 6.0 / 1.7).abs() < 0.05, "took {secs}s");
+        assert!((secs - MAX_DRAG / BOT_WRIGGLE).abs() < 0.05, "took {secs}s");
     }
 
     #[test]

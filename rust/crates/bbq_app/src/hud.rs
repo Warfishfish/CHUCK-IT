@@ -33,6 +33,8 @@ impl Plugin for HudPlugin {
                     update_board,
                     update_clock,
                     update_drunk,
+                    update_breath,
+                    update_boost_label,
                     update_heist_bar,
                     update_feed,
                     update_crosshair,
@@ -65,6 +67,14 @@ struct DrunkLabel;
 struct DrunkFill;
 #[derive(Component)]
 struct HeistBar;
+/// The breath meter, shown while you are swimming (Shift dives).
+#[derive(Component)]
+struct BreathBar;
+/// The word beside Shift: Boost on land, Dive in the pool.
+#[derive(Component)]
+struct BoostLabel;
+#[derive(Component)]
+struct BreathFill;
 #[derive(Component)]
 struct Feed;
 #[derive(Component)]
@@ -251,6 +261,36 @@ fn spawn_hud(mut commands: Commands) {
                                 },
                                 BackgroundColor(Color::srgb(0.48, 0.82, 0.28)),
                                 DrunkFill,
+                            )],
+                        ),
+                    ],
+                ));
+                c.spawn((
+                    Node {
+                        padding: UiRect::new(px(10.0), px(12.0), px(5.0), px(5.0)),
+                        column_gap: px(9.0),
+                        align_items: AlignItems::Center,
+                        border_radius: BorderRadius::MAX,
+                        display: Display::None,
+                        ..default()
+                    },
+                    BackgroundColor(HUD),
+                    BreathBar,
+                    children![
+                        text("Hold Shift to dive", 12.0, true, WHITE),
+                        (
+                            Node {
+                                width: px(120.0),
+                                height: px(8.0),
+                                border_radius: BorderRadius::all(px(4.0)),
+                                overflow: Overflow::clip(),
+                                ..default()
+                            },
+                            BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.18)),
+                            children![(
+                                Node { width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
+                                BackgroundColor(Color::srgb(0.3, 0.75, 0.95)),
+                                BreathFill,
                             )],
                         ),
                     ],
@@ -509,7 +549,10 @@ fn cd_chip(p: &mut ChildSpawnerCommands, key: &str, label: &str, fill: Option<Cd
     ))
     .with_children(|c| {
         c.spawn(kbd(key));
-        c.spawn(text(label, 13.0, false, WHITE));
+        let mut t = c.spawn(text(label, 13.0, false, WHITE));
+        if matches!(fill, Some(Cd::Boost)) {
+            t.insert(BoostLabel); // reads "Dive" in the pool
+        }
         if let Some(f) = fill {
             c.spawn((
                 Node {
@@ -726,6 +769,49 @@ fn update_drunk(
     for (mut n, mut bg) in &mut fill {
         n.width = Val::Percent(lvl);
         bg.0 = Color::hsl((110.0 - lvl * 1.1).max(0.0), 0.75, 0.52);
+    }
+}
+
+fn update_boost_label(player: Res<Player>, mut q: Query<&mut Text, With<BoostLabel>>) {
+    let want = if player.mover.in_pool { "Dive" } else { "Boost" };
+    for mut t in &mut q {
+        if t.0 != want {
+            t.0 = want.to_string();
+        }
+    }
+}
+
+/// The breath meter: there while you are in the pool, and it empties as you dive.
+fn update_breath(
+    player: Res<Player>,
+    mut bar: Query<(&mut Node, &Children), With<BreathBar>>,
+    mut label: Query<&mut Text>,
+    mut fill: Query<(&mut Node, &mut BackgroundColor), (With<BreathFill>, Without<BreathBar>)>,
+) {
+    let m = &player.mover;
+    for (mut n, kids) in &mut bar {
+        let want = if m.in_pool { Display::Flex } else { Display::None };
+        if n.display != want {
+            n.display = want;
+        }
+        for k in kids.iter() {
+            if let Ok(mut t) = label.get_mut(k) {
+                let s = if m.diving {
+                    "Breath"
+                } else if m.breath < 0.3 && m.dive < 0.2 {
+                    "Catching breath"
+                } else {
+                    "Hold Shift to dive"
+                };
+                if t.0 != s {
+                    t.0 = s.to_string();
+                }
+            }
+        }
+    }
+    for (mut n, mut bg) in &mut fill {
+        n.width = Val::Percent(m.breath * 100.0);
+        bg.0 = if m.breath < 0.3 { Color::srgb(0.95, 0.35, 0.25) } else { Color::srgb(0.3, 0.75, 0.95) };
     }
 }
 
@@ -1104,7 +1190,7 @@ fn update_tints(
     player: Res<Player>,
     time: Res<Time>,
     mut hit: Query<&mut BackgroundColor, (With<HitTint>, Without<PoolTint>)>,
-    mut pool: Query<&mut BackgroundColor, (With<PoolTint>, Without<HitTint>)>,
+    mut pool: Query<(&mut BackgroundColor, &mut Node), (With<PoolTint>, Without<HitTint>)>,
     mut vignette: Local<f32>,
     mut last_taken: Local<u32>,
 ) {
@@ -1117,7 +1203,14 @@ fn update_tints(
     for mut bg in &mut hit {
         bg.0 = Color::srgba(0.9, 0.12, 0.08, *vignette);
     }
-    for mut bg in &mut pool {
-        bg.0 = Color::srgba(0.157, 0.627, 0.902, if player.mover.in_pool { 0.28 } else { 0.0 });
+    for (mut bg, mut node) in &mut pool {
+        // the old tint covered only the bottom 45% of the screen and left a hard line across it
+        let under = ((player.mover.dive - 0.55) / 0.2).clamp(0.0, 1.0);
+        node.height = Val::Percent(100.0); // all of the screen, so there is never a hard line across it
+        // underwater is bluer and darker the deeper you go
+        // (a faint wash while you tread water, which deepens as your eyes go under)
+        let a = if player.mover.in_pool { 0.1 + 0.58 * under } else { 0.0 };
+        let (r, g, b) = (0.157 - 0.1 * player.mover.dive, 0.627 - 0.25 * player.mover.dive, 0.902 - 0.2 * player.mover.dive);
+        bg.0 = Color::srgba(r, g, b, a);
     }
 }

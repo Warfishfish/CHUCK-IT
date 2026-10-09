@@ -1147,7 +1147,7 @@ fn test_pose(mut game: ResMut<Game>, mut frame: Local<u32>, mut want: Local<Opti
     }
     let g = &mut *game;
     let dur = bbq_core::items::DOWN_TIME;
-    for d in g.dummies.iter_mut() {
+    for (k, d) in g.dummies.iter_mut().enumerate() {
         match pose {
             "flying" | "cartwheel" | "timber" => {
                 let kind = match pose {
@@ -1164,6 +1164,12 @@ fn test_pose(mut game: ResMut<Game>, mut frame: Local<u32>, mut want: Local<Opti
             "drag" => {
                 d.dragged = Some(bbq_core::pose::DraggerInfo { face: d.face, speed: 2.0, walk: 0.0, grounded: true });
                 d.body.start_fall(g.options.fall_duration);
+            }
+            // in the pool, diving (the swimmer's pose and depth; `--pose dive`)
+            "dive" => {
+                d.mover.x = -24.0 + 2.6 * k as f32;
+                d.mover.z = 10.0;
+                d.net_dive = 0.2 + 0.3 * k as f32;
             }
             "taunt" => d.anim.start_emote(Emote::Taunt),
             "laugh" => d.anim.start_emote(Emote::Laugh),
@@ -1212,6 +1218,7 @@ fn compute_poses(
             seated: d.seat.is_some(),
             naughty: d.naughty_t > 0.0,
             dragged_by: d.dragged,
+            dive: d.mover.dive,
             ..Default::default()
         };
         poses.0.push(d.anim.tick(dt, &inputs));
@@ -1242,7 +1249,7 @@ fn apply_bodies(poses: Res<Poses>, mut q: Query<(&Blob, &mut Transform), With<Bl
             continue;
         };
         tf.rotation = to_bevy(p.body_rot);
-        tf.translation = Vec3::new(0.0, p.body_y, 0.0);
+        tf.translation = Vec3::new(0.0, p.body_y, p.body_z);
         tf.scale = Vec3::new(p.body_scale.0, p.body_scale.1, p.body_scale.0);
     }
 }

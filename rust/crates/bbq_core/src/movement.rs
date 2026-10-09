@@ -16,6 +16,25 @@ pub const CHAR_RADIUS: f32 = 0.42;
 pub const BASE_SPEED: f32 = 6.2;
 pub const JUMP_V: f32 = 7.5;
 pub const POOL_JUMP_V: f32 = 5.5;
+/// Swimming (Marcus, 8 Oct 2026): in the pool you tread water at the top, and hold Shift to dive.
+/// Diving goes underwater and you swim where you look: look down to go deeper, up to come up.
+/// How much deeper than treading water the deepest dive sinks you (m).
+pub const DIVE_EXTRA: f32 = 1.0;
+/// How fast you drift down while diving (dive amount per second) with the view level.
+pub const DIVE_SINK: f32 = 0.45;
+/// How much looking straight down or up adds to that.
+pub const DIVE_PITCH_RATE: f32 = 1.4;
+/// How fast buoyancy floats you back up when you let go of Shift (dive amount per second).
+pub const DIVE_FLOAT: f32 = 1.6;
+/// Seconds of breath a full dive lasts; it comes back at the surface in `BREATH_REFILL`.
+pub const BREATH_TIME: f32 = 9.0;
+pub const BREATH_REFILL: f32 = 2.5;
+/// You can only dive again once your breath is back past this.
+pub const BREATH_MIN: f32 = 0.3;
+/// Speed fraction underwater (treading water is 0.5), and how loosely you glide in the water.
+pub const DIVE_SPEED: f32 = 0.66;
+pub const GRIP_SWIM: f32 = 3.4;
+pub const GRIP_DIVE: f32 = 2.4;
 pub const JUMP_BUFFER: f32 = 0.14;
 pub const COYOTE: f32 = 0.10;
 pub const BOOST_MULT: f32 = 1.7;
@@ -77,6 +96,8 @@ pub fn look(yaw: f32, pitch: f32, dx: f32, dy: f32) -> (f32, f32) {
 pub struct MoveInput {
     /// World-space wish direction from `wish_dir` (and `drunk_steer`).
     pub wish: (f32, f32),
+    /// Which way you are looking up or down (radians, up is positive): steers a dive.
+    pub pitch: f32,
 }
 
 /// Things around the character that change how they move.
@@ -96,6 +117,8 @@ pub struct Modifiers {
     pub in_puddle: bool,
     /// Drunk walking-speed wobble (1.0 when sober).
     pub gait: f32,
+    /// Shift is held: dive (when in the pool).
+    pub dive: bool,
 }
 
 impl Default for Modifiers {
@@ -113,6 +136,7 @@ impl Default for Modifiers {
             sliding: false,
             in_puddle: false,
             gait: 1.0,
+            dive: false,
         }
     }
 }
@@ -151,6 +175,16 @@ pub struct Mover {
     was_in_pool: bool,
     /// How far you've sunk (eased), for the camera.
     pub sink: f32,
+    /// Diving: 0 treading water at the top, 1 down by the pool floor.
+    pub dive: f32,
+    /// Underwater and holding breath.
+    pub diving: bool,
+    /// Breath left, 1 full to 0.
+    pub breath: f32,
+    /// A clock for the bobbing at the surface.
+    swim_t: f32,
+    /// The dive was set from outside (a puppet online) this step, so it is not worked out here.
+    told: bool,
 }
 
 impl Mover {
@@ -173,6 +207,21 @@ impl Mover {
             in_pool: false,
             was_in_pool: false,
             sink: 0.0,
+            dive: 0.0,
+            diving: false,
+            breath: 1.0,
+            swim_t: 0.0,
+            told: false,
+        }
+    }
+
+    /// Someone else's dive (a puppet online): set it straight from what they said.
+    pub fn force_dive(&mut self, dive: f32) {
+        self.dive = dive.clamp(0.0, 1.0);
+        self.diving = self.dive > 0.05;
+        self.told = true;
+        if self.in_pool {
+            self.sink = POOL_SINK + self.dive * DIVE_EXTRA;
         }
     }
 
@@ -185,7 +234,9 @@ impl Mover {
 
     /// Shift pressed.
     pub fn try_boost(&mut self, m: &Modifiers) {
+        // in the pool Shift dives instead
         if m.carried
+            || self.in_pool
             || m.at_smoko
             || self.boost_t > 0.0
             || self.boost_cd > 0.0
@@ -204,13 +255,13 @@ impl Mover {
     pub fn max_speed(&self, m: &Modifiers) -> f32 {
         let f = |on: bool, v: f32| if on { v } else { 1.0 };
         BASE_SPEED
-            * f(self.in_pool, 0.5)
+            * f(self.in_pool, if self.diving { DIVE_SPEED } else { 0.5 })
             * f(m.charging, 0.72)
             * f(self.sprinting(m), BOOST_MULT)
             * f(m.drinking, 0.55)
             * f(m.snag_buff, 1.35)
             * f(m.snag_stumble, 0.62)
-            * f(m.carrying, 0.55)
+            * f(m.carrying, crate::carry::SLOW)
             * m.gait
     }
 
@@ -225,6 +276,35 @@ impl Mover {
         }
         self.was_in_pool = self.in_pool;
 
+        // diving: Shift in the pool, while you have breath; buoyancy floats you up otherwise
+        let was_diving = self.diving;
+        self.swim_t += dt;
+        let can_dive = self.in_pool && !m.stunned && !m.frozen && !m.carried && !m.carrying && !m.at_smoko;
+        // someone else's dive (a puppet) stays as they said until they say otherwise
+        let told = std::mem::take(&mut self.told);
+        if !told {
+            self.diving = can_dive && m.dive && self.breath > if was_diving { 0.0 } else { BREATH_MIN };
+        }
+        if told {
+        } else if self.diving {
+            self.breath = (self.breath - dt / BREATH_TIME).max(0.0);
+            let rate = DIVE_SINK - input.pitch.sin() * DIVE_PITCH_RATE;
+            self.dive = (self.dive + rate * dt).clamp(0.0, 1.0);
+        } else {
+            self.dive = (self.dive - DIVE_FLOAT * dt).max(0.0);
+            if self.dive < 0.2 {
+                self.breath = (self.breath + dt / BREATH_REFILL).min(1.0);
+            }
+        }
+        if !self.in_pool {
+            self.dive = 0.0;
+            self.breath = (self.breath + dt / BREATH_REFILL).min(1.0);
+        }
+        // coming up out of a dive makes a splash
+        if !told && was_diving && !self.diving && self.dive > 0.3 {
+            ev.splash = true;
+        }
+
         // boost timer
         if self.boost_t > 0.0 {
             self.boost_t = (self.boost_t - dt).max(0.0);
@@ -236,13 +316,21 @@ impl Mover {
         }
 
         // velocity eases toward the target speed
-        let max_sp = self.max_speed(m);
+        let mut max_sp = self.max_speed(m);
+        if self.diving {
+            // you push through the water along where you look, so looking steeply down or up
+            // slows you across the pool
+            max_sp *= input.pitch.cos().max(0.35);
+        }
         let (mut tx, mut tz) = (input.wish.0 * max_sp, input.wish.1 * max_sp);
         if m.stunned || m.frozen {
             tx = 0.0;
             tz = 0.0;
         }
-        let grip = if !self.grounded {
+        let grip = if self.in_pool && !m.stunned {
+            // water: you glide, and speed up and slow down slowly
+            if self.diving { GRIP_DIVE } else { GRIP_SWIM }
+        } else if !self.grounded {
             if m.stunned {
                 GRIP_AIR_STUNNED
             } else {
@@ -270,7 +358,7 @@ impl Mover {
             (self.coyote - dt).max(0.0)
         };
         self.jump_buf = (self.jump_buf - dt).max(0.0);
-        if self.jump_buf > 0.0 && self.coyote > 0.0 && !m.stunned && !m.frozen {
+        if self.jump_buf > 0.0 && self.coyote > 0.0 && !m.stunned && !m.frozen && !self.diving {
             self.vy = if self.in_pool { POOL_JUMP_V } else { JUMP_V };
             self.grounded = false;
             self.coyote = 0.0;
@@ -368,7 +456,12 @@ impl Mover {
         }
 
         // sink in the pool (eased)
-        let target = if self.in_pool { POOL_SINK } else { 0.0 };
+        let target = if self.in_pool {
+            // a little bob while treading water
+            POOL_SINK + self.dive * DIVE_EXTRA + (self.swim_t * 2.4).sin() * 0.035 * (1.0 - self.dive)
+        } else {
+            0.0
+        };
         self.sink += (target - self.sink) * (1.0 - (-7.0 * dt).exp());
         ev
     }
@@ -444,7 +537,7 @@ mod tests {
 
     fn walk(m: &mut Mover, yard: &Yard, wish: (f32, f32), secs: f32, mods: &Modifiers) {
         for _ in 0..(secs / DT) as usize {
-            m.step(DT, MoveInput { wish }, mods, yard);
+            m.step(DT, MoveInput { wish, ..Default::default() }, mods, yard);
         }
     }
 
@@ -656,7 +749,7 @@ mod tests {
             if i == 0 {
                 m.try_jump(false);
             }
-            m.step(DT, MoveInput { wish: (0.0, -1.0) }, &mods, &yard);
+            m.step(DT, MoveInput { wish: (0.0, -1.0), ..Default::default() }, &mods, &yard);
             if m.grounded && (m.y - 0.8).abs() < 1e-4 {
                 return; // landed on top of the table
             }
@@ -722,12 +815,103 @@ mod tests {
         let mut m = Mover::new(-20.0, 10.0);
         settle(&mut m, &yard);
         assert!(m.in_pool);
-        walk(&mut m, &yard, (1.0, 0.0), 1.0, &Modifiers::default());
+        // you glide in the water, so it takes a moment to reach full speed
+        walk(&mut m, &yard, (1.0, 0.0), 2.0, &Modifiers::default());
         assert!((m.speed() - 3.1).abs() < 0.05, "{}", m.speed());
-        assert!((m.sink - POOL_SINK).abs() < 0.05);
+        assert!((m.sink - POOL_SINK).abs() < 0.08, "treading water bobs a little");
         m.try_jump(false);
         m.step(DT, MoveInput::default(), &Modifiers::default(), &yard);
         assert!((m.vy - (POOL_JUMP_V - CHAR_GRAVITY * DT)).abs() < 1e-4);
+    }
+
+    fn in_the_pool() -> (Mover, Yard) {
+        let yard = Yard::default();
+        let mut m = Mover::new(-20.0, 10.0);
+        settle(&mut m, &yard);
+        (m, yard)
+    }
+
+    fn swim(m: &mut Mover, yard: &Yard, secs: f32, dive: bool, pitch: f32, wish: (f32, f32)) {
+        let mods = Modifiers { dive, ..Default::default() };
+        for _ in 0..(secs / DT) as usize {
+            m.step(DT, MoveInput { wish, pitch }, &mods, yard);
+        }
+    }
+
+    #[test]
+    fn shift_in_the_pool_dives_and_you_sink_deeper_than_treading_water() {
+        let (mut m, yard) = in_the_pool();
+        swim(&mut m, &yard, 1.0, false, 0.0, (0.0, 0.0));
+        assert!(m.in_pool && !m.diving && m.dive == 0.0);
+        let treading = m.sink;
+        swim(&mut m, &yard, 1.5, true, 0.0, (0.0, 0.0));
+        assert!(m.diving && m.dive > 0.4, "dive {}", m.dive);
+        assert!(m.sink > treading + 0.3, "sink {} vs {}", m.sink, treading);
+        // let go: buoyancy floats you back up
+        swim(&mut m, &yard, 2.0, false, 0.0, (0.0, 0.0));
+        assert!(!m.diving && m.dive == 0.0);
+    }
+
+    #[test]
+    fn looking_down_dives_deeper_and_looking_up_comes_up() {
+        let (mut a, yard) = in_the_pool();
+        let (mut b, _) = in_the_pool();
+        swim(&mut a, &yard, 1.0, true, -1.0, (0.0, 0.0));
+        swim(&mut b, &yard, 1.0, true, 0.0, (0.0, 0.0));
+        assert!(a.dive > b.dive + 0.3, "{} vs {}", a.dive, b.dive);
+        swim(&mut a, &yard, 0.6, true, 1.2, (0.0, 0.0));
+        assert!(a.dive < 0.9, "looking up brings you up: {}", a.dive);
+    }
+
+    #[test]
+    fn breath_runs_out_forces_you_up_and_comes_back_at_the_surface() {
+        let (mut m, yard) = in_the_pool();
+        swim(&mut m, &yard, BREATH_TIME + 1.0, true, 0.0, (0.0, 0.0));
+        assert!(!m.diving, "out of breath, so you cannot keep diving");
+        assert!(m.breath < BREATH_MIN);
+        swim(&mut m, &yard, 3.0, false, 0.0, (0.0, 0.0));
+        assert!(m.breath > BREATH_MIN, "breath is back at the surface: {}", m.breath);
+    }
+
+    #[test]
+    fn swimming_glides_and_you_swim_where_you_look() {
+        let (mut m, yard) = in_the_pool();
+        m.x = -26.0; // the long way along the pool
+        swim(&mut m, &yard, 1.5, true, 0.0, (1.0, 0.0));
+        let flat = m.speed();
+        assert!(flat > BASE_SPEED * 0.5, "diving is faster than treading water: {flat}");
+        // let go of the stick: you carry on gliding for a moment, not stopping dead
+        m.diving = false;
+        swim(&mut m, &yard, 0.15, false, 0.0, (0.0, 0.0));
+        assert!(m.speed() > flat * 0.4, "glide {} of {}", m.speed(), flat);
+        // looking steeply down slows you across the pool
+        let (mut s, _) = in_the_pool();
+        s.x = -26.0;
+        swim(&mut s, &yard, 1.5, true, -1.2, (1.0, 0.0));
+        assert!(s.speed() < flat * 0.7);
+    }
+
+    #[test]
+    fn shift_on_land_still_boosts_but_not_in_the_pool() {
+        let (mut m, _) = in_the_pool();
+        m.try_boost(&Modifiers::default());
+        assert_eq!(m.boost_t, 0.0, "no boost wasted in the water");
+        let mut g = Mover::new(0.0, 5.0);
+        g.try_boost(&Modifiers::default());
+        assert!(g.boost_t > 0.0);
+    }
+
+    #[test]
+    fn nobody_dives_on_dry_land_and_a_puppet_shows_what_it_is_told() {
+        let yard = Yard::default();
+        let mut m = Mover::new(0.0, 5.0);
+        settle(&mut m, &yard);
+        swim(&mut m, &yard, 1.0, true, -1.0, (0.0, 0.0));
+        assert!(!m.diving && m.dive == 0.0);
+        let (mut p, yard) = in_the_pool();
+        swim(&mut p, &yard, 0.5, false, 0.0, (0.0, 0.0));
+        p.force_dive(0.8);
+        assert!((p.sink - (POOL_SINK + 0.8 * DIVE_EXTRA)).abs() < 1e-4);
     }
 
     #[test]

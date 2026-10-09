@@ -13,7 +13,7 @@
 
 /// Bump this whenever a message changes, so old and new copies of the game refuse each other
 /// politely instead of misreading each other.
-pub const PROTOCOL: u16 = 3;
+pub const PROTOCOL: u16 = 4;
 /// The most people in one yard (the browser game's limit).
 pub const MAX_PLAYERS: usize = 16;
 /// How often each player reports where they are.
@@ -74,6 +74,8 @@ pub struct PlayerState {
     pub held_variant: u8,
     /// Beer belly, 0 to 255 scaled over 0.0 to 2.0.
     pub belly: u8,
+    /// How deep they have dived in the pool, 0 (treading water) to 255 (down by the floor).
+    pub dive: u8,
 }
 
 impl PlayerState {
@@ -92,6 +94,7 @@ impl PlayerState {
             held: 0,
             held_variant: 0,
             belly: 128,
+            dive: 0,
         }
     }
 }
@@ -345,6 +348,7 @@ impl Msg {
                 w.u8(s.held);
                 w.u8(s.held_variant);
                 w.u8(s.belly);
+                w.u8(s.dive);
             }
             Msg::Bye { id } => {
                 w.u8(K_BYE);
@@ -405,6 +409,7 @@ impl Msg {
                     held: r.u8()?,
                     held_variant: r.u8()?,
                     belly: r.u8()?,
+                    dive: r.u8()?,
                 })
             }
             K_BYE => Msg::Bye { id: r.u32()? },
@@ -558,6 +563,7 @@ mod tests {
             held: 4,
             held_variant: 5,
             belly: 200,
+            dive: 180,
         }
     }
 

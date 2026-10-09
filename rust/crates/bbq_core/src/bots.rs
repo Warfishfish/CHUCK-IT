@@ -2283,7 +2283,7 @@ mod tests {
             let (ox, oz) = (mover.x, mover.z);
             mover.step(
                 DT,
-                crate::movement::MoveInput { wish: c.wish },
+                crate::movement::MoveInput { wish: c.wish, ..Default::default() },
                 &crate::movement::Modifiers::default(),
                 &yard,
             );

@@ -502,7 +502,11 @@ pub fn prompt(g: &Game, p: &Player, f: &yard::Features, chest_spot: usize) -> St
         return "Smoko! R or Space to get up (the drinks keep coming)".into();
     }
     if g.life.carry.is_some() {
-        return "Dragging them! Tap F to put them down, hold F to chuck them".into();
+        return if g.options.naughty && g.options.smoko_on {
+            "Dragging them! Take them to the smoko chairs for the Naughty Corner (hold F to chuck)".into()
+        } else {
+            "Dragging them! Tap F to put them down, hold F to chuck them".into()
+        };
     }
     if in_smoko_zone(g, p) {
         return if g.options.naughty {
@@ -532,7 +536,11 @@ pub fn prompt(g: &Game, p: &Player, f: &yard::Features, chest_spot: usize) -> St
         };
     }
     if g.life.carry.is_none() && grab_target(g, p).is_some() {
-        return "F: grab them and drag them off".into();
+        return if g.options.naughty && g.options.smoko_on {
+            "F: grab them and drag them to the smoko chairs (Naughty Corner)".into()
+        } else {
+            "F: grab them and drag them off".into()
+        };
     }
     String::new()
 }
@@ -669,7 +677,7 @@ fn party_of(g: &Game, i: usize) -> Party {
     Party {
         at_smoko: d.seat.is_some() && d.naughty_t <= 0.0,
         in_naughty_corner: d.naughty_t > 0.0,
-        stun: 0.0,
+        stun: d.body.stun,
         down_t: d.body.down_t,
         fall_t: d.body.fall_t,
         in_pool: d.mover.in_pool,
@@ -820,6 +828,15 @@ fn carry_step(g: &mut Game, p: &Player, wanted: &mut Wanted) {
         return;
     };
     let i = c.victim;
+    // drag them onto the smoko pad in Naughty Corner mode and they are sent to a chair at once,
+    // without having to let go at exactly the right moment
+    if g.options.naughty
+        && g.options.smoko_on
+        && smoko::in_zone_at(g.life.smoko_at, g.dummies[i].mover.x, g.dummies[i].mover.y, g.dummies[i].mover.z, people_count(g))
+    {
+        release_carry(g, p, Drop::PutDown, 0.0);
+        return;
+    }
     let f = facing(p);
     let d = &mut g.dummies[i];
     d.mover.x = p.mover.x - f.0 * carry::DRAG_DISTANCE;

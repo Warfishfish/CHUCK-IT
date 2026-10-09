@@ -721,6 +721,7 @@ fn online_send(time: Res<Time>, mut online: ResMut<Online>, player: Res<Player>,
         held: held.0,
         held_variant: held.1,
         belly: (settings.belly.clamp(0.0, 2.0) / 2.0 * 255.0).round() as u8,
+        dive: (m.dive.clamp(0.0, 1.0) * 255.0).round() as u8,
     };
     link.send(&session.room, None, Msg::State(state).encode());
 }
@@ -1068,6 +1069,7 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>) {
         d.bot.winding = s.charge > 0.0;
         d.bot.wind_progress = s.charge;
         d.belly = s.belly as f32 / 255.0 * 2.0;
+        d.net_dive = s.dive as f32 / 255.0;
     }
     let _ = PLAYER_ID;
 }

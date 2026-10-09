@@ -54,6 +54,8 @@ pub struct Dummy {
     pub net_target: Option<(V3, (f32, f32), f32)>,
     /// Online host: when this person last swung at somebody (so they cannot swing too often).
     pub net_slap_at: f32,
+    /// How deep a person online has dived (they say so; we draw it).
+    pub net_dive: f32,
     pub mover: Mover,
     pub body: Body,
     pub home: (f32, f32),
@@ -98,6 +100,7 @@ impl Dummy {
             remote: None,
             net_target: None,
             net_slap_at: -9.0,
+            net_dive: 0.0,
             mover: Mover::new(x, z),
             body: Body::default(),
             home: (x, z),
@@ -615,7 +618,10 @@ pub fn step_game(
         };
         let ev = d
             .mover
-            .step(dt, MoveInput { wish: d.bot.wish }, &mods, &yard.0);
+            .step(dt, MoveInput { wish: d.bot.wish, ..Default::default() }, &mods, &yard.0);
+        if d.remote.is_some() || d.net_dive > 0.0 {
+            d.mover.force_dive(d.net_dive); // people online dive as they say
+        }
         if ev.splash {
             splashes.push(V3::new(d.mover.x, bbq_core::yard::WATER_Y, d.mover.z));
             env_landings.push((i, Place::Pool));
@@ -1603,15 +1609,35 @@ mod tests {
     }
 
     #[test]
-    fn you_cannot_grab_someone_who_is_only_stunned() {
+    fn you_can_grab_someone_who_is_only_stunned_but_not_someone_standing_there() {
         let mut app = app();
         near_dummy0(&mut app);
+        app.world_mut().resource_mut::<Wanted>().grab_pressed = true;
+        ticks(&mut app, 2);
+        assert!(app.world().resource::<Game>().life.carry.is_none(), "not stunned, not down");
         app.world_mut().resource_mut::<Game>().dummies[0]
             .body
             .apply_hit(2.0, None);
         app.world_mut().resource_mut::<Wanted>().grab_pressed = true;
         ticks(&mut app, 2);
-        assert!(app.world().resource::<Game>().life.carry.is_none());
+        assert!(app.world().resource::<Game>().life.carry.is_some(), "8 Oct 2026: stunned is enough");
+    }
+
+    #[test]
+    fn dragging_someone_onto_the_smoko_pad_sends_them_to_the_naughty_corner_by_itself() {
+        let mut app = app();
+        near_dummy0(&mut app);
+        fell(&mut app);
+        app.world_mut().resource_mut::<Wanted>().grab_pressed = true;
+        ticks(&mut app, 2);
+        assert!(app.world().resource::<Game>().life.carry.is_some());
+        // walk onto the pad with them in tow, without letting go
+        put_player(&mut app, yard::SMOKO_X + 1.5, yard::SMOKO_Z);
+        ticks(&mut app, 4);
+        let g = app.world().resource::<Game>();
+        assert!(g.life.carry.is_none(), "let go on the pad");
+        assert!(g.dummies[0].naughty_t > 4.0 && g.dummies[0].seat.is_some(), "naughty {}", g.dummies[0].naughty_t);
+        assert_eq!(g.board.score(PLAYER_ID), 100);
     }
 
     #[test]

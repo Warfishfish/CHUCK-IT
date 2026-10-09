@@ -265,6 +265,8 @@ pub struct Inputs {
     pub wriggling: bool,
     /// Face the thrower of a slap (angle to turn the body).
     pub slap_face: f32,
+    /// Diving in the pool: 0 treading water, 1 down by the floor.
+    pub dive: f32,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -275,6 +277,10 @@ pub struct DraggerInfo {
     pub grounded: bool,
 }
 
+/// How far a diving blob leans over (radians) and the height of the middle of its body (m).
+pub const SWIM_LEAN: f32 = 1.25;
+pub const BODY_MID: f32 = 0.7;
+
 /// The finished pose for this frame.
 #[derive(Clone, Copy, Debug)]
 pub struct Pose {
@@ -284,6 +290,8 @@ pub struct Pose {
     pub offset: (f32, f32),
     pub body_rot: Quat,
     pub body_y: f32,
+    /// Shifts the body forward (a swimmer lies down about their middle).
+    pub body_z: f32,
     /// Squash and stretch: (x and z, y).
     pub body_scale: (f32, f32),
     /// Right hand (the throwing hand) and left hand, relative to the body.
@@ -316,6 +324,7 @@ impl Default for Pose {
             offset: (0.0, 0.0),
             body_rot: Quat::IDENTITY,
             body_y: 0.0,
+            body_z: 0.0,
             body_scale: (1.0, 1.0),
             hand_r: V3::new(-0.47, 0.88, 0.05),
             hand_l: V3::new(0.47, 0.88, 0.05),
@@ -600,6 +609,19 @@ impl Animator {
             p.can_pitch = -sip * 1.2;
         }
 
+        // diving: lying along the water and stroking with both arms
+        if i.dive > 0.02 && !slap_on && i.down_t <= 0.0 && i.dragged_by.is_none() && fl <= 0.0 {
+            let d = i.dive.clamp(0.0, 1.0);
+            let lean = SWIM_LEAN * d;
+            p.body_rot = Quat::from_euler_xyz(lean, 0.0, (t * 3.0 + ph).sin() * 0.08 * d);
+            // lie about the middle of the body, not the feet
+            p.body_y = BODY_MID * (1.0 - lean.cos());
+            p.body_z = -BODY_MID * lean.sin();
+            let s = (t * 5.0 + ph).sin();
+            p.hand_r = V3::new(-0.45, 0.88 + (0.35 + 0.25 * s) * d, 0.1);
+            p.hand_l = V3::new(0.45, 0.88 + (0.35 - 0.25 * s) * d, 0.1);
+        }
+
         // dragged along on their back, or carrying someone
         if let Some(g) = i.dragged_by {
             let jig = if g.grounded && g.speed > 0.5 {
@@ -798,6 +820,23 @@ mod tests {
             y = a.tick(DT, &i).body_y;
         }
         assert!(y < 0.1);
+    }
+
+    #[test]
+    fn a_diver_lies_along_the_water_about_their_middle_and_strokes() {
+        let mut an = Animator::new(0.0);
+        let mut i = idle();
+        let upright = an.tick(0.016, &i);
+        i.dive = 1.0;
+        let dive = an.tick(0.016, &i);
+        // lying forward, the body's middle stays where it was (so it does not swing about the feet)
+        let mid = |p: &Pose| (p.body_y + BODY_MID * SWIM_LEAN.cos() - 0.0, p.body_z + BODY_MID * SWIM_LEAN.sin());
+        let (y, z) = mid(&dive);
+        assert!((y - BODY_MID).abs() < 1e-4 && z.abs() < 1e-4, "middle at {y} {z}");
+        assert!(dive.body_rot != upright.body_rot);
+        assert!(dive.hand_r.y > upright.hand_r.y + 0.1, "arms reach up the swimmer's body");
+        // not diving: nothing changes
+        assert_eq!(upright.body_z, 0.0);
     }
 
     #[test]

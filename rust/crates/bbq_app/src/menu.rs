@@ -96,9 +96,9 @@ impl Default for Settings {
 pub static NO_SAVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Command-line flags that mean "this is a test run".
-pub const TEST_FLAGS: [&str; 17] = [
+pub const TEST_FLAGS: [&str; 19] = [
     "--shot", "--net-host", "--net-join", "--net-play", "--net-ready", "--net-give", "--net-throw", "--server", "--name", "--hair",
-    "--mouth", "--brows", "--body", "--belly", "--char", "--legs", "--pose",
+    "--mouth", "--brows", "--body", "--belly", "--char", "--legs", "--pose", "--swim", "--swim-dive",
 ];
 
 impl Settings {
@@ -454,6 +454,12 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                     Interaction::default(),
                     crate::preview::PreviewDrag,
                 ));
+                // a Customise button right under the blob (9 Oct 2026), on the Solo tab (the Customise
+                // tab is already open when you are customising)
+                pv.spawn((Node { width: Val::Percent(100.0), display: Display::Flex, ..default() }, ShowWhen::NotLook))
+                    .with_children(|w| {
+                        button(w, Action::Tab(Tab::Look), "Customise", None);
+                    });
                 pv.spawn(text("Hold the left button and drag to spin", 12.0, false, MUTED));
                 pv.spawn(text(
                     "Change your blob on the Customise tab. Only the look changes: every blob has the same speed and hit size.",
@@ -938,7 +944,7 @@ fn how_panel(c: &mut ChildSpawnerCommands) {
                 ("WASD", "Move, mouse to aim"),
                 ("Hold click", "Wind up, let go to chuck (let go near the end of the bar and a hit knocks them over)"),
                 ("Space", "Jump"),
-                ("Shift", "Speed boost"),
+                ("Shift", "Speed boost (dive, in the pool)"),
                 ("Right click", "Catch"),
                 ("R", "Drink, grab, smoko, help up (hold)"),
                 ("F", "Grab someone who's down and drag them, tap again to let go, hold to throw them"),

@@ -49,6 +49,8 @@ pub struct Wanted {
     pub jump_pressed: bool,
     /// T, G or B was pressed.
     pub emote: Option<bbq_core::pose::Emote>,
+    /// Shift is held: dive, when you are in the pool.
+    pub dive: bool,
 }
 
 #[derive(Component)]
@@ -186,6 +188,9 @@ pub fn read_input(
         &[KeyCode::KeyS, KeyCode::ArrowDown],
     );
     wanted.wish = movement::wish_dir(player.yaw, mx, my);
+    wanted.dive = keys.pressed(KeyCode::ShiftLeft)
+        || keys.pressed(KeyCode::ShiftRight)
+        || std::env::args().any(|a| a == "--swim-dive"); // (testing: dive without holding a key)
 
     let stunned = game.me.body.stun > 0.0;
     let sitting = game.life.seated.is_some();
@@ -270,11 +275,12 @@ fn step_player(
         carrying: g.life.carry.is_some(),
         frozen: g.rules.phase == bbq_core::scoring::Phase::Countdown,
         gait,
+        dive: wanted.dive,
         ..Default::default()
     };
     let ev = p
         .mover
-        .step(movement::step_dt(), MoveInput { wish }, &mods, &yard.0);
+        .step(movement::step_dt(), MoveInput { wish, pitch: p.pitch }, &mods, &yard.0);
     p.shake = p.shake.max(ev.shake);
     if ev.splash {
         g.fx(crate::fx::FxKind::Splash, bbq_core::vec::V3::new(p.mover.x, bbq_core::yard::WATER_Y, p.mover.z));
