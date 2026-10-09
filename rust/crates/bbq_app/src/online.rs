@@ -473,18 +473,40 @@ pub fn code_char(n: u8) -> Character {
     Character::ALL[(n as usize).min(Character::ALL.len() - 1)]
 }
 
-/// A made-up room code people can read out: `rbq-` and four letters and digits.
+/// Easy 5-letter words for room codes (Marcus, 9 Oct 2026): easy to read out and to type.
+pub const ROOM_WORDS: &[&str] = &[
+    "prawn", "tongs", "grill", "snags", "chips", "beach", "sunny", "koala", "bunny", "lemon",
+    "mango", "melon", "peach", "apple", "grape", "olive", "bacon", "toast", "pizza", "pasta",
+    "salad", "gravy", "honey", "sugar", "cocoa", "candy", "fudge", "jelly", "crumb", "couch",
+    "chair", "table", "plate", "spoon", "towel", "shade", "porch", "fence", "lawns", "daisy",
+    "tulip", "roses", "ferns", "maple", "cedar", "pines", "birch", "acorn", "berry", "tiger",
+    "zebra", "panda", "otter", "llama", "camel", "horse", "sheep", "goats", "moose", "whale",
+    "shark", "squid", "trout", "perch", "robin", "finch", "eagle", "hawks", "crows", "ducks",
+    "geese", "thong", "boots", "shirt", "socks", "scarf", "hoody", "cloud", "storm", "rainy",
+    "windy", "frost", "river", "creek", "ocean", "coral", "sandy", "shell", "pearl", "dunes",
+    "tides", "happy", "jolly", "merry", "lucky", "silly", "zippy", "brick", "stone", "steel",
+    "paper", "clock", "radio", "piano", "drums", "flute", "jumbo", "giant", "super",
+];
+
+/// A room code people can read out: an easy word. On the relay the room is called `rbq-` and
+/// the word, so it never mixes with the old browser game's rooms.
 pub fn new_room_code(seed: u64) -> String {
-    const SYMBOLS: &[u8] = b"abcdefghjkmnpqrstuvwxyz23456789";
     let mut x = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
-    let mut s = String::from("rbq-");
-    for _ in 0..4 {
-        x ^= x << 13;
-        x ^= x >> 7;
-        x ^= x << 17;
-        s.push(SYMBOLS[(x % SYMBOLS.len() as u64) as usize] as char);
-    }
-    s
+    x ^= x << 13;
+    x ^= x >> 7;
+    x ^= x << 17;
+    format!("rbq-{}", ROOM_WORDS[(x % ROOM_WORDS.len() as u64) as usize])
+}
+
+/// The relay's room for a code someone typed: `prawn`, `PRAWN` or `rbq-prawn` are all the same.
+pub fn relay_room(typed: &str) -> String {
+    let c = clean_room(typed);
+    if c.is_empty() || c.starts_with("rbq-") { c } else { format!("rbq-{c}") }
+}
+
+/// The code to show and read out: the word, without the `rbq-` tag.
+pub fn room_word(room: &str) -> &str {
+    room.strip_prefix("rbq-").unwrap_or(room)
 }
 
 /// Room codes people type: lower case letters, digits and dashes, 3 to 24 long. The relay only
@@ -552,7 +574,7 @@ impl Online {
         // the host always gets a fresh code (the code box is for joining); `--net-host CODE` in
         // tests sets one on purpose
         let test_code = std::env::args().any(|a| a == "--net-host");
-        let room = if req == NetRequest::Host && !test_code { new_room_code(now_seed) } else { clean_room(&s.room) };
+        let room = if req == NetRequest::Host && !test_code { new_room_code(now_seed) } else { relay_room(&s.room) };
         if room.len() < 3 {
             self.note = "Type the room code your mate gave you".into();
             return;
@@ -1433,13 +1455,25 @@ mod tests {
     }
 
     #[test]
-    fn room_codes_are_readable_and_allowed() {
-        for seed in 0..50u64 {
+    fn room_codes_are_easy_words_and_allowed() {
+        let mut seen = std::collections::HashSet::new();
+        for seed in 0..200u64 {
             let c = new_room_code(seed);
-            assert!(c.len() == 8 && c.starts_with("rbq-"), "{c}");
-            assert!(c.chars().all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-'));
+            assert!(c.starts_with("rbq-"), "{c}");
+            let w = room_word(&c);
+            assert!(w.len() == 5 && w.chars().all(|ch| ch.is_ascii_lowercase()), "{c}");
+            seen.insert(c);
         }
-        assert_ne!(new_room_code(1), new_room_code(2));
+        assert!(seen.len() > 40, "lots of different words ({})", seen.len());
+        assert!(ROOM_WORDS.iter().all(|w| w.len() == 5 && w.chars().all(|c| c.is_ascii_lowercase())));
+        let unique: std::collections::HashSet<_> = ROOM_WORDS.iter().collect();
+        assert_eq!(unique.len(), ROOM_WORDS.len(), "no word twice");
+        // however the word is typed, it is the same room
+        for typed in ["prawn", "PRAWN", " Prawn ", "rbq-prawn", "RBQ-PRAWN"] {
+            assert_eq!(relay_room(typed), "rbq-prawn", "{typed}");
+        }
+        assert_eq!(relay_room(""), "");
+        assert_eq!(room_word("rbq-prawn"), "prawn");
         assert_eq!(clean_room("  RBQ-Ab_c! "), "rbq-abc");
         assert_eq!(clean_room(&"x".repeat(60)).len(), 24);
     }

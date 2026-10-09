@@ -632,7 +632,7 @@ fn paint_lobby(
         }
     };
     for mut t in &mut code {
-        set(&mut t, s.room.to_uppercase());
+        set(&mut t, crate::online::room_word(&s.room).to_uppercase());
     }
     for (r, mut node, mut bg) in &mut rows {
         let m = s.members.get(r.0);
