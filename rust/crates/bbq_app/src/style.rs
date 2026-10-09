@@ -144,7 +144,14 @@ pub fn soft_outline_material(mats: &mut Assets<StandardMaterial>) -> Handle<Stan
 /// plain colour as before.
 pub fn body_material(colour: Color, assets: &AssetServer) -> StandardMaterial {
     if current() != Style::Clay {
-        return colour.into();
+        // a soft sheen on the skin (C11.5): a thin glossy coat over the colour
+        return StandardMaterial {
+            base_color: colour,
+            perceptual_roughness: 0.55,
+            clearcoat: 0.2,
+            clearcoat_perceptual_roughness: 0.45,
+            ..default()
+        };
     }
     use bevy::image::{ImageAddressMode, ImageFilterMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor};
     let load = |s: &mut ImageLoaderSettings| {

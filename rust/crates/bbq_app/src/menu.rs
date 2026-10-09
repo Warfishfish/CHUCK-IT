@@ -96,9 +96,9 @@ impl Default for Settings {
 pub static NO_SAVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Command-line flags that mean "this is a test run".
-pub const TEST_FLAGS: [&str; 22] = [
+pub const TEST_FLAGS: [&str; 24] = [
     "--shot", "--net-host", "--net-join", "--net-play", "--net-ready", "--net-give", "--net-throw", "--server", "--name", "--hair",
-    "--mouth", "--brows", "--body", "--belly", "--char", "--legs", "--pose", "--swim", "--swim-dive", "--shorts", "--singlet", "--shorts-col",
+    "--mouth", "--brows", "--body", "--belly", "--char", "--legs", "--pose", "--swim", "--swim-dive", "--shorts", "--singlet", "--shorts-col", "--hat", "--hat-col",
 ];
 
 impl Settings {
@@ -638,7 +638,7 @@ fn paint_lobby(
 
 /// The Customise tab: a row of arrows for each feature of your blob.
 fn look_panel(c: &mut ChildSpawnerCommands) {
-    use bbq_core::appearance::{Brows, Choice, Hair, Legs, Mouth, Palette, Shorts};
+    use bbq_core::appearance::{Brows, Choice, Hair, Hat, Legs, Mouth, Palette, Shorts};
     c.spawn((column(10.0), ShowWhen::Panel(Tab::Look))).with_children(|p| {
         // the body: its shape, its legs and its belly
         p.spawn(legend("Body"));
@@ -651,8 +651,9 @@ fn look_panel(c: &mut ChildSpawnerCommands) {
         slider(p, SliderId::Belly, "Beer belly", 0.0, 2.0);
         // the styles: a row of buttons each
         p.spawn(legend("Face and hair"));
-        let styles: [(LookRow, &str, Vec<&str>); 3] = [
+        let styles: [(LookRow, &str, Vec<&str>); 4] = [
             (LookRow::Hair, "Hair", Hair::ALL.iter().map(|x| x.name()).collect()),
+            (LookRow::Hat, "Hat", Hat::ALL.iter().map(|x| x.name()).collect()),
             (LookRow::Mouth, "Mouth", Mouth::ALL.iter().map(|x| x.name()).collect()),
             (LookRow::Brows, "Brows", Brows::ALL.iter().map(|x| x.name()).collect()),
         ];
@@ -667,6 +668,7 @@ fn look_panel(c: &mut ChildSpawnerCommands) {
             (LookRow::Thongs, "Thongs", Palette::Thong),
             (LookRow::ShortsColour, "Shorts", Palette::Shorts),
             (LookRow::HairColour, "Hair", Palette::Hair),
+            (LookRow::HatColour, "Hat", Palette::Hat),
             (LookRow::BrowColour, "Brows", Palette::Brow),
         ];
         for (row, label, pal) in colours {
@@ -756,6 +758,8 @@ fn look_marks(settings: Res<Settings>, mut q: Query<(&LookChoice, &mut Backgroun
             LookRow::Shape => Character::ALL.iter().position(|x| *x == settings.character) == Some(c.1 as usize),
             LookRow::Legs => l.legs.index() == c.1,
             LookRow::Shorts => l.shorts.index() == c.1,
+            LookRow::Hat => l.hat.index() == c.1,
+            LookRow::HatColour => l.hat_colour == c.1,
             LookRow::ShortsColour => l.shorts_colour == c.1,
             LookRow::Hair => l.hair.index() == c.1,
             LookRow::Mouth => l.mouth.index() == c.1,
@@ -766,7 +770,7 @@ fn look_marks(settings: Res<Settings>, mut q: Query<(&LookChoice, &mut Backgroun
             LookRow::HairColour => l.hair_colour == c.1,
             LookRow::BrowColour => l.brow_colour == c.1,
         };
-        let style = matches!(c.0, LookRow::Shape | LookRow::Legs | LookRow::Shorts | LookRow::Hair | LookRow::Mouth | LookRow::Brows);
+        let style = matches!(c.0, LookRow::Shape | LookRow::Legs | LookRow::Shorts | LookRow::Hat | LookRow::Hair | LookRow::Mouth | LookRow::Brows);
         if style {
             let want = if picked { SUN } else { WHITE };
             if bg.0 != want {
@@ -1051,11 +1055,18 @@ fn apply_loaded_settings(mut settings: ResMut<Settings>, mut player: ResMut<Play
         settings.look.body = n;
         settings.look = settings.look.tidy();
     }
-    // `--singlet N` and `--shorts-col N` (testing): colours from the palettes
-    for (flag, which) in [("--singlet", 0), ("--shorts-col", 1)] {
+    // `--singlet N`, `--shorts-col N` and `--hat-col N` (testing): colours from the palettes
+    for (flag, which) in [("--singlet", 0), ("--shorts-col", 1), ("--hat-col", 2)] {
         if let Some(n) = args.iter().position(|a| a == flag).and_then(|i| args.get(i + 1)).and_then(|v| v.parse::<u8>().ok()) {
-            if which == 0 { settings.look.singlet = n } else { settings.look.shorts_colour = n }
+            if which == 0 { settings.look.singlet = n } else if which == 1 { settings.look.shorts_colour = n } else { settings.look.hat_colour = n }
             settings.look = settings.look.tidy();
+        }
+    }
+    // `--hat cap|akubra|beanie|none` (testing): your hat, and every bot's
+    if let Some(m) = args.iter().position(|a| a == "--hat").and_then(|i| args.get(i + 1)) {
+        use bbq_core::appearance::Choice;
+        if let Some(m) = bbq_core::appearance::Hat::from_name(m) {
+            settings.look.hat = m;
         }
     }
     // `--shorts stubbies|boardies|none` (testing): your shorts, and every bot's
@@ -1097,6 +1108,7 @@ fn test_looks(mut game: ResMut<Game>) {
     let brows = args.iter().position(|a| a == "--brows").and_then(|i| args.get(i + 1)).and_then(|m| bbq_core::appearance::Brows::from_name(m));
     let hair = args.iter().position(|a| a == "--hair").and_then(|i| args.get(i + 1)).and_then(|m| bbq_core::appearance::Hair::from_name(m));
     let shorts = args.iter().position(|a| a == "--shorts").and_then(|i| args.get(i + 1)).and_then(|m| bbq_core::appearance::Shorts::from_name(m));
+    let hat = args.iter().position(|a| a == "--hat").and_then(|i| args.get(i + 1)).and_then(|m| bbq_core::appearance::Hat::from_name(m));
     let legs = args.iter().position(|a| a == "--legs").and_then(|i| args.get(i + 1)).and_then(|m| bbq_core::appearance::Legs::from_name(m));
     for d in &mut game.dummies {
         if let Some(l) = legs {
@@ -1104,6 +1116,9 @@ fn test_looks(mut game: ResMut<Game>) {
         }
         if let Some(sh) = shorts {
             d.look.shorts = sh;
+        }
+        if let Some(h) = hat {
+            d.look.hat = h;
         }
         if let Some(h) = hair {
             d.look.hair = h;
@@ -1200,6 +1215,8 @@ fn widget_clicks(
                     LookRow::Shape => {}
                     LookRow::Legs => settings.look.legs = settings.look.legs.step(*dir),
                     LookRow::Shorts => settings.look.shorts = settings.look.shorts.step(*dir),
+                    LookRow::Hat => settings.look.hat = settings.look.hat.step(*dir),
+                    LookRow::HatColour => settings.look.step_colour(bbq_core::appearance::Palette::Hat, *dir),
                     LookRow::ShortsColour => settings.look.step_colour(bbq_core::appearance::Palette::Shorts, *dir),
                     LookRow::Body => settings.look.step_colour(bbq_core::appearance::Palette::Body, *dir),
                     LookRow::Singlet => settings.look.step_colour(bbq_core::appearance::Palette::Singlet, *dir),
@@ -1213,7 +1230,7 @@ fn widget_clicks(
                 changed = true;
             }
             Action::LookSet(row, v) => {
-                use bbq_core::appearance::{Brows, Choice, Hair, Legs, Mouth, Shorts};
+                use bbq_core::appearance::{Brows, Choice, Hair, Hat, Legs, Mouth, Shorts};
                 if *row == LookRow::Shape {
                     settings.character = Character::ALL[(*v as usize).min(Character::ALL.len() - 1)];
                     cast.mine = settings.character;
@@ -1223,6 +1240,8 @@ fn widget_clicks(
                     LookRow::Shape => {}
                     LookRow::Legs => l.legs = Legs::from_index(*v),
                     LookRow::Shorts => l.shorts = Shorts::from_index(*v),
+                    LookRow::Hat => l.hat = Hat::from_index(*v),
+                    LookRow::HatColour => l.hat_colour = *v,
                     LookRow::ShortsColour => l.shorts_colour = *v,
                     LookRow::Hair => l.hair = Hair::from_index(*v),
                     LookRow::Mouth => l.mouth = Mouth::from_index(*v),

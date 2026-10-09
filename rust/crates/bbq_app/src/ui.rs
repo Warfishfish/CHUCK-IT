@@ -220,6 +220,9 @@ pub enum LookRow {
     /// No shorts, stubbies or boardies, and their colour.
     Shorts,
     ShortsColour,
+    /// No hat, a cap, an Akubra or a beanie, and its colour.
+    Hat,
+    HatColour,
     Body,
     Singlet,
     Thongs,

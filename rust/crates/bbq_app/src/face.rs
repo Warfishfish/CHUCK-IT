@@ -6,7 +6,7 @@
 //! (it is only a handful of little parts). The mouth sits on the front of the head just below
 //! the eyes, sized to the head, and moves with the head (and its wonky tilt).
 
-use bbq_core::appearance::{Appearance, Brows, Hair, Mouth, Palette};
+use bbq_core::appearance::{Appearance, Brows, Hair, Hat, Mouth, Palette};
 use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
 
@@ -55,6 +55,10 @@ struct FaceShown {
     brow_colour: u32,
     hair: Hair,
     hair_colour: u32,
+    hat: Hat,
+    hat_colour: u32,
+    /// The colour of the (sunburnt) nose, from the body colour.
+    nose: u32,
     mood: Mood,
 }
 
@@ -262,6 +266,11 @@ pub enum Colour {
     Hair,
     /// The look's hair colour.
     HairTop,
+    /// The look's hat colour, and the darker band or pompom on it.
+    Hat,
+    HatBand,
+    /// A sunburnt nose.
+    Nose,
 }
 
 /// The shapes of a mouth, for a head of radius 1 (scaled to the head when built). Kept apart
@@ -369,6 +378,39 @@ pub fn hair_shape(hair: Hair) -> Vec<Blip> {
     }
 }
 
+/// The shapes of a hat, in head radii, round the head's middle (the hair is left out under a hat).
+pub fn hat_shape(hat: Hat) -> Vec<Blip> {
+    let b = |x: f32, y: f32, z: f32, sx: f32, sy: f32, sz: f32, colour| Blip { at: Vec3::new(x, y, z), size: Vec3::new(sx, sy, sz), colour };
+    match hat {
+        Hat::None => Vec::new(),
+        // a baseball cap: a round crown and a flat peak out the front
+        Hat::Cap => vec![
+            b(0.0, 0.8, -0.1, 2.2, 1.05, 2.2, Colour::Hat),
+            b(0.0, 0.8, 1.0, 1.5, 0.14, 1.1, Colour::Hat),
+            b(0.0, 1.3, -0.05, 0.3, 0.2, 0.3, Colour::HatBand),
+        ],
+        // an Akubra: a wide flat brim all round, a tall crown and a dark band
+        Hat::Akubra => vec![
+            b(0.0, 0.86, 0.0, 3.5, 0.14, 3.5, Colour::Hat),
+            b(0.0, 1.12, 0.0, 1.85, 0.95, 1.85, Colour::Hat),
+            b(0.0, 0.96, 0.0, 1.95, 0.2, 1.95, Colour::HatBand),
+        ],
+        // a beanie: a snug woolly dome, a turned-up rim and a pompom
+        Hat::Beanie => vec![
+            b(0.0, 0.82, -0.12, 2.25, 1.15, 2.25, Colour::Hat),
+            b(0.0, 0.4, -0.03, 2.32, 0.36, 2.32, Colour::HatBand),
+            b(0.0, 1.45, -0.1, 0.5, 0.5, 0.5, Colour::HatBand),
+        ],
+    }
+}
+
+/// The nose colour: the skin with some sunburn in it.
+pub fn nose_colour(body: u32) -> u32 {
+    let skin = shade_of(TintPart::Head, body);
+    let mix = |s: u32, sunburn: u32| (s as f32 * 0.55 + sunburn as f32 * 0.45).round() as u32;
+    (mix((skin >> 16) & 0xff, 0xe8) << 16) | (mix((skin >> 8) & 0xff, 0x4a) << 8) | mix(skin & 0xff, 0x45)
+}
+
 /// Build or rebuild the mouth on every head whose look or mood has changed.
 fn sync_faces(
     mut commands: Commands,
@@ -397,7 +439,17 @@ fn sync_faces(
                 (d.look, mood_of(d.body.stun > 0.0, d.body.is_down(), d.bot.drunk.is_drinking(), d.bot.winding))
             }
         };
-        let want = FaceShown { mouth: look.mouth, brows: look.brows, brow_colour: look.colour(Palette::Brow), hair: look.hair, hair_colour: look.colour(Palette::Hair), mood };
+        let want = FaceShown {
+            mouth: look.mouth,
+            brows: look.brows,
+            brow_colour: look.colour(Palette::Brow),
+            hair: look.hair,
+            hair_colour: look.colour(Palette::Hair),
+            hat: look.hat,
+            hat_colour: look.colour(Palette::Hat),
+            nose: nose_colour(look.colour(Palette::Body)),
+            mood,
+        };
         if shown == Some(&want) {
             continue;
         }
@@ -442,12 +494,36 @@ fn sync_faces(
             .entry(want.hair_colour)
             .or_insert_with(|| mats.add(StandardMaterial { base_color: crate::models::hex(want.hair_colour), perceptual_roughness: 0.8, ..default() }))
             .clone();
+        let hat_mat = kit
+            .hair
+            .entry(want.hat_colour)
+            .or_insert_with(|| mats.add(StandardMaterial { base_color: crate::models::hex(want.hat_colour), perceptual_roughness: 0.85, ..default() }))
+            .clone();
+        // the band and pompom: a darker shade of the hat
+        let band = {
+            let c = want.hat_colour;
+            let d = |s: u32| (((c >> s) & 0xff) as f32 * 0.55) as u32;
+            (d(16) << 16) | (d(8) << 8) | d(0)
+        };
+        let band_mat = kit
+            .hair
+            .entry(band)
+            .or_insert_with(|| mats.add(StandardMaterial { base_color: crate::models::hex(band), perceptual_roughness: 0.9, ..default() }))
+            .clone();
+        let nose_mat = kit
+            .hair
+            .entry(want.nose)
+            .or_insert_with(|| mats.add(StandardMaterial { base_color: crate::models::hex(want.nose), perceptual_roughness: 0.5, ..default() }))
+            .clone();
         let pick = |c: Colour| match c {
             Colour::Dark => kit.dark.clone(),
             Colour::Teeth => kit.teeth.clone(),
             Colour::Tongue => kit.tongue.clone(),
             Colour::Hair => hair_mat.clone(),
             Colour::HairTop => top_mat.clone(),
+            Colour::Hat => hat_mat.clone(),
+            Colour::HatBand => band_mat.clone(),
+            Colour::Nose => nose_mat.clone(),
         };
         // a point on the face: (x, y) across and up from the head's middle, in head radii; the
         // part sits on the surface facing out, turned `roll` about that facing
@@ -463,7 +539,13 @@ fn sync_faces(
         if !mouth.is_empty() {
             parts.push((on_face(0.0, -0.45, 0.0), mouth, true));
         }
-        let hair = hair_shape(look.hair);
+        // a sunburnt nose between the eyes and the mouth
+        parts.push((on_face(0.0, -0.1, 0.0), vec![Blip { at: Vec3::ZERO, size: Vec3::new(0.3, 0.26, 0.34), colour: Colour::Nose }], false));
+        let hat = hat_shape(look.hat);
+        let hair = if hat.is_empty() { hair_shape(look.hair) } else { Vec::new() };
+        if !hat.is_empty() {
+            parts.push((Transform::from_translation(centre), hat, false));
+        }
         if !hair.is_empty() {
             // hair is placed round the head's middle, not on the face
             parts.push((Transform::from_translation(centre), hair, false));
@@ -603,6 +685,36 @@ mod tests {
             }
         }
         assert!(kinds[1].iter().any(|p| p.at.z < -0.5 && p.at.y < 0.1), "the mullet hangs down the back");
+    }
+
+    #[test]
+    fn each_hat_is_different_and_leaves_the_eyes_brows_and_mouth_clear() {
+        assert!(hat_shape(Hat::None).is_empty());
+        let kinds: Vec<Vec<Blip>> = [Hat::Cap, Hat::Akubra, Hat::Beanie].iter().map(|h| hat_shape(*h)).collect();
+        assert!(kinds.iter().all(|k| !k.is_empty()));
+        assert!(kinds[0] != kinds[1] && kinds[1] != kinds[2] && kinds[0] != kinds[2]);
+        for h in &kinds {
+            for p in h {
+                for spot in [Vec3::new(0.37, 0.2, 0.9), Vec3::new(-0.37, 0.2, 0.9), Vec3::new(0.36, 0.55, 0.9), Vec3::new(-0.36, 0.55, 0.9), Vec3::new(0.0, -0.45, 0.9)] {
+                    let d = (spot - p.at) / (p.size * 0.5);
+                    assert!(d.length() > 1.0, "{p:?} covers {spot}");
+                }
+            }
+        }
+        // the Akubra's brim is the widest, the cap has a peak out the front
+        assert!(kinds[1].iter().any(|p| p.size.x > 3.0));
+        assert!(kinds[0].iter().any(|p| p.at.z > 0.8));
+    }
+
+    #[test]
+    fn the_nose_is_redder_than_the_skin() {
+        for body in bbq_core::appearance::BODY_COLOURS {
+            let skin = shade_of(TintPart::Head, body);
+            let nose = nose_colour(body);
+            // more red against its blue, whatever the skin colour
+            let redness = |c: u32| ((c >> 16) & 0xff) as i32 - (c & 0xff) as i32;
+            assert!(redness(nose) > redness(skin), "{body:x}: {nose:x} vs {skin:x}");
+        }
     }
 
     #[test]

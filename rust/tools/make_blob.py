@@ -100,6 +100,16 @@ def body_radius(shape, up):
     return sh["top"] + (sh["bottom"] - sh["top"]) * (1 - u)
 
 
+def add_sunburn(ob, top):
+    """C11.5: vertex colours that redden the top of the body (the shoulders and neck, what shows
+    above the singlet). The game multiplies them with the body colour."""
+    layer = ob.data.color_attributes.new(name="Sunburn", type="BYTE_COLOR", domain="POINT")
+    for i, v in enumerate(ob.data.vertices):
+        y = v.co.z + ob.location.z
+        f = max(0.0, min(1.0, (y - (top - 0.25)) / 0.25)) ** 1.5
+        layer.data[i].color = (1.0, 1.0 - 0.38 * f, 1.0 - 0.42 * f, 1.0)
+
+
 def egg_body(name, shape, material, dx=0.0, parent=None, seg=40, rings=33):
     sh = SHAPES[shape]
     bm = bmesh.new()
@@ -359,6 +369,7 @@ def make_blob(shape, dx=0.0):
         for ob in scn.collection.objects:
             if ob.name.startswith("Torso"):
                 torso = ob
+        add_sunburn(torso, BODY_BASE + SHAPES[shape]["height"])
         add_belly_keys(torso, c)
         sing = singlet(shape, c["belly_y"] - 0.04, 1.22 + (SHAPES[shape]["height"] - 1.42), M["Singlet"], body, seed=len(shape), front_lift=0.12)
         add_belly_keys(sing, c)
@@ -479,5 +490,5 @@ for shape in ORDER:
     make_blob(shape)
     path = os.path.join(out_dir, "blob_%s%s.glb" % (shape, ("_" + STYLE) if STYLE else ""))
     bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", export_yup=True,
-                              export_apply=True, export_tangents=True, export_cameras=False, export_lights=False)
+                              export_apply=True, export_tangents=True, export_vertex_color='ACTIVE', export_cameras=False, export_lights=False)
     print("wrote", path)

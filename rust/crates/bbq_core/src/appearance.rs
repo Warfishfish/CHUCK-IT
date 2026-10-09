@@ -167,8 +167,34 @@ impl Choice for Shorts {
     }
 }
 
+/// Hats (C11.4, Marcus 9 Oct 2026): none (the default), a cap, a wide-brimmed Akubra or a
+/// beanie. A hat covers the hair.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub enum Hat {
+    #[default]
+    None,
+    /// A baseball cap with a peak at the front.
+    Cap,
+    /// A wide-brimmed bush hat.
+    Akubra,
+    /// A woolly beanie with a pompom.
+    Beanie,
+}
+
+impl Choice for Hat {
+    const ALL: &'static [Hat] = &[Hat::None, Hat::Cap, Hat::Akubra, Hat::Beanie];
+    fn name(self) -> &'static str {
+        match self {
+            Hat::None => "None",
+            Hat::Cap => "Cap",
+            Hat::Akubra => "Akubra",
+            Hat::Beanie => "Beanie",
+        }
+    }
+}
+
 /// How many bytes a look takes in the online messages.
-pub const LOOK_BYTES: usize = 11;
+pub const LOOK_BYTES: usize = 13;
 
 /// The colour palettes (0xRRGGBB). Everything but the body has 5 colours (Marcus, 9 Oct 2026); the
 /// body keeps its 10 skin colours. Sun-baked but clear, picked to sit well in the yard.
@@ -187,6 +213,7 @@ pub const BODY_COLOURS: [u32; 10] = [
 pub const SINGLET_COLOURS: [u32; 5] = [0xf4f1e6, 0xd63a2f, 0x2f7fe0, 0xf2c230, 0x111111];
 pub const THONG_COLOURS: [u32; 5] = [0xe8443a, 0x2f8ee8, 0xf4c20d, 0x30c26b, 0xff7ab8];
 pub const SHORTS_COLOURS: [u32; 5] = [0x2f5fa8, 0x1b1b1b, 0xc2a878, 0xd63a2f, 0xf2c230];
+pub const HAT_COLOURS: [u32; 5] = [0xd63a2f, 0x2f5fa8, 0xc2a878, 0x1b1b1b, 0x2e9e4f];
 pub const HAIR_COLOURS: [u32; 5] = [0x3b2a1a, 0xb87333, 0xe8c26a, 0x111111, 0xd9d9d9];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -204,6 +231,8 @@ pub struct Appearance {
     pub legs: Legs,
     pub shorts: Shorts,
     pub shorts_colour: u8,
+    pub hat: Hat,
+    pub hat_colour: u8,
 }
 
 impl Default for Appearance {
@@ -220,6 +249,8 @@ impl Default for Appearance {
             legs: Legs::None,
             shorts: Shorts::None,
             shorts_colour: 0,
+            hat: Hat::None,
+            hat_colour: 0,
         }
     }
 }
@@ -233,6 +264,7 @@ pub enum Palette {
     Hair,
     Brow,
     Shorts,
+    Hat,
 }
 
 impl Palette {
@@ -243,6 +275,7 @@ impl Palette {
             Palette::Thong => &THONG_COLOURS,
             Palette::Hair | Palette::Brow => &HAIR_COLOURS,
             Palette::Shorts => &SHORTS_COLOURS,
+            Palette::Hat => &HAT_COLOURS,
         }
     }
 }
@@ -256,6 +289,7 @@ impl Appearance {
             Palette::Hair => self.hair_colour,
             Palette::Brow => self.brow_colour,
             Palette::Shorts => self.shorts_colour,
+            Palette::Hat => self.hat_colour,
         }
     }
 
@@ -276,6 +310,7 @@ impl Appearance {
             Palette::Hair => self.hair_colour = v,
             Palette::Brow => self.brow_colour = v,
             Palette::Shorts => self.shorts_colour = v,
+            Palette::Hat => self.hat_colour = v,
         }
     }
 
@@ -288,6 +323,7 @@ impl Appearance {
         self.hair_colour = fix(self.hair_colour, Palette::Hair);
         self.brow_colour = fix(self.brow_colour, Palette::Brow);
         self.shorts_colour = fix(self.shorts_colour, Palette::Shorts);
+        self.hat_colour = fix(self.hat_colour, Palette::Hat);
         self
     }
 
@@ -307,7 +343,11 @@ impl Appearance {
             legs: Legs::None,
             shorts: Shorts::None,
             shorts_colour: pick(rng, SHORTS_COLOURS.len()),
+            hat: Hat::None,
+            hat_colour: pick(rng, HAT_COLOURS.len()),
         };
+        // about half wear a hat (picked after everything else so the rest of a look is as it was)
+        a.hat = Hat::from_index(rng.index(6).saturating_sub(2) as u8);
         // about half wear shorts, of either kind (picked last so the rest of a look is as it was)
         a.shorts = Shorts::from_index(rng.index(4).saturating_sub(1) as u8);
         a.legs = match rng.index(4) {
@@ -321,7 +361,7 @@ impl Appearance {
     /// `key=value` lines for `settings.txt`.
     pub fn to_lines(&self) -> String {
         format!(
-            "mouth={}\nbrows={}\nhair={}\nbody_colour={}\nsinglet_colour={}\nthong_colour={}\nhair_colour={}\nbrow_colour={}\nlegs={}\nshorts={}\nshorts_colour={}\n",
+            "mouth={}\nbrows={}\nhair={}\nbody_colour={}\nsinglet_colour={}\nthong_colour={}\nhair_colour={}\nbrow_colour={}\nlegs={}\nshorts={}\nshorts_colour={}\nhat={}\nhat_colour={}\n",
             self.mouth.name(),
             self.brows.name(),
             self.hair.name(),
@@ -332,7 +372,9 @@ impl Appearance {
             self.brow_colour,
             self.legs.name(),
             self.shorts.name(),
-            self.shorts_colour
+            self.shorts_colour,
+            self.hat.name(),
+            self.hat_colour
         )
     }
 
@@ -352,13 +394,15 @@ impl Appearance {
             "legs" => self.legs = Legs::from_name(value).unwrap_or(self.legs),
             "shorts" => self.shorts = Shorts::from_name(value).unwrap_or(self.shorts),
             "shorts_colour" => self.shorts_colour = num(value).unwrap_or(self.shorts_colour),
+            "hat" => self.hat = Hat::from_name(value).unwrap_or(self.hat),
+            "hat_colour" => self.hat_colour = num(value).unwrap_or(self.hat_colour),
             _ => return false,
         }
         *self = self.tidy();
         true
     }
 
-    /// The look as 11 bytes, for the online messages.
+    /// The look as 13 bytes, for the online messages.
     pub fn to_bytes(&self) -> [u8; LOOK_BYTES] {
         [
             self.mouth.index(),
@@ -372,10 +416,12 @@ impl Appearance {
             self.legs.index(),
             self.shorts.index(),
             self.shorts_colour,
+            self.hat.index(),
+            self.hat_colour,
         ]
     }
 
-    /// From 11 bytes; anything out of range becomes something sensible.
+    /// From 13 bytes; anything out of range becomes something sensible.
     pub fn from_bytes(b: [u8; LOOK_BYTES]) -> Self {
         Appearance {
             mouth: Mouth::from_index(b[0]),
@@ -389,6 +435,8 @@ impl Appearance {
             legs: Legs::from_index(b[8]),
             shorts: Shorts::from_index(b[9]),
             shorts_colour: b[10],
+            hat: Hat::from_index(b[11]),
+            hat_colour: b[12],
         }
         .tidy()
     }
@@ -411,6 +459,8 @@ mod tests {
             legs: Legs::Skinny,
             shorts: Shorts::Boardies,
             shorts_colour: 4,
+            hat: Hat::Akubra,
+            hat_colour: 3,
         }
     }
 
@@ -428,6 +478,9 @@ mod tests {
         // shorts: none (the default), Stubbies or Boardies
         assert_eq!(Shorts::ALL, &[Shorts::None, Shorts::Stubbies, Shorts::Boardies]);
         assert_eq!(Appearance::default().shorts, Shorts::None);
+        // hats: none (the default), a cap, an Akubra or a beanie
+        assert_eq!(Hat::ALL, &[Hat::None, Hat::Cap, Hat::Akubra, Hat::Beanie]);
+        assert_eq!(Appearance::default().hat, Hat::None);
     }
 
     #[test]
@@ -483,14 +536,15 @@ mod tests {
     }
 
     #[test]
-    fn the_look_fits_in_11_bytes_and_junk_is_made_safe() {
+    fn the_look_fits_in_13_bytes_and_junk_is_made_safe() {
         let a = odd();
         assert_eq!(Appearance::from_bytes(a.to_bytes()), a);
         let junk = Appearance::from_bytes([255; LOOK_BYTES]);
         assert_eq!(junk.mouth, Mouth::None);
         assert_eq!(junk.legs, Legs::None);
         assert_eq!(junk.shorts, Shorts::None);
-        for p in [Palette::Body, Palette::Singlet, Palette::Thong, Palette::Hair, Palette::Brow, Palette::Shorts] {
+        assert_eq!(junk.hat, Hat::None);
+        for p in [Palette::Body, Palette::Singlet, Palette::Thong, Palette::Hair, Palette::Brow, Palette::Shorts, Palette::Hat] {
             assert!((junk.colour_index(p) as usize) < p.colours().len());
             let _ = junk.colour(p);
         }
@@ -502,16 +556,19 @@ mod tests {
         let mut seen = std::collections::HashSet::new();
         let mut legs = [0; 3];
         let mut shorts = [0; 3];
+        let mut hats = [0; 4];
         for _ in 0..300 {
             let a = Appearance::random(&mut rng);
             assert_eq!(a, a.tidy());
             seen.insert((a.mouth, a.hair, a.body));
             legs[a.legs.index() as usize] += 1;
             shorts[a.shorts.index() as usize] += 1;
+            hats[a.hat.index() as usize] += 1;
         }
         assert!(seen.len() > 50, "lots of different blobs ({})", seen.len());
         // about half have no legs, and both kinds of legs turn up
         assert!((110..=190).contains(&legs[0]) && legs[1] > 30 && legs[2] > 30, "{legs:?}");
         assert!((110..=190).contains(&shorts[0]) && shorts[1] > 30 && shorts[2] > 30, "{shorts:?}");
+        assert!((70..=140).contains(&hats[0]) && hats[1..].iter().all(|n| *n > 30), "{hats:?}");
     }
 }
