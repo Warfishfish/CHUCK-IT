@@ -663,6 +663,29 @@ mod tests {
         host_with_a_guest_and(0)
     }
 
+    #[test]
+    fn a_persons_puppet_keeps_its_place_through_every_update() {
+        // a guest's game hears from the host about ten times a second, and each time the list of
+        // bots and people is brought up to date: the person's puppet must stay where it is
+        let mut app = host_with_a_guest_and(2);
+        let mut g = app.world_mut().resource_mut::<Game>();
+        let version = g.dummies_version;
+        for _ in 0..5 {
+            crate::round::sync_bot_count(&mut g, 2);
+        }
+        assert_eq!(g.dummies_version, version, "nothing changed: the models are not rebuilt");
+        for bots in [2, 2, 3, 1, 2] {
+            crate::round::sync_bot_count(&mut g, bots);
+            let d = g.dummies.iter().find(|d| d.remote.is_some()).expect("still here");
+            assert_eq!((d.mover.x, d.mover.z, d.face), (8.0, 0.0, std::f32::consts::PI), "with {bots} bots");
+            assert_eq!(g.dummies.iter().filter(|d| d.remote.is_some()).count(), 1);
+        }
+        // someone who leaves is gone
+        g.remotes.clear();
+        crate::round::sync_bot_count(&mut g, 2);
+        assert!(g.dummies.iter().all(|d| d.remote.is_none()));
+    }
+
     fn host_with_a_guest_and(bots: usize) -> App {
         let mut app = app();
         {

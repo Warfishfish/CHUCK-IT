@@ -147,9 +147,12 @@ pub fn sync_bot_count(g: &mut Game, want: usize) {
     let want = want.min(MAX_BOTS);
     // people playing online are puppets at the end of the list; they are put back last
     let before: Vec<crate::game::RemoteInfo> = g.dummies.iter().filter_map(|d| d.remote.clone()).collect();
+    // keep each person's puppet as it is (where it stands, how it moves): only the list around it
+    // changes. Throwing them away and making new ones on every update from the host made them
+    // jump to a spawn spot for a frame on guests' screens (9 Oct 2026: "clipping and glitching").
+    let mut kept: Vec<Dummy> = Vec::new();
     while let Some(i) = g.dummies.iter().rposition(|d| d.remote.is_some()) {
-        let d = g.dummies.remove(i);
-        g.board.remove(d.id);
+        kept.push(g.dummies.remove(i));
     }
     while g.dummies.len() > want {
         if let Some(d) = g.dummies.pop() {
@@ -168,13 +171,22 @@ pub fn sync_bot_count(g: &mut Game, want: usize) {
         i += 1;
     }
     for r in g.remotes.clone() {
-        let (x, z) = CHAR_SPAWNS[(g.dummies.len() + 1) % CHAR_SPAWNS.len()];
-        let mut d = Dummy::new(r.local_id(), x, z, g.dummies.len(), &mut g.rng);
+        let mut d = match kept.iter().position(|k| k.id == r.local_id()) {
+            Some(k) => kept.remove(k),
+            None => {
+                let (x, z) = CHAR_SPAWNS[(g.dummies.len() + 1) % CHAR_SPAWNS.len()];
+                Dummy::new(r.local_id(), x, z, g.dummies.len(), &mut g.rng)
+            }
+        };
         g.board.ensure(d.id);
         d.look = r.look;
         d.belly = r.belly;
         d.remote = Some(r);
         g.dummies.push(d);
+    }
+    // people who have left
+    for d in kept {
+        g.board.remove(d.id);
     }
     let after: Vec<_> = g.dummies.iter().filter_map(|d| d.remote.clone()).collect();
     if before != after || g.dummies.len() != g.life.grab_immune.len() {
