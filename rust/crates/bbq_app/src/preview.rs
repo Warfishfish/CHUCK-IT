@@ -114,8 +114,11 @@ fn swap_preview_model(
                     // everything of the model is on the preview's own layer
                     commands.entity(node).insert(RenderLayers::layer(LAYER));
                     let Ok(name) = names.get(node) else { continue };
-                    if matches!(name.as_str(), "Torso" | "Singlet") {
+                    if matches!(name.as_str(), "Torso" | "Singlet") || crate::face::shorts_kind(name.as_str()).is_some() {
                         commands.entity(node).insert(PreviewBelly);
+                    }
+                    if let Some(kind) = crate::face::shorts_kind(name.as_str()) {
+                        commands.entity(node).insert(crate::face::ShortsPiece { owner: crate::face::FaceOwner::Preview, kind });
                     }
                     if name.as_str() == "Head" {
                         commands.entity(node).insert(crate::face::HeadNode { owner: crate::face::FaceOwner::Preview, layer: Some(LAYER) });
@@ -141,6 +144,7 @@ fn swap_preview_model(
                         "FootL" | "FootR" => Some(crate::face::TintPart::Foot),
                         "Singlet" => Some(crate::face::TintPart::Singlet),
                         "ThongL" | "ThongR" => Some(crate::face::TintPart::Thong),
+                        n if crate::face::shorts_kind(n).is_some() => Some(crate::face::TintPart::Shorts),
                         _ => None,
                     };
                     if let Some(part) = part {

@@ -30,7 +30,6 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 - Colours for each blob (body, shorts or singlet, skin tone), picked in the menu
 - Hats and caps, sunnies, thongs colours, name tag style
 - Beer belly slider is in; add a body-size or height slider only if it keeps hit sizes fair
-- Singlet and shorts as real cloth (A3.6, C11.3)
 - Show your choices to others online (needs the online messages extended)
 - Save the look with the settings
 

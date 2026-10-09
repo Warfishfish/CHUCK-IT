@@ -35,6 +35,7 @@ M = {
     "White": mat("EyeWhite", (1, 1, 1)),
     "Black": mat("Pupil", (0.07, 0.07, 0.07)),
     "Singlet": mat("SingletMat", (0.93, 0.92, 0.86)),
+    "Shorts": mat("ShortsMat", (0.2, 0.3, 0.6)),
     "ThongPear": mat("ThongPearMat", (1.0, 0.69, 0.18)),
     "ThongEgg": mat("ThongEggMat", (0.18, 0.66, 0.85)),
     "ThongGumdrop": mat("ThongGumdropMat", (0.91, 0.27, 0.23)),
@@ -228,6 +229,60 @@ def add_belly_keys(ob, c, swell_value=1.0):
     ks.value = 0.0
 
 
+def cloth_faces(bm, rows, n_a, n_h, tiles_u, tiles_v):
+    """Join the rings of points into quads with UV coordinates round the body (the game puts the
+    fabric picture and its normal map on them; C11.3)."""
+    uv = bm.loops.layers.uv.new("UVMap")
+    for j in range(n_h):
+        for i in range(n_a):
+            f = bm.faces.new((rows[j][i], rows[j][(i + 1) % n_a], rows[j + 1][(i + 1) % n_a], rows[j + 1][i]))
+            corners = ((i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1))
+            for lp, (ci, cj) in zip(f.loops, corners):
+                lp[uv].uv = (ci / n_a * tiles_u, cj / n_h * tiles_v)
+
+
+# C11.3 shorts: how far up the body they stand (hem) and how much they flare, per kind
+SHORTS_KINDS = {
+    "stubbies": dict(hem=0.44, flare=0.02),   # short shorts, a lot of leg (body) showing
+    "boardies": dict(hem=0.15, flare=0.09),   # long baggy boardies down to the knees (the bottom)
+}
+
+
+def shorts(shape, kind, top, material, parent, seed=3):
+    """Shorts: a shell round the lower body, from the waist (under the singlet) down to the hem."""
+    k = SHORTS_KINDS[kind]
+    rnd = random.Random(seed)
+    ph = [rnd.uniform(0, 6.28) for _ in range(3)]
+    n_a, n_h = 48, 7
+    bm = bmesh.new()
+    rows = []
+    for j in range(n_h + 1):
+        t = j / n_h                      # 0 at the hem, 1 at the waist
+        row = []
+        for i in range(n_a):
+            a = 2 * math.pi * i / n_a
+            hem = 0.012 * math.sin(4 * a + ph[0])
+            y = (k["hem"] + hem * (1 - t)) + t * (top - (k["hem"] + hem * (1 - t)))
+            r = profile_radius(shape, y) * 1.03 + 0.008
+            r *= 1.0 + k["flare"] * (1 - t) ** 2          # flares out at the hem
+            r += 0.008 * math.sin(6 * a + 7 * t + ph[1]) * (1 - 0.5 * t)  # baggy folds
+            row.append(bm.verts.new((r * math.sin(a), -r * math.cos(a), y)))
+        rows.append(row)
+    cloth_faces(bm, rows, n_a, n_h, 8.0, 2.0)
+    bm.normal_update()
+    me = bpy.data.meshes.new("Shorts_" + kind)
+    bm.to_mesh(me)
+    bm.free()
+    for p_ in me.polygons:
+        p_.use_smooth = True
+    ob = bpy.data.objects.new("Shorts_" + kind, me)
+    ob.data.materials.append(material)
+    scn.collection.objects.link(ob)
+    ob.parent = parent
+    ob.matrix_parent_inverse = parent.matrix_world.inverted()
+    return ob
+
+
 def singlet(shape, y0, y1, material, parent, seed=1, front_lift=0.0):
     """A loose singlet over the chest: a shell a little wider than the torso, with folds, a wavy
     hem that rides up (so the tummy sticks out below it) and a wonky collar."""
@@ -252,9 +307,7 @@ def singlet(shape, y0, y1, material, parent, seed=1, front_lift=0.0):
             fwd = 0.02 * max(0.0, math.cos(a)) * (1 - t)   # it hangs a bit forward over the tummy
             row.append(bm.verts.new(((r + fwd) * math.sin(a), -(r + fwd) * math.cos(a), y)))
         rows.append(row)
-    for j in range(n_h):
-        for i in range(n_a):
-            bm.faces.new((rows[j][i], rows[j][(i + 1) % n_a], rows[j + 1][(i + 1) % n_a], rows[j + 1][i]))
+    cloth_faces(bm, rows, n_a, n_h, 9.0, 2.5)
     bm.normal_update()
     me = bpy.data.meshes.new("Singlet")
     bm.to_mesh(me)
@@ -309,6 +362,13 @@ def make_blob(shape, dx=0.0):
         add_belly_keys(torso, c)
         sing = singlet(shape, c["belly_y"] - 0.04, 1.22 + (SHAPES[shape]["height"] - 1.42), M["Singlet"], body, seed=len(shape), front_lift=0.12)
         add_belly_keys(sing, c)
+        # shorts (the game shows one kind, or none, and colours them; they follow the belly too)
+        only = sys.argv[sys.argv.index("--shorts") + 1] if "--shorts" in sys.argv else None  # preview: one kind
+        for kind in SHORTS_KINDS:
+            if only and kind != only:
+                continue
+            sh = shorts(shape, kind, c["belly_y"] + 0.10, M["Shorts"], body)
+            add_belly_keys(sh, c)
     # HandR is the one the game animates (it swings), HandL is the other side.
     # Hands rest just outside the body at arm height (0.88 up).
     hr = c["hand"] if c else 0.10
@@ -419,5 +479,5 @@ for shape in ORDER:
     make_blob(shape)
     path = os.path.join(out_dir, "blob_%s%s.glb" % (shape, ("_" + STYLE) if STYLE else ""))
     bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", export_yup=True,
-                              export_apply=True, export_cameras=False, export_lights=False)
+                              export_apply=True, export_tangents=True, export_cameras=False, export_lights=False)
     print("wrote", path)

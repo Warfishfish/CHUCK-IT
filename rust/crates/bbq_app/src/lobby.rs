@@ -157,6 +157,7 @@ fn sync_figures(
                             "FootL" | "FootR" => Some(TintPart::Foot),
                             "Singlet" => Some(TintPart::Singlet),
                             "ThongL" | "ThongR" => Some(TintPart::Thong),
+                            n if crate::face::shorts_kind(n).is_some() => Some(TintPart::Shorts),
                             _ => None,
                         };
                         if let Some(part) = part {
@@ -175,6 +176,9 @@ fn sync_figures(
                             }
                             "Torso" | "Singlet" => {
                                 commands.entity(node).try_insert(LobbyBelly(id));
+                            }
+                            n if crate::face::shorts_kind(n).is_some() => {
+                                commands.entity(node).try_insert((LobbyBelly(id), crate::face::ShortsPiece { owner: FaceOwner::Lobby(id), kind: crate::face::shorts_kind(n).unwrap() }));
                             }
                             _ => {}
                         }

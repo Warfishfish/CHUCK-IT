@@ -84,6 +84,14 @@ pub enum TintPart {
     Foot,
     Singlet,
     Thong,
+    Shorts,
+}
+
+/// One of the shorts shells on a model: the model has both kinds and the look picks which shows.
+#[derive(Component, Clone, Copy)]
+pub struct ShortsPiece {
+    pub owner: FaceOwner,
+    pub kind: bbq_core::appearance::Shorts,
 }
 
 /// A mesh that wears one of the look's colours.
@@ -122,7 +130,7 @@ fn sync_tints(
     online: Option<Res<crate::online::Online>>,
     assets: Res<AssetServer>,
     mut mats: ResMut<Assets<StandardMaterial>>,
-    mut cache: Local<std::collections::HashMap<(u32, bool), Handle<StandardMaterial>>>,
+    mut cache: Local<std::collections::HashMap<(u32, u8), Handle<StandardMaterial>>>,
     q: Query<(Entity, &LookTint, Option<&TintShown>)>,
 ) {
     for (e, t, shown) in &q {
@@ -146,18 +154,19 @@ fn sync_tints(
             }
             TintPart::Singlet => look.colour(Palette::Singlet),
             TintPart::Thong => look.colour(Palette::Thong),
+            TintPart::Shorts => look.colour(Palette::Shorts),
         };
         if shown.map(|s| s.0) == Some(colour) {
             continue;
         }
         let skin = matches!(t.part, TintPart::Body | TintPart::Head | TintPart::Foot);
         let m = cache
-            .entry((colour, skin))
+            .entry((colour, if skin { 0 } else if t.part == TintPart::Thong { 1 } else { 2 }))
             .or_insert_with(|| {
                 if skin {
                     mats.add(crate::style::body_material(crate::models::hex(colour), &assets))
-                } else if t.part == TintPart::Singlet {
-                    mats.add(StandardMaterial { base_color: crate::models::hex(colour), perceptual_roughness: 0.95, reflectance: 0.1, ..default() })
+                } else if matches!(t.part, TintPart::Singlet | TintPart::Shorts) {
+                    mats.add(crate::style::cloth_material(crate::models::hex(colour), &assets))
                 } else {
                     mats.add(StandardMaterial { base_color: crate::models::hex(colour), perceptual_roughness: 0.45, reflectance: 0.35, ..default() })
                 }
@@ -167,12 +176,47 @@ fn sync_tints(
     }
 }
 
+/// Which kind of shorts a model node is (the models carry both kinds).
+pub fn shorts_kind(name: &str) -> Option<bbq_core::appearance::Shorts> {
+    match name {
+        "Shorts_stubbies" => Some(bbq_core::appearance::Shorts::Stubbies),
+        "Shorts_boardies" => Some(bbq_core::appearance::Shorts::Boardies),
+        _ => None,
+    }
+}
+
+/// Show the kind of shorts a look wears (and none of the other kind).
+fn sync_shorts(
+    game: Res<Game>,
+    settings: Res<Settings>,
+    online: Option<Res<crate::online::Online>>,
+    mut q: Query<(&ShortsPiece, &mut Visibility)>,
+) {
+    for (p, mut v) in &mut q {
+        let look = match p.owner {
+            FaceOwner::Preview => settings.look,
+            FaceOwner::Lobby(id) => match online.as_deref().and_then(|o| crate::lobby::lobby_look(o, &settings, id)) {
+                Some(l) => l.1,
+                None => continue,
+            },
+            FaceOwner::Blob(i) => match game.dummies.get(i) {
+                Some(d) => d.look,
+                None => continue,
+            },
+        };
+        let want = if look.shorts == p.kind { Visibility::Inherited } else { Visibility::Hidden };
+        if *v != want {
+            *v = want;
+        }
+    }
+}
+
 pub struct FacePlugin;
 
 impl Plugin for FacePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, make_kit)// after Update, so a model swapped or thrown away this frame is already gone
-            .add_systems(PostUpdate, (sync_faces, wobble_mouths, sync_tints).chain());
+            .add_systems(PostUpdate, (sync_faces, wobble_mouths, sync_tints, sync_shorts).chain());
     }
 }
 

@@ -132,7 +132,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 ### C11. Character materials and looks
 - [x] C11.1 Singlet over the tummy with folds and a wavy hem (Pear, Egg, Gumdrop)
 - [x] C11.2 Dazza: sunburnt skin, cork hat, sunnies, moustache, belly, apron, stubby shorts, stubby holder, thongs
-- [ ] C11.3 Singlet in the fabric material (A3.6), and shorts or stubbies for the blobs
+- [x] C11.3 Singlet in the fabric material (9 Oct 2026): the singlet now has the woven fabric picture and normal map (the models have UV coordinates and tangents), and blobs can wear shorts, a Shorts row on the Customise tab (None, Stubbies or Boardies) with its own colour row. The shorts are cloth too, follow the beer belly, and show online (protocol 5). Half the bots wear shorts
 - [ ] C11.4 A cap or hat on some characters
 - [ ] C11.5 Skin and body roughness (a soft sheen, a little sunburn on the nose and shoulders)
 - [x] C11.6 Leader crown, stars, sash and name tag still read clearly on the new bodies (8 Oct 2026): the crown sits on each head (it was half inside the bigger pop heads), the stun stars just above it, name tags over each head (lobby too); the team sash, the Heist swim ring and the team bubble are sized and placed for each body

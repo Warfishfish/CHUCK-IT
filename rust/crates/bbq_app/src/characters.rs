@@ -306,7 +306,7 @@ fn spawn_model(
                             n if n.starts_with("Eye") => 0.009,
                             n if n.starts_with("Hand") => 0.011,
                             n if n.starts_with("Foot") => 0.011,
-                            "Singlet" => 0.009,
+                            "Singlet" | "Shorts_stubbies" | "Shorts_boardies" => 0.009,
                             _ => 0.013,
                         };
                         for e in std::iter::once(node).chain(children.iter_descendants(node)) {
@@ -365,6 +365,7 @@ fn spawn_model(
                         "FootL" | "FootR" => Some(crate::face::TintPart::Foot),
                         "Singlet" => Some(crate::face::TintPart::Singlet),
                         "ThongL" | "ThongR" => Some(crate::face::TintPart::Thong),
+                        n if crate::face::shorts_kind(n).is_some() => Some(crate::face::TintPart::Shorts),
                         _ => None,
                     };
                     if let Some(part) = part {
@@ -375,8 +376,11 @@ fn spawn_model(
                         }
                     }
                     let base = tfs.get(node).map(|t| t.translation).unwrap_or_default();
-                    if matches!(name.as_str(), "Torso" | "Singlet") {
+                    if matches!(name.as_str(), "Torso" | "Singlet") || crate::face::shorts_kind(name.as_str()).is_some() {
                         commands.entity(node).insert((BellyNode, Blob(i)));
+                    }
+                    if let Some(kind) = crate::face::shorts_kind(name.as_str()) {
+                        commands.entity(node).insert(crate::face::ShortsPiece { owner: crate::face::FaceOwner::Blob(i), kind });
                     }
                     match name.as_str() {
                         "EyeL" | "EyeR" => {

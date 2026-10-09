@@ -59,6 +59,39 @@ pub fn current() -> Style {
     }
 }
 
+/// Cloth for the singlet and shorts (C11.3): the colour with the woven fabric picture and its
+/// normal map on top. The models carry UV coordinates and tangents for it.
+pub fn cloth_material(colour: Color, assets: &AssetServer) -> StandardMaterial {
+    use bevy::image::{ImageAddressMode, ImageFilterMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor};
+    fn sampler() -> ImageSampler {
+        ImageSampler::Descriptor(ImageSamplerDescriptor {
+            address_mode_u: ImageAddressMode::Repeat,
+            address_mode_v: ImageAddressMode::Repeat,
+            mag_filter: ImageFilterMode::Linear,
+            min_filter: ImageFilterMode::Linear,
+            mipmap_filter: ImageFilterMode::Linear,
+            anisotropy_clamp: 8,
+            ..default()
+        })
+    }
+    let repeat = |s: &mut ImageLoaderSettings| s.sampler = sampler();
+    let flat = |s: &mut ImageLoaderSettings| {
+        s.is_srgb = false;
+        s.sampler = sampler();
+    };
+    StandardMaterial {
+        base_color: colour,
+        base_color_texture: Some(assets.load_builder().with_settings(repeat).load("textures/fabric.png")),
+        normal_map_texture: Some(assets.load_builder().with_settings(flat).load("textures/fabric_n.png")),
+        perceptual_roughness: 0.95,
+        reflectance: 0.1,
+        // the cloth is a thin shell: lit from both sides
+        double_sided: true,
+        cull_mode: None,
+        ..default()
+    }
+}
+
 /// Which set of models the current style draws (each has its own proportions).
 pub fn model_set() -> bbq_core::character::ModelSet {
     use bbq_core::character::ModelSet;
