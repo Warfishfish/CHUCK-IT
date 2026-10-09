@@ -186,14 +186,20 @@ impl Settings {
         write_settings(&s);
     }
 
+    /// In the browser the relay is always the server the page came from, with the page's own
+    /// scheme: an `https://` page (the trycloudflare link) must use a secure `wss://` connection,
+    /// or the browser refuses it.
+    fn use_page_server(&mut self) {
+        #[cfg(target_arch = "wasm32")]
+        if let Some(origin) = web_sys::window().and_then(|w| w.location().origin().ok()) {
+            self.server = origin;
+        }
+    }
+
     pub fn load() -> Self {
         let mut s = Settings::default();
-        // in the browser the relay is the server the page came from
-        #[cfg(target_arch = "wasm32")]
-        if let Some(host) = web_sys::window().and_then(|w| w.location().host().ok()) {
-            s.server = host;
-        }
         let Some(text) = read_settings() else {
+            s.use_page_server();
             return s;
         };
         for line in text.lines() {
@@ -243,6 +249,7 @@ impl Settings {
                 }
             }
         }
+        s.use_page_server();
         s
     }
 }
