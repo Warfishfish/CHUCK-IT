@@ -217,7 +217,7 @@ pub enum LookRow {
     Shape,
     /// No legs, stumpy or skinny.
     Legs,
-    /// No shorts, stubbies or boardies, and their colour.
+    /// No shorts, budgies or boardies, and their colour.
     Shorts,
     ShortsColour,
     /// No hat, a cap, an Akubra or a beanie, and its colour.
@@ -282,6 +282,8 @@ pub enum CheckId {
 pub enum SliderId {
     Fov,
     Belly,
+    /// How dirty the singlet and shorts are.
+    Dirt,
 }
 
 /// A slider (field of view, beer belly).

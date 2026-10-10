@@ -61,7 +61,7 @@ pub fn current() -> Style {
 
 /// Cloth for the singlet and shorts (C11.3): the colour with the woven fabric picture and its
 /// normal map on top. The models carry UV coordinates and tangents for it.
-pub fn cloth_material(colour: Color, assets: &AssetServer) -> StandardMaterial {
+pub fn cloth_material(colour: Color, assets: &AssetServer, dirt: Option<Handle<Image>>) -> StandardMaterial {
     use bevy::image::{ImageAddressMode, ImageFilterMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor};
     fn sampler() -> ImageSampler {
         ImageSampler::Descriptor(ImageSamplerDescriptor {
@@ -79,9 +79,16 @@ pub fn cloth_material(colour: Color, assets: &AssetServer) -> StandardMaterial {
         s.is_srgb = false;
         s.sampler = sampler();
     };
+    // dirty cloth: the colour goes through the dirt picture (painted by `dirt.rs`), which repeats
+    // a few times round the body; clean cloth has the plain fabric picture
+    let dirty = dirt.is_some();
     StandardMaterial {
         base_color: colour,
-        base_color_texture: Some(assets.load_builder().with_settings(repeat).load("textures/fabric.png")),
+        base_color_texture: Some(match dirt {
+            Some(d) => d,
+            None => assets.load_builder().with_settings(repeat).load("textures/fabric.png"),
+        }),
+        uv_transform: if dirty { bevy::math::Affine2::from_scale(Vec2::new(0.34, 0.5)) } else { bevy::math::Affine2::IDENTITY },
         normal_map_texture: Some(assets.load_builder().with_settings(flat).load("textures/fabric_n.png")),
         perceptual_roughness: 0.95,
         reflectance: 0.1,

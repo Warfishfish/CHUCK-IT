@@ -155,7 +155,7 @@ fn sync_figures(
                             "Torso" | "Belly" => Some(TintPart::Body),
                             "Head" | "HandR" | "HandL" => Some(TintPart::Head),
                             "FootL" | "FootR" => Some(TintPart::Foot),
-                            "Singlet" => Some(TintPart::Singlet),
+                            n if n.starts_with("Singlet") => Some(TintPart::Singlet),
                             "ThongL" | "ThongR" => Some(TintPart::Thong),
                             n if crate::face::shorts_kind(n).is_some() => Some(TintPart::Shorts),
                             _ => None,
@@ -174,7 +174,7 @@ fn sync_figures(
                             "HandR" | "HandL" => {
                                 commands.entity(node).try_insert(LobbyHand { net_id: id, right: name.as_str() == "HandR", base });
                             }
-                            "Torso" | "Singlet" => {
+                            n if n == "Torso" || n.starts_with("Singlet") => {
                                 commands.entity(node).try_insert(LobbyBelly(id));
                             }
                             n if crate::face::shorts_kind(n).is_some() => {

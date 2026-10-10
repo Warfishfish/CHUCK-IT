@@ -179,7 +179,9 @@ fn shot_camera(
         .and_then(|i| args.get(i + 1))
         .and_then(|v| v.parse::<usize>().ok());
     if let Some(d) = bot.and_then(|n| game.dummies.get(n)) {
-        let side = if args.iter().any(|a| a == "--bot-profile") {
+        let side = if args.iter().any(|a| a == "--bot-back") {
+            std::f32::consts::PI // from behind (names on shirts)
+        } else if args.iter().any(|a| a == "--bot-profile") {
             std::f32::consts::FRAC_PI_2
         } else if args.iter().any(|a| a == "--bot-side") {
             1.1

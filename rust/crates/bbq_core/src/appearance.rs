@@ -145,23 +145,24 @@ impl Legs {
     }
 }
 
-/// Shorts (C11.3, Marcus 9 Oct 2026): none (the default), short Stubbies, or baggy Boardies.
+/// Shorts (C11.3, Marcus 9 Oct 2026): none (the default), Budgies (budgie smugglers: snug
+/// swimmers; they replaced the stubbies on 10 Oct 2026) or baggy Boardies.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub enum Shorts {
     #[default]
     None,
-    /// Short shorts, a lot of leg showing.
-    Stubbies,
+    /// Budgie smugglers: snug swimmers sitting low under the tummy.
+    Budgies,
     /// Long, baggy boardies.
     Boardies,
 }
 
 impl Choice for Shorts {
-    const ALL: &'static [Shorts] = &[Shorts::None, Shorts::Stubbies, Shorts::Boardies];
+    const ALL: &'static [Shorts] = &[Shorts::None, Shorts::Budgies, Shorts::Boardies];
     fn name(self) -> &'static str {
         match self {
             Shorts::None => "None",
-            Shorts::Stubbies => "Stubbies",
+            Shorts::Budgies => "Budgies",
             Shorts::Boardies => "Boardies",
         }
     }
@@ -194,7 +195,10 @@ impl Choice for Hat {
 }
 
 /// How many bytes a look takes in the online messages.
-pub const LOOK_BYTES: usize = 13;
+pub const LOOK_BYTES: usize = 14;
+/// How dirty the singlet and shorts are by default (0 spotless to 100 filthy; Marcus, 10 Oct 2026:
+/// "make the t-shirts a little bit dirty").
+pub const DIRT_DEFAULT: u8 = 30;
 
 /// The colour palettes (0xRRGGBB). Everything but the body has 5 colours (Marcus, 9 Oct 2026); the
 /// body keeps its 10 skin colours. Sun-baked but clear, picked to sit well in the yard.
@@ -233,6 +237,8 @@ pub struct Appearance {
     pub shorts_colour: u8,
     pub hat: Hat,
     pub hat_colour: u8,
+    /// How grubby the singlet and shorts are: 0 spotless to 100 filthy (the Dirty slider).
+    pub dirt: u8,
 }
 
 impl Default for Appearance {
@@ -251,6 +257,7 @@ impl Default for Appearance {
             shorts_colour: 0,
             hat: Hat::None,
             hat_colour: 0,
+            dirt: DIRT_DEFAULT,
         }
     }
 }
@@ -324,6 +331,7 @@ impl Appearance {
         self.brow_colour = fix(self.brow_colour, Palette::Brow);
         self.shorts_colour = fix(self.shorts_colour, Palette::Shorts);
         self.hat_colour = fix(self.hat_colour, Palette::Hat);
+        self.dirt = self.dirt.min(100);
         self
     }
 
@@ -345,9 +353,11 @@ impl Appearance {
             shorts_colour: pick(rng, SHORTS_COLOURS.len()),
             hat: Hat::None,
             hat_colour: pick(rng, HAT_COLOURS.len()),
+            dirt: DIRT_DEFAULT,
         };
         // about half wear a hat (picked after everything else so the rest of a look is as it was)
         a.hat = Hat::from_index(rng.index(6).saturating_sub(2) as u8);
+        a.dirt = rng.index(81) as u8; // some clean, some grubby
         // about half wear shorts, of either kind (picked last so the rest of a look is as it was)
         a.shorts = Shorts::from_index(rng.index(4).saturating_sub(1) as u8);
         a.legs = match rng.index(4) {
@@ -361,7 +371,7 @@ impl Appearance {
     /// `key=value` lines for `settings.txt`.
     pub fn to_lines(&self) -> String {
         format!(
-            "mouth={}\nbrows={}\nhair={}\nbody_colour={}\nsinglet_colour={}\nthong_colour={}\nhair_colour={}\nbrow_colour={}\nlegs={}\nshorts={}\nshorts_colour={}\nhat={}\nhat_colour={}\n",
+            "mouth={}\nbrows={}\nhair={}\nbody_colour={}\nsinglet_colour={}\nthong_colour={}\nhair_colour={}\nbrow_colour={}\nlegs={}\nshorts={}\nshorts_colour={}\nhat={}\nhat_colour={}\ndirt={}\n",
             self.mouth.name(),
             self.brows.name(),
             self.hair.name(),
@@ -374,7 +384,8 @@ impl Appearance {
             self.shorts.name(),
             self.shorts_colour,
             self.hat.name(),
-            self.hat_colour
+            self.hat_colour,
+            self.dirt
         )
     }
 
@@ -396,13 +407,14 @@ impl Appearance {
             "shorts_colour" => self.shorts_colour = num(value).unwrap_or(self.shorts_colour),
             "hat" => self.hat = Hat::from_name(value).unwrap_or(self.hat),
             "hat_colour" => self.hat_colour = num(value).unwrap_or(self.hat_colour),
+            "dirt" => self.dirt = num(value).unwrap_or(self.dirt),
             _ => return false,
         }
         *self = self.tidy();
         true
     }
 
-    /// The look as 13 bytes, for the online messages.
+    /// The look as 14 bytes, for the online messages.
     pub fn to_bytes(&self) -> [u8; LOOK_BYTES] {
         [
             self.mouth.index(),
@@ -418,10 +430,11 @@ impl Appearance {
             self.shorts_colour,
             self.hat.index(),
             self.hat_colour,
+            self.dirt,
         ]
     }
 
-    /// From 13 bytes; anything out of range becomes something sensible.
+    /// From 14 bytes; anything out of range becomes something sensible.
     pub fn from_bytes(b: [u8; LOOK_BYTES]) -> Self {
         Appearance {
             mouth: Mouth::from_index(b[0]),
@@ -437,6 +450,7 @@ impl Appearance {
             shorts_colour: b[10],
             hat: Hat::from_index(b[11]),
             hat_colour: b[12],
+            dirt: b[13],
         }
         .tidy()
     }
@@ -461,6 +475,7 @@ mod tests {
             shorts_colour: 4,
             hat: Hat::Akubra,
             hat_colour: 3,
+            dirt: 72,
         }
     }
 
@@ -475,8 +490,8 @@ mod tests {
         // legs: none (the default, Marcus likes it best), stumpy or skinny
         assert_eq!(Legs::ALL, &[Legs::None, Legs::Stumpy, Legs::Skinny]);
         assert_eq!(Appearance::default().legs, Legs::None);
-        // shorts: none (the default), Stubbies or Boardies
-        assert_eq!(Shorts::ALL, &[Shorts::None, Shorts::Stubbies, Shorts::Boardies]);
+        // shorts: none (the default), Budgies or Boardies
+        assert_eq!(Shorts::ALL, &[Shorts::None, Shorts::Budgies, Shorts::Boardies]);
         assert_eq!(Appearance::default().shorts, Shorts::None);
         // hats: none (the default), a cap, an Akubra or a beanie
         assert_eq!(Hat::ALL, &[Hat::None, Hat::Cap, Hat::Akubra, Hat::Beanie]);
@@ -536,7 +551,7 @@ mod tests {
     }
 
     #[test]
-    fn the_look_fits_in_13_bytes_and_junk_is_made_safe() {
+    fn the_look_fits_in_14_bytes_and_junk_is_made_safe() {
         let a = odd();
         assert_eq!(Appearance::from_bytes(a.to_bytes()), a);
         let junk = Appearance::from_bytes([255; LOOK_BYTES]);
@@ -544,6 +559,8 @@ mod tests {
         assert_eq!(junk.legs, Legs::None);
         assert_eq!(junk.shorts, Shorts::None);
         assert_eq!(junk.hat, Hat::None);
+        assert!(junk.dirt <= 100, "dirt is kept in range");
+        assert_eq!(Appearance::default().dirt, DIRT_DEFAULT, "a little dirty to start with");
         for p in [Palette::Body, Palette::Singlet, Palette::Thong, Palette::Hair, Palette::Brow, Palette::Shorts, Palette::Hat] {
             assert!((junk.colour_index(p) as usize) < p.colours().len());
             let _ = junk.colour(p);
@@ -569,6 +586,6 @@ mod tests {
         // about half have no legs, and both kinds of legs turn up
         assert!((110..=190).contains(&legs[0]) && legs[1] > 30 && legs[2] > 30, "{legs:?}");
         assert!((110..=190).contains(&shorts[0]) && shorts[1] > 30 && shorts[2] > 30, "{shorts:?}");
-        assert!((70..=140).contains(&hats[0]) && hats[1..].iter().all(|n| *n > 30), "{hats:?}");
+        assert!((110..=190).contains(&hats[0]) && hats[1..].iter().all(|n| *n > 30), "{hats:?}");
     }
 }

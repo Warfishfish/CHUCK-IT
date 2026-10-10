@@ -96,9 +96,9 @@ impl Default for Settings {
 pub static NO_SAVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Command-line flags that mean "this is a test run".
-pub const TEST_FLAGS: [&str; 24] = [
+pub const TEST_FLAGS: [&str; 25] = [
     "--shot", "--net-host", "--net-join", "--net-play", "--net-ready", "--net-give", "--net-throw", "--server", "--name", "--hair",
-    "--mouth", "--brows", "--body", "--belly", "--char", "--legs", "--pose", "--swim", "--swim-dive", "--shorts", "--singlet", "--shorts-col", "--hat", "--hat-col",
+    "--mouth", "--brows", "--body", "--belly", "--char", "--legs", "--pose", "--swim", "--swim-dive", "--shorts", "--singlet", "--shorts-col", "--hat", "--hat-col", "--dirt",
 ];
 
 /// The settings text: a file on the desktop, the browser's local storage on the web.
@@ -447,7 +447,7 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                 // tabs
                 c.spawn(row(8.0)).with_children(|t| {
                     tab_button(t, Tab::Solo, "Solo");
-                    tab_button(t, Tab::Look, "Customise");
+                    // (Customise is the button under your blob now, 10 Oct 2026)
                     tab_button(t, Tab::Mates, "With mates");
                     tab_button(t, Tab::How, "How to play");
                 });
@@ -701,6 +701,7 @@ fn look_panel(c: &mut ChildSpawnerCommands) {
         let shorts: Vec<&str> = Shorts::ALL.iter().map(|x| x.name()).collect();
         style_buttons(p, LookRow::Shorts, "Shorts", &shorts);
         slider(p, SliderId::Belly, "Beer belly", 0.0, 2.0);
+        slider(p, SliderId::Dirt, "Dirty", 0.0, 100.0);
         // the styles: a row of buttons each
         p.spawn(legend("Face and hair"));
         let styles: [(LookRow, &str, Vec<&str>); 4] = [
@@ -1108,9 +1109,14 @@ fn apply_loaded_settings(mut settings: ResMut<Settings>, mut player: ResMut<Play
         settings.look = settings.look.tidy();
     }
     // `--singlet N`, `--shorts-col N` and `--hat-col N` (testing): colours from the palettes
-    for (flag, which) in [("--singlet", 0), ("--shorts-col", 1), ("--hat-col", 2)] {
+    for (flag, which) in [("--singlet", 0), ("--shorts-col", 1), ("--hat-col", 2), ("--dirt", 3)] {
         if let Some(n) = args.iter().position(|a| a == flag).and_then(|i| args.get(i + 1)).and_then(|v| v.parse::<u8>().ok()) {
-            if which == 0 { settings.look.singlet = n } else if which == 1 { settings.look.shorts_colour = n } else { settings.look.hat_colour = n }
+            match which {
+                0 => settings.look.singlet = n,
+                1 => settings.look.shorts_colour = n,
+                2 => settings.look.hat_colour = n,
+                _ => settings.look.dirt = n,
+            }
             settings.look = settings.look.tidy();
         }
     }
@@ -1121,7 +1127,7 @@ fn apply_loaded_settings(mut settings: ResMut<Settings>, mut player: ResMut<Play
             settings.look.hat = m;
         }
     }
-    // `--shorts stubbies|boardies|none` (testing): your shorts, and every bot's
+    // `--shorts budgies|boardies|none` (testing): your shorts, and every bot's
     if let Some(m) = args.iter().position(|a| a == "--shorts").and_then(|i| args.get(i + 1)) {
         use bbq_core::appearance::Choice;
         if let Some(m) = bbq_core::appearance::Shorts::from_name(m) {
@@ -1358,6 +1364,13 @@ fn slider_drag(
                 let v = ((s.min + (s.max - s.min) * t) * 20.0).round() / 20.0;
                 if v != settings.belly {
                     settings.belly = v;
+                    settings.save();
+                }
+            }
+            SliderId::Dirt => {
+                let v = ((s.min + (s.max - s.min) * t) / 5.0).round() as u8 * 5;
+                if v != settings.look.dirt {
+                    settings.look.dirt = v.min(100);
                     settings.save();
                 }
             }
@@ -1612,12 +1625,21 @@ fn paint_widgets(
         t.0 = match id.0 {
             SliderId::Fov => format!("{:.0}", settings.fov),
             SliderId::Belly => belly_word(settings.belly).to_string(),
+            SliderId::Dirt => match settings.look.dirt {
+                0..=4 => "Spotless",
+                5..=24 => "Worn",
+                25..=49 => "Grubby",
+                50..=79 => "Filthy",
+                _ => "Feral",
+            }
+            .to_string(),
         };
     }
     for (id, mut n) in &mut handles {
         let frac = match id.0 {
             SliderId::Fov => (settings.fov - 60.0) / 45.0,
             SliderId::Belly => settings.belly / 2.0,
+            SliderId::Dirt => settings.look.dirt as f32 / 100.0,
         };
         n.left = Val::Percent(frac * 100.0);
     }

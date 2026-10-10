@@ -12,6 +12,7 @@
 mod bots_app;
 mod characters;
 mod decals;
+mod dirt;
 mod face;
 mod fx;
 mod game;
@@ -34,6 +35,7 @@ mod online_world;
 mod results;
 mod round;
 mod shapes;
+mod shirt;
 mod shot;
 mod style;
 mod ui;
@@ -114,7 +116,7 @@ fn main() {
             >::default(),
         ),
     );
-    app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin, online::OnlinePlugin, face::FacePlugin, lobby::LobbyPlugin, legs::LegsPlugin));
+    app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin, online::OnlinePlugin, face::FacePlugin, lobby::LobbyPlugin, legs::LegsPlugin, shirt::ShirtPlugin));
     if let Some(cfg) = shot {
         app.add_plugins(shot::ShotPlugin(cfg));
     }

@@ -134,7 +134,9 @@ fn sync_tints(
     online: Option<Res<crate::online::Online>>,
     assets: Res<AssetServer>,
     mut mats: ResMut<Assets<StandardMaterial>>,
-    mut cache: Local<std::collections::HashMap<(u32, u8), Handle<StandardMaterial>>>,
+    mut cache: Local<std::collections::HashMap<(u32, u8, u8), Handle<StandardMaterial>>>,
+    mut images: ResMut<Assets<Image>>,
+    mut dirt_kit: Local<crate::dirt::DirtKit>,
     q: Query<(Entity, &LookTint, Option<&TintShown>)>,
 ) {
     for (e, t, shown) in &q {
@@ -160,32 +162,39 @@ fn sync_tints(
             TintPart::Thong => look.colour(Palette::Thong),
             TintPart::Shorts => look.colour(Palette::Shorts),
         };
-        if shown.map(|s| s.0) == Some(colour) {
+        // cloth also shows its dirt (the Dirty slider): part of what is shown
+        let dirt = if matches!(t.part, TintPart::Singlet | TintPart::Shorts) { crate::dirt::level_of(look.dirt) } else { 0 };
+        let shown_key = colour | (dirt as u32) << 24;
+        if shown.map(|s| s.0) == Some(shown_key) {
             continue;
         }
         let skin = matches!(t.part, TintPart::Body | TintPart::Head | TintPart::Foot);
         let m = cache
-            .entry((colour, if skin { 0 } else if t.part == TintPart::Thong { 1 } else { 2 }))
+            .entry((colour, if skin { 0 } else if t.part == TintPart::Thong { 1 } else { 2 }, dirt))
             .or_insert_with(|| {
                 if skin {
                     mats.add(crate::style::body_material(crate::models::hex(colour), &assets))
                 } else if matches!(t.part, TintPart::Singlet | TintPart::Shorts) {
-                    mats.add(crate::style::cloth_material(crate::models::hex(colour), &assets))
+                    let picture = dirt_kit.picture(dirt, &mut images);
+                    mats.add(crate::style::cloth_material(crate::models::hex(colour), &assets, picture))
                 } else {
                     mats.add(StandardMaterial { base_color: crate::models::hex(colour), perceptual_roughness: 0.45, reflectance: 0.35, ..default() })
                 }
             })
             .clone();
-        commands.entity(e).try_insert((MeshMaterial3d(m), TintShown(colour)));
+        commands.entity(e).try_insert((MeshMaterial3d(m), TintShown(shown_key)));
     }
 }
 
 /// Which kind of shorts a model node is (the models carry both kinds).
 pub fn shorts_kind(name: &str) -> Option<bbq_core::appearance::Shorts> {
-    match name {
-        "Shorts_stubbies" => Some(bbq_core::appearance::Shorts::Stubbies),
-        "Shorts_boardies" => Some(bbq_core::appearance::Shorts::Boardies),
-        _ => None,
+    // the shorts and their waistband and cuffs ("Shorts_budgies", "Shorts_budgies_band"...)
+    if name.starts_with("Shorts_budgies") {
+        Some(bbq_core::appearance::Shorts::Budgies)
+    } else if name.starts_with("Shorts_boardies") {
+        Some(bbq_core::appearance::Shorts::Boardies)
+    } else {
+        None
     }
 }
 

@@ -8,7 +8,7 @@ Shapes and sizes are the same as the JavaScript game's createChar():
 Blender is Z-up; the exporter turns that into the game's Y-up, so a point (x, up, forward)
 is written to Blender as (x, -forward, up).
 """
-import bpy, bmesh, math, os, random, sys
+import bpy, bmesh, math, mathutils, os, random, sys
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "crates", "bbq_app", "assets", "models", "blob.glb")
 PREVIEW = sys.argv[sys.argv.index("--preview") + 1] if "--preview" in sys.argv else None
@@ -253,13 +253,46 @@ def cloth_faces(bm, rows, n_a, n_h, tiles_u, tiles_v):
 
 # C11.3 shorts: how far up the body they stand (hem) and how much they flare, per kind
 SHORTS_KINDS = {
-    "stubbies": dict(hem=0.44, flare=0.02),   # short shorts, a lot of leg (body) showing
-    "boardies": dict(hem=0.15, flare=0.09),   # long baggy boardies down to the knees (the bottom)
+    # budgie smugglers (10 Oct 2026, instead of the stubbies): snug swimmers sitting low under the
+    # tummy, cut high at the sides
+    "budgies": dict(hem=BODY_BASE + 0.07, flare=0.0, side_cut=0.13, crotch=0.0, below_belly=0.16, folds=0.0),
+    # long baggy boardies down to the bottom, split between the legs front and back
+    "boardies": dict(hem=0.15, flare=0.09, side_cut=0.0, crotch=0.1, below_belly=-0.10, folds=0.008),
 }
 
 
+def ring_tube(name, ring, radius, material, parent, seg=8):
+    """A thin round tube along a closed ring of points (a sewn edge: a hem, collar or waistband).
+    Each point's tube bulges outwards from the body's middle and up and down."""
+    bm = bmesh.new()
+    rows = []
+    for p in ring:
+        o = mathutils.Vector((p.x, p.y, 0.0))
+        o = o.normalized() if o.length > 1e-6 else mathutils.Vector((1.0, 0.0, 0.0))
+        up = mathutils.Vector((0.0, 0.0, 1.0))
+        rows.append([bm.verts.new(p + o * (radius * math.cos(2 * math.pi * k / seg)) + up * (radius * math.sin(2 * math.pi * k / seg))) for k in range(seg)])
+    n = len(rows)
+    for i in range(n):
+        a, b = rows[i], rows[(i + 1) % n]
+        for k in range(seg):
+            bm.faces.new((a[k], a[(k + 1) % seg], b[(k + 1) % seg], b[k]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    for p_ in me.polygons:
+        p_.use_smooth = True
+    ob = bpy.data.objects.new(name, me)
+    ob.data.materials.append(material)
+    scn.collection.objects.link(ob)
+    ob.parent = parent
+    ob.matrix_parent_inverse = parent.matrix_world.inverted()
+    return ob
+
+
 def shorts(shape, kind, top, material, parent, seed=3):
-    """Shorts: a shell round the lower body, from the waist (under the singlet) down to the hem."""
+    """Shorts: a shell round the lower body, from the waist (under the singlet) down to the hem,
+    with a waistband and cuffed hem (returned too, to follow the belly)."""
     k = SHORTS_KINDS[kind]
     rnd = random.Random(seed)
     ph = [rnd.uniform(0, 6.28) for _ in range(3)]
@@ -271,13 +304,19 @@ def shorts(shape, kind, top, material, parent, seed=3):
         row = []
         for i in range(n_a):
             a = 2 * math.pi * i / n_a
-            hem = 0.012 * math.sin(4 * a + ph[0])
-            y = (k["hem"] + hem * (1 - t)) + t * (top - (k["hem"] + hem * (1 - t)))
-            r = profile_radius(shape, y) * 1.03 + 0.008
+            hem = 0.006 * math.sin(4 * a + ph[0])
+            # the hem rises at the sides (high-cut swimmers) or front and back (between the legs)
+            hem += k["side_cut"] * abs(math.sin(a)) ** 2.5 + k["crotch"] * abs(math.cos(a)) ** 24
+            y = (k["hem"] + hem) + t * (top - (k["hem"] + hem))
+            # snug at the waist (so it stays under the singlet's folds), looser down at the hem
+            loose = 0.03 if k["flare"] > 0 else 0.008
+            r = profile_radius(shape, y) * (1.0 + loose * (1 - t)) + 0.003 + 0.005 * (1 - t)
             r *= 1.0 + k["flare"] * (1 - t) ** 2          # flares out at the hem
-            r += 0.008 * math.sin(6 * a + 7 * t + ph[1]) * (1 - 0.5 * t)  # baggy folds
+            r += k["folds"] * math.sin(6 * a + 7 * t + ph[1]) * (1 - t)  # baggy folds (none at the waist)
             row.append(bm.verts.new((r * math.sin(a), -r * math.cos(a), y)))
         rows.append(row)
+    hem_ring = [v.co.copy() for v in rows[0]]
+    waist_ring = [v.co.copy() for v in rows[-1]]
     cloth_faces(bm, rows, n_a, n_h, 8.0, 2.0)
     bm.normal_update()
     me = bpy.data.meshes.new("Shorts_" + kind)
@@ -290,7 +329,10 @@ def shorts(shape, kind, top, material, parent, seed=3):
     scn.collection.objects.link(ob)
     ob.parent = parent
     ob.matrix_parent_inverse = parent.matrix_world.inverted()
-    return ob
+    # a waistband and cuffed leg holes: sewn edges, so they read as shorts, not a skirt
+    band = ring_tube("Shorts_" + kind + "_band", waist_ring, 0.016, material, parent)
+    cuff = ring_tube("Shorts_" + kind + "_cuff", hem_ring, 0.011, material, parent)
+    return [ob, band, cuff]
 
 
 def singlet(shape, y0, y1, material, parent, seed=1, front_lift=0.0):
@@ -317,6 +359,8 @@ def singlet(shape, y0, y1, material, parent, seed=1, front_lift=0.0):
             fwd = 0.02 * max(0.0, math.cos(a)) * (1 - t)   # it hangs a bit forward over the tummy
             row.append(bm.verts.new(((r + fwd) * math.sin(a), -(r + fwd) * math.cos(a), y)))
         rows.append(row)
+    hem_ring = [v.co.copy() for v in rows[0]]
+    neck_ring = [v.co.copy() for v in rows[-1]]
     cloth_faces(bm, rows, n_a, n_h, 9.0, 2.5)
     bm.normal_update()
     me = bpy.data.meshes.new("Singlet")
@@ -329,7 +373,10 @@ def singlet(shape, y0, y1, material, parent, seed=1, front_lift=0.0):
     scn.collection.objects.link(ob)
     ob.parent = parent
     ob.matrix_parent_inverse = parent.matrix_world.inverted()
-    return ob
+    # a rolled hem and a ribbed collar: sewn edges instead of a raw cut
+    hem = ring_tube("SingletHem", hem_ring, 0.012, material, parent)
+    neck = ring_tube("SingletNeck", neck_ring, 0.017, material, parent)
+    return [ob, hem, neck]
 
 
 def make_blob(shape, dx=0.0):
@@ -371,15 +418,15 @@ def make_blob(shape, dx=0.0):
                 torso = ob
         add_sunburn(torso, BODY_BASE + SHAPES[shape]["height"])
         add_belly_keys(torso, c)
-        sing = singlet(shape, c["belly_y"] - 0.04, 1.22 + (SHAPES[shape]["height"] - 1.42), M["Singlet"], body, seed=len(shape), front_lift=0.12)
-        add_belly_keys(sing, c)
+        for piece in singlet(shape, c["belly_y"] - 0.04, 1.22 + (SHAPES[shape]["height"] - 1.42), M["Singlet"], body, seed=len(shape), front_lift=0.12):
+            add_belly_keys(piece, c)
         # shorts (the game shows one kind, or none, and colours them; they follow the belly too)
         only = sys.argv[sys.argv.index("--shorts") + 1] if "--shorts" in sys.argv else None  # preview: one kind
         for kind in SHORTS_KINDS:
             if only and kind != only:
                 continue
-            sh = shorts(shape, kind, c["belly_y"] + 0.10, M["Shorts"], body)
-            add_belly_keys(sh, c)
+            for piece in shorts(shape, kind, c["belly_y"] - SHORTS_KINDS[kind]["below_belly"], M["Shorts"], body):
+                add_belly_keys(piece, c)
     # HandR is the one the game animates (it swings), HandL is the other side.
     # Hands rest just outside the body at arm height (0.88 up).
     hr = c["hand"] if c else 0.10
