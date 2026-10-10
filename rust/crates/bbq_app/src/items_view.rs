@@ -311,11 +311,14 @@ fn sync_items(
             }
         }
     }
+    // Teddy Heist: your own team's teddies are not yours to take, so they do not glow
+    let my_team = game.teams.get(crate::player::PLAYER_ID);
     for (ring, mut tf, mut v) in &mut rings {
         let Some(it) = game.world.items.get(&ring.0) else {
             continue;
         };
-        if it.state == ItemState::Ground {
+        let own_teddy = my_team.is_some() && it.team.and_then(crate::heist_app::team_of_index) == my_team;
+        if it.state == ItemState::Ground && !own_teddy {
             *v = Visibility::Inherited;
             let floating = it.ground_y < 0.1 && bbq_core::yard::in_pool_rect(it.pos.x, it.pos.z);
             let y = if floating {

@@ -7,6 +7,11 @@
 //! ground, and two legs are added beside them. Each frame the body (with the head, eyes and
 //! hands) is lifted by the legs' length and each leg is stretched from the hip to its foot.
 //! Looks only: the hit and catch sizes do not change.
+//!
+//! Walking (10 Oct 2026, "so it looks like they are walking instead of floating"): on legs the
+//! feet take longer, higher steps (`characters.rs`), the body dips a little as the feet pass and
+//! spread (like a real walk), and Skinny legs have knees: a thigh and a shin that bend forward at
+//! a round knee as the foot swings and lifts.
 
 use bbq_core::appearance::Legs;
 use bevy::camera::visibility::RenderLayers;
@@ -25,6 +30,11 @@ const LEG_Z: f32 = 0.04;
 const ANKLE: Vec3 = Vec3::new(0.0, 0.04, -0.08);
 /// The black line round the legs in the pop look (the same as round the hands and feet).
 const LINE: f32 = 0.011;
+/// How much the body dips for each metre the two feet are apart along the walk.
+const BOB: f32 = 0.2;
+/// Skinny legs' thigh and shin together are this much longer than the hip-to-ankle gap when
+/// standing, so the knee is a touch bent even at rest.
+const KNEE_SLACK: f32 = 1.07;
 
 /// A blob's legs: on the model's body node, which is lifted when the legs are on.
 #[derive(Component)]
@@ -32,9 +42,17 @@ struct LegRig {
     owner: FaceOwner,
     /// The left and right foot (where each leg ends).
     feet: [Entity; 2],
-    /// The two legs, and the black line round each (pop look only).
+    /// The two legs (the thighs, for legs with knees), and the black line round each (pop look
+    /// only).
     legs: [Entity; 2],
     lines: [Option<Entity>; 2],
+    /// Skinny legs: the shins and the knees, each with its line.
+    shins: [Entity; 2],
+    shin_lines: [Option<Entity>; 2],
+    knees: [Entity; 2],
+    knee_lines: [Option<Entity>; 2],
+    /// Where each foot rests (to see how far it has stepped).
+    rest: [Vec3; 2],
     /// The right hand: the legs wear its colour.
     hand: Entity,
     /// The kind of legs the meshes are now.
@@ -54,6 +72,10 @@ struct LegLine;
 struct LegKit {
     stubby: (Handle<Mesh>, Handle<Mesh>),
     skinny: (Handle<Mesh>, Handle<Mesh>),
+    /// Skinny legs with knees: thigh, shin and knee (each with its line).
+    thigh: (Handle<Mesh>, Handle<Mesh>),
+    shin: (Handle<Mesh>, Handle<Mesh>),
+    knee: (Handle<Mesh>, Handle<Mesh>),
     outline: Handle<StandardMaterial>,
     plain: Handle<StandardMaterial>,
 }
@@ -80,19 +102,35 @@ impl Plugin for LegsPlugin {
 }
 
 fn make_kit(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut mats: ResMut<Assets<StandardMaterial>>) {
-    let mut tube = |legs: Legs, grow: f32| {
-        let (top, bottom) = legs.radii();
+    let mut tube = |top: f32, bottom: f32, grow: f32| {
         let mut m = Mesh::from(ConicalFrustum { radius_top: top + grow, radius_bottom: bottom + grow, height: 1.0 });
         let _ = m.generate_tangents(); // the clay look's skin texture needs them
         meshes.add(m)
     };
+    let ball = |r: f32| {
+        let mut m = Mesh::from(Sphere::new(r).mesh().uv(16, 10));
+        let _ = m.generate_tangents();
+        m
+    };
+    let (st, sb) = Legs::Stumpy.radii();
+    let (kt, kb) = Legs::Skinny.radii();
+    let km = knee_radius();
     let kit = LegKit {
-        stubby: (tube(Legs::Stumpy, 0.0), tube(Legs::Stumpy, LINE)),
-        skinny: (tube(Legs::Skinny, 0.0), tube(Legs::Skinny, LINE)),
+        stubby: (tube(st, sb, 0.0), tube(st, sb, LINE)),
+        skinny: (tube(kt, kb, 0.0), tube(kt, kb, LINE)),
+        thigh: (tube(kt, km, 0.0), tube(kt, km, LINE)),
+        shin: (tube(km * 0.9, kb, 0.0), tube(km * 0.9, kb, LINE)),
+        knee: (meshes.add(ball(km * 1.15)), meshes.add(ball(km * 1.15 + LINE))),
         outline: crate::style::outline_material(&mut mats),
         plain: mats.add(Color::WHITE),
     };
     commands.insert_resource(kit);
+}
+
+/// How thick a Skinny leg is at the knee.
+fn knee_radius() -> f32 {
+    let (top, bottom) = Legs::Skinny.radii();
+    (top + bottom) * 0.5
 }
 
 /// What kind of legs this blob, preview or lobby figure wears now.
@@ -126,6 +164,7 @@ fn rig_legs(
     parents: Query<&ChildOf>,
     kids: Query<&Children>,
     names: Query<&Name>,
+    tfs: Query<&Transform>,
 ) {
     for (head, node) in &heads {
         let Ok(body) = parents.get(head).map(|p| p.parent()) else { continue };
@@ -146,12 +185,10 @@ fn rig_legs(
         }
         // a black line like the rest of the body has (only yard blobs have them in the pop look)
         let pop = crate::style::current() == crate::style::Style::Pop && matches!(node.owner, FaceOwner::Blob(_));
-        let (tube, line) = kit.meshes(Legs::Stumpy).clone();
-        let mut legs = [Entity::PLACEHOLDER; 2];
-        let mut lines = [None; 2];
-        for k in 0..2 {
+        // one leg part (hidden until needed) with its black line
+        let mut part = |commands: &mut Commands, (mesh, line): &(Handle<Mesh>, Handle<Mesh>)| -> (Entity, Option<Entity>) {
             let mut leg = commands.spawn((
-                Mesh3d(tube.clone()),
+                Mesh3d(mesh.clone()),
                 MeshMaterial3d(kit.plain.clone()),
                 Transform::default(),
                 Visibility::Hidden,
@@ -161,24 +198,64 @@ fn rig_legs(
             if let Some(l) = node.layer {
                 leg.insert(RenderLayers::layer(l));
             }
-            legs[k] = leg.id();
-            if pop {
+            let id = leg.id();
+            let line = pop.then(|| {
                 let mut ol = commands.spawn((
                     Mesh3d(line.clone()),
                     MeshMaterial3d(kit.outline.clone()),
                     Transform::default(),
                     bevy::light::NotShadowCaster,
                     LegLine,
-                    ChildOf(legs[k]),
+                    ChildOf(id),
                 ));
                 if let Some(l) = node.layer {
                     ol.insert(RenderLayers::layer(l));
                 }
-                lines[k] = Some(ol.id());
-            }
+                ol.id()
+            });
+            (id, line)
+        };
+        let (mut legs, mut lines) = ([Entity::PLACEHOLDER; 2], [None; 2]);
+        let (mut shins, mut shin_lines) = ([Entity::PLACEHOLDER; 2], [None; 2]);
+        let (mut knees, mut knee_lines) = ([Entity::PLACEHOLDER; 2], [None; 2]);
+        for k in 0..2 {
+            (legs[k], lines[k]) = part(&mut commands, kit.meshes(Legs::Stumpy));
+            (shins[k], shin_lines[k]) = part(&mut commands, &kit.shin);
+            (knees[k], knee_lines[k]) = part(&mut commands, &kit.knee);
         }
-        commands.entity(body).try_insert(LegRig { owner: node.owner, feet: [foot_l, foot_r], legs, lines, hand, shown: Legs::Stumpy });
+        let rest = [foot_rest(&tfs, foot_l), foot_rest(&tfs, foot_r)];
+        commands.entity(body).try_insert(LegRig {
+            owner: node.owner,
+            feet: [foot_l, foot_r],
+            legs,
+            lines,
+            shins,
+            shin_lines,
+            knees,
+            knee_lines,
+            rest,
+            hand,
+            shown: Legs::Stumpy,
+        });
     }
+}
+
+/// Where a foot rests: its spot in the model (the model has just loaded, so it has not stepped).
+fn foot_rest(tfs: &Query<&Transform>, foot: Entity) -> Vec3 {
+    tfs.get(foot).map(|t| t.translation).unwrap_or_default()
+}
+
+/// Where the knee goes for a leg from `hip` to `ankle` with a thigh and shin each `half` long:
+/// half way down, pushed forwards (the blobs face +z) as far as the two lengths need.
+pub fn knee_at(hip: Vec3, ankle: Vec3, half: f32) -> Vec3 {
+    let d = ankle - hip;
+    let len = d.length().max(0.001);
+    let along = d / len;
+    let mid = (hip + ankle) * 0.5;
+    let bend = (half * half - (len * 0.5) * (len * 0.5)).max(0.0).sqrt();
+    let fwd = Vec3::Z - along * along.dot(Vec3::Z);
+    let fwd = if fwd.length_squared() < 1e-6 { Vec3::Z } else { fwd.normalize() };
+    mid + fwd * bend
 }
 
 /// Lift each body by its legs and stretch each leg from the hip to its foot.
@@ -201,11 +278,18 @@ fn pose_legs(
     for (mut rig, mut body) in &mut rigs {
         let Some(kind) = legs_of(rig.owner, &game, &settings, online.as_deref()) else { continue };
         let lift = kind.lift();
-        if body.translation.y != lift {
-            body.translation.y = lift;
+        // the body dips a little as the feet spread apart in a step, and rises as they pass
+        let step = |k: usize| feet.get(rig.feet[k]).map(|f| f.translation - rig.rest[k]).unwrap_or_default();
+        let spread = (step(0).z - step(1).z).abs();
+        let bob = if kind == Legs::None { 0.0 } else { -spread * BOB };
+        if body.translation.y != lift + bob {
+            body.translation.y = lift + bob;
         }
+        let lift = lift + bob;
         if kind != Legs::None && rig.shown != kind {
-            let (tube, line) = kit.meshes(kind).clone();
+            let _ = (&rig.shin_lines, &rig.knee_lines);
+            // Skinny legs are a thigh (the leg part), a shin and a knee
+            let (tube, line) = if kind == Legs::Skinny { kit.thigh.clone() } else { kit.meshes(kind).clone() };
             for k in 0..2 {
                 if let Ok((_, _, mut m, _)) = legs.get_mut(rig.legs[k]) {
                     m.0 = tube.clone();
@@ -222,25 +306,39 @@ fn pose_legs(
             .ok()
             .and_then(|c| c.iter().find_map(|e| hand_mats.get(e).ok()))
             .map(|m| m.0.clone());
+        let knees = kind == Legs::Skinny;
         for k in 0..2 {
-            let Ok((mut tf, mut vis, _, mut mat)) = legs.get_mut(rig.legs[k]) else { continue };
-            let want = if kind == Legs::None { Visibility::Hidden } else { Visibility::Inherited };
-            if *vis != want {
-                *vis = want;
-            }
-            if kind == Legs::None {
-                continue;
-            }
-            if let Some(m) = &hand_mat
-                && mat.0 != *m
-            {
-                mat.0 = m.clone();
-            }
-            let Ok(foot) = feet.get(rig.feet[k]) else { continue };
             let side = if k == 0 { -1.0 } else { 1.0 };
-            let ankle = foot.translation + ANKLE;
+            let ankle = feet.get(rig.feet[k]).map(|f| f.translation + ANKLE).ok();
             let hip = Vec3::new(side * HIP_X, HIP_UP + lift, LEG_Z);
-            *tf = leg_transform(ankle, hip);
+            // the knee: thigh and shin each half the standing leg (a little more), bent forwards
+            let rest_ankle = rig.rest[k] + ANKLE;
+            let half = (Vec3::new(side * HIP_X, HIP_UP + kind.lift(), LEG_Z) - rest_ankle).length() * 0.5 * KNEE_SLACK;
+            let knee = ankle.map(|a| knee_at(hip, a, half));
+            let parts = [(rig.legs[k], true), (rig.shins[k], knees), (rig.knees[k], knees)];
+            for (n, (e, on)) in parts.into_iter().enumerate() {
+                let Ok((mut tf, mut vis, _, mut mat)) = legs.get_mut(e) else { continue };
+                let on = on && kind != Legs::None;
+                let want = if on { Visibility::Inherited } else { Visibility::Hidden };
+                if *vis != want {
+                    *vis = want;
+                }
+                if !on {
+                    continue;
+                }
+                if let Some(m) = &hand_mat
+                    && mat.0 != *m
+                {
+                    mat.0 = m.clone();
+                }
+                let (Some(ankle), Some(knee)) = (ankle, knee) else { continue };
+                *tf = match (n, knees) {
+                    (0, false) => leg_transform(ankle, hip), // one straight leg
+                    (0, true) => leg_transform(knee, hip),   // the thigh
+                    (1, _) => leg_transform(ankle, knee),    // the shin
+                    _ => Transform::from_translation(knee),  // the knee
+                };
+            }
         }
     }
 }
@@ -274,6 +372,24 @@ mod tests {
         let fwd = Vec3::new(0.2, 0.2, 0.25);
         let t = leg_transform(fwd, hip);
         assert!(t.transform_point(Vec3::new(0.0, -0.5, 0.0)).distance(fwd) < 1e-4);
+    }
+
+    #[test]
+    fn a_knee_bends_forwards_and_the_two_halves_reach() {
+        let hip = Vec3::new(0.2, 0.53, 0.04);
+        let ankle = Vec3::new(0.2, 0.14, 0.04);
+        let half = (hip - ankle).length() * 0.5 * KNEE_SLACK;
+        let knee = knee_at(hip, ankle, half);
+        assert!(knee.z > hip.z, "standing: a slight forward bend");
+        assert!((knee.distance(hip) - half).abs() < 1e-4 && (knee.distance(ankle) - half).abs() < 1e-4);
+        // the foot lifts and swings forwards: the knee comes up and out further
+        let lifted = Vec3::new(0.2, 0.24, 0.2);
+        let k2 = knee_at(hip, lifted, half);
+        assert!(k2.z > knee.z && (k2.distance(hip) - half).abs() < 1e-4);
+        // stretched further than the leg reaches: straight, no bend
+        let far = Vec3::new(0.2, -0.5, 0.04);
+        let k3 = knee_at(hip, far, half);
+        assert!((k3 - (hip + far) * 0.5).length() < 1e-4);
     }
 
     #[test]

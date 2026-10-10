@@ -130,7 +130,7 @@ impl Legs {
     pub fn lift(self) -> f32 {
         match self {
             Legs::None => 0.0,
-            Legs::Stumpy => 0.15,
+            Legs::Stumpy => 0.2,
             Legs::Skinny => 0.30,
         }
     }
@@ -139,7 +139,7 @@ impl Legs {
     pub fn radii(self) -> (f32, f32) {
         match self {
             Legs::None => (0.0, 0.0),
-            Legs::Stumpy => (0.10, 0.09),
+            Legs::Stumpy => (0.105, 0.09),
             Legs::Skinny => (0.055, 0.035),
         }
     }

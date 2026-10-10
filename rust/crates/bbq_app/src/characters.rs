@@ -1875,7 +1875,11 @@ fn animate_face_and_feet(
         }
         let (ph, k) = (drive[b.0].phase, walk(b.0));
         let a = ph + if f.right { std::f32::consts::PI } else { 0.0 };
-        tf.translation = f.base + Vec3::new(0.0, a.cos().max(0.0) * 0.06 * k, a.sin() * 0.11 * k);
+        // on legs the steps are longer and higher (the longer the legs, the bigger the stride),
+        // so the blob walks instead of gliding (10 Oct 2026)
+        let leg = crate::legs::lift_of(&game, b.0);
+        let (lift, stride) = (0.06 + leg * 0.45, 0.11 + leg * 0.6 + if leg > 0.0 { 0.05 } else { 0.0 });
+        tf.translation = f.base + Vec3::new(0.0, a.cos().max(0.0) * lift * k, a.sin() * stride * k);
         if f.thong {
             // the thong lifts with the foot and slaps back down on the heel (C10.7)
             let lift = a.cos().max(0.0);
