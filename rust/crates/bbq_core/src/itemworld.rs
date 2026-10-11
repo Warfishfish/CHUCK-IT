@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use crate::flight::{Fate, FlightEvent, Item, ItemId, ItemState, Puddle, Puddles, step_flight};
 use crate::hands::{Picker, can_pick_up};
 use crate::hitting::{Contact, Context, Target, contact, item_after_hit};
-use crate::items::{DildoVariant, ItemKind, random_type, spawn_target};
+use crate::items::{DildoVariant, ItemKind, random_type_with, spawn_target};
 use crate::rng::Rng;
 use crate::vec::V3;
 use crate::yard::{POOL_X0, POOL_X1, POOL_Z0, POOL_Z1, Yard};
@@ -89,8 +89,11 @@ pub enum WorldEvent {
 pub struct ItemWorld {
     pub items: BTreeMap<ItemId, Item>,
     pub puddles: Puddles,
-    /// Cheeky mode is on: new VP cans come as glass bottles (the game keeps this up to date).
+    /// Cheeky mode is on: new drinks come as glass bottles, otherwise as cans of lemonade (the
+    /// game keeps this up to date).
     pub cheeky: bool,
+    /// Cheeky mode's Bottles setting: multiplies how often bottles turn up (1 is as usual).
+    pub bottles: f32,
     next_id: ItemId,
     spawn_t: f32,
     noodle_t: f32,
@@ -108,10 +111,16 @@ impl ItemWorld {
             items: BTreeMap::new(),
             puddles: Puddles::default(),
             cheeky: false,
+            bottles: 1.0,
             next_id: 1,
             spawn_t: SPAWN_EVERY,
             noodle_t: 0.0,
         }
+    }
+
+    /// How often drinks turn up: the Bottles setting in Cheeky mode, as usual otherwise.
+    fn drinks(&self) -> f32 {
+        if self.cheeky { self.bottles } else { 1.0 }
     }
 
     /// Clear everything for a new round.
@@ -137,8 +146,9 @@ impl ItemWorld {
         if kind == ItemKind::Dildo {
             it.variant = Some(crate::items::pick_dildo_variant(rng.f32()));
         }
-        if kind == ItemKind::Stubby && self.cheeky {
-            it.bottle = Some(crate::items::Bottle::pick(rng.f32()));
+        // the drink: a glass bottle in Cheeky mode, a can of lemonade in family mode (no alcohol)
+        if kind == ItemKind::Stubby {
+            it.bottle = Some(if self.cheeky { crate::items::Bottle::pick(rng.f32()) } else { crate::items::Bottle::Lemonade });
         }
         self.items.insert(id, it);
         id
@@ -163,9 +173,10 @@ impl ItemWorld {
         for (k, s) in spots.iter().take(n).enumerate() {
             let kind = match k {
                 0 => ItemKind::Teddy,
-                1 => ItemKind::Stubby,
+                1 if self.drinks() > 0.0 => ItemKind::Stubby,
+                1 => ItemKind::Teddy, // no bottles wanted
                 2 => ItemKind::Gnome,
-                _ => random_type(rng.f32()),
+                _ => random_type_with(rng.f32(), self.drinks()),
             };
             self.spawn(kind, s.0, s.1, true, rng);
         }
@@ -300,7 +311,7 @@ impl ItemWorld {
                         .collect();
                     if !free.is_empty() {
                         let s = free[rng.index(free.len())];
-                        let kind = random_type(rng.f32());
+                        let kind = random_type_with(rng.f32(), self.drinks());
                         let id = self.spawn(
                             kind,
                             s.0 + rng.range(-0.4, 0.4),

@@ -18,6 +18,8 @@
 - ✅ Dildo chest (Cheeky mode only, random spot): 4 variants (Mini/Classic/Jumbo/rare Golden Wonder), each worth different points and a different knockdown length. Slaps knock people flat with Sent Flying (flung backwards away from the slapper, lands on their back and skids, replaced the old spinning Helicopter) / Cartwheel / Timber
 - ✅ (Rust version only, 6 Oct 2026) Six dildo types, each with its own odds: Pocket Rocket crits 22% and never sends anyone flying; The Unit crits 8% but half its hits send people flying; Golden Wonder crits 25%. Two new types: The Quickie (small, teal, swings in 60% of the time so you can slap faster) and Long John (long, orange, reaches 40% further but swings slower). Chest weights are now 46/28/18/4/12/10. The browser game still has the original four
 - ✅ (Rust version only, 11 Oct 2026) Two more dildo types in the chest: The Splash (blue, full of water: a slap also soaks everyone within 2.2 m of the one hit, pushing them away and stopping them for 0.7 s, +15 points each) and Neon Lucky (glowing green, rare, crits 45% of the time). The old six keep their weights (now 46/28/18/4/12/10/9/3)
+- ✅ (Rust version only, 11 Oct 2026) Family mode (Cheeky off) has no alcohol: the throwable is a can of lemonade (plays like the old VP can, bursts into fizz), the bar is a COLD DRINKS stand (lemonade, orange juice, water) that never makes anyone drunk, there is no drunk meter, no stacking it, no drinking at smoko and no Drunk mode, and the empty stubbies on the lawn are gone. Cheeky mode keeps the bar, beer and rum bottles and all the drinking
+- ✅ (Rust version only, 11 Oct 2026) A Settings tab on the menu: round length, rounds, bot skill, friendly fire, what's in the yard, field of view and sound in one place (online, guests see that the host picks the round). The pause card has field of view and sound too
 - ✅ (Rust version only, 6 Oct 2026) Six dildo skins, picked at random for each dildo (the same one always has the same skin): studded, smooth, fat ribs, fine grooves up and down, a spiral ridge, and veiny. Size, colour and flop are unchanged
 - ✅ (Rust version only, 6 Oct 2026) Teddies bounce on the trampoline like a ball: the first bounce is the trampoline's usual kick, then each is lower and stays on the mat until the teddy settles and sits there. Everything else keeps the original kick
 - ✅ (Rust version only, 8 Oct 2026) The four body shapes look clearly different: Classic the straight capsule, Pear with a big round bottom, Egg tall and slim, Gumdrop short and wide. Looks only, hit sizes are the same for everyone. The crown, stun stars, name tags, team sash, team bubble and Heist ring fit each shape
@@ -139,7 +141,8 @@
 
 - ✅ In Cheeky mode, the VP cans are swapped for glass bottles: brown beer stubbies, and (1 in 4) square bottles of rum, thrown the same way
 - ✅ Bottles smash on a hit or a hard landing: glass shards (brown or clear) plus beer foam or a dark rum splash, a stain on the ground (darker for rum) and the usual slippery puddle
-- ✅ Spirit bottles are rarer and hit a little harder (knock 10 instead of 8, stun 0.70 s instead of 0.63 s, +25 points); beer bottles play exactly like the VP can
+- ✅ Spirit bottles are rarer and hit a little harder (knock 10 instead of 8, stun 0.70 s instead of 0.63 s); beer bottles throw exactly like the VP can. A bottle hit scores 100 more than a teddy (beer 200, rum 225)
+- ✅ A Bottles setting (Cheeky mode, Settings tab): None, Few, Normal or Lots
 - ✅ Family mode (Cheeky off) keeps the plastic VP cans exactly as now
 - ✅ Check: the bar's own bottles and the drinks you drink stay as they are; only the throwable item changes
 

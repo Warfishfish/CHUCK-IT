@@ -262,6 +262,7 @@ fn step_player(
     let wish = movement::drunk_steer(wanted.wish, da, g.now);
     let env = bbq_core::drunk_state::Env {
         drunk_mode: g.options.drunk_mode,
+        soft: !g.options.adult,
         ..Default::default()
     };
     let gait =

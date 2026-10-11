@@ -78,6 +78,9 @@ pub struct Env {
     pub can_fall: bool,
     /// How long a fall lasts (10 s unless the host picked 20 or 30).
     pub fall_duration: f32,
+    /// Family mode (Cheeky off, Marcus 11 Oct 2026): there is no alcohol, the bar serves soft
+    /// drinks, and nothing makes anyone drunk (the meter stays at 0, so nobody stacks it).
+    pub soft: bool,
 }
 
 impl Default for Env {
@@ -92,6 +95,7 @@ impl Default for Env {
             drunk_mode: false,
             can_fall: true,
             fall_duration: FALL_DURATION_DEFAULT,
+            soft: false,
         }
     }
 }
@@ -228,12 +232,13 @@ impl DrunkState {
                 if d.left <= 0.0 {
                     let before = drunk_tier(self.meter);
                     let drink = d.drink;
-                    self.meter = (self.meter + drink.amount()).min(100.0);
+                    let added = if env.soft { 0.0 } else { drink.amount() };
+                    self.meter = (self.meter + added).min(100.0);
                     self.drinking = None;
                     let tier = drunk_tier(self.meter);
                     out.push(Event::DrankUp {
                         drink,
-                        added: drink.amount(),
+                        added,
                         tier,
                         tier_changed: tier != before,
                     });
@@ -242,7 +247,9 @@ impl DrunkState {
         } else if self.meter > 0.0 && !env.at_smoko {
             self.meter = (self.meter - SOBER_RATE * dt).max(0.0);
         }
-        if env.drunk_mode {
+        if env.soft {
+            self.meter = 0.0;
+        } else if env.drunk_mode {
             self.meter = self.meter.max(DRUNK_ALL);
         }
 
@@ -274,7 +281,7 @@ impl DrunkState {
         if !can {
             return out;
         }
-        let falls = if env.drunk_mode {
+        let falls = if env.drunk_mode && !env.soft {
             self.mode_fall.tick(dt, env.moving, rng)
         } else {
             let p = fall_chance_per_sec(self.da(), env.moving) * dt;
@@ -420,6 +427,22 @@ mod tests {
             all.extend(d.tick(DT, env, b, ev.fall_ended, rng));
         }
         all
+    }
+
+    #[test]
+    fn family_mode_drinks_never_make_anyone_drunk_or_fall() {
+        let (mut d, mut b, mut rng, mut env) = me();
+        env.soft = true;
+        env.drunk_mode = true; // even if Drunk mode was left ticked
+        env.moving = true;
+        d.meter = 90.0; // left over from a Cheeky game
+        let z = (BAR.z0 + BAR.z1) / 2.0 + 1.0;
+        assert!(d.start_drink(bar_spot(&BAR, 1.2, 0.0, z), &b, &env));
+        let ev = run(&mut d, &mut b, &env, &mut rng, 60.0);
+        assert_eq!(d.meter, 0.0);
+        assert!(ev.iter().any(|e| matches!(e, Event::DrankUp { added, .. } if *added == 0.0)), "you still get your drink");
+        assert!(!ev.iter().any(|e| matches!(e, Event::StackedIt)));
+        assert_eq!(b.fall_t, 0.0);
     }
 
     #[test]

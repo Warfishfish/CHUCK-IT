@@ -562,7 +562,11 @@ fn in_smoko_zone(g: &Game, p: &Player) -> bool {
 /// What R would do here, as a line of text (empty if nothing).
 pub fn prompt(g: &Game, p: &Player, f: &yard::Features, chest_spot: usize) -> String {
     if g.life.seated.is_some() {
-        return "Smoko! R or Space to get up (the drinks keep coming)".into();
+        return if g.options.adult {
+            "Smoko! R or Space to get up (the drinks keep coming)".into()
+        } else {
+            "Smoko! R or Space to get up".into()
+        };
     }
     if g.life.carry.is_some() {
         return if g.options.naughty && g.options.smoko_on {
@@ -575,7 +579,11 @@ pub fn prompt(g: &Game, p: &Player, f: &yard::Features, chest_spot: usize) -> St
         return if g.options.naughty {
             "The Naughty Corner. No safe break here!".into()
         } else {
-            "R: sit down for smoko (nobody can touch you, but you have to drink)".into()
+            if g.options.adult {
+                "R: sit down for smoko (nobody can touch you, but you have to drink)".into()
+            } else {
+                "R: sit down for smoko (nobody can touch you)".into()
+            }
         };
     }
     if let Some(k) = meat_spot(p, f.bbq) {
@@ -1011,7 +1019,9 @@ pub fn step(g: &mut Game, p: &mut Player, wanted: &mut Wanted, yard: &yard::Yard
         let space = std::mem::take(&mut wanted.jump_pressed);
         let t = g.life.seated.as_mut().map(|s| s.tick(dt, can_act, stunned));
         if let Some(t) = t {
-            g.me.drunk.add(t.drunk);
+            if g.options.adult {
+                g.me.drunk.add(t.drunk); // family mode: soft drinks at smoko
+            }
             match t.over {
                 Some(Over::TimeUp) => stand_up(g, p, Some("Smoko's over! Back to it.")),
                 Some(Over::Interrupted) => stand_up(g, p, None),

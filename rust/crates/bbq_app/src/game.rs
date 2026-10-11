@@ -383,6 +383,7 @@ pub fn step_game(
         drunk_mode: g.options.drunk_mode,
         can_fall: !seated,
         fall_duration: g.options.fall_duration,
+        soft: !g.options.adult,
     };
     let tick = g.me.body.tick(dt);
     let events =
@@ -394,9 +395,12 @@ pub fn step_game(
                 added,
                 tier,
                 tier_changed,
-                ..
+                drink,
             } => {
-                if tier_changed {
+                if !g.options.adult {
+                    // family mode: a soft drink, no drunk meter
+                    g.popup(format!("{}!", soft_drink_cheer(drink)), false);
+                } else if tier_changed {
                     g.popup(format!("{}!", tier_name(tier)), true);
                 } else {
                     g.popup(format!("+{added:.0} drunk"), false);
@@ -468,7 +472,11 @@ pub fn step_game(
     } else if g.me.drunk.is_drinking() {
         String::new()
     } else if let Some(d) = spot {
-        format!("R: grab {} (+{:.0} drunk)", drink_name(d), d.amount())
+        if g.options.adult {
+            format!("R: grab {} (+{:.0} drunk)", drink_name(d), d.amount())
+        } else {
+            format!("R: grab {}", soft_drink_name(d))
+        }
     } else {
         crate::life::prompt(g, p, &yard.0.features, yard.0.chest_spot)
     };
@@ -762,14 +770,14 @@ pub fn step_game(
                         same_team: thrower.is_some_and(|t| g.teams.same_team(t, victim)),
                     },
                 );
-                // a bottle of spirits pays a little extra
-                let rum = match (bottle, thrower) {
+                // a glass bottle pays 100 more than a teddy (rum a little more again)
+                let glass = match (bottle, thrower) {
                     (Some(b), Some(t)) if b.points() > 0 && out.gain > 0 => g.board.award(&g.rules, t, b.points()),
                     _ => 0,
                 };
-                let mut msg = format!("HIT! +{}", out.gain + rum);
-                if rum > 0 {
-                    msg += &format!(" (rum +{rum})");
+                let mut msg = format!("HIT! +{}", out.gain + glass);
+                if glass > 0 {
+                    msg += &format!(" (bottle +{glass})");
                 }
                 if out.long_shot > 0 {
                     msg += &format!(" (long shot +{})", out.long_shot);
@@ -868,6 +876,23 @@ fn tier_name(t: drinks::Tier) -> &'static str {
         Drunk => "Drunk",
         Maggot => "Maggot",
         AbsolutelyMaggoted => "Absolutely maggoted",
+    }
+}
+
+/// Family mode's soft drinks, in the bar's three spots (beer, wine, rum in Cheeky mode).
+pub fn soft_drink_name(d: Drink) -> &'static str {
+    match d {
+        Drink::Beer => "a lemonade",
+        Drink::Wine => "an orange juice",
+        Drink::Rum => "a glass of water",
+    }
+}
+
+fn soft_drink_cheer(d: Drink) -> &'static str {
+    match d {
+        Drink::Beer => "Fizzy",
+        Drink::Wine => "Refreshing",
+        Drink::Rum => "Hydrated",
     }
 }
 
@@ -983,6 +1008,37 @@ mod tests {
     }
 
     #[test]
+    fn a_bottle_hit_scores_100_more_than_a_teddy() {
+        use bbq_core::items::Bottle;
+        let mut scores = Vec::new();
+        for bottle in [None, Some(Bottle::Beer), Some(Bottle::Spirit), Some(Bottle::Lemonade)] {
+            let mut app = app();
+            {
+                let mut g = app.world_mut().resource_mut::<Game>();
+                g.options.adult = true;
+                let mut rng = Rng::new(9);
+                let kind = if bottle.is_some() { ItemKind::Stubby } else { ItemKind::Teddy };
+                let id = g.world.spawn(kind, 8.0, 0.0, false, &mut rng);
+                g.world.items.get_mut(&id).unwrap().bottle = bottle;
+                g.world.give(id, PLAYER_ID);
+                g.slots.add(id);
+            }
+            app.world_mut().resource_mut::<Wanted>().throw_down = true;
+            ticks(&mut app, 1);
+            ticks(&mut app, 40);
+            app.world_mut().resource_mut::<Wanted>().throw_up = true;
+            ticks(&mut app, 90);
+            let g = app.world().resource::<Game>();
+            assert_eq!(g.board.get(PLAYER_ID).unwrap().hits, 1, "{bottle:?}");
+            scores.push(g.board.score(PLAYER_ID));
+        }
+        let (teddy, beer, rum, lemonade) = (scores[0], scores[1], scores[2], scores[3]);
+        assert_eq!(beer, teddy + 100, "{scores:?}");
+        assert_eq!(rum, teddy + 125, "{scores:?}");
+        assert_eq!(lemonade, teddy, "family mode's can scores like a teddy: {scores:?}");
+    }
+
+    #[test]
     fn holding_too_long_drops_the_item() {
         let mut app = app();
         give_teddy(&mut app);
@@ -1019,8 +1075,26 @@ mod tests {
     }
 
     #[test]
+    fn family_mode_drinks_are_soft_drinks_and_nobody_gets_drunk() {
+        let mut app = app();
+        put_player(&mut app, -1.2, -20.5); // left third: lemonade in family mode
+        ticks(&mut app, 30);
+        let prompt = app.world().resource::<Game>().prompt.clone();
+        assert!(prompt.contains("lemonade") && !prompt.contains("drunk"), "{prompt}");
+        press_r(&mut app);
+        ticks(&mut app, 1);
+        assert!(app.world().resource::<Game>().me.drunk.is_drinking());
+        ticks(&mut app, 60 * 2);
+        let g = app.world().resource::<Game>();
+        assert!(!g.me.drunk.is_drinking());
+        assert_eq!(g.me.drunk.meter, 0.0);
+        assert!(g.popups.iter().any(|p| p.text.contains("Fizzy")), "you still get your drink");
+    }
+
+    #[test]
     fn r_at_the_bar_pours_a_drink_that_adds_to_the_meter() {
         let mut app = app();
+        app.world_mut().resource_mut::<Game>().options.adult = true; // drinking is Cheeky mode's
         put_player(&mut app, -1.2, -20.5); // left third: a VP
         ticks(&mut app, 30);
         assert!(app.world().resource::<Game>().prompt.contains("VP"));
@@ -1168,6 +1242,7 @@ mod tests {
         let mut fell = 0;
         for seed in 0..12u64 {
             let mut app = app();
+            app.world_mut().resource_mut::<Game>().options.adult = true; // drinking is Cheeky mode's
             {
                 let mut g = app.world_mut().resource_mut::<Game>();
                 g.rng = Rng::new(seed + 50);
@@ -1214,6 +1289,7 @@ mod tests {
     #[test]
     fn drunk_throwers_earn_a_bonus_on_hits() {
         let mut app = app();
+        app.world_mut().resource_mut::<Game>().options.adult = true; // drinking is Cheeky mode's
         give_teddy(&mut app);
         app.world_mut().resource_mut::<Game>().me.drunk.meter = 60.0;
         app.world_mut().resource_mut::<Wanted>().throw_down = true;
@@ -1353,7 +1429,7 @@ mod tests {
     }
 
     #[test]
-    fn cheeky_mode_makes_glass_bottles_and_family_mode_keeps_cans() {
+    fn cheeky_mode_makes_glass_bottles_and_family_mode_lemonade() {
         for cheeky in [false, true] {
             let mut app = app();
             {
@@ -1367,11 +1443,14 @@ mod tests {
             let ids: Vec<u32> = (0..40).map(|i| g.world.spawn(ItemKind::Stubby, i as f32, 0.0, false, &mut rng)).collect();
             let bottles = ids.iter().filter(|id| g.world.items[id].bottle.is_some()).count();
             if cheeky {
-                assert_eq!(bottles, 40, "every can is a bottle in Cheeky mode");
+                let glass = ids.iter().filter(|id| g.world.items[id].bottle.is_some_and(|b| b.glass())).count();
+                assert_eq!((bottles, glass), (40, 40), "every can is a glass bottle in Cheeky mode");
                 let rum = ids.iter().filter(|id| g.world.items[id].bottle == Some(bbq_core::items::Bottle::Spirit)).count();
                 assert!((3..=20).contains(&rum), "a few are spirits: {rum}");
             } else {
-                assert_eq!(bottles, 0, "family mode keeps the VP cans");
+                // family mode: no alcohol, every one is a can of lemonade
+                let lemonade = ids.iter().filter(|id| g.world.items[id].bottle == Some(bbq_core::items::Bottle::Lemonade)).count();
+                assert_eq!(lemonade, 40);
             }
         }
     }
@@ -1565,6 +1644,7 @@ mod tests {
     #[test]
     fn r_in_the_smoko_zone_sits_you_down_and_the_drinks_keep_coming() {
         let mut app = app();
+        app.world_mut().resource_mut::<Game>().options.adult = true; // drinking is Cheeky mode's
         app.world_mut().resource_mut::<Game>().options.naughty = false;
         put_in_smoko(&mut app);
         press_r(&mut app);

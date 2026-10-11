@@ -356,6 +356,7 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &Yard) {
 fn bot_body_tick(g: &mut Game, i: usize, dt: f32, in_play: bool) {
     let drunk_mode = g.options.drunk_mode;
     let fall_dur = g.options.fall_duration;
+    let soft = !g.options.adult;
     let d = &mut g.dummies[i];
     let at_smoko = d.seat.is_some() && d.sat_by_choice;
     let env = Env {
@@ -368,11 +369,14 @@ fn bot_body_tick(g: &mut Game, i: usize, dt: f32, in_play: bool) {
         drunk_mode,
         can_fall: false, // bots never stack it
         fall_duration: fall_dur,
+        soft,
     };
     let _ = d.bot.drunk.tick(dt, &env, &mut d.body, false, &mut g.rng);
     if at_smoko {
         d.bot.smoko_t += dt;
-        d.bot.drunk.add(drunk_state_smoko_sip() * dt);
+        if !soft {
+            d.bot.drunk.add(drunk_state_smoko_sip() * dt); // family mode: soft drinks at smoko
+        }
     } else {
         d.bot.smoko_t = 0.0;
     }
@@ -620,6 +624,7 @@ fn do_act(g: &mut Game, p: &mut Player, yard: &Yard, i: usize, a: Act) {
                 drunk_mode: g.options.drunk_mode,
                 can_fall: false,
                 fall_duration: g.options.fall_duration,
+                soft: !g.options.adult,
             };
             let d = &mut g.dummies[i];
             d.bot.drunk.start_drink(spot, &d.body, &env);
@@ -764,7 +769,7 @@ pub fn hit_player(
             same_team,
         },
     );
-    // a bottle of spirits pays the thrower a little extra
+    // a glass bottle pays the thrower 100 more than a teddy (rum a little more again)
     if let (Some(b), Some(t)) = (bottle, thrower)
         && b.points() > 0
         && out.gain > 0

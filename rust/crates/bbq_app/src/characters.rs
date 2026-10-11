@@ -1433,9 +1433,19 @@ fn apply_sash(
 
 fn apply_can(
     poses: Res<Poses>,
-    mut q: Query<(&Blob, &mut Visibility, &mut Transform), With<SmokoCan>>,
+    game: Res<Game>,
+    mut mats: ResMut<Assets<StandardMaterial>>,
+    mut q: Query<(&Blob, &mut Visibility, &mut Transform, &MeshMaterial3d<StandardMaterial>), With<SmokoCan>>,
 ) {
-    for (b, mut v, mut tf) in &mut q {
+    // a can of VP in Cheeky mode, lemonade in family mode (no alcohol)
+    let colour = if game.options.adult { Color::linear_rgb(0.85, 0.6, 0.1) } else { Color::linear_rgb(0.9, 0.85, 0.15) };
+    for (b, mut v, mut tf, m) in &mut q {
+        if let Some(mat) = mats.get(&m.0)
+            && mat.base_color != colour
+            && let Some(mut mat) = mats.get_mut(&m.0)
+        {
+            mat.base_color = colour;
+        }
         let Some(p) = poses.0.get(b.0) else {
             continue;
         };

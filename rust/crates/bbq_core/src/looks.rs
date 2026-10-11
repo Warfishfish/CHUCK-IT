@@ -114,6 +114,12 @@ pub enum Tex {
     TagVp,
     TagWine,
     TagRum,
+    /// Family mode's drinks stand: "DRINKS" and its LEMONADE / JUICE / WATER tags (made by
+    /// `cargo test -p bbq_app make_family_signs -- --ignored`).
+    SignDrinks,
+    TagLemonade,
+    TagJuice,
+    TagWater,
     /// The smoko pad's paving.
     SmokoPad,
     /// "SMOKO".
@@ -152,6 +158,10 @@ impl Tex {
             Tex::TagVp => "tag_vp.png",
             Tex::TagWine => "tag_wine.png",
             Tex::TagRum => "tag_rum.png",
+            Tex::SignDrinks => "sign_drinks.png",
+            Tex::TagLemonade => "tag_lemonade.png",
+            Tex::TagJuice => "tag_juice.png",
+            Tex::TagWater => "tag_water.png",
             Tex::SmokoPad => "smoko_pad.png",
             Tex::SignSmoko => "sign_smoko.png",
             Tex::SignHands => "sign_hands.png",
@@ -165,7 +175,7 @@ impl Tex {
         }
     }
 
-    pub const ALL: [Tex; 25] = [
+    pub const ALL: [Tex; 29] = [
         Tex::VpLabel,
         Tex::Fish,
         Tex::Lawn,
@@ -181,6 +191,10 @@ impl Tex {
         Tex::TagVp,
         Tex::TagWine,
         Tex::TagRum,
+        Tex::SignDrinks,
+        Tex::TagLemonade,
+        Tex::TagJuice,
+        Tex::TagWater,
         Tex::SmokoPad,
         Tex::SignSmoko,
         Tex::SignHands,
@@ -551,6 +565,26 @@ pub fn stubby() -> Vec<Part> {
         )
         .at(0.0, 0.112, 0.015),
     ]
+}
+
+/// Family mode's can of lemonade: the same size as the old VP can, bright lemon-yellow with a
+/// white band, a lemon on the front and silver ends.
+pub fn lemonade_can() -> Vec<Part> {
+    let alu = Surface::shiny(0xc9ced3, 0xffffff, 60.0);
+    let body = Surface::shiny(0xf2e14a, 0xffffff, 40.0);
+    let mut v = vec![
+        Part::new(cyl(0.066, 0.066, 0.18, 18), body),
+        Part::new(cyl(0.0665, 0.0665, 0.045, 18), Surface::matt(0xffffff)).at(0.0, 0.01, 0.0),
+        Part::new(cyl(0.056, 0.066, 0.02, 18), alu).at(0.0, 0.1, 0.0),
+        Part::new(cyl(0.066, 0.056, 0.02, 18), alu).at(0.0, -0.1, 0.0),
+        Part::new(Shape::Cuboid { w: 0.03, h: 0.004, d: 0.045 }, Surface::matt(0x9aa0a6)).at(0.0, 0.112, 0.015),
+    ];
+    // a lemon (and a leaf) on the white band, front and back
+    for z in [0.064f32, -0.064] {
+        v.push(Part::new(sphere(0.022, 8, 6), Surface::matt(0xf7c600)).at(0.0, 0.01, z).stretch(1.0, 0.75, 0.4));
+        v.push(Part::new(sphere(0.01, 6, 4), Surface::matt(0x3f9b2f)).at(0.018, 0.026, z).stretch(1.3, 0.6, 0.4));
+    }
+    v
 }
 
 /// Cheeky mode's beer bottle: a squat brown-glass Aussie stubby with a gold crown cap and a
@@ -1047,6 +1081,7 @@ pub fn item(kind: crate::items::ItemKind, id: u32, variant: Option<DildoVariant>
         K::Stubby => match id {
             1 => beer_bottle(),
             2 => spirit_bottle(),
+            3 => lemonade_can(),
             _ => stubby(),
         },
         K::Gnome => gnome(),

@@ -18,6 +18,11 @@ pub struct YardRes(pub Yard);
 #[derive(Component)]
 pub struct FeatureTag(pub Feature);
 
+/// Shown only in Cheeky mode (`true`: the bar's grog, empty stubbies on the lawn) or only in
+/// family mode (`false`: the soft-drinks stand). Marcus, 11 Oct 2026: no alcohol in family mode.
+#[derive(Component)]
+pub struct CheekyOnly(pub bool);
+
 /// Where the trees and clouds go. Any number gives a believable yard.
 const LOOK_SEED: u64 = 0xBB0;
 
@@ -121,6 +126,13 @@ fn build_yard(
             commands.entity(e).insert(SmokoShift(Vec3::ZERO));
         }
     }
+    // what is on the bar depends on the mode: grog in Cheeky mode, soft drinks in family mode
+    for (parts, cheeky) in [(&look.bar_grog, true), (&look.bar_soft, false)] {
+        let e = cache.spawn_parts(&mut commands, parts, &mut meshes, &mut mats, Transform::default());
+        commands.entity(e).insert((FeatureTag(Feature::Bar), CheekyOnly(cheeky), Visibility::Hidden));
+    }
+    let e = cache.spawn_parts(&mut commands, &look.litter, &mut meshes, &mut mats, Transform::default());
+    commands.entity(e).insert((CheekyOnly(true), Visibility::Hidden));
 
     // the smoko pad and its chairs (one per person; the game has you plus three dummies for now)
     let chairs = bbq_core::smoko::chair_count(4);
@@ -441,12 +453,14 @@ fn sync_smoko_place(game: Res<Game>, mut q: Query<(&SmokoShift, &mut Transform)>
 /// F1 bar, F2 BBQ, F3 chest, F4 smoko.
 fn toggle_features(
     keys: Res<ButtonInput<KeyCode>>,
+    game: Res<crate::game::Game>,
     mut yard_res: ResMut<YardRes>,
-    mut tags: Query<(&FeatureTag, &mut Visibility)>,
-    mut last: Local<Option<Features>>,
+    mut tags: Query<(Option<&FeatureTag>, Option<&CheekyOnly>, &mut Visibility), Or<(With<FeatureTag>, With<CheekyOnly>)>>,
+    mut last: Local<Option<(Features, bool)>>,
 ) {
-    // the menu changes the features too, not only the F keys
-    let mut changed = *last != Some(yard_res.0.features);
+    // the menu changes the features (and Cheeky mode) too, not only the F keys
+    let cheeky = game.options.adult;
+    let mut changed = *last != Some((yard_res.0.features, cheeky));
     for (key, f) in [
         (KeyCode::F1, Feature::Bar),
         (KeyCode::F2, Feature::Bbq),
@@ -466,13 +480,10 @@ fn toggle_features(
     }
     if changed {
         let feats = yard_res.0.features;
-        *last = Some(feats);
-        for (tag, mut vis) in &mut tags {
-            *vis = if feats.get(tag.0) {
-                Visibility::Inherited
-            } else {
-                Visibility::Hidden
-            };
+        *last = Some((feats, cheeky));
+        for (tag, only, mut vis) in &mut tags {
+            let on = tag.is_none_or(|t| feats.get(t.0)) && only.is_none_or(|o| o.0 == cheeky);
+            *vis = if on { Visibility::Inherited } else { Visibility::Hidden };
         }
     }
 }

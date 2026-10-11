@@ -140,6 +140,8 @@ fn spawn_dynamic(
         // beer is golden; rum leaves a darker, redder stain
         let colour = if kind == crate::fx::FxKind::ShatterSpirit {
             Color::linear_rgba(0.32, 0.12, 0.03, 0.6)
+        } else if kind == crate::fx::FxKind::Fizz {
+            Color::linear_rgba(0.75, 0.72, 0.3, 0.35) // a pale, sticky lemonade stain
         } else {
             Color::linear_rgba(0.6, 0.42, 0.1, 0.55)
         };

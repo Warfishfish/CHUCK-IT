@@ -65,6 +65,9 @@ struct RoundTag;
 struct DrunkLabel;
 #[derive(Component)]
 struct DrunkFill;
+/// The whole drunk meter (hidden in family mode, where nobody gets drunk).
+#[derive(Component)]
+struct DrunkMeter;
 #[derive(Component)]
 struct HeistBar;
 /// The breath meter, shown while you are swimming (Shift dives).
@@ -242,6 +245,7 @@ fn spawn_hud(mut commands: Commands) {
                         ..default()
                     },
                     BackgroundColor(HUD),
+                    DrunkMeter,
                     children![
                         (text("Sober", 12.0, true, WHITE), DrunkLabel),
                         (
@@ -750,8 +754,16 @@ fn update_clock(
 fn update_drunk(
     game: Res<Game>,
     mut label: Query<&mut Text, With<DrunkLabel>>,
-    mut fill: Query<(&mut Node, &mut BackgroundColor), With<DrunkFill>>,
+    mut fill: Query<(&mut Node, &mut BackgroundColor), (With<DrunkFill>, Without<DrunkMeter>)>,
+    mut meter: Query<&mut Node, With<DrunkMeter>>,
 ) {
+    // family mode: no alcohol, no drunk meter
+    let want = if game.options.adult { Display::Flex } else { Display::None };
+    for mut n in &mut meter {
+        if n.display != want {
+            n.display = want;
+        }
+    }
     let d = &game.me.drunk;
     let name = match d.tier() {
         bbq_core::drinks::Tier::Sober => "Sober",

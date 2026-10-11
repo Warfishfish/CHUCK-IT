@@ -28,12 +28,22 @@ pub enum FxKind {
     Shatter,
     /// A bottle of spirits shatters: glass shards and a dark splash of rum.
     ShatterSpirit,
+    /// Family mode's lemonade can bursts: a fizz of pale bubbles.
+    Fizz,
 }
 
 impl FxKind {
     // (new kinds go on the end: the position is the number sent online)
-    pub const ALL: [FxKind; 7] =
-        [FxKind::Hit, FxKind::Smash, FxKind::Whack, FxKind::Splash, FxKind::Dust, FxKind::Shatter, FxKind::ShatterSpirit];
+    pub const ALL: [FxKind; 8] = [
+        FxKind::Hit,
+        FxKind::Smash,
+        FxKind::Whack,
+        FxKind::Splash,
+        FxKind::Dust,
+        FxKind::Shatter,
+        FxKind::ShatterSpirit,
+        FxKind::Fizz,
+    ];
 
     /// What a bottle (or the VP can) does when it breaks.
     pub fn smash_of(bottle: Option<bbq_core::items::Bottle>) -> FxKind {
@@ -41,12 +51,13 @@ impl FxKind {
             None => FxKind::Smash,
             Some(bbq_core::items::Bottle::Beer) => FxKind::Shatter,
             Some(bbq_core::items::Bottle::Spirit) => FxKind::ShatterSpirit,
+            Some(bbq_core::items::Bottle::Lemonade) => FxKind::Fizz,
         }
     }
 
     /// Leaves a stain on the ground (where a drink went everywhere).
     pub fn stains(self) -> bool {
-        matches!(self, FxKind::Smash | FxKind::Shatter | FxKind::ShatterSpirit)
+        matches!(self, FxKind::Smash | FxKind::Shatter | FxKind::ShatterSpirit | FxKind::Fizz)
     }
 
     /// Its number on the network.
@@ -81,6 +92,7 @@ struct Effects {
     shards: Handle<EffectAsset>,
     clear_shards: Handle<EffectAsset>,
     rum: Handle<EffectAsset>,
+    fizz: Handle<EffectAsset>,
     smoke: Handle<EffectAsset>,
     dot: Handle<Image>,
 }
@@ -302,6 +314,19 @@ fn make_effects(mut commands: Commands, mut effects: ResMut<Assets<EffectAsset>>
         size: (0.14, 0.05),
         colours: [c(0.75, 0.38, 0.1, 1.0), c(0.5, 0.22, 0.05, 0.9), c(0.4, 0.16, 0.04, 0.0)],
     }));
+    // lemonade: lots of small pale bubbles that spray up and float a little
+    let fizz = effects.add(burst_asset(&Burst {
+        name: "lemonade fizz",
+        count: 60.0,
+        radius: 0.12,
+        speed: (1.2, 3.6),
+        up: 2.2,
+        life: (0.5, 1.0),
+        gravity: -5.0,
+        drag: 1.4,
+        size: (0.1, 0.03),
+        colours: [c(1.6, 1.7, 1.2, 1.0), c(0.95, 1.0, 0.7, 0.9), c(0.9, 0.95, 0.65, 0.0)],
+    }));
     let smoke = effects.add(smoke_asset());
     commands.insert_resource(Effects {
         stars,
@@ -312,6 +337,7 @@ fn make_effects(mut commands: Commands, mut effects: ResMut<Assets<EffectAsset>>
         shards,
         clear_shards,
         rum,
+        fizz,
         smoke,
         dot: assets.load("textures/particle.png"),
     });
@@ -342,6 +368,7 @@ fn spawn_events(
             FxKind::Dust => (vec![&fx.dust], 1.6),
             FxKind::Shatter => (vec![&fx.shards, &fx.foam, &fx.puff], 1.4),
             FxKind::ShatterSpirit => (vec![&fx.clear_shards, &fx.rum, &fx.puff], 1.4),
+            FxKind::Fizz => (vec![&fx.fizz, &fx.puff], 1.4),
         };
         for h in list {
             commands.spawn((

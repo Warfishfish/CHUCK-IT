@@ -47,6 +47,8 @@ pub struct Settings {
     pub cheeky: bool,
     pub round_len: f32,
     pub skill: Difficulty,
+    /// Cheeky mode: how many beer and rum bottles turn up (the Bottles setting).
+    pub bottles: bbq_core::items::BottleAmount,
     pub rounds: u32,
     pub friendly_fire: bool,
     pub features: Features,
@@ -76,6 +78,7 @@ impl Default for Settings {
             cheeky: false,
             round_len: 180.0,
             skill: Difficulty::Fair,
+            bottles: bbq_core::items::BottleAmount::Normal,
             rounds: 1,
             friendly_fire: false,
             features: Features::default(),
@@ -177,9 +180,9 @@ impl Settings {
         };
         let f = &self.features;
         let s = format!(
-            "name={}\nfov={}\nbots={}\nmode={mode}\nheist_teams={}\ncheeky={}\nround_len={}\nskill={skill}\nrounds={}\nfriendly_fire={}\nbar={}\nbbq={}\nchest={}\nsmoko={}\nnaughty={}\nfalls={}\ndrunk_all={}\ncharacter={}\nbelly={}\nsound={}\nserver={}\nroom={}\n",
+            "name={}\nfov={}\nbots={}\nmode={mode}\nheist_teams={}\ncheeky={}\nround_len={}\nskill={skill}\nbottles={}\nrounds={}\nfriendly_fire={}\nbar={}\nbbq={}\nchest={}\nsmoko={}\nnaughty={}\nfalls={}\ndrunk_all={}\ncharacter={}\nbelly={}\nsound={}\nserver={}\nroom={}\n",
             self.name, self.fov, self.bots, self.heist_teams, self.cheeky, self.round_len,
-            self.rounds, self.friendly_fire, f.bar, f.bbq, f.chest, f.smoko, self.naughty,
+            self.bottles.name(), self.rounds, self.friendly_fire, f.bar, f.bbq, f.chest, f.smoko, self.naughty,
             self.falls, self.drunk_all, self.character.name(), self.belly, self.sound,
             self.server, self.room
         ) + &self.look.to_lines();
@@ -219,6 +222,7 @@ impl Settings {
                 "heist_teams" => s.heist_teams = v.parse().unwrap_or(2usize).clamp(2, 4),
                 "cheeky" => s.cheeky = b,
                 "round_len" => s.round_len = if v.parse::<f32>().unwrap_or(180.0) <= 60.0 { 60.0 } else { 180.0 },
+                "bottles" => s.bottles = bbq_core::items::BottleAmount::from_name(v).unwrap_or_default(),
                 "skill" => {
                     s.skill = match v {
                         "easy" => Difficulty::Easy,
@@ -318,6 +322,8 @@ pub enum ShowWhen {
     HeistNote,
     MoreOpen,
     Cheeky,
+    /// Only with Cheeky mode off (family mode: no alcohol).
+    Family,
 }
 
 /// The old developer text (controls, numbers, key list). F3 shows it while playing.
@@ -357,6 +363,7 @@ impl Plugin for MenuPlugin {
                 tab: match args.iter().position(|a| a == "--tab").and_then(|i| args.get(i + 1)).map(String::as_str) {
                     Some("look") => Tab::Look,
                     Some("mates") => Tab::Mates,
+                    Some("settings") => Tab::Settings,
                     Some("how") => Tab::How,
                     _ => Tab::Solo,
                 },
@@ -441,24 +448,19 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                         children![(text("", 15.0, true, INK), NameText)],
                     ));
                 });
-                c.spawn((column(0.0), ShowWhen::NotLook)).with_children(|w| {
-                    slider(w, SliderId::Fov, "Field of view", 60.0, 105.0);
-                });
                 // tabs
                 c.spawn(row(8.0)).with_children(|t| {
                     tab_button(t, Tab::Solo, "Solo");
                     // (Customise is the button under your blob now, 10 Oct 2026)
                     tab_button(t, Tab::Mates, "With mates");
+                    tab_button(t, Tab::Settings, "Settings");
                     tab_button(t, Tab::How, "How to play");
                 });
                 solo_panel(c);
                 look_panel(c);
                 mates_panel(c);
+                settings_panel(c);
                 how_panel(c);
-                c.spawn(Node { width: Val::Percent(100.0), ..default() })
-                    .with_children(|w| {
-                        check(w, CheckId::Sound, "Sound effects");
-                    });
             });
             // the character preview, in a card beside the menu (Solo tab)
             o.spawn((
@@ -894,29 +896,34 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
                 });
             f.spawn(text("Off is fine for the kids.", 13.0, false, MUTED));
         });
-        // more options
-        p.spawn(column(8.0)).with_children(|m| {
-            m.spawn((
-                Button,
-                Node { padding: UiRect::axes(px(0.0), px(4.0)), ..default() },
-                Action::More,
-                children![text("More options", 13.0, true, MUTED)],
-            ));
-            m.spawn((column(12.0), ShowWhen::MoreOpen)).with_children(|o| {
-                seg(o, SegId::RoundLen, "Round length", &[("1 min", 60), ("3 min", 180)]);
-                seg(o, SegId::Skill, "Bot skill", &[("Easy", 0), ("Fair dinkum", 1), ("Spicy", 2)]);
-                seg(o, SegId::Rounds, "Rounds", &[("Single", 1), ("Best of 3", 3), ("Best of 5", 5)]);
-                o.spawn((column(6.0), ShowWhen::FriendlyFire)).with_children(|h| {
-                    seg(h, SegId::FriendlyFire, "Friendly fire", &[("Off", 0), ("On", 1)]);
-                });
-                o.spawn(column(6.0)).with_children(|f| {
-                    f.spawn(legend("What's in the yard"));
-                    f.spawn(Node {
-                        flex_wrap: FlexWrap::Wrap,
-                        column_gap: px(6.0),
-                        row_gap: px(6.0),
-                        ..default()
-                    })
+        p.spawn(text("Round length, bot skill and what's in the yard are on the Settings tab.", 13.0, false, MUTED));
+    });
+    });
+}
+
+#[derive(Component)]
+struct PlayLabelMarker;
+
+/// The Settings tab (Marcus, 11 Oct 2026): the game's settings (the host's, online) and your own.
+/// Changes to the round take effect from the next round.
+fn settings_panel(c: &mut ChildSpawnerCommands) {
+    c.spawn((column(14.0), ShowWhen::Panel(Tab::Settings))).with_children(|p| {
+        // the game: the host's to change when playing online
+        p.spawn((column(12.0), ShowWhen::NotGuest)).with_children(|g| {
+            g.spawn(legend("The round"));
+            seg(g, SegId::RoundLen, "Round length", &[("1 min", 60), ("3 min", 180)]);
+            seg(g, SegId::Rounds, "Rounds", &[("Single", 1), ("Best of 3", 3), ("Best of 5", 5)]);
+            seg(g, SegId::Skill, "Bot skill", &[("Easy", 0), ("Fair dinkum", 1), ("Spicy", 2)]);
+            // Cheeky mode's beer and rum bottles (family mode has lemonade cans, as usual)
+            g.spawn((column(6.0), ShowWhen::Cheeky)).with_children(|b| {
+                seg(b, SegId::Bottles, "Bottles", &[("None", 0), ("Few", 1), ("Normal", 2), ("Lots", 3)]);
+            });
+            g.spawn((column(6.0), ShowWhen::FriendlyFire)).with_children(|h| {
+                seg(h, SegId::FriendlyFire, "Friendly fire", &[("Off", 0), ("On", 1)]);
+            });
+            g.spawn(column(6.0)).with_children(|f| {
+                f.spawn(legend("What's in the yard"));
+                f.spawn(Node { flex_wrap: FlexWrap::Wrap, column_gap: px(6.0), row_gap: px(6.0), ..default() })
                     .with_children(|w| {
                         check(w, CheckId::Bar, "Bar");
                         check(w, CheckId::Bbq, "BBQ & Dazza");
@@ -924,18 +931,31 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
                         w.commands().entity(chest).insert(ShowWhen::Cheeky);
                         check(w, CheckId::Smoko, "Smoko");
                         check(w, CheckId::Naughty, "Smoko is the Naughty Corner");
-                        check(w, CheckId::Falls, "Stacking it");
-                        check(w, CheckId::DrunkAll, "Drunk mode (everyone's hammered all game)");
+                        // drinking only happens in Cheeky mode (family mode has no alcohol)
+                        let falls = check(w, CheckId::Falls, "Stacking it");
+                        w.commands().entity(falls).insert(ShowWhen::Cheeky);
+                        let drunk = check(w, CheckId::DrunkAll, "Drunk mode (everyone's hammered all game)");
+                        w.commands().entity(drunk).insert(ShowWhen::Cheeky);
                     });
-                });
+                f.spawn(text("Changes to the round start from the next round.", 13.0, false, MUTED));
             });
         });
-    });
+        p.spawn((
+            Node { display: Display::None, ..default() },
+            ShowWhen::Guest,
+            children![text("Playing online: the host picks the round and what's in the yard.", 13.0, false, MUTED)],
+        ));
+        // yours, on this computer
+        p.spawn(column(10.0)).with_children(|y| {
+            y.spawn(legend("You"));
+            slider(y, SliderId::Fov, "Field of view", 60.0, 105.0);
+            y.spawn(Node { flex_wrap: FlexWrap::Wrap, column_gap: px(6.0), row_gap: px(6.0), ..default() })
+                .with_children(|w| {
+                    check(w, CheckId::Sound, "Sound effects");
+                });
+        });
     });
 }
-
-#[derive(Component)]
-struct PlayLabelMarker;
 
 fn mates_panel(c: &mut ChildSpawnerCommands) {
     let field = |p: &mut ChildSpawnerCommands, label: &str, field: NetField, action: Action| {
@@ -982,14 +1002,21 @@ fn mates_panel(c: &mut ChildSpawnerCommands) {
 
 fn how_panel(c: &mut ChildSpawnerCommands) {
     c.spawn((column(14.0), ShowWhen::Panel(Tab::How))).with_children(|p| {
-        for line in [
-            "Grab stuff off the lawn and chuck it at your mates. +100 a hit, -50 if you cop one.",
-            "R does everything else: drink at the bar, raid the BBQ, sit on smoko, help a mate up, raid the chest.",
-            "Drunk = wobbly, but hits score extra. Don't stack it.",
-            "Steaks and fish are for slapping, and so is anything from the chest. Get up close and click.",
-            "Smoko keeps you safe for 20 seconds, but you're drinking the whole time.",
+        // (some lines are for Cheeky mode only: family mode has no alcohol and no chest)
+        for (line, only) in [
+            ("Grab stuff off the lawn and chuck it at your mates. +100 a hit, -50 if you cop one.", None),
+            ("R does everything else: drink at the bar, raid the BBQ, sit on smoko, help a mate up, raid the chest.", Some(ShowWhen::Cheeky)),
+            ("R does everything else: grab a cold drink, raid the BBQ, sit on smoko.", Some(ShowWhen::Family)),
+            ("Drunk = wobbly, but hits score extra. Don't stack it.", Some(ShowWhen::Cheeky)),
+            ("Steaks and fish are for slapping, and so is anything from the chest. Get up close and click.", Some(ShowWhen::Cheeky)),
+            ("Steaks and fish are for slapping. Get up close and click.", Some(ShowWhen::Family)),
+            ("Smoko keeps you safe for 20 seconds, but you're drinking the whole time.", Some(ShowWhen::Cheeky)),
+            ("Smoko keeps you safe for 20 seconds.", Some(ShowWhen::Family)),
         ] {
-            p.spawn(text(format!("•  {line}"), 14.0, false, INK));
+            let mut e = p.spawn(text(format!("•  {line}"), 14.0, false, INK));
+            if let Some(w) = only {
+                e.insert(w);
+            }
         }
         p.spawn(legend("Controls"));
         p.spawn(Node {
@@ -1029,12 +1056,16 @@ fn how_panel(c: &mut ChildSpawnerCommands) {
                     ("+50 catch", GOOD),
                     ("+50 hit the leader", SUN),
                     ("streaks x1.5 / x2", SUN),
+                    ("+100 bottle hit", SUN),
                     ("+25 / +50 drunk", SUN),
                     ("+50 pool or tramp", GOOD),
                     ("+50 meat slap", GOOD),
                     ("+25 help a mate up", GOOD),
                 ] {
-                    w.spawn(chip(s, c));
+                    let e = w.spawn(chip(s, c)).id();
+                    if s.contains("drunk") || s.contains("help a mate") || s.contains("bottle") {
+                        w.commands().entity(e).insert(ShowWhen::Cheeky);
+                    }
                 }
             });
     });
@@ -1061,6 +1092,9 @@ fn spawn_pause(mut commands: Commands) {
                     children![text("Playing online: the round keeps going for everybody while you're here.", 14.0, false, MUTED)],
                 ));
                 slider(c, SliderId::Fov, "Field of view", 60.0, 105.0);
+                c.spawn(Node { flex_wrap: FlexWrap::Wrap, column_gap: px(6.0), ..default() }).with_children(|w| {
+                    check(w, CheckId::Sound, "Sound effects");
+                });
                 c.spawn(row(10.0)).with_children(|r| {
                     button(r, Action::Resume, "Resume", Some(SUN));
                     // online, a guest cannot end the round for everybody: they leave instead
@@ -1228,6 +1262,7 @@ fn widget_clicks(
                 }
             }
             SegId::Rounds => settings.rounds = v as u32,
+            SegId::Bottles => settings.bottles = bbq_core::items::BottleAmount::ALL[(v as usize).min(3)],
             SegId::FriendlyFire => settings.friendly_fire = v == 1,
             SegId::Character => {
                 settings.character = Character::ALL[(v as usize).min(3)];
@@ -1546,6 +1581,7 @@ fn paint_widgets(
                 }
             }
             SegId::Rounds => settings.rounds as i32 == v,
+            SegId::Bottles => bbq_core::items::BottleAmount::ALL.iter().position(|b| *b == settings.bottles) == Some(v as usize),
             SegId::FriendlyFire => (v == 1) == settings.friendly_fire,
             SegId::Character => Character::ALL[(v as usize).min(3)] == settings.character,
         }
@@ -1593,6 +1629,7 @@ fn paint_widgets(
             ShowWhen::FriendlyFire => teams,
             ShowWhen::MoreOpen => ui.more_open,
             ShowWhen::Cheeky => settings.cheeky,
+            ShowWhen::Family => !settings.cheeky,
         };
         n.display = if show {
             match w {
@@ -1691,10 +1728,12 @@ pub fn begin(settings: &Settings, g: &mut Game, p: &mut Player, yard: &mut YardR
         friendly_fire: settings.mode == GameMode::Teams && settings.friendly_fire,
     };
     g.options.adult = settings.cheeky;
+    g.world.bottles = settings.bottles.weight();
     g.options.naughty = settings.naughty && settings.features.smoko;
     g.options.smoko_on = settings.features.smoko;
     g.options.falls_on = settings.falls;
-    g.options.drunk_mode = settings.drunk_all;
+    // drinking (and so Drunk mode) is a Cheeky-mode thing: family mode has no alcohol
+    g.options.drunk_mode = settings.drunk_all && settings.cheeky;
     g.options.bot_difficulty = settings.skill;
     g.options.bots_on = true;
     yard.0.features = settings.features;

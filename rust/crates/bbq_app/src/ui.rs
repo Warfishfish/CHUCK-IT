@@ -238,6 +238,8 @@ pub enum Tab {
     Solo,
     Look,
     Mates,
+    /// Game settings (round, yard) and your own (field of view, sound). Marcus, 11 Oct 2026.
+    Settings,
     How,
 }
 
@@ -258,6 +260,8 @@ pub enum SegId {
     Rounds,
     FriendlyFire,
     Character,
+    /// Cheeky mode: how many beer and rum bottles turn up.
+    Bottles,
 }
 
 /// A tick-box chip (the page's `.feat label`).

@@ -333,6 +333,101 @@ pub fn curved_strip(r: f32, span: f32, tall: f32, segments: usize) -> Mesh {
 mod tests {
     use super::*;
 
+    /// A PNG file from RGBA pixels (stored, uncompressed: these signs are tiny).
+    fn png(w: u32, h: u32, rgba: &[u8]) -> Vec<u8> {
+        let mut crc_table = [0u32; 256];
+        for (n, c) in crc_table.iter_mut().enumerate() {
+            let mut x = n as u32;
+            for _ in 0..8 {
+                x = if x & 1 != 0 { 0xEDB8_8320 ^ (x >> 1) } else { x >> 1 };
+            }
+            *c = x;
+        }
+        let crc = |d: &[u8]| !d.iter().fold(!0u32, |c, b| crc_table[((c ^ *b as u32) & 0xff) as usize] ^ (c >> 8));
+        let chunk = |out: &mut Vec<u8>, t: &[u8], d: &[u8]| {
+            out.extend((d.len() as u32).to_be_bytes());
+            let mut td = t.to_vec();
+            td.extend(d);
+            out.extend(&td);
+            out.extend(crc(&td).to_be_bytes());
+        };
+        let mut raw = Vec::new();
+        for y in 0..h as usize {
+            raw.push(0);
+            raw.extend(&rgba[y * w as usize * 4..(y + 1) * w as usize * 4]);
+        }
+        let mut z = vec![0x78, 0x01];
+        let blocks: Vec<&[u8]> = raw.chunks(65535).collect();
+        for (i, b) in blocks.iter().enumerate() {
+            z.push(if i + 1 == blocks.len() { 1 } else { 0 });
+            z.extend((b.len() as u16).to_le_bytes());
+            z.extend((!(b.len() as u16)).to_le_bytes());
+            z.extend(*b);
+        }
+        let (mut a, mut b) = (1u32, 0u32);
+        for x in &raw {
+            a = (a + *x as u32) % 65521;
+            b = (b + a) % 65521;
+        }
+        z.extend(((b << 16) | a).to_be_bytes());
+        let mut out = vec![0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
+        let mut ihdr = Vec::new();
+        ihdr.extend(w.to_be_bytes());
+        ihdr.extend(h.to_be_bytes());
+        ihdr.extend([8, 6, 0, 0, 0]);
+        chunk(&mut out, b"IHDR", &ihdr);
+        chunk(&mut out, b"IDAT", &z);
+        chunk(&mut out, b"IEND", &[]);
+        out
+    }
+
+    /// A sign: `text` in the bold font, centred on a `bg` board in `ink`, `w` x `h` pixels.
+    fn sign(text: &str, w: u32, h: u32, bg: [u8; 3], ink: [u8; 3], letter: f32) -> Vec<u8> {
+        let font = FontRef::try_from_slice(FONT).unwrap();
+        let scale = PxScale::from(letter);
+        let f = font.as_scaled(scale);
+        let width: f32 = text.chars().map(|c| f.h_advance(f.glyph_id(c))).sum();
+        let mut cover = vec![0f32; (w * h) as usize];
+        let mut x = (w as f32 - width) / 2.0;
+        let base = (h as f32 + f.ascent() + f.descent()) / 2.0;
+        for c in text.chars() {
+            let id = f.glyph_id(c);
+            if let Some(o) = font.outline_glyph(id.with_scale_and_position(scale, ab_glyph::point(x, base))) {
+                let b = o.px_bounds();
+                o.draw(|gx, gy, v| {
+                    let (px, py) = (b.min.x as i32 + gx as i32, b.min.y as i32 + gy as i32);
+                    if px >= 0 && py >= 0 && (px as u32) < w && (py as u32) < h {
+                        let i = (py as u32 * w + px as u32) as usize;
+                        cover[i] = cover[i].max(v.clamp(0.0, 1.0));
+                    }
+                });
+            }
+            x += f.h_advance(id);
+        }
+        let mut px = Vec::with_capacity((w * h * 4) as usize);
+        for v in cover {
+            for k in 0..3 {
+                px.push((bg[k] as f32 + (ink[k] as f32 - bg[k] as f32) * v).round() as u8);
+            }
+            px.push(255);
+        }
+        png(w, h, &px)
+    }
+
+    /// Makes family mode's drinks-stand signs in `assets/textures/`, in the colours of the bar's
+    /// own (dark green and yellow; cream tags with dark green letters). Run once by hand:
+    /// `cargo test -p bbq_app make_family_signs -- --ignored`.
+    #[test]
+    #[ignore]
+    fn make_family_signs() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/textures");
+        let (green, yellow, cream) = ([23, 36, 24], [255, 210, 63], [244, 249, 239]);
+        std::fs::write(dir.join("sign_drinks.png"), sign("COLD DRINKS", 256, 56, green, yellow, 34.0)).unwrap();
+        for (file, text) in [("tag_lemonade.png", "LEMONADE"), ("tag_juice.png", "JUICE"), ("tag_water.png", "WATER")] {
+            std::fs::write(dir.join(file), sign(text, 128, 40, cream, green, if text.len() > 6 { 19.0 } else { 27.0 })).unwrap();
+        }
+    }
+
     #[test]
     fn a_name_draws_wider_than_tall_and_has_ink() {
         let (px, w, h) = draw_name("Marcus");

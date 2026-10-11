@@ -110,7 +110,24 @@ fn sync_drink_vm(
     mut mats: ResMut<Assets<StandardMaterial>>,
     mut vms: Query<(&DrinkVm, &mut Transform, &mut Visibility)>,
     mut spawned: Local<bool>,
+    mut liquids: Local<Option<[Handle<StandardMaterial>; 3]>>,
+    mut shown_adult: Local<Option<bool>>,
 ) {
+    // family mode: the same three drinks are a lemonade can, an orange juice and a water
+    if let Some([can, glass_drink, shot]) = liquids.as_ref()
+        && *shown_adult != Some(game.options.adult)
+    {
+        *shown_adult = Some(game.options.adult);
+        let cheeky = game.options.adult;
+        let set = |mats: &mut Assets<StandardMaterial>, h: &Handle<StandardMaterial>, c: Color| {
+            if let Some(mut m) = mats.get_mut(h) {
+                m.base_color = c;
+            }
+        };
+        set(&mut mats, can, if cheeky { Color::linear_rgb(0.85, 0.6, 0.1) } else { Color::linear_rgb(0.9, 0.85, 0.15) });
+        set(&mut mats, glass_drink, if cheeky { Color::linear_rgb(0.54, 0.11, 0.23) } else { Color::linear_rgb(1.0, 0.45, 0.05) });
+        set(&mut mats, shot, if cheeky { Color::linear_rgba(0.9, 0.75, 0.48, 0.9) } else { Color::linear_rgba(0.75, 0.88, 0.95, 0.55) });
+    }
     if !*spawned {
         *spawned = true;
         let glass = mats.add(StandardMaterial {
@@ -125,6 +142,7 @@ fn sync_drink_vm(
             alpha_mode: AlphaMode::Blend,
             ..default()
         });
+        *liquids = Some([amber.clone(), wine.clone(), rum.clone()]);
         let mut part = |commands: &mut Commands,
                         parent: Entity,
                         mesh: Mesh,

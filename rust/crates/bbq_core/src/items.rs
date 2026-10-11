@@ -185,43 +185,49 @@ impl ItemKind {
     }
 }
 
-/// Cheeky mode's glass bottles (Marcus, 11 Oct 2026): in Cheeky mode the throwable VP can is a
-/// glass bottle instead, a beer stubby or (rarer) a bottle of spirits. Both are thrown like the
-/// can and smash on a hit or a hard landing. Family mode keeps the plastic VP cans.
+/// What the throwable drink is (Marcus, 11 Oct 2026). In Cheeky mode it is a glass bottle, a
+/// beer stubby or (rarer) a bottle of spirits; in family mode there is no alcohol at all, so it is
+/// a can of lemonade. All are thrown like the old VP can and smash on a hit or a hard landing.
+/// (An item with none is the old VP can, which no longer turns up.)
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Bottle {
     /// A brown beer stubby: plays exactly like the VP can.
     Beer,
     /// A bottle of rum: knocks harder, stuns a touch longer and pays a little extra.
     Spirit,
+    /// Family mode's can of lemonade: plays exactly like the VP can and bursts into fizz.
+    Lemonade,
 }
 
 /// How often a bottle is spirits rather than beer.
 pub const SPIRIT_CHANCE: f32 = 0.25;
 
 impl Bottle {
-    pub const ALL: [Bottle; 2] = [Bottle::Beer, Bottle::Spirit];
+    pub const ALL: [Bottle; 3] = [Bottle::Beer, Bottle::Spirit, Bottle::Lemonade];
 
     pub fn label(self) -> &'static str {
         match self {
             Bottle::Beer => "Beer stubby",
             Bottle::Spirit => "Rum bottle",
+            Bottle::Lemonade => "Lemonade can",
         }
     }
 
     /// Multiplies the item's knock (the can's 8; the stun grows with it).
     pub fn knock(self) -> f32 {
         match self {
-            Bottle::Beer => 1.0,
+            Bottle::Beer | Bottle::Lemonade => 1.0,
             Bottle::Spirit => 1.25,
         }
     }
 
-    /// Extra points for the thrower on a hit.
+    /// Extra points for the thrower on a hit (Marcus, 11 Oct 2026: a bottle scores 100 more than
+    /// a teddy; rum a little more again).
     pub fn points(self) -> i32 {
         match self {
-            Bottle::Beer => 0,
-            Bottle::Spirit => 25,
+            Bottle::Beer => 100,
+            Bottle::Spirit => 125,
+            Bottle::Lemonade => 0,
         }
     }
 
@@ -230,14 +236,20 @@ impl Bottle {
         match self {
             Bottle::Beer => 0,
             Bottle::Spirit => 1,
+            Bottle::Lemonade => 2,
         }
+    }
+
+    /// A glass bottle (Cheeky mode), which shatters; the lemonade can just bursts.
+    pub fn glass(self) -> bool {
+        self != Bottle::Lemonade
     }
 
     pub fn from_code(c: u8) -> Option<Bottle> {
         Bottle::ALL.get(c as usize).copied()
     }
 
-    /// Pick one from a roll in `[0, 1)`.
+    /// Pick one of Cheeky mode's bottles from a roll in `[0, 1)`.
     pub fn pick(roll: f32) -> Bottle {
         if roll < SPIRIT_CHANCE { Bottle::Spirit } else { Bottle::Beer }
     }
@@ -252,15 +264,60 @@ pub const MEAT_PTS: i32 = 50;
 
 /// Pick a spawnable item from a roll in `[0, 1)`, using the weights.
 pub fn random_type(roll: f32) -> ItemKind {
-    let r = roll * 100.0;
+    random_type_with(roll, 1.0)
+}
+
+/// The same, with the drinks' (VP can, bottles) weight multiplied by `drinks` (Cheeky mode's
+/// Bottles setting: 0 none, 1 as usual, more for lots).
+pub fn random_type_with(roll: f32, drinks: f32) -> ItemKind {
+    let w = |k: ItemKind| k.def().weight * if k == ItemKind::Stubby { drinks.max(0.0) } else { 1.0 };
+    let total: f32 = ItemKind::ALL.iter().map(|k| w(*k)).sum();
+    let r = roll * total;
     let mut acc = 0.0;
     for k in ItemKind::ALL {
-        acc += k.def().weight;
+        acc += w(k);
         if r < acc {
             return k;
         }
     }
     ItemKind::Teddy
+}
+
+/// Cheeky mode's Bottles setting (Marcus, 11 Oct 2026): how many beer and rum bottles turn up.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum BottleAmount {
+    None,
+    Few,
+    #[default]
+    Normal,
+    Lots,
+}
+
+impl BottleAmount {
+    pub const ALL: [BottleAmount; 4] = [BottleAmount::None, BottleAmount::Few, BottleAmount::Normal, BottleAmount::Lots];
+
+    /// Multiplies the bottles' spawn weight (normally 35 of 100: about a third of everything).
+    pub fn weight(self) -> f32 {
+        match self {
+            BottleAmount::None => 0.0,
+            BottleAmount::Few => 0.4,
+            BottleAmount::Normal => 1.0,
+            BottleAmount::Lots => 2.5,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            BottleAmount::None => "none",
+            BottleAmount::Few => "few",
+            BottleAmount::Normal => "normal",
+            BottleAmount::Lots => "lots",
+        }
+    }
+
+    pub fn from_name(s: &str) -> Option<BottleAmount> {
+        BottleAmount::ALL.iter().copied().find(|b| b.name() == s.trim())
+    }
 }
 
 /// How many items the spawner aims to keep around.
@@ -560,7 +617,8 @@ mod tests {
         rum.bottle = Some(Bottle::Spirit);
         assert_eq!((beer.knock(), beer.hit_stun()), (can.knock(), can.hit_stun()), "beer plays like the VP can");
         assert!(rum.knock() > beer.knock() && rum.hit_stun() > beer.hit_stun());
-        assert!(Bottle::Spirit.points() > 0 && Bottle::Beer.points() == 0);
+        // a bottle scores 100 more than a teddy (rum a little more again); lemonade is the can's
+        assert!(Bottle::Beer.points() == 100 && Bottle::Spirit.points() > 100 && Bottle::Lemonade.points() == 0);
         // about a quarter are spirits
         let spirits = (0..1000).filter(|i| Bottle::pick(*i as f32 / 1000.0) == Bottle::Spirit).count();
         assert_eq!(spirits, 250);
@@ -568,6 +626,23 @@ mod tests {
             assert_eq!(Bottle::from_code(b.code()), Some(b));
         }
         assert_eq!(Bottle::from_code(255), None);
+    }
+
+    #[test]
+    fn the_bottles_setting_changes_how_many_turn_up() {
+        let share = |amount: BottleAmount| (0..1000).filter(|i| random_type_with(*i as f32 / 1000.0, amount.weight()) == ItemKind::Stubby).count();
+        assert_eq!(share(BottleAmount::None), 0);
+        assert!(share(BottleAmount::Few) < share(BottleAmount::Normal));
+        assert!(share(BottleAmount::Normal) < share(BottleAmount::Lots));
+        assert!((340..=360).contains(&share(BottleAmount::Normal)), "as usual: 35 in 100");
+        // as usual, the old cut-offs are unchanged
+        for i in 0..100 {
+            let r = i as f32 / 100.0;
+            assert_eq!(random_type(r), random_type_with(r, 1.0));
+        }
+        for b in BottleAmount::ALL {
+            assert_eq!(BottleAmount::from_name(b.name()), Some(b));
+        }
     }
 
     #[test]

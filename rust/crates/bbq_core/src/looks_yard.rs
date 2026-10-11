@@ -42,8 +42,13 @@ pub struct YardLook {
     pub world: Vec<Part>,
     /// The turning part of the clothesline, local to `HOIST_AT`.
     pub hoist_head: Vec<Part>,
-    /// The bar and what is on it.
+    /// The bar counter (and its sign posts).
     pub bar: Vec<Part>,
+    /// Cheeky mode's sign, tags and drinks on the bar; family mode's soft-drinks stand instead.
+    pub bar_grog: Vec<Part>,
+    pub bar_soft: Vec<Part>,
+    /// Empty stubbies and bottle caps on the lawn (Cheeky mode only).
+    pub litter: Vec<Part>,
     /// The BBQ, the prep table, the meat on both.
     pub bbq: Vec<Part>,
     /// The smoko pole, umbrella, esky and signs (the pad and chairs depend on the player count).
@@ -329,8 +334,9 @@ fn leaf_litter(trees: &[(f32, f32)], seed: u64) -> Vec<Part> {
 }
 
 /// Little things lying about that tell a story (step 2c): a cricket set, a dog bowl, thongs by the
-/// back door, a washing basket, a few stubbies and bottle caps. Visual only; kept off the paths.
-fn clutter(rng: &mut Rng) -> Vec<Part> {
+/// back door, a washing basket (and, in Cheeky mode, `grog_litter`). Visual only; kept off the
+/// paths.
+fn clutter(_rng: &mut Rng) -> Vec<Part> {
     let mut v = Vec::new();
     // cricket stumps and a bat, left leaning
     let (cx, cz) = (17.0f32, 10.0f32);
@@ -356,7 +362,12 @@ fn clutter(rng: &mut Rng) -> Vec<Part> {
     // a washing basket on its side near the hoist, with a sock beside it
     v.push(cyl(0.26, 0.22, 0.34, 12, matt(0x3fa9a0), 2.6, 0.2, 6.2).turn(HALF_PI, 0.6, 0.0));
     v.push(cuboid(0.12, 0.02, 0.07, matt(0xf1f1ee), 3.2, 0.012, 6.6).turn(0.0, 0.8, 0.0));
-    // stubbies and bottle caps in the grass
+    v
+}
+
+/// Empty stubbies and bottle caps in the grass (Cheeky mode only: no alcohol in family mode).
+fn grog_litter(rng: &mut Rng) -> Vec<Part> {
+    let mut v = Vec::new();
     for _ in 0..7 {
         let (x, z) = (rng.range(-W + 3.0, W - 3.0), rng.range(-D + 3.0, D - 3.0));
         if (POOL_X0 - 1.0..POOL_X1 + 1.0).contains(&x) && (POOL_Z0 - 1.0..POOL_Z1 + 1.0).contains(&z) {
@@ -1181,6 +1192,7 @@ fn props(polished: bool) -> Vec<Part> {
     v
 }
 
+/// The bar counter and the sign posts (the same in both modes; the sign and drinks change).
 fn bar() -> Vec<Part> {
     let (bx, bz, bw, bd, bh) = (
         (BAR.x0 + BAR.x1) / 2.0,
@@ -1218,6 +1230,13 @@ fn bar() -> Vec<Part> {
             bz - 0.35,
         ));
     }
+    v
+}
+
+/// Cheeky mode's bar: "THE BAR" sign, the VP / WINE / RUM tags and the drinks on top.
+fn bar_grog() -> Vec<Part> {
+    let (bx, bz, bd, bh) = ((BAR.x0 + BAR.x1) / 2.0, (BAR.z0 + BAR.z1) / 2.0, BAR.z1 - BAR.z0, BAR.h);
+    let mut v = Vec::new();
     v.push(cuboid(
         2.6,
         0.55,
@@ -1287,6 +1306,61 @@ fn bar() -> Vec<Part> {
             bx + x,
             bh + 0.03,
             bz + z,
+        ));
+    }
+    v
+}
+
+/// Family mode's drinks stand (Marcus, 11 Oct 2026: no alcohol in family mode): a "DRINKS"
+/// sign, LEMONADE / JUICE / WATER tags, and lemonade cans, a jug of orange juice with glasses,
+/// and bottles of water on top.
+fn bar_soft() -> Vec<Part> {
+    let (bx, bz, bd, bh) = ((BAR.x0 + BAR.x1) / 2.0, (BAR.z0 + BAR.z1) / 2.0, BAR.z1 - BAR.z0, BAR.h);
+    let mut v = vec![cuboid(2.6, 0.55, 0.06, matt(0xffffff).textured(Tex::SignDrinks), bx, 2.45, bz - 0.35)];
+    for (t, x) in [(Tex::TagLemonade, -1.2), (Tex::TagJuice, 0.0), (Tex::TagWater, 1.2)] {
+        v.push(
+            Part::new(Shape::Quad { w: 0.62, h: 0.2 }, matt(0xffffff).textured(t).unlit().no_shadow())
+                .at(bx + x, bh - 0.2, bz + bd / 2.0 + 0.03),
+        );
+    }
+    // lemonade cans on the left
+    for k in 0..4 {
+        let z = bz + if k % 2 == 1 { 0.12 } else { -0.1 };
+        v.extend(place(looks::lemonade_can(), V3::new(bx - 1.55 + k as f32 * 0.22, bh + 0.1, z), Quat::IDENTITY, 1.0));
+    }
+    // a jug of orange juice and two glasses of it in the middle
+    let glass = matt(0xdfe8ea).see_through(0.5);
+    let juice = matt(0xff8a1c);
+    v.extend(place(
+        vec![
+            cyl(0.07, 0.08, 0.22, 14, glass, 0.0, 0.11, 0.0),
+            cyl(0.066, 0.076, 0.16, 14, juice, 0.0, 0.08, 0.0),
+            cuboid(0.02, 0.12, 0.05, glass, 0.09, 0.12, 0.0),
+        ],
+        V3::new(bx - 0.12, bh, bz - 0.12),
+        Quat::IDENTITY,
+        1.0,
+    ));
+    for x in [0.12f32, 0.32] {
+        v.extend(place(
+            vec![cyl(0.04, 0.035, 0.12, 12, glass, 0.0, 0.06, 0.0), cyl(0.036, 0.032, 0.08, 12, juice, 0.0, 0.045, 0.0)],
+            V3::new(bx + x, bh, bz + 0.15),
+            Quat::IDENTITY,
+            1.0,
+        ));
+    }
+    // bottles of water on the right, with blue caps and labels
+    for (x, z) in [(1.0f32, -0.1f32), (1.2, 0.12), (1.4, -0.05)] {
+        v.extend(place(
+            vec![
+                cyl(0.045, 0.045, 0.2, 12, matt(0xcfe8f2).see_through(0.6), 0.0, 0.1, 0.0),
+                cyl(0.018, 0.045, 0.05, 12, matt(0xcfe8f2).see_through(0.6), 0.0, 0.225, 0.0),
+                cyl(0.019, 0.019, 0.025, 10, matt(0x2f7fe0), 0.0, 0.26, 0.0),
+                cyl(0.046, 0.046, 0.06, 12, matt(0x5fb4ea), 0.0, 0.1, 0.0),
+            ],
+            V3::new(bx + x, bh, bz + z),
+            Quat::IDENTITY,
+            1.0,
         ));
     }
     v
@@ -2112,6 +2186,7 @@ pub fn yard(seed: u64) -> YardLook {
 pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
     let mut rng = Rng::new(seed);
     let mut world = Vec::new();
+    let mut litter = Vec::new();
     // lawn and the paddock beyond, both with the pool cut out
     let hole = (POOL_X0, POOL_X1, POOL_Z0, POOL_Z1);
     if polished {
@@ -2211,6 +2286,7 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         let mut sr = Rng::new(seed ^ 0x5CA7);
         world.extend(weeds(&mut sr));
         world.extend(clutter(&mut sr));
+        litter = grog_litter(&mut sr);
         world.extend(ground_story(seed));
         world.extend(table_bottles());
         // a cracked concrete pad inside the back gate, where the paths start
@@ -2290,6 +2366,7 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
     };
     if polished {
         world = sun_bake(texture_pass(world));
+        litter = sun_bake(texture_pass(litter));
         // fallen leaves and bark go on last, so the texture pass leaves their colours alone
         world.extend(leaf_litter(&tree_spots, seed));
     }
@@ -2300,6 +2377,9 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         world,
         hoist_head,
         bar: if polished { looks::mark_hero(sun_bake(texture_pass(bar()))) } else { bar() },
+        bar_grog: if polished { looks::mark_hero(sun_bake(texture_pass(bar_grog()))) } else { bar_grog() },
+        bar_soft: if polished { looks::mark_hero(sun_bake(texture_pass(bar_soft()))) } else { bar_soft() },
+        litter,
         bbq: if polished { looks::mark_hero(sun_bake(texture_pass(bbq(true)))) } else { bbq(false) },
         smoko: if polished { looks::mark_hero(sun_bake(texture_pass(smoko(true)))) } else { smoko(false) },
         chest_base,
@@ -2447,16 +2527,18 @@ mod tests {
     #[test]
     fn the_bar_stands_where_the_rules_put_it() {
         let y = yard(1);
-        let (lo, hi) = bounds(&y.bar);
-        // from the sign posts' x (-1.9, 1.9) plus the drinks, all near the bar's z
-        assert!(lo.z > BAR.z0 - 1.0 && hi.z < BAR.z1 + 1.0);
-        assert!(hi.y > 2.4, "the sign is 2.45 m up");
-        let tags = y
-            .bar
-            .iter()
-            .filter(|p| p.surface.unlit && p.surface.tex.is_some())
-            .count();
-        assert_eq!(tags, 3);
+        // the counter, and on it Cheeky mode's grog or family mode's soft drinks (11 Oct 2026)
+        for dressing in [&y.bar_grog, &y.bar_soft] {
+            let all: Vec<Part> = y.bar.iter().chain(dressing.iter()).cloned().collect();
+            let (lo, hi) = bounds(&all);
+            // from the sign posts' x (-1.9, 1.9) plus the drinks, all near the bar's z
+            assert!(lo.z > BAR.z0 - 1.0 && hi.z < BAR.z1 + 1.0);
+            assert!(hi.y > 2.4, "the sign is 2.45 m up");
+            let tags = dressing.iter().filter(|p| p.surface.unlit && p.surface.tex.is_some()).count();
+            assert_eq!(tags, 3);
+        }
+        // family mode's stand has no grog signs
+        assert!(y.bar_soft.iter().all(|p| !matches!(p.surface.tex, Some(Tex::SignBar | Tex::TagVp | Tex::TagWine | Tex::TagRum))));
     }
 
     #[test]
