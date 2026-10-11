@@ -1014,7 +1014,7 @@ fn update_slots(
                         BorderColor::all(INK),
                     ));
                     let def = it.kind.def();
-                    let name = crate::items_view::kind_name(it.kind);
+                    let name = crate::items_view::item_name(it);
                     let label = if def.melee != Melee::None {
                         let u = it.uses.unwrap_or(3);
                         format!("{name} · {u} slap{}", if u == 1 { "" } else { "s" })

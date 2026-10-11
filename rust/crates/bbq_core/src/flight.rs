@@ -47,6 +47,8 @@ pub struct Item {
     pub ignore: Vec<PlayerId>,
     pub uses: Option<u32>,
     pub variant: Option<crate::items::DildoVariant>,
+    /// Cheeky mode: the VP can is a glass bottle (beer or spirits).
+    pub bottle: Option<crate::items::Bottle>,
     /// Heist: which team's teddy this is.
     pub team: Option<u8>,
     /// Someone who dropped it on purpose can't pick it up again until this time (seconds of game time).
@@ -59,6 +61,17 @@ pub struct Item {
 }
 
 impl Item {
+    /// How hard it knocks someone it hits (a bottle of spirits harder than the can).
+    pub fn knock(&self) -> f32 {
+        self.kind.def().knock * self.bottle.map_or(1.0, |b| b.knock())
+    }
+
+    /// How long it stuns someone it hits.
+    pub fn hit_stun(&self) -> f32 {
+        let d = self.kind.def();
+        d.stun.unwrap_or(0.35 + self.knock() * 0.035)
+    }
+
     pub fn new(id: ItemId, kind: ItemKind, pos: V3) -> Self {
         Self {
             id,
@@ -78,6 +91,7 @@ impl Item {
             ignore: Vec::new(),
             uses: kind.starting_uses(),
             variant: None,
+            bottle: None,
             team: None,
             block: None,
             flight_no: 0,
@@ -104,10 +118,12 @@ pub enum FlightEvent {
         x: f32,
         z: f32,
     },
-    /// A stubby broke. `puddle` says whether it left one.
+    /// A stubby broke. `puddle` says whether it left one; `bottle` is set for Cheeky mode's
+    /// glass bottles (they shatter; the VP can just bursts).
     Smash {
         pos: V3,
         puddle: bool,
+        bottle: Option<crate::items::Bottle>,
     },
     /// Left the yard. The thrower gets an "over" event. Heist teddies go home instead.
     Over {
@@ -177,10 +193,17 @@ pub fn rest_item(
     true
 }
 
+/// Only a thrown can or bottle smashes on a wall or a hard landing. One that drops in from the
+/// sky (or is let go of) lands whole: in the browser game the dropped ones smashed on landing,
+/// so VP cans vanished before anyone saw them (found 11 Oct 2026 with Cheeky mode's bottles).
+fn smashes(it: &Item) -> bool {
+    it.kind.def().smash && it.live
+}
+
 fn hit_wall(it: &mut Item, axis: Axis, events: &mut Vec<FlightEvent>) -> Fate {
     let d = it.kind.def();
     let sp = it.vel.len();
-    if d.smash && sp > 4.0 {
+    if smashes(it) && sp > 4.0 {
         smash(it, events);
         return Fate::Removed;
     }
@@ -210,6 +233,7 @@ fn smash(it: &Item, events: &mut Vec<FlightEvent>) {
     events.push(FlightEvent::Smash {
         pos: it.pos,
         puddle,
+        bottle: it.bottle,
     });
 }
 
@@ -237,7 +261,7 @@ fn on_surface(it: &mut Item, h: f32, on: Option<&Collider>, events: &mut Vec<Fli
         it.pos.y = WATER_Y + 0.04;
         return Fate::Alive;
     }
-    if d.smash && sp > 5.0 {
+    if smashes(it) && sp > 5.0 {
         smash(it, events);
         return Fate::Removed;
     }
@@ -614,6 +638,18 @@ mod tests {
             ev.iter()
                 .any(|e| matches!(e, FlightEvent::Smash { puddle: true, .. }))
         );
+    }
+
+    #[test]
+    fn a_stubby_dropped_from_the_sky_lands_whole() {
+        let yard = Yard::default();
+        let mut it = Item::new(1, ItemKind::Stubby, V3::new(0.0, 9.0, 10.0));
+        it.state = ItemState::Flying;
+        it.live = false; // how the spawner drops things in
+        let (fate, ev) = fly(&mut it, &yard, 3.0);
+        assert_eq!(fate, Fate::Alive);
+        assert!(!ev.iter().any(|e| matches!(e, FlightEvent::Smash { .. })));
+        assert_eq!(it.state, ItemState::Ground);
     }
 
     #[test]

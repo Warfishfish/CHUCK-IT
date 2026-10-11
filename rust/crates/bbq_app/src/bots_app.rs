@@ -590,6 +590,10 @@ fn slap_player(
                 att.name,
                 if roll.crit { " CRITICAL!" } else { "" }
             ));
+            // the Splash bursts over everyone close to you too
+            if variant == DildoVariant::Splash {
+                crate::life::splash_burst(g, V3::new(p.mover.x, 0.0, p.mover.z), att.id, PLAYER_ID);
+            }
         }
         Melee::None => {}
     }
@@ -722,10 +726,12 @@ pub fn stand_bot(g: &mut Game, i: usize) {
 
 /// A thrown item hit the player.
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
 pub fn hit_player(
     g: &mut Game,
     p: &mut Player,
     kind: ItemKind,
+    bottle: Option<bbq_core::items::Bottle>,
     thrower: Option<PlayerId>,
     dir: V3,
     flatten: bool,
@@ -733,14 +739,15 @@ pub fn hit_player(
     start: V3,
 ) {
     g.fx(
-        if kind == ItemKind::Stubby { crate::fx::FxKind::Smash } else { crate::fx::FxKind::Hit },
+        if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
         V3::new(p.mover.x, 1.0, p.mover.z),
     );
-    let item = Item::new(0, kind, V3::ZERO);
+    let mut item = Item::new(0, kind, V3::ZERO);
+    item.bottle = bottle;
     let res = hitting::apply_item_hit(&mut g.me.body, &mut p.mover, &item, dir, flatten);
     g.me.drunk.cancel_drink();
     g.wind.cancel();
-    p.shake = p.shake.max(0.12 + kind.def().knock * 0.012);
+    p.shake = p.shake.max(0.12 + item.knock() * 0.012);
     let leader = g.board.leader() == Some(PLAYER_ID);
     let bonus = thrower.map_or(0, |t| drunk_bonus_of(g, t));
     let same_team = thrower.is_some_and(|t| teammate(g, t, PLAYER_ID));
@@ -757,6 +764,13 @@ pub fn hit_player(
             same_team,
         },
     );
+    // a bottle of spirits pays the thrower a little extra
+    if let (Some(b), Some(t)) = (bottle, thrower)
+        && b.points() > 0
+        && out.gain > 0
+    {
+        g.board.award(&g.rules, t, b.points());
+    }
     let who = thrower.map_or("Somebody".to_string(), |t| name_of(g, t));
     let mut msg = format!("{who} hit you");
     if out.victim_loss > 0 {

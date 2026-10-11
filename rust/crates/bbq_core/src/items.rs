@@ -185,6 +185,64 @@ impl ItemKind {
     }
 }
 
+/// Cheeky mode's glass bottles (Marcus, 11 Oct 2026): in Cheeky mode the throwable VP can is a
+/// glass bottle instead, a beer stubby or (rarer) a bottle of spirits. Both are thrown like the
+/// can and smash on a hit or a hard landing. Family mode keeps the plastic VP cans.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Bottle {
+    /// A brown beer stubby: plays exactly like the VP can.
+    Beer,
+    /// A bottle of rum: knocks harder, stuns a touch longer and pays a little extra.
+    Spirit,
+}
+
+/// How often a bottle is spirits rather than beer.
+pub const SPIRIT_CHANCE: f32 = 0.25;
+
+impl Bottle {
+    pub const ALL: [Bottle; 2] = [Bottle::Beer, Bottle::Spirit];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Bottle::Beer => "Beer stubby",
+            Bottle::Spirit => "Rum bottle",
+        }
+    }
+
+    /// Multiplies the item's knock (the can's 8; the stun grows with it).
+    pub fn knock(self) -> f32 {
+        match self {
+            Bottle::Beer => 1.0,
+            Bottle::Spirit => 1.25,
+        }
+    }
+
+    /// Extra points for the thrower on a hit.
+    pub fn points(self) -> i32 {
+        match self {
+            Bottle::Beer => 0,
+            Bottle::Spirit => 25,
+        }
+    }
+
+    /// Its number on the network.
+    pub fn code(self) -> u8 {
+        match self {
+            Bottle::Beer => 0,
+            Bottle::Spirit => 1,
+        }
+    }
+
+    pub fn from_code(c: u8) -> Option<Bottle> {
+        Bottle::ALL.get(c as usize).copied()
+    }
+
+    /// Pick one from a roll in `[0, 1)`.
+    pub fn pick(roll: f32) -> Bottle {
+        if roll < SPIRIT_CHANCE { Bottle::Spirit } else { Bottle::Beer }
+    }
+}
+
 /// Uses for steak, fish and dildo.
 pub const SLAP_USES: u32 = 3;
 /// Dizzy time after a steak or fish slap.
@@ -234,6 +292,11 @@ pub enum DildoVariant {
     Quickie,
     /// Long and orange: hits from further away, but swings slowly.
     LongJohn,
+    /// Blue and full of water (11 Oct 2026): a slap bursts it over everyone standing near the
+    /// one hit, who are soaked and stopped for a moment.
+    Splash,
+    /// Glowing neon green and rare (11 Oct 2026): lucky, it crits far more often.
+    NeonLucky,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -258,13 +321,15 @@ pub struct VariantDef {
 }
 
 impl DildoVariant {
-    pub const ALL: [DildoVariant; 6] = [
+    pub const ALL: [DildoVariant; 8] = [
         DildoVariant::Classic,
         DildoVariant::Mini,
         DildoVariant::Jumbo,
         DildoVariant::Gold,
         DildoVariant::Quickie,
         DildoVariant::LongJohn,
+        DildoVariant::Splash,
+        DildoVariant::NeonLucky,
     ];
 
     pub fn def(self) -> VariantDef {
@@ -347,8 +412,42 @@ impl DildoVariant {
                 swing: 1.5,
                 reach: 1.4,
             },
+            // a water balloon: an ordinary slap, plus the splash on everyone close by
+            DildoVariant::Splash => VariantDef {
+                label: "The Splash",
+                scale: 1.05,
+                points: 10,
+                down: 0.0,
+                weight: 9.0,
+                rare: false,
+                crit: 0.12,
+                poses: [0.5, 1.0, 1.0],
+                swing: 1.0,
+                reach: 1.0,
+            },
+            // rare and lucky: crits almost half the time
+            DildoVariant::NeonLucky => VariantDef {
+                label: "Neon Lucky",
+                scale: 1.0,
+                points: 40,
+                down: 0.5,
+                weight: 3.0,
+                rare: true,
+                crit: 0.45,
+                poses: [1.0, 1.0, 1.0],
+                swing: 1.0,
+                reach: 1.0,
+            },
         }
     }
+
+    /// The Splash's burst: how far from the one hit it soaks people, how long they are stopped
+    /// for, and how hard they are pushed away.
+    pub const SPLASH_RADIUS: f32 = 2.2;
+    pub const SPLASH_STUN: f32 = 0.7;
+    pub const SPLASH_PUSH: f32 = 2.5;
+    /// Points for each person soaked.
+    pub const SPLASH_PTS: i32 = 15;
 
     /// How long a slap with this variant knocks someone flat (a critical is always 5 s).
     pub fn knockdown_time(self, crit: bool) -> f32 {
@@ -430,19 +529,55 @@ mod tests {
 
     #[test]
     fn dildo_variant_weights() {
-        // Weights 46/28/18/4/12/10 add up to 118, so the cut-offs are 46, 74, 92, 96 and 108
-        // out of 118 (0.390, 0.627, 0.780, 0.814, 0.915).
+        // Weights 46/28/18/4/12/10/9/3 add up to 130 (the old six keep their weights, so their
+        // odds against each other are unchanged), so the cut-offs are 46, 74, 92, 96, 108, 118 and
+        // 127 out of 130 (0.354, 0.569, 0.708, 0.738, 0.831, 0.908, 0.977).
         assert_eq!(pick_dildo_variant(0.0), DildoVariant::Classic);
-        assert_eq!(pick_dildo_variant(0.38), DildoVariant::Classic);
-        assert_eq!(pick_dildo_variant(0.40), DildoVariant::Mini);
-        assert_eq!(pick_dildo_variant(0.62), DildoVariant::Mini);
-        assert_eq!(pick_dildo_variant(0.64), DildoVariant::Jumbo);
-        assert_eq!(pick_dildo_variant(0.77), DildoVariant::Jumbo);
-        assert_eq!(pick_dildo_variant(0.79), DildoVariant::Gold);
+        assert_eq!(pick_dildo_variant(0.35), DildoVariant::Classic);
+        assert_eq!(pick_dildo_variant(0.36), DildoVariant::Mini);
+        assert_eq!(pick_dildo_variant(0.56), DildoVariant::Mini);
+        assert_eq!(pick_dildo_variant(0.58), DildoVariant::Jumbo);
+        assert_eq!(pick_dildo_variant(0.70), DildoVariant::Jumbo);
+        assert_eq!(pick_dildo_variant(0.72), DildoVariant::Gold);
+        assert_eq!(pick_dildo_variant(0.75), DildoVariant::Quickie);
         assert_eq!(pick_dildo_variant(0.82), DildoVariant::Quickie);
-        assert_eq!(pick_dildo_variant(0.90), DildoVariant::Quickie);
-        assert_eq!(pick_dildo_variant(0.93), DildoVariant::LongJohn);
-        assert_eq!(pick_dildo_variant(0.999), DildoVariant::LongJohn);
+        assert_eq!(pick_dildo_variant(0.84), DildoVariant::LongJohn);
+        assert_eq!(pick_dildo_variant(0.90), DildoVariant::LongJohn);
+        assert_eq!(pick_dildo_variant(0.92), DildoVariant::Splash);
+        assert_eq!(pick_dildo_variant(0.97), DildoVariant::Splash);
+        assert_eq!(pick_dildo_variant(0.98), DildoVariant::NeonLucky);
+        assert_eq!(pick_dildo_variant(0.999), DildoVariant::NeonLucky);
+    }
+
+    #[test]
+    fn bottles_play_like_the_can_and_spirits_hit_harder() {
+        use crate::flight::Item;
+        use crate::vec::V3;
+        let can = Item::new(1, ItemKind::Stubby, V3::ZERO);
+        let mut beer = can.clone();
+        beer.bottle = Some(Bottle::Beer);
+        let mut rum = can.clone();
+        rum.bottle = Some(Bottle::Spirit);
+        assert_eq!((beer.knock(), beer.hit_stun()), (can.knock(), can.hit_stun()), "beer plays like the VP can");
+        assert!(rum.knock() > beer.knock() && rum.hit_stun() > beer.hit_stun());
+        assert!(Bottle::Spirit.points() > 0 && Bottle::Beer.points() == 0);
+        // about a quarter are spirits
+        let spirits = (0..1000).filter(|i| Bottle::pick(*i as f32 / 1000.0) == Bottle::Spirit).count();
+        assert_eq!(spirits, 250);
+        for b in Bottle::ALL {
+            assert_eq!(Bottle::from_code(b.code()), Some(b));
+        }
+        assert_eq!(Bottle::from_code(255), None);
+    }
+
+    #[test]
+    fn splash_and_neon_lucky() {
+        let s = DildoVariant::Splash.def();
+        let n = DildoVariant::NeonLucky.def();
+        assert!(n.rare && n.weight < s.weight, "Neon Lucky is the rarer one");
+        assert!(n.crit > 0.4, "lucky: crits almost half the time");
+        assert!(n.crit > DildoVariant::ALL.iter().filter(|v| **v != DildoVariant::NeonLucky).map(|v| v.def().crit).fold(0.0, f32::max));
+        assert!(DildoVariant::SPLASH_RADIUS > 1.5 && DildoVariant::SPLASH_STUN > 0.0);
     }
 
     #[test]

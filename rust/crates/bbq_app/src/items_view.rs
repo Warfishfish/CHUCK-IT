@@ -12,6 +12,14 @@ use crate::game::{Game, aim_dir, hand_pos};
 use crate::models::{FloppyChain, FloppySeg, ModelCache, ModelKey};
 use crate::player::{EyeCamera, Player};
 
+/// The name of one item (Cheeky mode's bottles say which they are).
+pub fn item_name(it: &bbq_core::flight::Item) -> &'static str {
+    match it.bottle {
+        Some(b) if it.kind == ItemKind::Stubby => b.label(),
+        _ => kind_name(it.kind),
+    }
+}
+
 pub fn kind_name(k: ItemKind) -> &'static str {
     match k {
         ItemKind::Teddy => "Teddy",
@@ -191,7 +199,7 @@ fn sync_items(
         if !shown.items.contains_key(id) {
             let e = cache.spawn(
                 &mut commands,
-                ModelKey::item(it.kind, it.variant, *id),
+                ModelKey::of(it),
                 &mut meshes,
                 &mut mats,
                 Transform::from_xyz(it.pos.x, it.pos.y, it.pos.z),
@@ -352,7 +360,7 @@ fn sync_viewmodel(
         .slots
         .selected()
         .and_then(|id| game.world.items.get(&id))
-        .map(|i| (i.kind, ModelKey::item(i.kind, i.variant, i.id)));
+        .map(|i| (i.kind, ModelKey::of(i)));
     let Ok((root, mut tf, mut vis)) = vm.single_mut() else {
         let e = commands
             .spawn((Transform::default(), Visibility::Hidden, HeldVm))

@@ -225,6 +225,8 @@ pub fn show_teams(g: &mut Game) {
 /// Begin a round (and a fresh match if the last one finished).
 pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
     let setup = g.round.setup.clone();
+    // the round's first items already know whether VP cans are glass bottles (Cheeky mode)
+    g.world.cheeky = g.options.adult;
     if g.round.mtch.over || g.round.mtch.no == 0 {
         g.round.mtch = Match::new(if setup.mode == GameMode::Heist {
             1
@@ -593,6 +595,19 @@ fn start_from_args(mut game: ResMut<Game>, mut player: ResMut<Player>, mut yard:
             let (x, z) = (player.mover.x, player.mover.z);
             let mut rng = game.rng.clone();
             let id = game.world.spawn(kind, x, z, false, &mut rng);
+            // `--give-variant splash|neon|beer|rum` (testing): which dildo or bottle it is
+            if let Some(v) = args.iter().position(|a| a == "--give-variant").and_then(|i| args.get(i + 1))
+                && let Some(it) = game.world.items.get_mut(&id)
+            {
+                use bbq_core::items::{Bottle, DildoVariant};
+                match v.as_str() {
+                    "splash" => it.variant = Some(DildoVariant::Splash),
+                    "neon" => it.variant = Some(DildoVariant::NeonLucky),
+                    "beer" => it.bottle = Some(Bottle::Beer),
+                    "rum" => it.bottle = Some(Bottle::Spirit),
+                    _ => {}
+                }
+            }
             game.world.give(id, crate::player::PLAYER_ID);
             game.slots.add(id);
         }

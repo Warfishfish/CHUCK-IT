@@ -116,9 +116,9 @@ mod tests {
     }
 
     #[test]
-    fn sizes_follow_the_46_28_18_4_12_10_weights() {
+    fn sizes_follow_the_46_28_18_4_12_10_9_3_weights() {
         let mut rng = Rng::new(9);
-        let mut counts = [0usize; 6];
+        let mut counts = [0usize; 8];
         let n = 20000;
         for _ in 0..n {
             let mut c = Chest::default();
@@ -126,8 +126,8 @@ mod tests {
             let i = DildoVariant::ALL.iter().position(|x| *x == v).unwrap();
             counts[i] += 1;
         }
-        let want = [46.0 / 118.0, 28.0 / 118.0, 18.0 / 118.0, 4.0 / 118.0, 12.0 / 118.0, 10.0 / 118.0];
-        for i in 0..6 {
+        let want = [46.0, 28.0, 18.0, 4.0, 12.0, 10.0, 9.0, 3.0].map(|w: f32| w / 130.0);
+        for i in 0..8 {
             let got = counts[i] as f32 / n as f32;
             assert!((got - want[i]).abs() < 0.015, "{i}: {got} vs {}", want[i]);
         }

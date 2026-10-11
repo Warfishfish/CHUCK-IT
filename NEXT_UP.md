@@ -13,8 +13,7 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 - Dildo and noodle flop for the toys on the ground, in the air and in other people's hands
 
 ## Gameplay
-- More dildo types and abilities (Splash, Neon Lucky were offered; Quickie and Long John are in)
-- Cheeky mode: beer and spirit bottles you throw, with a smash effect
+- (done 11 Oct 2026: Splash and Neon Lucky dildos, Cheeky-mode beer and rum bottles)
 - Teddies on the trampoline: tune the bounce by feel
 - Hand and first-person feel checks (flop, throw, slap) on Marcus's Mac
 - Gamepad: try on a real controller, menu navigation, button remapping

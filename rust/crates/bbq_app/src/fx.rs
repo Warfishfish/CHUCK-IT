@@ -24,10 +24,30 @@ pub enum FxKind {
     Splash,
     /// Someone lands hard or falls over.
     Dust,
+    /// Cheeky mode's beer bottle shatters: brown glass shards and beer foam.
+    Shatter,
+    /// A bottle of spirits shatters: glass shards and a dark splash of rum.
+    ShatterSpirit,
 }
 
 impl FxKind {
-    pub const ALL: [FxKind; 5] = [FxKind::Hit, FxKind::Smash, FxKind::Whack, FxKind::Splash, FxKind::Dust];
+    // (new kinds go on the end: the position is the number sent online)
+    pub const ALL: [FxKind; 7] =
+        [FxKind::Hit, FxKind::Smash, FxKind::Whack, FxKind::Splash, FxKind::Dust, FxKind::Shatter, FxKind::ShatterSpirit];
+
+    /// What a bottle (or the VP can) does when it breaks.
+    pub fn smash_of(bottle: Option<bbq_core::items::Bottle>) -> FxKind {
+        match bottle {
+            None => FxKind::Smash,
+            Some(bbq_core::items::Bottle::Beer) => FxKind::Shatter,
+            Some(bbq_core::items::Bottle::Spirit) => FxKind::ShatterSpirit,
+        }
+    }
+
+    /// Leaves a stain on the ground (where a drink went everywhere).
+    pub fn stains(self) -> bool {
+        matches!(self, FxKind::Smash | FxKind::Shatter | FxKind::ShatterSpirit)
+    }
 
     /// Its number on the network.
     pub fn index(self) -> u8 {
@@ -58,6 +78,9 @@ struct Effects {
     foam: Handle<EffectAsset>,
     splash: Handle<EffectAsset>,
     dust: Handle<EffectAsset>,
+    shards: Handle<EffectAsset>,
+    clear_shards: Handle<EffectAsset>,
+    rum: Handle<EffectAsset>,
     smoke: Handle<EffectAsset>,
     dot: Handle<Image>,
 }
@@ -242,6 +265,43 @@ fn make_effects(mut commands: Commands, mut effects: ResMut<Assets<EffectAsset>>
         size: (0.4, 1.1),
         colours: [c(0.78, 0.68, 0.5, 0.6), c(0.74, 0.65, 0.48, 0.3), c(0.74, 0.65, 0.48, 0.0)],
     }));
+    // glass: small, fast, bright glints that fall quickly (brown beer glass, clear spirit glass)
+    let shards = effects.add(burst_asset(&Burst {
+        name: "brown glass",
+        count: 44.0,
+        radius: 0.08,
+        speed: (2.5, 5.5),
+        up: 2.0,
+        life: (0.5, 0.9),
+        gravity: -14.0,
+        drag: 0.8,
+        size: (0.11, 0.05),
+        colours: [c(1.6, 1.0, 0.45, 1.0), c(0.55, 0.3, 0.1, 1.0), c(0.4, 0.2, 0.06, 0.0)],
+    }));
+    let clear_shards = effects.add(burst_asset(&Burst {
+        name: "clear glass",
+        count: 44.0,
+        radius: 0.08,
+        speed: (2.5, 5.5),
+        up: 2.0,
+        life: (0.5, 0.9),
+        gravity: -14.0,
+        drag: 0.8,
+        size: (0.11, 0.05),
+        colours: [c(2.0, 2.0, 2.1, 1.0), c(0.85, 0.9, 0.95, 0.9), c(0.8, 0.85, 0.9, 0.0)],
+    }));
+    let rum = effects.add(burst_asset(&Burst {
+        name: "rum splash",
+        count: 40.0,
+        radius: 0.12,
+        speed: (1.4, 3.4),
+        up: 1.4,
+        life: (0.5, 0.9),
+        gravity: -9.0,
+        drag: 1.0,
+        size: (0.14, 0.05),
+        colours: [c(0.75, 0.38, 0.1, 1.0), c(0.5, 0.22, 0.05, 0.9), c(0.4, 0.16, 0.04, 0.0)],
+    }));
     let smoke = effects.add(smoke_asset());
     commands.insert_resource(Effects {
         stars,
@@ -249,6 +309,9 @@ fn make_effects(mut commands: Commands, mut effects: ResMut<Assets<EffectAsset>>
         foam,
         splash,
         dust,
+        shards,
+        clear_shards,
+        rum,
         smoke,
         dot: assets.load("textures/particle.png"),
     });
@@ -265,7 +328,7 @@ fn spawn_events(
     // `--fxtest` fires one of every effect in a row, for looking at them
     if !*tested && time.elapsed_secs() > 0.8 && std::env::args().any(|a| a == "--fxtest") {
         *tested = true;
-        for (i, k) in [FxKind::Hit, FxKind::Smash, FxKind::Whack, FxKind::Splash, FxKind::Dust].into_iter().enumerate() {
+        for (i, k) in FxKind::ALL.into_iter().enumerate() {
             game.fx(k, V3::new(-2.4 + i as f32 * 1.2, if k == FxKind::Dust { 0.15 } else { 1.2 }, 12.0));
         }
     }
@@ -277,6 +340,8 @@ fn spawn_events(
             FxKind::Smash => (vec![&fx.foam, &fx.puff], 1.4),
             FxKind::Splash => (vec![&fx.splash], 1.8),
             FxKind::Dust => (vec![&fx.dust], 1.6),
+            FxKind::Shatter => (vec![&fx.shards, &fx.foam, &fx.puff], 1.4),
+            FxKind::ShatterSpirit => (vec![&fx.clear_shards, &fx.rum, &fx.puff], 1.4),
         };
         for h in list {
             commands.spawn((

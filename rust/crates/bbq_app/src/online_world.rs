@@ -80,6 +80,21 @@ pub fn kind_code(k: ItemKind) -> u8 {
     ItemKind::ALL.iter().position(|x| *x == k).unwrap_or(0) as u8
 }
 
+/// What hit someone, for the message telling them: the item's kind, plus 100 for a bottle of
+/// spirits (it knocks harder).
+pub fn hit_code(k: ItemKind, bottle: Option<bbq_core::items::Bottle>) -> u8 {
+    kind_code(k) + if bottle == Some(bbq_core::items::Bottle::Spirit) { 100 } else { 0 }
+}
+
+/// The item's look on the network: a dildo's type, or (for the stubby) which bottle it is.
+fn look_code(it: &Item) -> u8 {
+    match (it.kind, it.variant, it.bottle) {
+        (ItemKind::Dildo, Some(v), _) => DildoVariant::ALL.iter().position(|x| *x == v).unwrap_or(0) as u8,
+        (ItemKind::Stubby, _, Some(b)) => b.code(),
+        _ => 255,
+    }
+}
+
 fn mode_code(m: GameMode) -> u8 {
     match m {
         GameMode::FreeForAll => 0,
@@ -136,7 +151,7 @@ pub fn build_world(g: &Game, yard: &Yard, seq: u32, feed_after: f32, fx: &[FxEve
         .map(|it| ItemSnap {
             id: it.id,
             kind: kind_code(it.kind),
-            variant: it.variant.map_or(255, |v| DildoVariant::ALL.iter().position(|x| *x == v).unwrap_or(0) as u8),
+            variant: look_code(it),
             state: match it.state {
                 ItemState::Ground => STATE_GROUND,
                 ItemState::Held => STATE_HELD,
@@ -334,7 +349,10 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
         it.live = it.state == ItemState::Flying;
         it.holder = (s.holder != 0).then(|| local(s.holder));
         it.ground_y = s.ground_y;
-        it.variant = DildoVariant::ALL.get(s.variant as usize).copied();
+        match kind {
+            ItemKind::Stubby => it.bottle = bbq_core::items::Bottle::from_code(s.variant),
+            _ => it.variant = DildoVariant::ALL.get(s.variant as usize).copied(),
+        }
         it.team = (s.team != 255).then_some(s.team);
         it.uses = (s.uses != 255).then_some(s.uses as u32);
         items.insert(s.id, it);
@@ -561,6 +579,11 @@ mod tests {
                 it.variant = Some(DildoVariant::LongJohn);
                 it.uses = Some(2);
             }
+            // Cheeky mode's rum bottle and a Neon Lucky travel too
+            let r = g.world.spawn(ItemKind::Stubby, 6.0, -2.0, false, &mut rng);
+            g.world.items.get_mut(&r).unwrap().bottle = Some(bbq_core::items::Bottle::Spirit);
+            let n = g.world.spawn(ItemKind::Dildo, -2.0, 6.0, false, &mut rng);
+            g.world.items.get_mut(&n).unwrap().variant = Some(DildoVariant::NeonLucky);
             let c = g.world.spawn(ItemKind::Steak, 1.0, 1.0, false, &mut rng);
             g.world.give(c, 100);
             g.dummies[0].bot.slots.add(c);
@@ -605,7 +628,7 @@ mod tests {
         assert_eq!(g.world.items.len(), hg.world.items.len());
         for (id, it) in &hg.world.items {
             let got = &g.world.items[id];
-            assert_eq!((got.kind, got.variant, got.uses, got.state), (it.kind, it.variant, it.uses, it.state), "item {id}");
+            assert_eq!((got.kind, got.variant, got.bottle, got.uses, got.state), (it.kind, it.variant, it.bottle, it.uses, it.state), "item {id}");
             assert!((got.pos.x - it.pos.x).abs() < 1e-5 && (got.pos.z - it.pos.z).abs() < 1e-5);
         }
         // the steak the host's bot 100 holds is that bot's on the guest too
@@ -1124,11 +1147,13 @@ pub fn apply_hit(g: &mut Game, p: &mut Player, hit: &HitMsg) {
     g.wind.cancel();
     match hit {
         HitMsg::Item { kind, dir, flatten } => {
-            let Some(&kind) = ItemKind::ALL.get(*kind as usize) else { return };
-            let item = Item::new(0, kind, V3::ZERO);
+            let spirit = *kind >= 100;
+            let Some(&kind) = ItemKind::ALL.get((*kind % 100) as usize) else { return };
+            let mut item = Item::new(0, kind, V3::ZERO);
+            item.bottle = spirit.then_some(bbq_core::items::Bottle::Spirit);
             let dir = V3::new(dir.0, dir.1, dir.2);
             bbq_core::hitting::apply_item_hit(&mut g.me.body, &mut p.mover, &item, dir, *flatten);
-            p.shake = p.shake.max(0.12 + kind.def().knock * 0.012);
+            p.shake = p.shake.max(0.12 + item.knock() * 0.012);
         }
         HitMsg::Slap { dir, knock, up, stun, dizzy, down } => {
             let dir = V3::new(dir.0, dir.1, dir.2);

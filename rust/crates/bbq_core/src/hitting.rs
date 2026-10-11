@@ -159,13 +159,13 @@ pub fn apply_item_hit(
     dir: V3,
     flatten: bool,
 ) -> HitResult {
-    let d = item.kind.def();
-    let min_up = d.knock * 0.38;
-    knock_mover(mover, dir, d.knock, min_up);
-    let effect = body.apply_hit(item.kind.hit_stun(), flatten.then_some(POWER_DOWN));
+    let knock = item.knock();
+    let min_up = knock * 0.38;
+    knock_mover(mover, dir, knock, min_up);
+    let effect = body.apply_hit(item.hit_stun(), flatten.then_some(POWER_DOWN));
     HitResult {
         effect,
-        knock: dir * d.knock,
+        knock: dir * knock,
     }
 }
 

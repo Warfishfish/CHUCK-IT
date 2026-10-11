@@ -378,7 +378,7 @@ fn update_hud(
                 .world
                 .items
                 .get(id)
-                .map_or("?", |i| crate::items_view::kind_name(i.kind));
+                .map_or("?", crate::items_view::item_name);
             if Some(*id) == game.slots.selected() {
                 format!("[{name}]")
             } else {

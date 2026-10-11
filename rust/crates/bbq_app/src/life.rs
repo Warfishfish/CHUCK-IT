@@ -40,6 +40,8 @@ pub struct Life {
     /// Bumps each time the grill is flipped.
     pub flip_seq: u32,
     pub slap: SlapClock,
+    /// A Splash dildo burst near you: where (you get soaked on the next step).
+    pub soak_at: Option<V3>,
     /// How long your own swing animation has left.
     pub me_swing: f32,
     pub chest: Chest,
@@ -61,6 +63,7 @@ pub struct Life {
 impl Life {
     pub fn new() -> Self {
         Life {
+            soak_at: None,
             dazza: Brain::default(),
             say_text: String::new(),
             say_seq: 0,
@@ -325,12 +328,72 @@ pub fn slap_dummy(
             if !res.knocked_down {
                 msg += " (they were already down)";
             }
+            // the Splash bursts over everyone close by
+            if variant == DildoVariant::Splash {
+                let n = splash_burst(g, dpos, att.id, vid);
+                if n > 0 {
+                    msg += &format!(" SPLASH! soaked {n}");
+                }
+            }
             g.say(msg);
             if att.is_player {
                 g.popup(pose, true);
             }
         }
         Melee::None => {}
+    }
+}
+
+/// The Splash dildo bursts over everyone standing near the one it hit (not the one slapping):
+/// a splash, a push away and a moment's stop. The slapper gets points for each person soaked.
+/// You, if you are close, are soaked on the next step. Returns how many were soaked (not you).
+pub fn splash_burst(g: &mut Game, at: V3, attacker: PlayerId, victim: PlayerId) -> usize {
+    use bbq_core::items::DildoVariant as V;
+    g.fx(crate::fx::FxKind::Splash, V3::new(at.x, 1.0, at.z));
+    let fx = splash_effect();
+    let mut n = 0;
+    for i in 0..g.dummies.len() {
+        let d = &g.dummies[i];
+        if d.id == attacker || d.id == victim || d.seat.is_some() || d.body.is_down() {
+            continue;
+        }
+        let Some(dir) = soaked(at, V3::new(d.mover.x, 0.0, d.mover.z)) else { continue };
+        let d = &mut g.dummies[i];
+        melee::apply(&mut d.body, &mut d.mover, dir, &fx);
+        crate::online_world::note_slap(g, i, dir, &fx);
+        n += 1;
+    }
+    if attacker != PLAYER_ID && victim != PLAYER_ID {
+        g.life.soak_at = Some(at);
+    }
+    if n > 0 {
+        g.board.award(&g.rules, attacker, V::SPLASH_PTS * n as i32);
+    }
+    n
+}
+
+/// What the Splash does to someone standing near: pushed away and stopped for a moment.
+fn splash_effect() -> melee::SlapEffect {
+    use bbq_core::items::DildoVariant as V;
+    melee::SlapEffect { knock: V::SPLASH_PUSH, up: 1.2, stun: V::SPLASH_STUN, dizzy: 0.0, down: None, tumble: false }
+}
+
+/// Is `pos` close enough to a Splash burst at `at` to be soaked? The way to push them, if so.
+fn soaked(at: V3, pos: V3) -> Option<V3> {
+    let d = V3::new(pos.x - at.x, 0.0, pos.z - at.z);
+    let dist = d.horiz_len();
+    (dist < bbq_core::items::DildoVariant::SPLASH_RADIUS).then(|| if dist > 0.01 { d * (1.0 / dist) } else { V3::new(1.0, 0.0, 0.0) })
+}
+
+/// You are soaked if a Splash burst went off near you.
+fn soak_step(g: &mut Game, p: &mut Player) {
+    let Some(at) = g.life.soak_at.take() else { return };
+    if g.life.seated.is_some() || g.me.body.is_down() {
+        return;
+    }
+    if let Some(dir) = soaked(at, V3::new(p.mover.x, 0.0, p.mover.z)) {
+        melee::apply(&mut g.me.body, &mut p.mover, dir, &splash_effect());
+        g.popup("SOAKED!", true);
     }
 }
 
@@ -967,6 +1030,7 @@ pub fn step(g: &mut Game, p: &mut Player, wanted: &mut Wanted, yard: &yard::Yard
     }
     wanted.jump_pressed = false;
 
+    soak_step(g, p);
     carry_step(g, p, wanted);
     thrown_step(g);
     emote_step(g, wanted);

@@ -129,15 +129,20 @@ fn spawn_dynamic(
     let smashes: Vec<_> = game
         .fx
         .iter()
-        .filter(|e| e.kind == crate::fx::FxKind::Smash)
-        .map(|e| e.at)
+        .filter(|e| e.kind.stains())
+        .map(|e| (e.at, e.kind))
         .collect();
-    for at in smashes {
+    for (at, kind) in smashes {
         if count >= 10 {
             break;
         }
         count += 1;
-        let colour = Color::linear_rgba(0.6, 0.42, 0.1, 0.55);
+        // beer is golden; rum leaves a darker, redder stain
+        let colour = if kind == crate::fx::FxKind::ShatterSpirit {
+            Color::linear_rgba(0.32, 0.12, 0.03, 0.6)
+        } else {
+            Color::linear_rgba(0.6, 0.42, 0.1, 0.55)
+        };
         let (e, m) = put(
             &mut commands,
             &mut mats,

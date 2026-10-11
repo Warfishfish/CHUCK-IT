@@ -355,6 +355,8 @@ pub fn step_game(
     let now = g.now;
     let g = &mut *g;
     let p = &mut *player;
+    // Cheeky mode turns new VP cans into glass bottles
+    g.world.cheeky = g.options.adult;
     if g.mirror {
         crate::online_world::mirror_tick(g, p, &mut wanted, dt);
         return;
@@ -711,6 +713,7 @@ pub fn step_game(
         match ev {
             WorldEvent::Hit {
                 kind,
+                bottle,
                 victim,
                 thrower,
                 dir,
@@ -720,7 +723,7 @@ pub fn step_game(
                 ..
             } => {
                 if victim == PLAYER_ID {
-                    crate::bots_app::hit_player(g, p, kind, thrower, dir, flatten, charge, start);
+                    crate::bots_app::hit_player(g, p, kind, bottle, thrower, dir, flatten, charge, start);
                     continue;
                 }
                 let Some(di) = g.dummies.iter().position(|d| d.id == victim) else {
@@ -728,22 +731,23 @@ pub fn step_game(
                 };
                 let (vx, vz) = (g.dummies[di].mover.x, g.dummies[di].mover.z);
                 g.fx(
-                    if kind == ItemKind::Stubby { crate::fx::FxKind::Smash } else { crate::fx::FxKind::Hit },
+                    if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
                     V3::new(vx, 1.2, vz),
                 );
                 let leader = g.board.leader() == Some(victim);
-                // knock and stun
-                let item = bbq_core::flight::Item::new(0, kind, V3::ZERO);
+                // knock and stun (a bottle of spirits knocks harder)
+                let mut item = bbq_core::flight::Item::new(0, kind, V3::ZERO);
+                item.bottle = bottle;
                 let d = &mut g.dummies[di];
                 if let Some(t) = thrower {
                     d.last_hit = Some((t, now));
                 }
                 let res = hitting::apply_item_hit(&mut d.body, &mut d.mover, &item, dir, flatten);
                 let sign = if g.rng.chance(0.5) { -1.0 } else { 1.0 };
-                d.anim.tumble(dir, kind.def().knock, sign);
+                d.anim.tumble(dir, item.knock(), sign);
                 if d.remote.is_some() {
                     // a person online: their own computer knocks them about too
-                    g.net_hits.push((victim, bbq_core::net_act::HitMsg::Item { kind: crate::online_world::kind_code(kind), dir: (dir.x, dir.y, dir.z), flatten }));
+                    g.net_hits.push((victim, bbq_core::net_act::HitMsg::Item { kind: crate::online_world::hit_code(kind, bottle), dir: (dir.x, dir.y, dir.z), flatten }));
                 }
                 let out = g.board.thrown_hit(
                     &g.rules,
@@ -758,7 +762,15 @@ pub fn step_game(
                         same_team: thrower.is_some_and(|t| g.teams.same_team(t, victim)),
                     },
                 );
-                let mut msg = format!("HIT! +{}", out.gain);
+                // a bottle of spirits pays a little extra
+                let rum = match (bottle, thrower) {
+                    (Some(b), Some(t)) if b.points() > 0 && out.gain > 0 => g.board.award(&g.rules, t, b.points()),
+                    _ => 0,
+                };
+                let mut msg = format!("HIT! +{}", out.gain + rum);
+                if rum > 0 {
+                    msg += &format!(" (rum +{rum})");
+                }
                 if out.long_shot > 0 {
                     msg += &format!(" (long shot +{})", out.long_shot);
                 }
@@ -817,6 +829,13 @@ pub fn step_game(
                 ..
             } if t == PLAYER_ID => {
                 g.say("Over the fence!");
+            }
+            // a glass bottle that lands hard shatters where it lands (the VP can just goes flat)
+            WorldEvent::Flight {
+                ev: bbq_core::flight::FlightEvent::Smash { pos, bottle: Some(b), .. },
+                ..
+            } => {
+                g.fx(crate::fx::FxKind::smash_of(Some(b)), V3::new(pos.x, pos.y.max(0.15), pos.z));
             }
             _ => {}
         }
@@ -1308,6 +1327,53 @@ mod tests {
         let mut g = app.world_mut().resource_mut::<Game>();
         let id = g.slots.selected().unwrap();
         g.world.items.get_mut(&id).unwrap().variant = Some(v);
+    }
+
+    #[test]
+    fn the_splash_soaks_people_next_to_the_one_hit_but_not_people_further_off() {
+        use bbq_core::items::DildoVariant;
+        let mut app = app();
+        near_dummy0(&mut app);
+        {
+            // dummy 1 stands right beside dummy 0, dummy 2 well away
+            let mut g = app.world_mut().resource_mut::<Game>();
+            let (x, z) = (g.dummies[0].mover.x, g.dummies[0].mover.z);
+            g.dummies[1].mover.x = x + 1.2;
+            g.dummies[1].mover.z = z;
+            g.dummies[2].mover.x = x + 6.0;
+            g.dummies[2].mover.z = z;
+        }
+        give_kind(&mut app, ItemKind::Dildo);
+        set_held_variant(&mut app, DildoVariant::Splash);
+        click(&mut app);
+        let g = app.world().resource::<Game>();
+        assert!(g.dummies[0].body.is_down(), "the one hit is knocked flat as usual");
+        assert!(g.dummies[1].body.stun > 0.0, "the one beside them is soaked");
+        assert!(g.dummies[2].body.stun <= 0.0, "the one further off is not");
+    }
+
+    #[test]
+    fn cheeky_mode_makes_glass_bottles_and_family_mode_keeps_cans() {
+        for cheeky in [false, true] {
+            let mut app = app();
+            {
+                let mut g = app.world_mut().resource_mut::<Game>();
+                g.options.adult = cheeky;
+                g.world.clear();
+            }
+            ticks(&mut app, 2);
+            let mut g = app.world_mut().resource_mut::<Game>();
+            let mut rng = bbq_core::rng::Rng::new(5);
+            let ids: Vec<u32> = (0..40).map(|i| g.world.spawn(ItemKind::Stubby, i as f32, 0.0, false, &mut rng)).collect();
+            let bottles = ids.iter().filter(|id| g.world.items[id].bottle.is_some()).count();
+            if cheeky {
+                assert_eq!(bottles, 40, "every can is a bottle in Cheeky mode");
+                let rum = ids.iter().filter(|id| g.world.items[id].bottle == Some(bbq_core::items::Bottle::Spirit)).count();
+                assert!((3..=20).contains(&rum), "a few are spirits: {rum}");
+            } else {
+                assert_eq!(bottles, 0, "family mode keeps the VP cans");
+            }
+        }
     }
 
     #[test]

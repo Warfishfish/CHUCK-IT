@@ -104,6 +104,21 @@ pub fn gallery_places() -> Vec<(ModelKey, Vec3)> {
             Vec3::new((i as f32 - 2.0) * 0.6, 29.7, -1.0),
         ));
     }
+    // `--gallery cheeky`: Cheeky mode's beer and rum bottles beside the VP can, and the two
+    // newest dildo types, in a row of their own (in place of the skins)
+    if std::env::args().any(|a| a == "cheeky") {
+        let row: [ModelKey; 5] = [
+            ModelKey::item(ItemKind::Stubby, None, 0),
+            ModelKey::Item(ItemKind::Stubby, None, 1),
+            ModelKey::Item(ItemKind::Stubby, None, 2),
+            ModelKey::item(ItemKind::Dildo, Some(DildoVariant::Splash), 0),
+            ModelKey::item(ItemKind::Dildo, Some(DildoVariant::NeonLucky), 0),
+        ];
+        for (i, k) in row.into_iter().enumerate() {
+            v.push((k, Vec3::new((i as f32 - 2.0) * 0.55, 29.05, -1.0)));
+        }
+        return v;
+    }
     // one of each skin, in a row of their own
     for (i, skin) in bbq_core::looks::DildoSkin::ALL.into_iter().enumerate() {
         let id = (0..).find(|n| bbq_core::looks::DildoSkin::from_id(*n) == skin).unwrap_or(0);
@@ -113,6 +128,62 @@ pub fn gallery_places() -> Vec<(ModelKey, Vec3)> {
         ));
     }
     v
+}
+
+/// `--showcase` (with `--mode ... --cheeky`): a beer bottle, a rum bottle, a Splash and a Neon
+/// Lucky laid on the lawn in front of you, and a beer then a rum bottle dropped hard to show the
+/// smash (shards, splash and stain). For pictures.
+fn showcase(mut game: ResMut<Game>, mut player: ResMut<crate::player::Player>, mut frame: Local<u32>) {
+    if !std::env::args().any(|a| a == "--showcase") {
+        return;
+    }
+    *frame += 1;
+    let p = &mut *player;
+    p.pitch = -0.42;
+    let (s, c) = p.yaw.sin_cos();
+    let (fx, fz) = (-s, -c);
+    let (rx, rz) = (c, -s);
+    let (px, pz) = (p.mover.x, p.mover.z);
+    let g = &mut *game;
+    let mut rng = g.rng.clone();
+    let mut put = |g: &mut Game, k: ItemKind, ahead: f32, across: f32, fall: Option<f32>| -> u32 {
+        let (x, z) = (px + fx * ahead + rx * across, pz + fz * ahead + rz * across);
+        let id = g.world.spawn(k, x, z, false, &mut rng);
+        if let Some(it) = g.world.items.get_mut(&id)
+            && let Some(v) = fall
+        {
+            it.pos.y = 2.4;
+            it.vel = bbq_core::vec::V3::new(0.0, v, 0.0);
+            it.live = false;
+        }
+        id
+    };
+    use bbq_core::items::Bottle;
+    if *frame == 200 {
+        let row: [(ItemKind, Option<Bottle>, Option<DildoVariant>); 4] = [
+            (ItemKind::Stubby, Some(Bottle::Beer), None),
+            (ItemKind::Stubby, Some(Bottle::Spirit), None),
+            (ItemKind::Dildo, None, Some(DildoVariant::Splash)),
+            (ItemKind::Dildo, None, Some(DildoVariant::NeonLucky)),
+        ];
+        for (i, (k, b, v)) in row.into_iter().enumerate() {
+            let id = put(g, k, 2.4, (i as f32 - 1.5) * 0.75, None);
+            if let Some(it) = g.world.items.get_mut(&id) {
+                it.bottle = b;
+                it.variant = v.or(it.variant);
+            }
+        }
+    }
+    // (`rum-first` drops the rum first)
+    let order = if std::env::args().any(|a| a == "rum-first") { [Bottle::Spirit, Bottle::Beer] } else { [Bottle::Beer, Bottle::Spirit] };
+    for (when, b) in [(318u32, order[0]), (366, order[1])] {
+        if *frame == when {
+            let id = put(g, ItemKind::Stubby, 4.0, 1.6, Some(-13.0));
+            if let Some(it) = g.world.items.get_mut(&id) {
+                it.bottle = Some(b);
+            }
+        }
+    }
 }
 
 pub struct ShotPlugin(pub ShotConfig);
@@ -130,6 +201,7 @@ impl Plugin for ShotPlugin {
                     take_shot,
                     only_light,
                     keep_bare,
+                    showcase,
                 ),
             );
     }

@@ -64,6 +64,8 @@ pub enum WorldEvent {
     Hit {
         item: ItemId,
         kind: ItemKind,
+        /// Cheeky mode's glass bottle, if it was one.
+        bottle: Option<crate::items::Bottle>,
         victim: PlayerId,
         thrower: Option<PlayerId>,
         dir: V3,
@@ -87,6 +89,8 @@ pub enum WorldEvent {
 pub struct ItemWorld {
     pub items: BTreeMap<ItemId, Item>,
     pub puddles: Puddles,
+    /// Cheeky mode is on: new VP cans come as glass bottles (the game keeps this up to date).
+    pub cheeky: bool,
     next_id: ItemId,
     spawn_t: f32,
     noodle_t: f32,
@@ -103,6 +107,7 @@ impl ItemWorld {
         Self {
             items: BTreeMap::new(),
             puddles: Puddles::default(),
+            cheeky: false,
             next_id: 1,
             spawn_t: SPAWN_EVERY,
             noodle_t: 0.0,
@@ -131,6 +136,9 @@ impl ItemWorld {
         it.live = false;
         if kind == ItemKind::Dildo {
             it.variant = Some(crate::items::pick_dildo_variant(rng.f32()));
+        }
+        if kind == ItemKind::Stubby && self.cheeky {
+            it.bottle = Some(crate::items::Bottle::pick(rng.f32()));
         }
         self.items.insert(id, it);
         id
@@ -346,6 +354,7 @@ impl ItemWorld {
                                     contacts.push(WorldEvent::Hit {
                                         item: item.id,
                                         kind: item.kind,
+                                        bottle: item.bottle,
                                         victim: t.id,
                                         thrower: item.thrower,
                                         dir,
@@ -371,11 +380,12 @@ impl ItemWorld {
                         fl.push(FlightEvent::Smash {
                             pos: it.pos,
                             puddle,
+                            bottle: it.bottle,
                         });
                         removed = true;
                     }
                     for ev in &fl {
-                        if let FlightEvent::Smash { pos, puddle: true } = ev {
+                        if let FlightEvent::Smash { pos, puddle: true, .. } = ev {
                             self.puddles.0.push(Puddle::new(pos.x, pos.z, rng));
                             out.push(WorldEvent::Puddle { x: pos.x, z: pos.z });
                         }

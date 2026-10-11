@@ -553,6 +553,40 @@ pub fn stubby() -> Vec<Part> {
     ]
 }
 
+/// Cheeky mode's beer bottle: a squat brown-glass Aussie stubby with a gold crown cap and a
+/// cream label. About the size of the can, so it throws and holds the same.
+pub fn beer_bottle() -> Vec<Part> {
+    let glass = Surface::shiny(0x5a2f0e, 0xfff0d0, 90.0).glow(0x140700);
+    let label = Surface::matt(0xf2e3b8);
+    let cap = Surface::shiny(0xd8a62a, 0xffffff, 60.0);
+    vec![
+        // the body, the shoulder and the short neck
+        Part::new(cyl(0.062, 0.064, 0.13, 18), glass).at(0.0, -0.045, 0.0),
+        Part::new(sphere(0.064, 18, 9), glass).at(0.0, 0.02, 0.0).stretch(1.0, 0.55, 1.0),
+        Part::new(cyl(0.026, 0.034, 0.06, 14), glass).at(0.0, 0.075, 0.0),
+        Part::new(cyl(0.029, 0.029, 0.018, 14), cap).at(0.0, 0.112, 0.0),
+        // the label round the middle, a red stripe across it
+        Part::new(cyl(0.0655, 0.0655, 0.07, 18), label).at(0.0, -0.04, 0.0),
+        Part::new(cyl(0.066, 0.066, 0.016, 18), Surface::matt(0xc2312a)).at(0.0, -0.035, 0.0),
+    ]
+}
+
+/// Cheeky mode's spirits: a taller, square-shouldered bottle of dark rum with a black cap and a
+/// cream label with a red band.
+pub fn spirit_bottle() -> Vec<Part> {
+    let glass = Surface::shiny(0x7a3a12, 0xfff0d0, 110.0).glow(0x1e0a02);
+    let label = Surface::matt(0xf0e6cc);
+    vec![
+        Part::new(Shape::Cuboid { w: 0.11, h: 0.17, d: 0.07 }, glass).at(0.0, -0.04, 0.0),
+        Part::new(cyl(0.03, 0.05, 0.04, 14), glass).at(0.0, 0.065, 0.0),
+        Part::new(cyl(0.022, 0.026, 0.06, 12), glass).at(0.0, 0.11, 0.0),
+        Part::new(cyl(0.026, 0.026, 0.03, 12), Surface::matt(0x151515)).at(0.0, 0.15, 0.0),
+        // the label on the front and the back, with a red band
+        Part::new(Shape::Cuboid { w: 0.09, h: 0.09, d: 0.074 }, label).at(0.0, -0.045, 0.0),
+        Part::new(Shape::Cuboid { w: 0.092, h: 0.02, d: 0.076 }, Surface::matt(0xb3241c)).at(0.0, -0.02, 0.0),
+    ]
+}
+
 /// The garden gnome.
 pub fn gnome() -> Vec<Part> {
     vec![
@@ -776,6 +810,8 @@ pub fn dildo_colour(v: DildoVariant) -> u32 {
         DildoVariant::Gold => 0xffd23f,
         DildoVariant::Quickie => 0x2ed3c6,
         DildoVariant::LongJohn => 0xff8a3d,
+        DildoVariant::Splash => 0x3fa9f5,
+        DildoVariant::NeonLucky => 0x5cff3a,
     }
 }
 
@@ -833,9 +869,11 @@ pub fn dildo(variant: DildoVariant) -> Vec<Part> {
 /// segments with a rounded tip. (The JavaScript game also lets it flop about; that comes later.)
 pub fn dildo_skin(variant: DildoVariant, skin: DildoSkin) -> Vec<Part> {
     let base_c = dildo_colour(variant);
+    // Neon Lucky glows properly (the others have only a faint inner light)
+    let glow = if variant == DildoVariant::NeonLucky { 0.85 } else { 0.22 };
     let mk = |mul: f32, spec: u32, shine: f32| {
         let c = shade(base_c, mul);
-        Surface::shiny(c, spec, shine).glow(shade(c, 0.22))
+        Surface::shiny(c, spec, shine).glow(shade(c, glow))
     };
     let body = mk(1.0, 0x9a70b0, 55.0);
     let vein = mk(0.88, 0x9a70b0, 40.0);
@@ -1005,7 +1043,12 @@ pub fn item(kind: crate::items::ItemKind, id: u32, variant: Option<DildoVariant>
     use crate::items::ItemKind as K;
     match kind {
         K::Teddy => teddy(),
-        K::Stubby => stubby(),
+        // for the stubby, `id` says what it is: 0 the VP can, 1 a beer bottle, 2 spirits
+        K::Stubby => match id {
+            1 => beer_bottle(),
+            2 => spirit_bottle(),
+            _ => stubby(),
+        },
         K::Gnome => gnome(),
         K::Steak | K::Snag => steak(),
         K::Fish => fish(),

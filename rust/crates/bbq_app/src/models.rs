@@ -62,6 +62,15 @@ impl ModelKey {
         ModelKey::Item(kind, v, n)
     }
 
+    /// The model of an item in the yard (its dildo type and skin, the noodle's colour, and in
+    /// Cheeky mode whether the "stubby" is a glass beer or spirit bottle).
+    pub fn of(it: &bbq_core::flight::Item) -> Self {
+        match (it.kind, it.bottle) {
+            (ItemKind::Stubby, Some(b)) => ModelKey::Item(ItemKind::Stubby, None, 1 + b.code() as u32),
+            _ => ModelKey::item(it.kind, it.variant, it.id),
+        }
+    }
+
     fn parts(self) -> Vec<Part> {
         match self {
             ModelKey::Item(kind, v, n) => bbq_core::looks::item_look(kind, n, v, POLISHED.load(std::sync::atomic::Ordering::Relaxed)),
