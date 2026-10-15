@@ -1,0 +1,314 @@
+{
+  "cheer": {
+    "before": {
+      "samples": 600.0,
+      "mean_ms": 6.415,
+      "median_ms": 6.255,
+      "p95_ms": 7.579,
+      "mean_fps": 155.88,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2724.0,
+      "materials": 775.0,
+      "mesh_entities": 6360.0,
+      "image_cpu_bytes": 39784856.0
+    },
+    "after": {
+      "samples": 600.0,
+      "mean_ms": 6.337,
+      "median_ms": 6.247,
+      "p95_ms": 7.331,
+      "mean_fps": 157.79,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2594.0,
+      "materials": 776.0,
+      "mesh_entities": 6174.0,
+      "image_cpu_bytes": 39784856.0
+    }
+  },
+  "current": {
+    "before": {
+      "samples": 600.0,
+      "mean_ms": 6.156,
+      "median_ms": 6.046,
+      "p95_ms": 7.12,
+      "mean_fps": 162.44,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2495.0,
+      "materials": 764.0,
+      "mesh_entities": 5474.0,
+      "image_cpu_bytes": 37338180.0
+    },
+    "after": {
+      "samples": 600.0,
+      "mean_ms": 6.266,
+      "median_ms": 6.047,
+      "p95_ms": 7.186,
+      "mean_fps": 159.6,
+      "frames_over_16_67ms": 2.0,
+      "meshes": 2496.0,
+      "materials": 765.0,
+      "mesh_entities": 5474.0,
+      "image_cpu_bytes": 37338180.0
+    }
+  },
+  "egg": {
+    "before": {
+      "samples": 600.0,
+      "mean_ms": 6.964,
+      "median_ms": 6.602,
+      "p95_ms": 8.236,
+      "mean_fps": 143.6,
+      "frames_over_16_67ms": 6.0,
+      "meshes": 2724.0,
+      "materials": 775.0,
+      "mesh_entities": 6384.0,
+      "image_cpu_bytes": 39784856.0
+    },
+    "after": {
+      "samples": 600.0,
+      "mean_ms": 6.927,
+      "median_ms": 6.735,
+      "p95_ms": 8.241,
+      "mean_fps": 144.36,
+      "frames_over_16_67ms": 1.0,
+      "meshes": 2594.0,
+      "materials": 776.0,
+      "mesh_entities": 6190.0,
+      "image_cpu_bytes": 39784856.0
+    }
+  },
+  "grit": {
+    "before": {
+      "samples": 600.0,
+      "mean_ms": 6.329,
+      "median_ms": 6.243,
+      "p95_ms": 7.347,
+      "mean_fps": 157.99,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2724.0,
+      "materials": 775.0,
+      "mesh_entities": 6356.0,
+      "image_cpu_bytes": 39784856.0
+    },
+    "after": {
+      "samples": 600.0,
+      "mean_ms": 6.388,
+      "median_ms": 6.236,
+      "p95_ms": 7.419,
+      "mean_fps": 156.55,
+      "frames_over_16_67ms": 1.0,
+      "meshes": 2594.0,
+      "materials": 776.0,
+      "mesh_entities": 6170.0,
+      "image_cpu_bytes": 39784856.0
+    }
+  },
+  "gumdrop": {
+    "before": {
+      "samples": 600.0,
+      "mean_ms": 6.75,
+      "median_ms": 6.426,
+      "p95_ms": 7.781,
+      "mean_fps": 148.15,
+      "frames_over_16_67ms": 3.0,
+      "meshes": 2724.0,
+      "materials": 775.0,
+      "mesh_entities": 6384.0,
+      "image_cpu_bytes": 39784856.0
+    },
+    "after": {
+      "samples": 600.0,
+      "mean_ms": 6.493,
+      "median_ms": 6.437,
+      "p95_ms": 7.509,
+      "mean_fps": 154.01,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2594.0,
+      "materials": 776.0,
+      "mesh_entities": 6190.0,
+      "image_cpu_bytes": 39784856.0
+    }
+  },
+  "none": {
+    "before": {
+      "samples": 600.0,
+      "mean_ms": 6.442,
+      "median_ms": 6.303,
+      "p95_ms": 7.618,
+      "mean_fps": 155.22,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2724.0,
+      "materials": 775.0,
+      "mesh_entities": 6292.0,
+      "image_cpu_bytes": 39784856.0
+    },
+    "after": {
+      "samples": 600.0,
+      "mean_ms": 6.338,
+      "median_ms": 6.255,
+      "p95_ms": 7.425,
+      "mean_fps": 157.78,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2594.0,
+      "materials": 776.0,
+      "mesh_entities": 6154.0,
+      "image_cpu_bytes": 39784856.0
+    }
+  },
+  "normal": {
+    "before": {
+      "samples": 600.0,
+      "mean_ms": 6.338,
+      "median_ms": 6.261,
+      "p95_ms": 7.39,
+      "mean_fps": 157.77,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2724.0,
+      "materials": 775.0,
+      "mesh_entities": 6408.0,
+      "image_cpu_bytes": 39784856.0
+    },
+    "after": {
+      "samples": 600.0,
+      "mean_ms": 6.501,
+      "median_ms": 6.259,
+      "p95_ms": 7.893,
+      "mean_fps": 153.82,
+      "frames_over_16_67ms": 2.0,
+      "meshes": 2594.0,
+      "materials": 776.0,
+      "mesh_entities": 6166.0,
+      "image_cpu_bytes": 39784856.0
+    }
+  },
+  "ouch": {
+    "before": {
+      "samples": 600.0,
+      "mean_ms": 6.406,
+      "median_ms": 6.246,
+      "p95_ms": 7.482,
+      "mean_fps": 156.09,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2724.0,
+      "materials": 775.0,
+      "mesh_entities": 6356.0,
+      "image_cpu_bytes": 39784856.0
+    },
+    "after": {
+      "samples": 600.0,
+      "mean_ms": 6.348,
+      "median_ms": 6.234,
+      "p95_ms": 7.375,
+      "mean_fps": 157.52,
+      "frames_over_16_67ms": 1.0,
+      "meshes": 2594.0,
+      "materials": 776.0,
+      "mesh_entities": 6170.0,
+      "image_cpu_bytes": 39784856.0
+    }
+  },
+  "pear": {
+    "before": {
+      "samples": 600.0,
+      "mean_ms": 6.587,
+      "median_ms": 6.489,
+      "p95_ms": 7.707,
+      "mean_fps": 151.81,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2724.0,
+      "materials": 775.0,
+      "mesh_entities": 6384.0,
+      "image_cpu_bytes": 39784856.0
+    },
+    "after": {
+      "samples": 600.0,
+      "mean_ms": 6.579,
+      "median_ms": 6.51,
+      "p95_ms": 7.637,
+      "mean_fps": 151.99,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2594.0,
+      "materials": 776.0,
+      "mesh_entities": 6190.0,
+      "image_cpu_bytes": 39784856.0
+    }
+  },
+  "profile": {
+    "before": {
+      "samples": 600.0,
+      "mean_ms": 6.476,
+      "median_ms": 6.453,
+      "p95_ms": 7.681,
+      "mean_fps": 154.41,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2724.0,
+      "materials": 775.0,
+      "mesh_entities": 6360.0,
+      "image_cpu_bytes": 39784856.0
+    },
+    "after": {
+      "samples": 600.0,
+      "mean_ms": 6.566,
+      "median_ms": 6.441,
+      "p95_ms": 7.656,
+      "mean_fps": 152.31,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2594.0,
+      "materials": 776.0,
+      "mesh_entities": 6174.0,
+      "image_cpu_bytes": 39784856.0
+    }
+  },
+  "sip": {
+    "before": {
+      "samples": 600.0,
+      "mean_ms": 6.374,
+      "median_ms": 6.255,
+      "p95_ms": 7.477,
+      "mean_fps": 156.88,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2724.0,
+      "materials": 775.0,
+      "mesh_entities": 6352.0,
+      "image_cpu_bytes": 39784856.0
+    },
+    "after": {
+      "samples": 600.0,
+      "mean_ms": 6.426,
+      "median_ms": 6.332,
+      "p95_ms": 7.644,
+      "mean_fps": 155.63,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2594.0,
+      "materials": 776.0,
+      "mesh_entities": 6166.0,
+      "image_cpu_bytes": 39784856.0
+    }
+  },
+  "stress": {
+    "before": {
+      "samples": 600.0,
+      "mean_ms": 8.222,
+      "median_ms": 8.049,
+      "p95_ms": 9.528,
+      "mean_fps": 121.62,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 3411.0,
+      "materials": 910.0,
+      "mesh_entities": 8414.0,
+      "image_cpu_bytes": 42129816.0
+    },
+    "after": {
+      "samples": 600.0,
+      "mean_ms": 7.845,
+      "median_ms": 7.771,
+      "p95_ms": 8.714,
+      "mean_fps": 127.47,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2897.0,
+      "materials": 911.0,
+      "mesh_entities": 7736.0,
+      "image_cpu_bytes": 42129816.0
+    }
+  }
+}

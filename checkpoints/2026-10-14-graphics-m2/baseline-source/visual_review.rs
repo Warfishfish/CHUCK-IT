@@ -1,0 +1,87 @@
+//! Opt-in `--shot path.png --review`: repeatable visual comparison and wall-clock timing.
+//! Simulation advances at 60 Hz; measurement uses Instant, never the artificial game clock.
+use std::time::{Duration, Instant};
+
+use bevy::app::AppExit;
+use bevy::prelude::*;
+use bevy::render::view::screenshot::{Screenshot, save_to_disk};
+use bevy::window::{PresentMode, PrimaryWindow};
+
+pub struct VisualReviewPlugin;
+
+impl Plugin for VisualReviewPlugin {
+    fn build(&self, app: &mut App) {
+        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+            Duration::from_secs_f64(1.0 / 60.0),
+        ))
+        .init_resource::<ReviewTiming>()
+        .add_systems(Startup, configure_window)
+        .add_systems(Last, capture);
+    }
+}
+
+fn configure_window(mut window: Single<&mut Window, With<PrimaryWindow>>) {
+    window.present_mode = PresentMode::AutoNoVsync;
+}
+
+#[derive(Resource, Default)]
+struct ReviewTiming {
+    frame: u32,
+    previous: Option<Instant>,
+    milliseconds: Vec<f64>,
+}
+
+fn capture(
+    mut commands: Commands,
+    cfg: Res<crate::shot::ShotConfig>,
+    mut timing: ResMut<ReviewTiming>,
+    mut exit: MessageWriter<AppExit>,
+    meshes: Res<Assets<Mesh>>,
+    materials: Res<Assets<StandardMaterial>>,
+    images: Res<Assets<Image>>,
+    drawn: Query<(), With<Mesh3d>>,
+) {
+    timing.frame += 1;
+    let now = Instant::now();
+    let previous = timing.previous.replace(now);
+    // Capture before timing, then allow readback and PNG writing to finish.
+    if timing.frame == 240 {
+        commands
+            .spawn(Screenshot::primary_window())
+            .observe(save_to_disk(cfg.out.clone()));
+    }
+    if (301..=900).contains(&timing.frame)
+        && let Some(previous) = previous
+    {
+        timing
+            .milliseconds
+            .push(now.duration_since(previous).as_secs_f64() * 1000.0);
+    }
+    if timing.frame == 900 {
+        let samples = &mut timing.milliseconds;
+        samples.sort_by(f64::total_cmp);
+        let mean = samples.iter().sum::<f64>() / samples.len() as f64;
+        let p50 = samples[samples.len() / 2];
+        let p95 = samples[(samples.len() as f64 * 0.95).ceil() as usize - 1];
+        let over = samples.iter().filter(|t| **t > 1000.0 / 60.0).count();
+        let image_bytes: usize = images
+            .iter()
+            .filter_map(|(_, i)| i.data.as_ref().map(Vec::len))
+            .sum();
+        let report = format!(
+            "samples={} mean_ms={mean:.3} median_ms={p50:.3} p95_ms={p95:.3} mean_fps={:.2} frames_over_16_67ms={over}\nmeshes={} materials={} mesh_entities={} image_cpu_bytes={}\nFixed 60 Hz simulation; 300 warmup frames; 600 wall-clock intervals; 1280x800 with --big; AutoNoVsync; not GPU timestamp measurements.\n",
+            samples.len(),
+            1000.0 / mean,
+            meshes.iter().count(),
+            materials.iter().count(),
+            drawn.iter().count(),
+            image_bytes,
+        );
+        println!("REVIEW {report}");
+        let path = std::path::Path::new(&cfg.out).with_extension("metrics.txt");
+        if let Err(error) = std::fs::write(path, report) {
+            error!("Could not save review metrics: {error}");
+        }
+        exit.write(AppExit::Success);
+    }
+}

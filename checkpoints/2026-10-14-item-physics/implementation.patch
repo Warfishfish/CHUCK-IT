@@ -1,0 +1,551 @@
+--- a/rust/crates/bbq_core/src/flight.rs
++++ b/rust/crates/bbq_core/src/flight.rs
+@@ -201,13 +201,12 @@
+ }
+ 
+ fn hit_wall(it: &mut Item, axis: Axis, events: &mut Vec<FlightEvent>) -> Fate {
+-    let d = it.kind.def();
+     let sp = it.vel.len();
+     if smashes(it) && sp > 4.0 {
+         smash(it, events);
+         return Fate::Removed;
+     }
+-    let k = -(d.bounce + 0.15);
++    let k = -(surface_bounce(it) + 0.15);
+     match axis {
+         Axis::X => it.vel.x *= k,
+         Axis::Z => it.vel.z *= k,
+@@ -238,7 +237,12 @@
+ }
+ 
+ /// The item landed on a surface of height `h` (0 for the ground).
+-fn on_surface(it: &mut Item, h: f32, on: Option<&Collider>, events: &mut Vec<FlightEvent>) -> Fate {
++fn surface_bounce(it: &Item) -> f32 {
++    let scale = if it.kind == ItemKind::Dildo { it.variant.map_or(1.0, |v| v.def().scale).sqrt() } else { 1.0 };
++    it.kind.def().bounce / scale
++}
++
++fn on_surface(it: &mut Item, h: f32, on: Option<&Collider>, events: &mut Vec<FlightEvent>, dt: f32) -> Fate {
+     let d = it.kind.def();
+     let sp = it.vel.len();
+     if it.pos.x.abs() > YARD_HALF_X || it.pos.z.abs() > YARD_HALF_Z {
+@@ -273,6 +277,30 @@
+     }
+     it.live = false;
+     it.pos.y = h + d.radius;
++    if matches!(it.kind, ItemKind::Dildo | ItemKind::Noodle) {
++        // Distinct material response without changing the pre-contact ballistic arc.
++        // Impact energy is removed once per bounce; sliding friction is time-based,
++        // so more collision substeps cannot make these items stop artificially faster.
++        let foam = it.kind == ItemKind::Noodle;
++        if it.vel.y < -2.5 {
++            it.vel.y = -it.vel.y * surface_bounce(it);
++            if it.vel.y < 0.8 { it.vel.y = 0.0; }
++            let retain = if foam { 0.45 } else { 0.68 };
++            it.vel.x *= retain;
++            it.vel.z *= retain;
++        } else {
++            it.vel.y = 0.0;
++            let speed = it.vel.horiz_len();
++            let friction = if foam { 10.0 } else { 7.0 };
++            let keep = if speed > 0.0 { (1.0 - friction * dt / speed).max(0.0) } else { 0.0 };
++            it.vel.x *= keep;
++            it.vel.z *= keep;
++        }
++        if it.vel.y == 0.0 && it.vel.horiz_len() < 0.5 {
++            rest_item(it, h, on, events);
++        }
++        return Fate::Alive;
++    }
+     if it.vel.y < -2.5 {
+         it.vel.y = -it.vel.y * d.bounce;
+         it.vel.x *= 0.6;
+@@ -300,6 +328,10 @@
+     rng: &mut Rng,
+     events: &mut Vec<FlightEvent>,
+ ) -> Fate {
++    collide_world_with_dt(it, yard, rng, events, 1.0 / 60.0)
++}
++
++fn collide_world_with_dt(it: &mut Item, yard: &Yard, rng: &mut Rng, events: &mut Vec<FlightEvent>, dt: f32) -> Fate {
+     let r = it.radius();
+     // trampoline
+     let (tx, tz) = (it.pos.x - TRAMP_X, it.pos.z - TRAMP_Z);
+@@ -341,7 +373,7 @@
+         0.0
+     };
+     if it.pos.y < floor_y {
+-        if on_surface(it, 0.0, None, events) == Fate::Removed {
++        if on_surface(it, 0.0, None, events, dt) == Fate::Removed {
+             return Fate::Removed;
+         }
+         if it.state != ItemState::Flying {
+@@ -362,7 +394,7 @@
+         let py = (c.h + r) - it.pos.y;
+         if py <= px && py <= pz && it.vel.y <= 0.0 {
+             it.pos.y = c.h + r;
+-            if on_surface(it, c.h, Some(c), events) == Fate::Removed {
++            if on_surface(it, c.h, Some(c), events, dt) == Fate::Removed {
+                 return Fate::Removed;
+             }
+             if it.state != ItemState::Flying {
+@@ -435,7 +467,7 @@
+         if it.state != ItemState::Flying {
+             break;
+         }
+-        if collide_world(it, yard, rng, events) == Fate::Removed {
++        if collide_world_with_dt(it, yard, rng, events, h) == Fate::Removed {
+             return Fate::Removed;
+         }
+     }
+@@ -589,6 +621,77 @@
+     }
+ 
+     #[test]
++    fn rubber_and_foam_impacts_lose_energy_and_foam_bounces_less() {
++        let mut heights=Vec::new();
++        for kind in [ItemKind::Dildo,ItemKind::Noodle] {
++            let mut it=thrown(kind,V3::new(0.0,0.1,10.0),V3::new(4.0,-10.0,2.0));
++            let before=it.vel.len_sq();
++            on_surface(&mut it,0.0,None,&mut vec![],DT);
++            assert!(it.vel.len_sq()<before);
++            assert!(!it.live);
++            heights.push(it.vel.y);
++        }
++        assert!(heights[0]>heights[1] && heights[0]<4.0 && heights[1]<2.0);
++        let mut small=thrown(ItemKind::Dildo,V3::ZERO,V3::ZERO);
++        small.variant=Some(crate::items::DildoVariant::Mini);
++        let mut big=small.clone();big.variant=Some(crate::items::DildoVariant::Jumbo);
++        assert!(surface_bounce(&big)<surface_bounce(&small));
++    }
++
++    #[test]
++    fn soft_items_settle_at_multiple_frame_rates_without_contact_chatter() {
++        let mut yard=Yard::new(Default::default(),0);yard.colliders.clear();
++        for kind in [ItemKind::Dildo,ItemKind::Noodle] {
++            let mut resting_x=Vec::new();
++            for dt in [1.0/30.0,1.0/60.0,1.0/120.0] {
++                let mut it=thrown(kind,V3::new(0.0,3.8,10.0),V3::new(7.0,1.0,0.0));
++                let mut rng=Rng::new(7);let mut events=Vec::new();
++                for _ in 0..(6.0/dt) as usize {
++                    if it.state==ItemState::Ground { break; }
++                    assert_eq!(step_flight(&mut it,dt,&yard,&mut rng,&mut events,&mut |_|false),Fate::Alive);
++                    assert!([it.pos.x,it.pos.y,it.pos.z,it.vel.x,it.vel.y,it.vel.z].iter().all(|x|x.is_finite()));
++                    assert!(it.pos.y>=0.0);
++                }
++                assert_eq!(it.state,ItemState::Ground,"{kind:?} dt={dt}");
++                assert_eq!(it.vel,V3::ZERO);
++                assert!((it.pos.y-rest_height(kind)).abs()<1e-5);
++                assert_eq!(events.iter().filter(|e|matches!(e,FlightEvent::Rested)).count(),1);
++                resting_x.push(it.pos.x);
++            }
++            let spread=resting_x.iter().copied().fold(f32::NEG_INFINITY,f32::max)-resting_x.iter().copied().fold(f32::INFINITY,f32::min);
++            assert!(spread<0.3,"{kind:?} resting position varies by {spread}m");
++        }
++    }
++
++    #[test]
++    fn soft_item_free_flight_still_matches_gravity_and_hit_checks() {
++        let mut yard=Yard::new(Default::default(),0);yard.colliders.clear();
++        for kind in [ItemKind::Dildo,ItemKind::Noodle] {
++            let mut it=thrown(kind,V3::new(0.0,10.0,10.0),V3::new(6.0,2.0,0.0));
++            let mut rng=Rng::new(1);let mut checks=0;
++            for _ in 0..30 {step_flight(&mut it,DT,&yard,&mut rng,&mut vec![],&mut |_|{checks+=1;false});}
++            assert!(checks>=30);
++            assert!(it.live);
++            assert!((it.pos.x-3.0).abs()<0.001);
++            assert!((it.vel.y-(2.0-ITEM_GRAV*kind.def().grav*0.5)).abs()<0.001);
++            assert_eq!(it.radius(),0.2,"hit/catch radius is unchanged");
++        }
++    }
++
++    #[test]
++    fn soft_items_still_float_and_walls_remove_energy() {
++        for kind in [ItemKind::Dildo,ItemKind::Noodle] {
++            let mut it=thrown(kind,V3::new(crate::yard::POOL_X0+1.0,0.0,crate::yard::POOL_Z0+1.0),V3::new(2.0,-8.0,0.0));
++            let mut events=vec![];on_surface(&mut it,0.0,None,&mut events,DT);
++            assert_eq!(it.state,ItemState::Ground);assert!((it.pos.y-(WATER_Y+0.04)).abs()<1e-5);
++            assert!(events.iter().any(|e|matches!(e,FlightEvent::Splash{..})));
++            let mut it=thrown(kind,V3::ZERO,V3::new(8.0,-2.0,3.0));let energy=it.vel.len_sq();
++            hit_wall(&mut it,Axis::X,&mut vec![]);
++            assert!(it.vel.x<0.0 && it.vel.len_sq()<energy);
++        }
++    }
++
++    #[test]
+     fn a_fast_item_takes_more_substeps() {
+         assert_eq!(substeps(1.0, DT).0, 1);
+         let (n, h) = substeps(27.0, DT);
+--- a/rust/crates/bbq_core/src/items.rs
++++ b/rust/crates/bbq_core/src/items.rs
+@@ -109,7 +109,7 @@
+     knock: 9.0,
+     charge: 0.75,
+     radius: 0.2,
+-    bounce: 0.6,
++    bounce: 0.34,
+     melee: Melee::Down,
+     adult: true,
+     ..BASE
+@@ -128,7 +128,7 @@
+     speed: 21.0,
+     knock: 5.0,
+     radius: 0.2,
+-    bounce: 0.45,
++    bounce: 0.16,
+     grav: 0.85,
+     melee: Melee::Stun,
+     throwable: true,
+--- a/rust/crates/bbq_core/src/looks.rs
++++ b/rust/crates/bbq_core/src/looks.rs
+@@ -828,9 +828,9 @@
+ pub fn floppy(kind: crate::items::ItemKind) -> Option<Floppy> {
+     use crate::items::ItemKind as K;
+     match kind {
+-        K::Noodle => Some(Floppy { k: 110.0, c: 2.6, limit: 0.75, droop: 0.16, step: 1.0, base: 0.35, per_link: 0.11 }),
+-        // exactly the browser's numbers (K 90, C 2.1, limit 0.95, droop 0.17, flick 1.8)
+-        K::Dildo => Some(Floppy { k: 90.0, c: 2.1, limit: 0.95, droop: 0.17, step: 1.8, base: 0.35, per_link: 0.11 }),
++        K::Noodle => Some(Floppy { k: 65.0, c: 4.5, limit: 0.75, droop: 0.16, step: 1.0, base: 0.35, per_link: 0.11 }),
++        // Heavier rubber springs back more firmly than the long foam noodle.
++        K::Dildo => Some(Floppy { k: 110.0, c: 5.5, limit: 0.85, droop: 0.17, step: 1.8, base: 0.35, per_link: 0.11 }),
+         _ => None,
+     }
+ }
+--- a/rust/crates/bbq_app/src/items_view.rs
++++ b/rust/crates/bbq_app/src/items_view.rs
+@@ -35,6 +35,31 @@
+ 
+ #[derive(Component)]
+ struct ItemVisual(ItemId);
++
++/// Visual angular inertia only; the authoritative hit/catch sphere is unchanged.
++#[derive(Component)]
++struct ItemMotion {
++    ready: bool,
++    state: ItemState,
++    velocity: Vec3,
++    spin: f32,
++    axis: Vec3,
++    rest: Quat,
++}
++impl Default for ItemMotion {
++    fn default() -> Self { Self { ready:false, state:ItemState::Ground, velocity:Vec3::ZERO, spin:0.0, axis:Vec3::X, rest:Quat::IDENTITY } }
++}
++
++fn launch_spin(kind: ItemKind, speed: f32, scale: f32) -> f32 {
++    if kind == ItemKind::Noodle { (2.0 + speed * 0.22).min(7.0) }
++    else { ((3.0 + speed * 0.38) / scale.max(0.5).powf(1.4)).min(15.0) }
++}
++
++fn lie_along(rotation: Quat, fallback: Quat) -> Quat {
++    let shaft=rotation * Vec3::Y;
++    if shaft.x * shaft.x + shaft.z * shaft.z < 0.001 { return fallback; }
++    Quat::from_rotation_y(shaft.z.atan2(-shaft.x)) * Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)
++}
+ #[derive(Component)]
+ struct GlowRing(ItemId);
+ #[derive(Component)]
+@@ -59,6 +84,8 @@
+ #[derive(Component, Default)]
+ pub struct FlopDrive {
+     pub mode: FlopMode,
++    /// Collision-induced velocity change, in m/s (visual spring impulse).
++    pub impact: f32,
+     /// How fast the person holding it is walking.
+     pub speed: f32,
+     /// It is in your own hand (the droop hangs the other way, as in the browser).
+@@ -91,7 +118,7 @@
+ 
+ impl FlopDrive {
+     pub fn in_chest() -> Self {
+-        FlopDrive { mode: FlopMode::Chest, speed: 0.0, mine: false }
++        FlopDrive { mode: FlopMode::Chest, ..default() }
+     }
+ }
+ 
+@@ -190,7 +217,7 @@
+     mut meshes: ResMut<Assets<Mesh>>,
+     mut mats: ResMut<Assets<StandardMaterial>>,
+     time: Res<Time>,
+-    mut q: Query<(&ItemVisual, &mut Transform, &mut Visibility), Without<GlowRing>>,
++    mut q: Query<(&ItemVisual, &mut Transform, &mut Visibility, &mut ItemMotion), Without<GlowRing>>,
+     mut rings: Query<(&GlowRing, &mut Transform, &mut Visibility), Without<ItemVisual>>,
+     mut drives: Query<&mut FlopDrive>,
+ ) {
+@@ -204,7 +231,7 @@
+                 &mut mats,
+                 Transform::from_xyz(it.pos.x, it.pos.y, it.pos.z),
+             );
+-            commands.entity(e).insert(ItemVisual(*id));
++            commands.entity(e).insert((ItemVisual(*id), ItemMotion::default()));
+             // a Heist teddy carries a little flag in its team's colour
+             if let Some(team) = it.team.and_then(crate::heist_app::team_of_index) {
+                 let flag = cache.spawn_parts(
+@@ -243,10 +270,25 @@
+     }
+ 
+     let t = time.elapsed_secs();
+-    for (vis, mut tf, mut v) in &mut q {
++    for (vis, mut tf, mut v, mut motion) in &mut q {
+         let Some(it) = game.world.items.get(&vis.0) else {
+             continue;
+         };
++        let dt=time.delta_secs().clamp(0.0001,0.05);
++        let velocity=Vec3::new(it.vel.x,it.vel.y,it.vel.z);
++        let impact=if motion.ready && motion.state==ItemState::Flying {
++            (velocity-motion.velocity+Vec3::Y * ITEM_GRAV * it.kind.def().grav * dt).length().clamp(0.0,12.0)
++        } else { 0.0 };
++        let changed=!motion.ready || motion.state!=it.state;
++        if changed && is_floppy(it.kind) {
++            if it.state==ItemState::Flying {
++                motion.spin=launch_spin(it.kind,velocity.length(),it.variant.map_or(1.0,|v| v.def().scale));
++                motion.axis=if velocity.x.hypot(velocity.z)>0.5 { Vec3::new(velocity.z,0.15*velocity.length(),-velocity.x).normalize() } else { Vec3::new(1.0,0.12,0.35).normalize() };
++            } else if it.state==ItemState::Ground {
++                motion.rest=if motion.ready { lie_along(tf.rotation,rest_rotation(it.kind,it.id)) } else { rest_rotation(it.kind,it.id) };
++                if !motion.ready { tf.rotation=motion.rest; }
++            }
++        } else if impact>1.5 { motion.spin *= if it.kind==ItemKind::Noodle { 0.3 } else { 0.5 }; }
+         if let Some((e, _)) = shown.items.get(&vis.0)
+             && let Ok(mut d) = drives.get_mut(*e)
+         {
+@@ -256,10 +298,12 @@
+                 ItemState::Ground => FlopMode::Ground,
+             };
+             d.mine = false;
++            d.impact = if impact>1.5 { impact } else { 0.0 };
+             d.speed = it
+                 .holder
+                 .and_then(|h| game.dummies.iter().find(|x| x.id == h))
+                 .map_or(0.0, |x| if x.mover.grounded { x.mover.speed() } else { 0.0 });
++            if it.state==ItemState::Flying { d.speed=velocity.length(); }
+         }
+         match it.state {
+             ItemState::Held => {
+@@ -290,14 +334,24 @@
+                 let spin = bbq_core::flight::spin_rate(it.kind, sp) * time.delta_secs();
+                 let axis =
+                     Vec3::new(1.0 + (vis.0 % 3) as f32, 0.3, 1.0 + (vis.0 % 5) as f32).normalize();
+-                tf.rotate(Quat::from_axis_angle(axis, spin));
++                if is_floppy(it.kind) {
++                    motion.spin *= (-(if it.kind==ItemKind::Noodle { 0.65 } else { 0.14 }) * dt).exp();
++                    tf.rotate(Quat::from_axis_angle(motion.axis, motion.spin * dt));
++                    if !it.live && it.pos.y-it.ground_y<0.6 && it.vel.y<0.0 {
++                        let target=lie_along(tf.rotation,rest_rotation(it.kind,it.id));
++                        tf.rotation=tf.rotation.slerp(target,1.0-(-9.0*dt).exp());
++                    }
++                } else { tf.rotate(Quat::from_axis_angle(axis, spin)); }
+             }
+             ItemState::Ground => {
+                 tf.scale = Vec3::ONE;
+                 *v = Visibility::Inherited;
+                 let floating =
+                     it.ground_y < 0.1 && bbq_core::yard::in_pool_rect(it.pos.x, it.pos.z);
+-                tf.rotation = rest_rotation(it.kind, it.id);
++                if is_floppy(it.kind) && !floating {
++                    tf.rotation=tf.rotation.slerp(motion.rest,1.0-(-14.0*dt).exp());
++                    if tf.rotation.angle_between(motion.rest)<0.003 { tf.rotation=motion.rest; }
++                } else { tf.rotation = rest_rotation(it.kind, it.id); }
+                 if floating {
+                     // bobbing on the water, as in the browser game
+                     let y = bbq_core::yard::WATER_Y + 0.04 + (t * 2.0 + it.pos.x).sin() * 0.03;
+@@ -315,9 +369,21 @@
+                     );
+                 } else {
+                     tf.translation = Vec3::new(it.pos.x, it.pos.y, it.pos.z);
++                    if is_floppy(it.kind) {
++                        let scale=it.variant.map_or(1.0,|v| v.def().scale);
++                        let radius=if it.kind==ItemKind::Dildo { 0.20*scale } else { 0.08 };
++                        // Keep the long shaft above the support surface during the short
++                        // settling turn; variants use their own visual base radius.
++                        let shaft=tf.rotation * Vec3::Y;
++                        let length=if it.kind==ItemKind::Dildo { 1.05*scale } else { 2.0 };
++                        tf.translation.y=it.pos.y+radius-bbq_core::flight::rest_height(it.kind)+(-shaft.y).max(0.0)*length;
++                    }
+                 }
+             }
+         }
++        motion.ready=true;
++        motion.state=it.state;
++        motion.velocity=velocity;
+     }
+     // Teddy Heist: your own team's teddies are not yours to take, so they do not glow
+     let my_team = game.teams.get(crate::player::PLAYER_ID);
+@@ -670,20 +736,33 @@
+                 w.vz += (r(2) - 0.5) * 3.0 * scale;
+             }
+         }
++        if drive.impact > 0.0 {
++            w.vx -= drive.impact * 0.45;
++            w.vz += drive.impact * 0.15;
++        }
+         if drive.mode == FlopMode::Flying {
+-            w.vx += (t * 19.0 + w.seed).sin() * dt * 30.0;
+-            w.vz += (t * 15.0).cos() * dt * 18.0;
+-        }
+-        let n = 3;
++            // Airflow-driven flutter fades as the item slows; freefall does not
++            // continually pump energy into an otherwise unforced spring.
++            let air=(drive.speed/23.0).clamp(0.0,1.0);
++            w.vx += (t * 11.0 + w.seed).sin() * dt * 5.0 * air;
++            w.vz += (t * 9.0 + w.seed).cos() * dt * 3.0 * air;
++        }
++        let n = (dt * 120.0).ceil().max(1.0) as u32;
+         let hd = dt / n as f32;
++        let damping=if drive.mode==FlopMode::Ground { d.c*3.0 } else { d.c };
+         for _ in 0..n {
+-            w.vx += (-d.k * w.x - d.c * w.vx) * hd;
+-            w.vz += (-d.k * w.z - d.c * w.vz) * hd;
++            w.vx += (-d.k * w.x - damping * w.vx) * hd;
++            w.vz += (-d.k * w.z - damping * w.vz) * hd;
+             w.x += w.vx * hd;
+             w.z += w.vz * hd;
+         }
+         w.x = w.x.clamp(-d.limit, d.limit);
+         w.z = w.z.clamp(-d.limit, d.limit);
++        if drive.mode==FlopMode::Ground {
++            // The ground supports the chain: settle in the surface plane, not through it.
++            w.z=0.0; w.vz=0.0;
++            w.x=w.x.clamp(-0.22,0.22);
++        }
+         let dr = if held {
+             (d.droop + 0.02 * (t * 2.1 + w.seed).sin() + 0.03 * (t * 0.55 + w.seed * 1.7).sin()) * if drive.mine { -0.6 } else { 1.0 }
+         } else {
+@@ -721,6 +800,19 @@
+     use super::*;
+ 
+     #[test]
++    fn large_rubber_items_tumble_slower_and_rest_preserves_heading() {
++        assert!(launch_spin(ItemKind::Dildo,20.0,1.38)<launch_spin(ItemKind::Dildo,20.0,0.66));
++        assert!(launch_spin(ItemKind::Noodle,20.0,1.0)<launch_spin(ItemKind::Dildo,20.0,1.0));
++        for a in [0.0,0.5,1.2,2.5] {
++            let q=Quat::from_euler(EulerRot::XYZ,a,0.4,0.8);
++            let flat=lie_along(q,Quat::IDENTITY)*Vec3::Y;
++            let previous=q*Vec3::Y;
++            assert!(flat.y.abs()<1e-5);
++            assert!(Vec2::new(flat.x,flat.z).normalize().dot(Vec2::new(previous.x,previous.z).normalize())>0.999);
++        }
++    }
++
++    #[test]
+     fn the_random_numbers_are_even_and_repeatable() {
+         assert_eq!(rand01(7, 3.0, 1), rand01(7, 3.0, 1));
+         assert_ne!(rand01(7, 3.0, 1), rand01(8, 3.0, 1));
+--- a/rust/crates/bbq_app/src/visual_review.rs
++++ b/rust/crates/bbq_app/src/visual_review.rs
+@@ -16,6 +16,7 @@
+         ))
+         .init_resource::<ReviewTiming>()
+         .add_systems(Startup, configure_window)
++        .add_systems(PreUpdate, motion_fixture)
+         .add_systems(Last, capture);
+     }
+ }
+@@ -40,8 +41,24 @@
+     materials: Res<Assets<StandardMaterial>>,
+     images: Res<Assets<Image>>,
+     drawn: Query<(), With<Mesh3d>>,
++    game: Res<crate::game::Game>,
+ ) {
+     timing.frame += 1;
++    if motion_mode().is_some() {
++        if (180..480).contains(&timing.frame) && (timing.frame - 180) % 4 == 0 {
++            let index = (timing.frame - 180) / 4;
++            let path = cfg.out.replace(".png", &format!("-{index:03}.png"));
++            commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path));
++            for id in [900001, 900002, 900003] {
++                if let Some(it) = game.world.items.get(&id) {
++                    println!("MOTION frame={} id={} state={:?} pos={:.4},{:.4},{:.4} vel={:.4},{:.4},{:.4}", timing.frame, id, it.state, it.pos.x,it.pos.y,it.pos.z,it.vel.x,it.vel.y,it.vel.z);
++                }
++            }
++        }
++        if timing.frame == 240 { commands.spawn(Screenshot::primary_window()).observe(save_to_disk(cfg.out.clone())); }
++        if timing.frame == 540 { exit.write(AppExit::Success); }
++        return;
++    }
+     let now = Instant::now();
+     let previous = timing.previous.replace(now);
+     // Capture before timing, then allow readback and PNG writing to finish.
+@@ -100,3 +117,39 @@
+         }
+     })
+ }
++
++/// Controlled fixtures are only available inside the opt-in review plugin.
++fn motion_mode() -> Option<&'static str> {
++    static MODE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
++    MODE.get_or_init(|| {
++        let a: Vec<String> = std::env::args().collect();
++        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw"].contains(&v.as_str())).cloned()
++    }).as_deref()
++}
++
++fn motion_fixture(mut game: ResMut<crate::game::Game>, mut frame: Local<u32>) {
++    let Some(mode) = motion_mode() else { return };
++    *frame += 1;
++    let g = &mut *game;
++    g.dummies.clear();
++    g.world.items.retain(|id,_| (900001..=900003).contains(id));
++    g.life.dazza.state = bbq_core::dazza::DazzaState::Ko;
++    g.life.dazza.pos = bbq_core::vec::V3::new(1000.0,0.0,1000.0);
++    if *frame == 120 {
++        use bbq_core::{flight::Item, items::{ItemKind, DildoVariant}, vec::V3};
++        for (n, kind, variant) in [(0,ItemKind::Dildo,Some(DildoVariant::Classic)),(1,ItemKind::Dildo,Some(DildoVariant::Jumbo)),(2,ItemKind::Noodle,None)] {
++            let id=900001+n;
++            let mut item=Item::new(id,kind,V3::new((n as f32-1.0)*2.8,3.8,8.0));
++            item.variant=variant;
++            g.world.items.insert(id,item);
++        }
++    }
++    if *frame == 180 {
++        for item in g.world.items.values_mut() {
++            item.state=bbq_core::flight::ItemState::Flying;
++            item.vel=if mode=="throw" { bbq_core::vec::V3::new(0.0,3.0,-6.0) } else { bbq_core::vec::V3::ZERO };
++            item.live=mode=="throw";
++            item.fly_t=0.0;
++        }
++    }
++}
+--- /dev/null
++++ b/rust/tools/item_motion_review.py
+@@ -0,0 +1,19 @@
++#!/usr/bin/env python3
++"""Deterministic in-game drop/throw clips. Encode PNG frames separately; do not benchmark capture runs."""
++import argparse,os,subprocess
++from pathlib import Path
++ROOT=Path(__file__).resolve().parents[2]
++p=argparse.ArgumentParser(description=__doc__);p.add_argument('--label',required=True);p.add_argument('--binary',type=Path,default=ROOT/'rust/target/release/bbq_app');p.add_argument('--scene',choices=['drop','throw','stress']);a=p.parse_args()
++out=ROOT/'checkpoints/2026-10-14-item-physics/evidence';out.mkdir(parents=True,exist_ok=True)
++env=os.environ.copy();env.update(BEVY_ASSET_ROOT=str(ROOT/'rust/crates/bbq_app'),RUST_LOG='warn')
++for name in ['drop','throw','stress']:
++ if a.scene and a.scene!=name:continue
++ target=out/f'{a.label}-{name}.png'
++ extra=['--motion-review',name,'--cam','0,3.8,17,0,-10,60'] if name!='stress' else ['--cam','0,5,20,0,-10,78','--mode','heist','--bots','11']
++ cmd=[str(a.binary.resolve()),'--shot',str(target),'--review','--big','--look','polished','--style','pop','--cheeky',*extra]
++ print('Capturing',a.label,name,flush=True)
++ result=subprocess.run(cmd,cwd=ROOT/'rust',env=env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=240)
++ target.with_suffix('.log').write_text(result.stdout)
++ expected=[out/f'{a.label}-{name}-{i:03}.png' for i in range(75)] if name!='stress' else [target.with_suffix('.metrics.txt')]
++ if result.returncode or 'ERROR' in result.stdout or not all(p.exists() for p in expected):raise SystemExit(f'Capture failed: {target.with_suffix(".log")}')
++ print('Saved',name,flush=True)
+--- /dev/null
++++ b/rust/tools/encode_item_motion.py
+@@ -0,0 +1,19 @@
++#!/usr/bin/env python3
++"""Encode actual review PNG frames as looping WebP clips (requires Pillow)."""
++import argparse
++from pathlib import Path
++from PIL import Image
++p=argparse.ArgumentParser(description=__doc__)
++p.add_argument('--label',required=True)
++a=p.parse_args()
++root=Path(__file__).resolve().parents[2]
++out=root/'checkpoints/2026-10-14-item-physics/evidence'
++for scene in ['drop','throw']:
++    frames=[]
++    for i in range(75):
++        with Image.open(out/f'{a.label}-{scene}-{i:03}.png') as source:
++            frame=source.convert('RGB')
++            frame.thumbnail((960,600))
++            frames.append(frame)
++    frames[0].save(out/f'{a.label}-{scene}.webp',save_all=True,append_images=frames[1:],duration=[67,67,66]*25,loop=0,quality=85,method=4)
++    print('Encoded',a.label,scene)

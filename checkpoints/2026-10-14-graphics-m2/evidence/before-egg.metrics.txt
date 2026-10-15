@@ -1,0 +1,3 @@
+samples=600 mean_ms=6.964 median_ms=6.602 p95_ms=8.236 mean_fps=143.60 frames_over_16_67ms=6
+meshes=2724 materials=775 mesh_entities=6384 image_cpu_bytes=39784856
+Fixed 60 Hz simulation; 300 warmup frames; 600 wall-clock intervals; 1280x800 with --big; AutoNoVsync; not GPU timestamp measurements.

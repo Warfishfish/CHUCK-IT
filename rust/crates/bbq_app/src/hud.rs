@@ -446,6 +446,7 @@ fn spawn_hud(mut commands: Commands) {
                 cd_chip(c, "Space", "Jump", None);
                 cd_chip(c, "Shift", "Boost", Some(Cd::Boost));
                 cd_chip(c, "Right click", "Catch", Some(Cd::Catch));
+                cd_chip(c, "Q", "Change weapon", None);
             });
             // item slots, bottom right
             root.spawn(Node {

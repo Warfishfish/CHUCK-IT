@@ -112,7 +112,9 @@ fn setup_camera_and_hud(mut commands: Commands, look: Res<crate::lighting::LookM
         Transform::from_xyz(0.0, movement::EYE_HEIGHT, 0.0),
         DistanceFog {
             // polished look: a hazier, warmer horizon
-            color: if *look == crate::lighting::LookMode::Polished && crate::style::current() != crate::style::Style::Current {
+            color: if *look == crate::lighting::LookMode::Polished && crate::style::current() == crate::style::Style::Pop {
+                crate::models::hex(0xbacfd6)
+            } else if *look == crate::lighting::LookMode::Polished && crate::style::current() != crate::style::Style::Current {
                 crate::models::hex(0xeccfa0) // warm dusty haze
             } else if *look == crate::lighting::LookMode::Polished {
                 crate::models::hex(0xc9e1e4)
@@ -122,8 +124,8 @@ fn setup_camera_and_hud(mut commands: Commands, look: Res<crate::lighting::LookM
             falloff: FogFalloff::Linear {
                 // three's fog eases in along an S-curve from 60 m to 150 m; a straight line from
                 // 75 m to 140 m stays within 7% of it
-                start: 75.0,
-                end: 140.0,
+                start: if *look == crate::lighting::LookMode::Polished && crate::style::current() == crate::style::Style::Pop { 60.0 } else { 75.0 },
+                end: if *look == crate::lighting::LookMode::Polished && crate::style::current() == crate::style::Style::Pop { 160.0 } else { 140.0 },
             },
             ..default()
         },
@@ -416,7 +418,7 @@ fn update_hud(
         String::new()
     };
     text.0 = format!(
-        "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw (tap = slap), RMB catch, Q/E/wheel swap, R bar/meat/chest/smoko/help up, F grab someone who's down (tap put down, hold chuck), T taunt, H dance, B laugh, G drop what you're holding\n\
+        "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw (tap = slap), RMB catch, Q change weapon (E/wheel also swap), R bar/meat/chest/smoko/help up, F grab someone who's down (tap put down, hold chuck), T taunt, H dance, B laugh, G drop what you're holding\n\
          F1-F4 features, F5 falls, F6 Drunk mode, F7 Cheeky mode ({}), F8 Naughty Corner ({}), F9 character ({}), F10 bots ({}), F11 bot level ({:?}) | viewer: J/K/L slapped, N stacked it, M emote, Y drunk, C crown, V sash, X stink, P +30 drunk\n\
          SCORE {} | hits {} | taken {} | catches {} | streak {} | holding: {holding}{charge}\n\
          pos {:.1}, {:.1}, {:.1} | speed {:.1} m/s | {boost} | FOV {:.0} | {pool}{tramp}{fps:.0} fps\n{}",

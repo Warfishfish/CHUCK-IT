@@ -1,0 +1,1 @@
+Seven-file delta (including embedded Blender mesh data) applied in an isolated directory. All resulting bytes match current implementation.

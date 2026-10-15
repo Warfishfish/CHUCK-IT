@@ -71,8 +71,11 @@ struct MouthRoot {
 }
 
 #[derive(Resource)]
-struct FaceKit {
+pub(crate) struct FaceKit {
+    pub glint: Handle<Mesh>,
+    pub glint_material: Handle<StandardMaterial>,
     ball: Handle<Mesh>,
+    sculpted: std::collections::HashMap<String, Handle<Mesh>>,
     /// One material per hair or brow colour, made when first needed.
     hair: std::collections::HashMap<u32, Handle<StandardMaterial>>,
     dark: Handle<StandardMaterial>,
@@ -236,9 +239,12 @@ impl Plugin for FacePlugin {
 fn make_kit(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut mats: ResMut<Assets<StandardMaterial>>) {
     let m = |c: u32, rough: f32| StandardMaterial { base_color: crate::models::hex(c), perceptual_roughness: rough, reflectance: 0.25, ..default() };
     commands.insert_resource(FaceKit {
+        glint: meshes.add(Sphere::new(1.0).mesh().uv(12, 8)),
+        glint_material: mats.add(StandardMaterial { base_color: Color::srgb(1.0, 0.97, 0.9), unlit: true, ..default() }),
+        sculpted: if crate::style::current() == crate::style::Style::Pop { crate::face_meshes::load(&mut meshes) } else { Default::default() },
         ball: meshes.add(Sphere::new(1.0).mesh().uv(16, 10)),
         hair: Default::default(),
-        dark: mats.add(m(0x3a1812, 0.55)),
+        dark: mats.add(m(if crate::style::current() == crate::style::Style::Pop { 0x24100e } else { 0x3a1812 }, if crate::style::current() == crate::style::Style::Pop { 0.88 } else { 0.55 })),
         teeth: mats.add(m(0xf7f4ea, 0.35)),
         tongue: mats.add(m(0xd9606a, 0.5)),
     });
@@ -255,6 +261,23 @@ pub fn mood_of(stunned: bool, down: bool, drinking: bool, winding: bool) -> Mood
     } else {
         Mood::Normal
     }
+}
+
+/// Keep action reactions ahead of happy emotes, without changing any game state.
+pub fn blob_mood(d: &crate::game::Dummy) -> Mood {
+    let mood = mood_of(d.body.stun > 0.0, d.body.is_down(), d.bot.drunk.is_drinking(), d.bot.winding);
+    if mood == Mood::Normal && crate::style::current() == crate::style::Style::Pop
+        && matches!(d.anim.emote, Some((bbq_core::pose::Emote::Laugh | bbq_core::pose::Emote::Dance, _))) {
+        Mood::Cheer
+    } else { mood }
+}
+
+/// Staggered short blinks and readable squints; eye shape never changes collision.
+pub fn eye_open(mood: Mood, seconds: f32, character: usize) -> f32 {
+    let cycle = (seconds + character as f32 * 0.73).rem_euclid(3.7 + (character % 3) as f32 * 0.41);
+    let blink = if cycle < 0.18 && mood != Mood::Ouch { (cycle / 0.18 * std::f32::consts::PI).sin().powi(2) } else { 0.0 };
+    let opening = match mood { Mood::Normal => 1.0, Mood::Grit => 0.78, Mood::Ouch => 1.12, Mood::Sip => 0.72, Mood::Cheer => 0.9 };
+    opening * (1.0 - 0.9 * blink)
 }
 
 /// One little piece of a mouth: a squashed ball `size` big at `at` (mouth space: x right, y up,
@@ -445,9 +468,10 @@ fn sync_faces(
             },
             FaceOwner::Blob(i) => {
                 let Some(d) = game.dummies.get(i) else { continue };
-                (d.look, mood_of(d.body.stun > 0.0, d.body.is_down(), d.bot.drunk.is_drinking(), d.bot.winding))
+                (d.look, blob_mood(d))
             }
         };
+        let mood = crate::visual_review::expression().unwrap_or(mood);
         let want = FaceShown {
             mouth: look.mouth,
             brows: look.brows,
@@ -544,7 +568,8 @@ fn sync_faces(
                 .with_rotation(Quat::from_rotation_arc(Vec3::Z, normal) * Quat::from_rotation_z(roll))
         };
         let mut parts: Vec<(Transform, Vec<Blip>, bool)> = Vec::new();
-        let mouth = mouth_shape(look.mouth, mood);
+        let sculpted = !kit.sculpted.is_empty();
+        let mouth = if sculpted { vec![] } else { mouth_shape(look.mouth, mood) };
         if !mouth.is_empty() {
             parts.push((on_face(0.0, -0.45, 0.0), mouth, true));
         }
@@ -560,7 +585,7 @@ fn sync_faces(
             parts.push((Transform::from_translation(centre), hair, false));
         }
         let (brow, lift, tilt) = brow_shape(look.brows, mood);
-        if !brow.is_empty() {
+        if !sculpted && !brow.is_empty() {
             for side in [1.0f32, -1.0] {
                 // above each eye; the right brow's x runs towards the middle, the left is mirrored
                 let mut pieces = brow.clone();
@@ -568,6 +593,24 @@ fn sync_faces(
                     p.at.x *= -side;
                 }
                 parts.push((on_face(side * 0.36, 0.55 + lift, side * tilt), pieces, false));
+            }
+        }
+        if sculpted {
+            let mut smooth = vec![(on_face(0.0, -0.43, 0.0), crate::face_meshes::mouth(look.mouth, mood), true)];
+            if let Some(key) = crate::face_meshes::brow(look.brows) {
+                for side in [1.0f32, -1.0] {
+                    smooth.push((on_face(side * 0.36, 0.55 + lift, side * tilt), vec![(key, Colour::Hair)], false));
+                }
+            }
+            for (tf, pieces, is_mouth) in smooth {
+                if pieces.is_empty() { continue; }
+                let mut root = commands.spawn((tf, Visibility::default(), ChildOf(head), MouthRoot { owner: node.owner, mouth: is_mouth }));
+                if let Some(l) = node.layer { root.insert(RenderLayers::layer(l)); }
+                let root = root.id();
+                for (key, colour) in pieces {
+                    let mut e = commands.spawn((Mesh3d(kit.sculpted[key].clone()), MeshMaterial3d(pick(colour)), Transform::from_scale(Vec3::splat(r)), bevy::light::NotShadowCaster, ChildOf(root)));
+                    if let Some(l) = node.layer { e.insert(RenderLayers::layer(l)); }
+                }
             }
         }
         for (tf, blips, is_mouth) in parts {
@@ -625,6 +668,21 @@ fn m_seed(m: &MouthRoot) -> f32 {
 mod tests {
     use super::*;
     use bbq_core::appearance::Choice;
+
+    #[test]
+    fn blinks_are_brief_staggered_and_reactions_readable() {
+        assert!(eye_open(Mood::Normal, 0.09, 0) < 0.2);
+        assert!(eye_open(Mood::Normal, 0.09, 1) > 0.9);
+        assert!(eye_open(Mood::Normal, 0.3, 0) > 0.99);
+        assert!(eye_open(Mood::Ouch, 0.09, 0) > 1.0);
+        assert!(eye_open(Mood::Grit, 1.0, 0) < eye_open(Mood::Normal, 1.0, 0));
+        for mood in [Mood::Normal, Mood::Grit, Mood::Ouch, Mood::Sip, Mood::Cheer] {
+            for frame in 0..600 {
+                let value = eye_open(mood, frame as f32 / 60.0, 2);
+                assert!(value.is_finite() && (0.05..=1.15).contains(&value));
+            }
+        }
+    }
 
     #[test]
     fn each_mouth_looks_different_and_none_is_nothing() {

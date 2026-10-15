@@ -1,0 +1,125 @@
+--- a/rust/crates/bbq_app/src/characters.rs
++++ b/rust/crates/bbq_app/src/characters.rs
+@@ -306,10 +306,10 @@
+                         let width = match name.as_str() {
+                             n if n.starts_with("Pupil") || n.starts_with("Eye") || n.starts_with("Strap") || n.starts_with("Thong") => continue,
+                             n if n.starts_with("Eye") => 0.009,
+-                            n if n.starts_with("Hand") => 0.011,
+-                            n if n.starts_with("Foot") => 0.011,
+-                            n if n.starts_with("Singlet") || n.starts_with("Shorts_") => 0.009,
+-                            "Head" | "Torso" | "Belly" => 0.013,
++                            n if n.starts_with("Hand") => 0.013,
++                            n if n.starts_with("Foot") => 0.013,
++                            n if n.starts_with("Singlet") || n.starts_with("Shorts_") => 0.010,
++                            "Head" | "Torso" | "Belly" => 0.016,
+                             // The Body container includes eyes and every other part. Outlining
+                             // its descendants duplicates shells and draws stray rings on eyes.
+                             _ => continue,
+--- a/rust/crates/bbq_app/src/style.rs
++++ b/rust/crates/bbq_app/src/style.rs
+@@ -45,7 +45,7 @@
+     // how far plain colours fade towards grey (negative = more vivid), and the lawn's colour
+     let (fade, lawn) = match s {
+         Style::Current => (0.14, 1.0),
+-        Style::Pop => (0.0, 0.84),
++        Style::Pop => (-0.04, 0.96),
+         Style::Clay => (0.34, 0.8),
+     };
+     bbq_core::looks_yard::set_palette(fade, lawn);
+@@ -89,7 +89,8 @@
+             None => assets.load_builder().with_settings(repeat).load("textures/fabric.png"),
+         }),
+         uv_transform: if dirty { bevy::math::Affine2::from_scale(Vec2::new(0.34, 0.5)) } else { bevy::math::Affine2::IDENTITY },
+-        normal_map_texture: Some(assets.load_builder().with_settings(flat).load("textures/fabric_n.png")),
++        // Pop keeps cloth colour and dirt, with a simpler surface at gameplay distances.
++        normal_map_texture: if current() == Style::Pop { None } else { Some(assets.load_builder().with_settings(flat).load("textures/fabric_n.png")) },
+         perceptual_roughness: 0.95,
+         reflectance: 0.1,
+         // the cloth is a thin shell: lit from both sides
+@@ -154,8 +155,8 @@
+         // a soft sheen on the skin (C11.5): a thin glossy coat over the colour
+         return StandardMaterial {
+             base_color: colour,
+-            perceptual_roughness: if current() == Style::Pop { 0.68 } else { 0.55 },
+-            clearcoat: if current() == Style::Pop { 0.08 } else { 0.2 },
++            perceptual_roughness: if current() == Style::Pop { 0.60 } else { 0.55 },
++            clearcoat: if current() == Style::Pop { 0.12 } else { 0.2 },
+             clearcoat_perceptual_roughness: 0.45,
+             ..default()
+         };
+--- a/rust/crates/bbq_app/src/lighting.rs
++++ b/rust/crates/bbq_app/src/lighting.rs
+@@ -64,10 +64,10 @@
+                 crate::style::Style::Pop => Rig {
+                     sky: 0xb5d2ef,
+                     ground: 0x929791,
+-                    hemi: 0.48,
++                    hemi: 0.56,
+                     sun: 0xffd8a5,
+                     sun_intensity: 1.08,
+-                    grade: Grade { saturation: 1.05, warmth: 0.025, contrast: 1.035, vignette: 0.18 },
++                    grade: Grade { saturation: 1.12, warmth: 0.03, contrast: 1.045, vignette: 0.14 },
+                 },
+                 // clay: a strong, low, golden sun with a cool blue shade and warm bounce light
+                 crate::style::Style::Clay => Rig {
+@@ -318,8 +318,8 @@
+         let colours: Vec<[f32; 4]> = positions.iter().map(|p| {
+             let height = (p[1] / 180.0).max(0.0);
+             let t = (height / 0.7).clamp(0.0, 1.0).sqrt();
+-            let horizon = Vec3::new(0.73, 0.82, 0.84);
+-            let zenith = Vec3::new(0.24, 0.49, 0.79);
++            let horizon = Vec3::new(0.60, 0.80, 0.96);
++            let zenith = Vec3::new(0.20, 0.46, 0.84);
+             let c = horizon.lerp(zenith, t);
+             [c.x, c.y, c.z, 1.0]
+         }).collect();
+--- a/rust/crates/bbq_app/src/models.rs
++++ b/rust/crates/bbq_app/src/models.rs
+@@ -394,7 +394,7 @@
+     StandardMaterial {
+         base_color: if afternoon_lawn {
+             let c = hex(s.color).to_linear();
+-            Color::linear_rgba(c.red * 1.06, c.green * 0.94, c.blue * 0.9, s.alpha)
++            Color::linear_rgba(c.red, c.green * 1.02, c.blue * 0.88, s.alpha)
+         } else {
+             hex(s.color).with_alpha(s.alpha)
+         },
+--- /dev/null
++++ b/rust/tools/cartoon_review.py
+@@ -0,0 +1,36 @@
++#!/usr/bin/env python3
++"""Cartoon refinement captures. Run sequentially, after builds finish; no settings writes."""
++import argparse
++import os
++from pathlib import Path
++import subprocess
++ROOT = Path(__file__).resolve().parents[2]
++p = argparse.ArgumentParser(description=__doc__)
++p.add_argument('--label', required=True)
++p.add_argument('--binary', type=Path, default=ROOT/'rust/target/release/bbq_app')
++p.add_argument('--view')
++a = p.parse_args()
++out = ROOT/'checkpoints/2026-10-14-cartoon-tuning/evidence'
++out.mkdir(parents=True, exist_ok=True)
++base = ['--bot','0','--bot-head','--char','classic','--mouth','smile','--brows','flat','--hair','none','--hat','none']
++views = {
++ 'normal': base+['--expression','normal'],
++ 'gumdrop': ['--bot','0','--bot-far','--char','gumdrop','--mouth','grin','--brows','arched','--hair','tuft','--hat','none','--expression','cheer'],
++ 'yard': ['--cam','0,5,20,0,-10,78'],
++ 'stress': ['--cam','0,5,20,0,-10,78','--mode','heist','--bots','11','--cheeky'],
++ 'current': base+['--expression','normal'],
++}
++if a.view and a.view not in views: p.error('Unknown view')
++env = os.environ.copy()
++env.update(BEVY_ASSET_ROOT=str(ROOT/'rust/crates/bbq_app'), RUST_LOG='warn')
++for name, extra in views.items():
++ if a.view and name != a.view: continue
++ target = out/f'{a.label}-{name}.png'
++ style = 'current' if name=='current' else 'pop'
++ command = [str(a.binary.resolve()),'--shot',str(target),'--review','--big','--look','polished','--style',style,*extra]
++ print(f'Capturing {a.label}: {name}',flush=True)
++ result = subprocess.run(command,cwd=ROOT/'rust',env=env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=180)
++ target.with_suffix('.log').write_text(result.stdout)
++ if result.returncode or not target.exists() or not target.with_suffix('.metrics.txt').exists() or 'ERROR' in result.stdout:
++  raise SystemExit(f'Capture failed: {target.with_suffix(".log")}')
++ print(target.with_suffix('.metrics.txt').read_text().splitlines()[0],flush=True)

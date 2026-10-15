@@ -1,0 +1,5 @@
+9f65e533392ab1d5c8f9c37878ab1c525061071a1932b4cb5f5e657508f79429  rust/crates/bbq_app/src/characters.rs
+9aeb578c560c7c27728b0454db8e4eac3a4c32988fe53649eedc54119121562c  rust/crates/bbq_app/src/style.rs
+df5cb54cc131fe4c32c1c28b76a815de58b0e821ffc8cc0434f993f40d3358bc  rust/crates/bbq_app/src/lighting.rs
+d0c80d6b3240e54eefd083f1e8af85cc9387b98177d31385813871959569af2b  rust/crates/bbq_app/src/models.rs
+02d257bfa9fabe2d4d82cf845e75739bf3e8f2258d960fd3432a2aad3a1ab0df  rust/tools/cartoon_review.py

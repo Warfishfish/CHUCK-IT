@@ -1,0 +1,22 @@
+Capturing after: normal
+samples=600 mean_ms=6.501 median_ms=6.259 p95_ms=7.893 mean_fps=153.82 frames_over_16_67ms=2
+Capturing after: grit
+samples=600 mean_ms=6.388 median_ms=6.236 p95_ms=7.419 mean_fps=156.55 frames_over_16_67ms=1
+Capturing after: ouch
+samples=600 mean_ms=6.348 median_ms=6.234 p95_ms=7.375 mean_fps=157.52 frames_over_16_67ms=1
+Capturing after: sip
+samples=600 mean_ms=6.426 median_ms=6.332 p95_ms=7.644 mean_fps=155.63 frames_over_16_67ms=0
+Capturing after: cheer
+samples=600 mean_ms=6.337 median_ms=6.247 p95_ms=7.331 mean_fps=157.79 frames_over_16_67ms=0
+Capturing after: pear
+samples=600 mean_ms=6.579 median_ms=6.510 p95_ms=7.637 mean_fps=151.99 frames_over_16_67ms=0
+Capturing after: egg
+samples=600 mean_ms=6.616 median_ms=6.440 p95_ms=7.790 mean_fps=151.16 frames_over_16_67ms=0
+Capturing after: gumdrop
+samples=600 mean_ms=6.493 median_ms=6.437 p95_ms=7.509 mean_fps=154.01 frames_over_16_67ms=0
+Capturing after: none
+samples=600 mean_ms=6.338 median_ms=6.255 p95_ms=7.425 mean_fps=157.78 frames_over_16_67ms=0
+Capturing after: stress
+samples=600 mean_ms=7.845 median_ms=7.771 p95_ms=8.714 mean_fps=127.47 frames_over_16_67ms=0
+Capturing after: current
+samples=600 mean_ms=6.266 median_ms=6.047 p95_ms=7.186 mean_fps=159.60 frames_over_16_67ms=2

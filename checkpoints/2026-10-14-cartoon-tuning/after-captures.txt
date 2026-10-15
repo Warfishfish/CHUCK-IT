@@ -1,0 +1,10 @@
+Capturing after: normal
+samples=600 mean_ms=6.439 median_ms=6.169 p95_ms=7.535 mean_fps=155.31 frames_over_16_67ms=0
+Capturing after: gumdrop
+samples=600 mean_ms=6.563 median_ms=6.399 p95_ms=7.631 mean_fps=152.36 frames_over_16_67ms=0
+Capturing after: yard
+samples=600 mean_ms=7.393 median_ms=7.232 p95_ms=8.669 mean_fps=135.26 frames_over_16_67ms=0
+Capturing after: stress
+samples=600 mean_ms=7.734 median_ms=7.694 p95_ms=8.534 mean_fps=129.30 frames_over_16_67ms=0
+Capturing after: current
+samples=600 mean_ms=6.130 median_ms=6.082 p95_ms=7.274 mean_fps=163.14 frames_over_16_67ms=0

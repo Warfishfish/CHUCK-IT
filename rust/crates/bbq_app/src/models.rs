@@ -104,6 +104,7 @@ pub struct FloppySeg;
 /// The links of a floppy item (dildo, noodle) and how it bends.
 #[derive(Component)]
 pub struct FloppyChain {
+    pub silicone: bool,
     pub segs: Vec<Entity>,
     pub def: bbq_core::looks::Floppy,
 }
@@ -270,13 +271,15 @@ fn load_textures(mut cache: ResMut<ModelCache>, assets: Res<AssetServer>) {
         });
     };
     for t in Tex::ALL {
+        let afternoon_lawn = POLISHED.load(std::sync::atomic::Ordering::Relaxed)
+            && crate::style::current() == crate::style::Style::Pop && t == Tex::Lawn;
         let h = assets
             .load_builder()
             .with_settings(load)
-            .load(format!("textures/{}", t.file()));
+            .load(format!("textures/{}", if afternoon_lawn { "lawn_afternoon.png" } else { t.file() }));
         cache.textures.insert(t, h);
         if POLISHED.load(std::sync::atomic::Ordering::Relaxed) {
-            if let Some(n) = t.normal_file() {
+            if let Some(n) = if afternoon_lawn { Some("lawn_afternoon_n.png") } else { t.normal_file() } {
                 let h = assets.load_builder().with_settings(load).load(format!("textures/{n}"));
                 cache.normals.insert(t, h);
             }
@@ -370,7 +373,9 @@ pub fn material(s: &Surface, cache: &ModelCache) -> StandardMaterial {
     // Bevy's diffuse light is brighter at glancing angles the rougher a surface is, which three's
     // flat "Lambert" never is. A roughness of about 0.7 keeps it close to Lambert (see compare.md).
     // the polished look's materials (those with a bump map) each have their own finish
-    let finish = s.tex.filter(|t| s.shine == 0.0 && cache.normals.contains_key(t)).map(|t| t.finish());
+    let finish = s.tex.filter(|t| s.shine == 0.0 && cache.normals.contains_key(t)).map(|t| {
+        if t == Tex::Lawn { (0.9, 0.02) } else { t.finish() }
+    });
     let rough = if let Some((r, _)) = finish {
         r
     } else if s.shine > 0.0 {
@@ -381,11 +386,22 @@ pub fn material(s: &Surface, cache: &ModelCache) -> StandardMaterial {
         MATT_ROUGHNESS
     };
     let emissive = hex(s.emissive).to_linear();
+    // A small Blender-generated tile supplies fine grass, with the existing macro
+    // vertex-colour patches supplying the dry areas. No extra ground geometry.
+    let afternoon_lawn = POLISHED.load(std::sync::atomic::Ordering::Relaxed)
+        && crate::style::current() == crate::style::Style::Pop
+        && s.tex == Some(Tex::Lawn);
+    let repeat = if afternoon_lawn { 3.0 } else { 1.0 };
     StandardMaterial {
-        base_color: hex(s.color).with_alpha(s.alpha),
+        base_color: if afternoon_lawn {
+            let c = hex(s.color).to_linear();
+            Color::linear_rgba(c.red, c.green * 1.02, c.blue * 0.88, s.alpha)
+        } else {
+            hex(s.color).with_alpha(s.alpha)
+        },
         base_color_texture: s.tex.and_then(|t| cache.textures.get(&t).cloned()),
         normal_map_texture: s.tex.and_then(|t| cache.normals.get(&t).cloned()),
-        uv_transform: bevy::math::Affine2::from_scale(Vec2::new(s.repeat.0, s.repeat.1)),
+        uv_transform: bevy::math::Affine2::from_scale(Vec2::new(s.repeat.0, s.repeat.1) * repeat),
         emissive,
         perceptual_roughness: rough,
         reflectance: if let Some((_, f)) = finish { f } else if s.shine > 0.0 { 0.5 } else { 0.0 },
@@ -427,6 +443,11 @@ impl ModelCache {
     ) -> Vec<Built> {
         if let Some(b) = self.built.get(&key) {
             return b.clone();
+        }
+        if let ModelKey::Item(ItemKind::Dildo, variant, id) = key {
+            let b = crate::silicone::build(variant.unwrap_or(DildoVariant::Classic), bbq_core::looks::DildoSkin::from_id(id), meshes, mats);
+            self.built.insert(key, vec![b.clone()]);
+            return vec![b];
         }
         let parts = key.parts();
         let built: Vec<Built> = parts
@@ -480,6 +501,10 @@ impl ModelCache {
     ) -> Entity {
         let built = self.built(key, meshes, mats);
         let root = commands.spawn((at, Visibility::default())).id();
+        if let ModelKey::Item(ItemKind::Dildo, variant, _) = key {
+            crate::silicone::spawn(commands, root, &built[0], variant.unwrap_or(DildoVariant::Classic));
+            return root;
+        }
         let floppy = match key {
             ModelKey::Item(kind, ..) => bbq_core::looks::floppy(kind),
             _ => None,
@@ -520,7 +545,7 @@ impl ModelCache {
                 }
             }
         }
-        commands.entity(root).insert(FloppyChain { segs, def });
+        commands.entity(root).insert(FloppyChain { segs, def, silicone: false });
         root
     }
 }

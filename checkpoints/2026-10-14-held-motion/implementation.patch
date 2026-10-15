@@ -1,0 +1,373 @@
+--- a/rust/crates/bbq_app/src/items_view.rs
++++ b/rust/crates/bbq_app/src/items_view.rs
+@@ -103,11 +103,9 @@
+     wz: f32,
+     prev: Quat,
+     phase: f32,
+-    step: i32,
++    held_speed: f32,
++    ready: bool,
+     seed: f32,
+-    /// Counts down to the next little random nudge (so the toy is never quite the same twice).
+-    nudge_t: f32,
+-    nudges: u32,
+ }
+ 
+ impl Wobble {
+@@ -124,7 +122,7 @@
+ 
+ impl Default for Wobble {
+     fn default() -> Self {
+-        Wobble { x: 0.0, z: 0.0, vx: 0.0, vz: 0.0, wx: 0.0, wz: 0.0, prev: Quat::IDENTITY, phase: 0.0, step: i32::MIN, seed: 0.0, nudge_t: 0.5, nudges: 0 }
++        Wobble { x: 0.0, z: 0.0, vx: 0.0, vz: 0.0, wx: 0.0, wz: 0.0, prev: Quat::IDENTITY, phase: 0.0, held_speed: 0.0, ready: false, seed: 0.0 }
+     }
+ }
+ 
+@@ -140,6 +138,9 @@
+     puddle: Handle<Mesh>,
+     puddle_mat: Handle<StandardMaterial>,
+ }
++
++#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
++pub(crate) struct HeldViewSet;
+ 
+ pub struct ItemsViewPlugin;
+ 
+@@ -151,7 +152,7 @@
+                 Update,
+                 (
+                     sync_items,
+-                    sync_viewmodel,
++                    sync_viewmodel.in_set(HeldViewSet),
+                     sync_puddles,
+                     draw_trajectory,
+                     attach_wobble,
+@@ -654,9 +655,8 @@
+     }
+ }
+ 
+-/// The browser's `updateWobble`: each floppy item is a damped spring driven by how fast whoever
+-/// holds it swings it, so the tip lags on the wind-up and whips through on the slap. Every
+-/// footstep flicks it, a thrown one shakes, and a held one droops.
++/// Damped flex follows turns and gait; a held tip lags behind the grip, then
++/// settles after stopping. Throws keep their separate impact/airflow response.
+ fn wobble_items(
+     time: Res<Time>,
+     mut roots: Query<(&FloppyChain, &mut Wobble, &FlopDrive, &GlobalTransform)>,
+@@ -685,56 +685,33 @@
+         let angle = if angle > std::f32::consts::PI { angle - std::f32::consts::TAU } else { angle };
+         let omega = q.inverse() * (axis * (angle / dt));
+         let (mut wx, mut wz) = (omega.x, omega.z);
+-        if angle.abs() > 1.4 || !omega.is_finite() {
++        if !w.ready || angle.abs() > 1.4 || !omega.is_finite() {
+             wx = 0.0;
+             wz = 0.0;
+             w.wx = 0.0;
+             w.wz = 0.0;
+         }
+         w.prev = q;
++        w.ready = true;
+         wx = wx.clamp(-30.0, 30.0);
+         wz = wz.clamp(-30.0, 30.0);
+-        let g = 0.5;
++        let held = drive.mode == FlopMode::Held;
++        // Filter mouse/camera impulses before feeding the spring. Grip motion should
++        // lead the tip, without a one-frame turn producing an oversized whip.
++        if held {
++            let blend = 1.0 - (-14.0 * dt).exp();
++            wx = w.wx + (wx - w.wx) * blend;
++            wz = w.wz + (wz - w.wz) * blend;
++        }
++        let g = if held { 0.24 } else { 0.5 };
+         w.vx -= (wx - w.wx) * g;
+         w.vz -= (wz - w.wz) * g;
+         w.wx = wx;
+         w.wz = wz;
+-        let held = drive.mode == FlopMode::Held;
+         if held {
+-            let sp = drive.speed;
+-            w.phase += sp * dt * 2.4;
+-            let ph = w.phase;
+-            w.vx += (ph * 2.0).cos() * (sp / 5.0).min(1.0) * dt * 9.0;
+-            w.vz += ph.sin() * (sp / 5.0).min(1.0) * dt * 5.0;
+-            // every footstep while running gives it a little flop, side to side. No two are quite
+-            // alike (Marcus, 6 Oct 2026): each step is a bit harder or softer, now and then it
+-            // goes the other way, and now and then it is a big one
+-            let step = (ph / std::f32::consts::PI).floor() as i32;
+-            if w.step != step {
+-                let f = if sp > 1.5 { (sp / 6.0).min(1.3) } else { 0.0 };
+-                if f > 0.0 && w.step != i32::MIN {
+-                    let seed = w.seed;
+-                    let r = |k: u32| rand01(step, seed, k);
+-                    let big = if r(4) > 0.9 { 1.5 } else { 1.0 };
+-                    let amp = (0.55 + 0.9 * r(0)) * big;
+-                    let side = if (step % 2 != 0) != (r(1) < 0.2) { 1.0 } else { -1.0 };
+-                    w.vx -= 1.4 * f * d.step * amp * (0.7 + 0.6 * r(2));
+-                    w.vz += side * 0.8 * f * d.step * 1.5 * amp * (0.6 + 0.8 * r(3));
+-                }
+-                w.step = step;
+-            }
+-            // and every second or so a small nudge from nowhere, even standing still, so it is
+-            // never frozen: a shift of the hand, a bit of wind
+-            w.nudge_t -= dt;
+-            if w.nudge_t <= 0.0 {
+-                w.nudges = w.nudges.wrapping_add(1);
+-                let (n, seed) = (w.nudges as i32, w.seed + 31.0);
+-                let r = |k: u32| rand01(n, seed, k);
+-                w.nudge_t = 0.7 + 1.8 * r(0);
+-                let scale = if drive.mine { 0.8 } else { 0.5 };
+-                w.vx += (r(1) - 0.5) * 2.2 * scale;
+-                w.vz += (r(2) - 0.5) * 3.0 * scale;
+-            }
++            advance_held_drive(&mut w, drive.speed, dt, d.step);
++        } else {
++            w.held_speed = 0.0;
+         }
+         if drive.impact > 0.0 {
+             w.vx -= drive.impact * 0.45;
+@@ -747,24 +724,17 @@
+             w.vx += (t * 11.0 + w.seed).sin() * dt * 5.0 * air;
+             w.vz += (t * 9.0 + w.seed).cos() * dt * 3.0 * air;
+         }
+-        let n = (dt * 120.0).ceil().max(1.0) as u32;
+-        let hd = dt / n as f32;
+-        let damping=if drive.mode==FlopMode::Ground { d.c*3.0 } else { d.c };
+-        for _ in 0..n {
+-            w.vx += (-d.k * w.x - damping * w.vx) * hd;
+-            w.vz += (-d.k * w.z - damping * w.vz) * hd;
+-            w.x += w.vx * hd;
+-            w.z += w.vz * hd;
+-        }
+-        w.x = w.x.clamp(-d.limit, d.limit);
+-        w.z = w.z.clamp(-d.limit, d.limit);
++        let damping = if drive.mode == FlopMode::Ground { d.c * 3.0 }
++            else if held { d.c + 2.0 } else { d.c };
++        let limit = if held { if d.k < 90.0 { 0.38 } else { 0.30 } } else { d.limit };
++        integrate_wobble(&mut w, d.k, damping, limit, dt);
+         if drive.mode==FlopMode::Ground {
+             // The ground supports the chain: settle in the surface plane, not through it.
+             w.z=0.0; w.vz=0.0;
+             w.x=w.x.clamp(-0.22,0.22);
+         }
+         let dr = if held {
+-            (d.droop + 0.02 * (t * 2.1 + w.seed).sin() + 0.03 * (t * 0.55 + w.seed * 1.7).sin()) * if drive.mine { -0.6 } else { 1.0 }
++            (d.droop + 0.006 * (t * 2.1 + w.seed).sin() + 0.009 * (t * 0.55 + w.seed * 1.7).sin()) * if drive.mine { -0.6 } else { 1.0 }
+         } else {
+             0.0
+         };
+@@ -783,6 +753,36 @@
+     }
+ }
+ 
++/// Continuous gait plus a small start/stop response. No random impulse while idle.
++fn advance_held_drive(w: &mut Wobble, speed: f32, dt: f32, weight: f32) {
++    let previous = w.held_speed;
++    w.held_speed += (speed.clamp(0.0, 12.0) - previous) * (1.0 - (-10.0 * dt).exp());
++    let amount = (w.held_speed / 7.0).min(1.2);
++    if w.held_speed > 0.05 {
++        w.phase = (w.phase + (6.0 + w.held_speed * 0.7) * dt) % std::f32::consts::TAU;
++    }
++    let variation = 0.94 + 0.12 * rand01(0, w.seed, 0);
++    w.vx -= (w.held_speed - previous) * 0.20;
++    w.vx += (w.phase * 2.0).cos() * amount * dt * 4.0 * weight * variation;
++    w.vz += w.phase.sin() * amount * dt * 3.0 * variation;
++}
++
++fn integrate_wobble(w: &mut Wobble, stiffness: f32, damping: f32, limit: f32, dt: f32) {
++    let n = (dt * 120.0).ceil().max(1.0) as u32;
++    let hd = dt / n as f32;
++    for _ in 0..n {
++        w.vx += (-stiffness * w.x - damping * w.vx) * hd;
++        w.vz += (-stiffness * w.z - damping * w.vz) * hd;
++        w.x += w.vx * hd;
++        w.z += w.vz * hd;
++    }
++    w.x = w.x.clamp(-limit, limit);
++    w.z = w.z.clamp(-limit, limit);
++    // Discard outward energy at the stop rather than accumulating it behind a clamp.
++    if w.x.abs() >= limit && w.x * w.vx > 0.0 { w.vx = 0.0; }
++    if w.z.abs() >= limit && w.z * w.vz > 0.0 { w.vz = 0.0; }
++}
++
+ /// A repeatable pseudo-random number between 0 and 1 from a few numbers (the step, the item's
+ /// own seed, which question is being asked).
+ fn rand01(a: i32, seed: f32, k: u32) -> f32 {
+@@ -813,6 +813,43 @@
+     }
+ 
+     #[test]
++    fn held_running_is_bounded_and_decays_after_stopping() {
++        for kind in [ItemKind::Dildo, ItemKind::Noodle] {
++            let d = bbq_core::looks::floppy(kind).unwrap();
++            let mut peaks = Vec::new();
++            for hz in [30, 60, 120] {
++                let dt = 1.0 / hz as f32;
++                let mut w = Wobble::default();
++                let mut peak = 0.0_f32;
++                for frame in 0..hz * 7 {
++                    let speed = if frame < hz * 3 { 8.0 } else { 0.0 };
++                    advance_held_drive(&mut w, speed, dt, d.step);
++                    integrate_wobble(&mut w, d.k, d.c + 2.0, 0.38, dt);
++                    assert!(w.x.is_finite() && w.z.is_finite());
++                    peak = peak.max(w.x.abs()).max(w.z.abs());
++                }
++                assert!(peak > 0.02 && peak < 0.25, "{kind:?} {hz} Hz peak {peak}");
++                assert!(w.x.abs() + w.z.abs() < 0.001);
++                assert!(w.vx.abs() + w.vz.abs() < 0.01);
++                peaks.push(peak);
++            }
++            assert!(peaks.iter().copied().fold(0.0_f32, f32::max)
++                - peaks.iter().copied().fold(f32::INFINITY, f32::min) < 0.035);
++        }
++    }
++
++    #[test]
++    fn held_idle_has_no_random_kicks_and_limits_release_outward_energy() {
++        let mut w = Wobble::default();
++        for _ in 0..600 { advance_held_drive(&mut w, 0.0, 1.0/60.0, 1.8); }
++        assert_eq!((w.vx,w.vz), (0.0,0.0));
++        w.x = 0.5; w.vx = 20.0;
++        integrate_wobble(&mut w, 65.0, 6.5, 0.38, 1.0/60.0);
++        assert_eq!(w.x, 0.38);
++        assert_eq!(w.vx, 0.0);
++    }
++
++    #[test]
+     fn the_random_numbers_are_even_and_repeatable() {
+         assert_eq!(rand01(7, 3.0, 1), rand01(7, 3.0, 1));
+         assert_ne!(rand01(7, 3.0, 1), rand01(8, 3.0, 1));
+--- a/rust/crates/bbq_app/src/visual_review.rs
++++ b/rust/crates/bbq_app/src/visual_review.rs
+@@ -17,6 +17,7 @@
+         .init_resource::<ReviewTiming>()
+         .add_systems(Startup, configure_window)
+         .add_systems(PreUpdate, motion_fixture)
++        .add_systems(Update, held_fixture.before(crate::items_view::HeldViewSet).before(crate::player::update_camera))
+         .add_systems(Last, capture);
+     }
+ }
+@@ -123,12 +124,19 @@
+     static MODE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+     MODE.get_or_init(|| {
+         let a: Vec<String> = std::env::args().collect();
+-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw"].contains(&v.as_str())).cloned()
++        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber"].contains(&v.as_str())).cloned()
+     }).as_deref()
+ }
+ 
+ fn motion_fixture(mut game: ResMut<crate::game::Game>, mut frame: Local<u32>) {
+     let Some(mode) = motion_mode() else { return };
++    if mode.starts_with("held-") {
++        game.dummies.clear();
++        game.world.items.retain(|id, _| *id == 900001);
++        game.life.dazza.state = bbq_core::dazza::DazzaState::Ko;
++        game.life.dazza.pos = bbq_core::vec::V3::new(1000.0,0.0,1000.0);
++        return;
++    }
+     *frame += 1;
+     let g = &mut *game;
+     g.dummies.clear();
+@@ -153,3 +161,30 @@
+         }
+     }
+ }
++
++// Controlled first-person input playback. The camera remains in one location so
++// shape and spring behaviour are easy to compare; speed/turn inputs are staged.
++fn held_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut frame: Local<u32>) {
++    let Some(mode) = motion_mode().filter(|m| m.starts_with("held-")) else { return; };
++    *frame += 1;
++    let t = (*frame as f32 - 180.0) / 60.0;
++    use bbq_core::{flight::{Item,ItemState},items::ItemKind,vec::V3};
++    if *frame == 120 {
++        let kind = if mode == "held-noodle" { ItemKind::Noodle } else { ItemKind::Dildo };
++        let mut item = Item::new(900001,kind,V3::ZERO);
++        item.state = ItemState::Held;
++        item.holder = Some(crate::player::PLAYER_ID);
++        game.world.items.insert(item.id,item);
++        game.slots.clear();
++        game.slots.add(900001);
++    }
++    let speed = if t < 0.5 { 0.0 } else if t < 1.5 { 3.0 } else if t < 3.0 { 8.0 } else { 0.0 };
++    player.mover.vx = 0.0;
++    player.mover.vz = -speed;
++    player.mover.grounded = true;
++    player.mover.x = 0.0; player.mover.y = 0.0; player.mover.z = 14.0;
++    player.prev = Vec3::new(0.0,0.0,14.0);
++    player.walk += speed / 60.0 * 2.4;
++    player.yaw = if (1.5..3.0).contains(&t) { ((t-1.5)*std::f32::consts::TAU/1.5).sin()*0.3 } else { 0.0 };
++    player.pitch = -0.12;
++}
+--- a/rust/crates/bbq_app/src/player.rs
++++ b/rust/crates/bbq_app/src/player.rs
+@@ -418,7 +418,7 @@
+         String::new()
+     };
+     text.0 = format!(
+-        "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw (tap = slap), RMB catch, Q/E/wheel swap, R bar/meat/chest/smoko/help up, F grab someone who's down (tap put down, hold chuck), T taunt, H dance, B laugh, G drop what you're holding\n\
++        "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw (tap = slap), RMB catch, Q change weapon (E/wheel also swap), R bar/meat/chest/smoko/help up, F grab someone who's down (tap put down, hold chuck), T taunt, H dance, B laugh, G drop what you're holding\n\
+          F1-F4 features, F5 falls, F6 Drunk mode, F7 Cheeky mode ({}), F8 Naughty Corner ({}), F9 character ({}), F10 bots ({}), F11 bot level ({:?}) | viewer: J/K/L slapped, N stacked it, M emote, Y drunk, C crown, V sash, X stink, P +30 drunk\n\
+          SCORE {} | hits {} | taken {} | catches {} | streak {} | holding: {holding}{charge}\n\
+          pos {:.1}, {:.1}, {:.1} | speed {:.1} m/s | {boost} | FOV {:.0} | {pool}{tramp}{fps:.0} fps\n{}",
+--- a/rust/crates/bbq_app/src/menu.rs
++++ b/rust/crates/bbq_app/src/menu.rs
+@@ -1037,7 +1037,7 @@
+                 ("Right click", "Catch"),
+                 ("R", "Drink, grab, smoko, help up (hold)"),
+                 ("F", "Grab someone who's down and drag them, tap again to let go, hold to throw them"),
+-                ("Q", "Swap item"),
++                ("Q", "Change weapon"),
+                 ("T H B", "Taunt, dance, laugh"),
+                 ("G", "Throw away what you are holding"),
+                 ("Esc", "Pause"),
+--- a/rust/crates/bbq_app/src/hud.rs
++++ b/rust/crates/bbq_app/src/hud.rs
+@@ -446,6 +446,7 @@
+                 cd_chip(c, "Space", "Jump", None);
+                 cd_chip(c, "Shift", "Boost", Some(Cd::Boost));
+                 cd_chip(c, "Right click", "Catch", Some(Cd::Catch));
++                cd_chip(c, "Q", "Change weapon", None);
+             });
+             // item slots, bottom right
+             root.spawn(Node {
+--- /dev/null
++++ b/rust/tools/held_motion_review.py
+@@ -0,0 +1,16 @@
++#!/usr/bin/env python3
++"""Capture staged first-person idle/walk/run/turn/stop input, plus separate performance."""
++import argparse,os,subprocess
++from pathlib import Path
++root=Path(__file__).resolve().parents[2]
++p=argparse.ArgumentParser(description=__doc__);p.add_argument('--label',required=True);p.add_argument('--binary',type=Path,default=root/'rust/target/release/bbq_app');a=p.parse_args()
++out=root/'checkpoints/2026-10-14-held-motion/evidence'
++env=os.environ.copy();env.update(BEVY_ASSET_ROOT=str(root/'rust/crates/bbq_app'),RUST_LOG='warn')
++for name in ['held-noodle','held-rubber','stress']:
++    target=out/f'{a.label}-{name}.png'
++    extra=['--motion-review',name] if name!='stress' else ['--cam','0,5,20,0,-10,78','--mode','heist','--bots','11']
++    r=subprocess.run([str(a.binary.resolve()),'--shot',str(target),'--review','--big','--look','polished','--style','pop','--cheeky',*extra],cwd=root/'rust',env=env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=240)
++    target.with_suffix('.log').write_text(r.stdout)
++    expected=[out/f'{a.label}-{name}-{i:03}.png' for i in range(75)] if name!='stress' else [target.with_suffix('.metrics.txt')]
++    if r.returncode or 'ERROR' in r.stdout or not all(p.exists() for p in expected): raise SystemExit(f'Capture failed: {target.with_suffix(".log")}')
++    print('Saved',a.label,name,flush=True)
+--- /dev/null
++++ b/rust/tools/encode_held_motion.py
+@@ -0,0 +1,19 @@
++#!/usr/bin/env python3
++"""Encode captured first-person motion. Requires Pillow; no generated images."""
++import argparse
++from pathlib import Path
++from PIL import Image, ImageDraw
++p=argparse.ArgumentParser(description=__doc__);p.add_argument('--label',required=True);a=p.parse_args()
++out=Path(__file__).resolve().parents[2]/'checkpoints/2026-10-14-held-motion/evidence'
++for name in ['held-noodle','held-rubber']:
++    frames=[]
++    for i in range(75):
++        with Image.open(out/f'{a.label}-{name}-{i:03}.png') as source:
++            frame=source.convert('RGB');frame.thumbnail((960,600));frames.append(frame)
++    frames[0].save(out/f'{a.label}-{name}.webp',save_all=True,append_images=frames[1:],duration=[67,67,66]*25,loop=0,quality=85,method=4)
++    sheet=Image.new('RGB',(1440,960),'#14232c');draw=ImageDraw.Draw(sheet)
++    for j,i in enumerate([0,10,25,32,40,46,55,65,74]):
++        x=j%3*480;y=j//3*320
++        sheet.paste(frames[i].resize((480,300)),(x,y));draw.text((x+10,y+302),f'{i/15:.2f}s',fill='white')
++    sheet.save(out/f'{a.label}-{name}-contact.jpg')
++    print('Encoded',a.label,name)

@@ -1,0 +1,105 @@
+--- a/rust/crates/bbq_app/src/items_view.rs
++++ b/rust/crates/bbq_app/src/items_view.rs
+@@ -703,7 +703,7 @@
+             wx = w.wx + (wx - w.wx) * blend;
+             wz = w.wz + (wz - w.wz) * blend;
+         }
+-        let g = if held { 0.24 } else { 0.5 };
++        let g = if held { 0.38 } else { 0.5 };
+         w.vx -= (wx - w.wx) * g;
+         w.vz -= (wz - w.wz) * g;
+         w.wx = wx;
+@@ -724,17 +724,19 @@
+             w.vx += (t * 11.0 + w.seed).sin() * dt * 5.0 * air;
+             w.vz += (t * 9.0 + w.seed).cos() * dt * 3.0 * air;
+         }
+-        let damping = if drive.mode == FlopMode::Ground { d.c * 3.0 }
+-            else if held { d.c + 2.0 } else { d.c };
+-        let limit = if held { if d.k < 90.0 { 0.38 } else { 0.30 } } else { d.limit };
+-        integrate_wobble(&mut w, d.k, damping, limit, dt);
++        let (stiffness, damping, limit) = if held {
++            held_response(d)
++        } else {
++            (d.k, if drive.mode == FlopMode::Ground { d.c * 3.0 } else { d.c }, d.limit)
++        };
++        integrate_wobble(&mut w, stiffness, damping, limit, dt);
+         if drive.mode==FlopMode::Ground {
+             // The ground supports the chain: settle in the surface plane, not through it.
+             w.z=0.0; w.vz=0.0;
+             w.x=w.x.clamp(-0.22,0.22);
+         }
+         let dr = if held {
+-            (d.droop + 0.006 * (t * 2.1 + w.seed).sin() + 0.009 * (t * 0.55 + w.seed * 1.7).sin()) * if drive.mine { -0.6 } else { 1.0 }
++            (d.droop * 1.12 + 0.006 * (t * 2.1 + w.seed).sin() + 0.009 * (t * 0.55 + w.seed * 1.7).sin()) * if drive.mine { -0.6 } else { 1.0 }
+         } else {
+             0.0
+         };
+@@ -753,7 +755,14 @@
+     }
+ }
+ 
+-/// Continuous gait plus a small start/stop response. No random impulse while idle.
++/// Held-only response; flight and ground springs keep their existing tuning.
++fn held_response(d: bbq_core::looks::Floppy) -> (f32, f32, f32) {
++    // Softer under the grip, with enough damping to settle after a comic rebound.
++    // Foam gets a wider bend; the rubber retains a firmer, heavier response.
++    (d.k * 0.68, d.c + 0.25, if d.k < 90.0 { 0.48 } else { 0.40 })
++}
++
++/// Continuous gait and comic start/stop recoil, without random idle kicks.
+ fn advance_held_drive(w: &mut Wobble, speed: f32, dt: f32, weight: f32) {
+     let previous = w.held_speed;
+     w.held_speed += (speed.clamp(0.0, 12.0) - previous) * (1.0 - (-10.0 * dt).exp());
+@@ -762,9 +771,9 @@
+         w.phase = (w.phase + (6.0 + w.held_speed * 0.7) * dt) % std::f32::consts::TAU;
+     }
+     let variation = 0.94 + 0.12 * rand01(0, w.seed, 0);
+-    w.vx -= (w.held_speed - previous) * 0.20;
+-    w.vx += (w.phase * 2.0).cos() * amount * dt * 4.0 * weight * variation;
+-    w.vz += w.phase.sin() * amount * dt * 3.0 * variation;
++    w.vx -= (w.held_speed - previous) * 0.32;
++    w.vx += (w.phase * 2.0).cos() * amount * dt * 6.5 * weight * variation;
++    w.vz += w.phase.sin() * amount * dt * 5.0 * variation;
+ }
+ 
+ fn integrate_wobble(w: &mut Wobble, stiffness: f32, damping: f32, limit: f32, dt: f32) {
+@@ -824,7 +833,8 @@
+                 for frame in 0..hz * 7 {
+                     let speed = if frame < hz * 3 { 8.0 } else { 0.0 };
+                     advance_held_drive(&mut w, speed, dt, d.step);
+-                    integrate_wobble(&mut w, d.k, d.c + 2.0, 0.38, dt);
++                    let (k, c, limit) = held_response(d);
++                    integrate_wobble(&mut w, k, c, limit, dt);
+                     assert!(w.x.is_finite() && w.z.is_finite());
+                     peak = peak.max(w.x.abs()).max(w.z.abs());
+                 }
+--- a/rust/tools/held_motion_review.py
++++ b/rust/tools/held_motion_review.py
+@@ -3,10 +3,12 @@
+ import argparse,os,subprocess
+ from pathlib import Path
+ root=Path(__file__).resolve().parents[2]
+-p=argparse.ArgumentParser(description=__doc__);p.add_argument('--label',required=True);p.add_argument('--binary',type=Path,default=root/'rust/target/release/bbq_app');a=p.parse_args()
+-out=root/'checkpoints/2026-10-14-held-motion/evidence'
++p=argparse.ArgumentParser(description=__doc__);p.add_argument('--label',required=True);p.add_argument('--binary',type=Path,default=root/'rust/target/release/bbq_app');p.add_argument('--output-dir',type=Path);p.add_argument('--scene',choices=['held-noodle','held-rubber','stress']);a=p.parse_args()
++out=(a.output_dir or root/'checkpoints/2026-10-14-held-motion/evidence').resolve()
++out.mkdir(parents=True,exist_ok=True)
+ env=os.environ.copy();env.update(BEVY_ASSET_ROOT=str(root/'rust/crates/bbq_app'),RUST_LOG='warn')
+ for name in ['held-noodle','held-rubber','stress']:
++    if a.scene and a.scene != name: continue
+     target=out/f'{a.label}-{name}.png'
+     extra=['--motion-review',name] if name!='stress' else ['--cam','0,5,20,0,-10,78','--mode','heist','--bots','11']
+     r=subprocess.run([str(a.binary.resolve()),'--shot',str(target),'--review','--big','--look','polished','--style','pop','--cheeky',*extra],cwd=root/'rust',env=env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=240)
+--- a/rust/tools/encode_held_motion.py
++++ b/rust/tools/encode_held_motion.py
+@@ -3,8 +3,8 @@
+ import argparse
+ from pathlib import Path
+ from PIL import Image, ImageDraw
+-p=argparse.ArgumentParser(description=__doc__);p.add_argument('--label',required=True);a=p.parse_args()
+-out=Path(__file__).resolve().parents[2]/'checkpoints/2026-10-14-held-motion/evidence'
++p=argparse.ArgumentParser(description=__doc__);p.add_argument('--label',required=True);p.add_argument('--output-dir',type=Path);a=p.parse_args()
++out=a.output_dir or Path(__file__).resolve().parents[2]/'checkpoints/2026-10-14-held-motion/evidence'
+ for name in ['held-noodle','held-rubber']:
+     frames=[]
+     for i in range(75):

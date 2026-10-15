@@ -35,6 +35,31 @@ pub fn kind_name(k: ItemKind) -> &'static str {
 
 #[derive(Component)]
 struct ItemVisual(ItemId);
+
+/// Visual angular inertia only; the authoritative hit/catch sphere is unchanged.
+#[derive(Component)]
+struct ItemMotion {
+    ready: bool,
+    state: ItemState,
+    velocity: Vec3,
+    spin: f32,
+    axis: Vec3,
+    rest: Quat,
+}
+impl Default for ItemMotion {
+    fn default() -> Self { Self { ready:false, state:ItemState::Ground, velocity:Vec3::ZERO, spin:0.0, axis:Vec3::X, rest:Quat::IDENTITY } }
+}
+
+fn launch_spin(kind: ItemKind, speed: f32, scale: f32) -> f32 {
+    if kind == ItemKind::Noodle { (2.0 + speed * 0.22).min(7.0) }
+    else { ((3.0 + speed * 0.38) / scale.max(0.5).powf(1.4)).min(15.0) }
+}
+
+fn lie_along(rotation: Quat, fallback: Quat) -> Quat {
+    let shaft=rotation * Vec3::Y;
+    if shaft.x * shaft.x + shaft.z * shaft.z < 0.001 { return fallback; }
+    Quat::from_rotation_y(shaft.z.atan2(-shaft.x)) * Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)
+}
 #[derive(Component)]
 struct GlowRing(ItemId);
 #[derive(Component)]
@@ -59,6 +84,8 @@ pub enum FlopMode {
 #[derive(Component, Default)]
 pub struct FlopDrive {
     pub mode: FlopMode,
+    /// Collision-induced velocity change, in m/s (visual spring impulse).
+    pub impact: f32,
     /// How fast the person holding it is walking.
     pub speed: f32,
     /// It is in your own hand (the droop hangs the other way, as in the browser).
@@ -76,11 +103,10 @@ pub struct Wobble {
     wz: f32,
     prev: Quat,
     phase: f32,
-    step: i32,
+    held_speed: f32,
+    bends: [Vec2; 7],
+    ready: bool,
     seed: f32,
-    /// Counts down to the next little random nudge (so the toy is never quite the same twice).
-    nudge_t: f32,
-    nudges: u32,
 }
 
 impl Wobble {
@@ -91,13 +117,13 @@ impl Wobble {
 
 impl FlopDrive {
     pub fn in_chest() -> Self {
-        FlopDrive { mode: FlopMode::Chest, speed: 0.0, mine: false }
+        FlopDrive { mode: FlopMode::Chest, ..default() }
     }
 }
 
 impl Default for Wobble {
     fn default() -> Self {
-        Wobble { x: 0.0, z: 0.0, vx: 0.0, vz: 0.0, wx: 0.0, wz: 0.0, prev: Quat::IDENTITY, phase: 0.0, step: i32::MIN, seed: 0.0, nudge_t: 0.5, nudges: 0 }
+        Wobble { x: 0.0, z: 0.0, vx: 0.0, vz: 0.0, wx: 0.0, wz: 0.0, prev: Quat::IDENTITY, phase: 0.0, held_speed: 0.0, bends: [Vec2::ZERO; 7], ready: false, seed: 0.0 }
     }
 }
 
@@ -114,6 +140,9 @@ struct Look {
     puddle_mat: Handle<StandardMaterial>,
 }
 
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct HeldViewSet;
+
 pub struct ItemsViewPlugin;
 
 impl Plugin for ItemsViewPlugin {
@@ -124,7 +153,7 @@ impl Plugin for ItemsViewPlugin {
                 Update,
                 (
                     sync_items,
-                    sync_viewmodel,
+                    sync_viewmodel.in_set(HeldViewSet),
                     sync_puddles,
                     draw_trajectory,
                     attach_wobble,
@@ -190,7 +219,7 @@ fn sync_items(
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
     time: Res<Time>,
-    mut q: Query<(&ItemVisual, &mut Transform, &mut Visibility), Without<GlowRing>>,
+    mut q: Query<(&ItemVisual, &mut Transform, &mut Visibility, &mut ItemMotion), Without<GlowRing>>,
     mut rings: Query<(&GlowRing, &mut Transform, &mut Visibility), Without<ItemVisual>>,
     mut drives: Query<&mut FlopDrive>,
 ) {
@@ -204,7 +233,7 @@ fn sync_items(
                 &mut mats,
                 Transform::from_xyz(it.pos.x, it.pos.y, it.pos.z),
             );
-            commands.entity(e).insert(ItemVisual(*id));
+            commands.entity(e).insert((ItemVisual(*id), ItemMotion::default()));
             // a Heist teddy carries a little flag in its team's colour
             if let Some(team) = it.team.and_then(crate::heist_app::team_of_index) {
                 let flag = cache.spawn_parts(
@@ -243,10 +272,25 @@ fn sync_items(
     }
 
     let t = time.elapsed_secs();
-    for (vis, mut tf, mut v) in &mut q {
+    for (vis, mut tf, mut v, mut motion) in &mut q {
         let Some(it) = game.world.items.get(&vis.0) else {
             continue;
         };
+        let dt=time.delta_secs().clamp(0.0001,0.05);
+        let velocity=Vec3::new(it.vel.x,it.vel.y,it.vel.z);
+        let impact=if motion.ready && motion.state==ItemState::Flying {
+            (velocity-motion.velocity+Vec3::Y * ITEM_GRAV * it.kind.def().grav * dt).length().clamp(0.0,12.0)
+        } else { 0.0 };
+        let changed=!motion.ready || motion.state!=it.state;
+        if changed && is_floppy(it.kind) {
+            if it.state==ItemState::Flying {
+                motion.spin=launch_spin(it.kind,velocity.length(),it.variant.map_or(1.0,|v| v.def().scale));
+                motion.axis=if velocity.x.hypot(velocity.z)>0.5 { Vec3::new(velocity.z,0.15*velocity.length(),-velocity.x).normalize() } else { Vec3::new(1.0,0.12,0.35).normalize() };
+            } else if it.state==ItemState::Ground {
+                motion.rest=if motion.ready { lie_along(tf.rotation,rest_rotation(it.kind,it.id)) } else { rest_rotation(it.kind,it.id) };
+                if !motion.ready { tf.rotation=motion.rest; }
+            }
+        } else if impact>1.5 { motion.spin *= if it.kind==ItemKind::Noodle { 0.3 } else { 0.5 }; }
         if let Some((e, _)) = shown.items.get(&vis.0)
             && let Ok(mut d) = drives.get_mut(*e)
         {
@@ -256,10 +300,12 @@ fn sync_items(
                 ItemState::Ground => FlopMode::Ground,
             };
             d.mine = false;
+            d.impact = if impact>1.5 { impact } else { 0.0 };
             d.speed = it
                 .holder
                 .and_then(|h| game.dummies.iter().find(|x| x.id == h))
                 .map_or(0.0, |x| if x.mover.grounded { x.mover.speed() } else { 0.0 });
+            if it.state==ItemState::Flying { d.speed=velocity.length(); }
         }
         match it.state {
             ItemState::Held => {
@@ -290,14 +336,24 @@ fn sync_items(
                 let spin = bbq_core::flight::spin_rate(it.kind, sp) * time.delta_secs();
                 let axis =
                     Vec3::new(1.0 + (vis.0 % 3) as f32, 0.3, 1.0 + (vis.0 % 5) as f32).normalize();
-                tf.rotate(Quat::from_axis_angle(axis, spin));
+                if is_floppy(it.kind) {
+                    motion.spin *= (-(if it.kind==ItemKind::Noodle { 0.65 } else { 0.14 }) * dt).exp();
+                    tf.rotate(Quat::from_axis_angle(motion.axis, motion.spin * dt));
+                    if !it.live && it.pos.y-it.ground_y<0.6 && it.vel.y<0.0 {
+                        let target=lie_along(tf.rotation,rest_rotation(it.kind,it.id));
+                        tf.rotation=tf.rotation.slerp(target,1.0-(-9.0*dt).exp());
+                    }
+                } else { tf.rotate(Quat::from_axis_angle(axis, spin)); }
             }
             ItemState::Ground => {
                 tf.scale = Vec3::ONE;
                 *v = Visibility::Inherited;
                 let floating =
                     it.ground_y < 0.1 && bbq_core::yard::in_pool_rect(it.pos.x, it.pos.z);
-                tf.rotation = rest_rotation(it.kind, it.id);
+                if is_floppy(it.kind) && !floating {
+                    tf.rotation=tf.rotation.slerp(motion.rest,1.0-(-14.0*dt).exp());
+                    if tf.rotation.angle_between(motion.rest)<0.003 { tf.rotation=motion.rest; }
+                } else { tf.rotation = rest_rotation(it.kind, it.id); }
                 if floating {
                     // bobbing on the water, as in the browser game
                     let y = bbq_core::yard::WATER_Y + 0.04 + (t * 2.0 + it.pos.x).sin() * 0.03;
@@ -315,9 +371,21 @@ fn sync_items(
                     );
                 } else {
                     tf.translation = Vec3::new(it.pos.x, it.pos.y, it.pos.z);
+                    if is_floppy(it.kind) {
+                        let scale=it.variant.map_or(1.0,|v| v.def().scale);
+                        let radius=if it.kind==ItemKind::Dildo { 0.20*scale } else { 0.08 };
+                        // Keep the long shaft above the support surface during the short
+                        // settling turn; variants use their own visual base radius.
+                        let shaft=tf.rotation * Vec3::Y;
+                        let length=if it.kind==ItemKind::Dildo { 1.05*scale } else { 2.0 };
+                        tf.translation.y=it.pos.y+radius-bbq_core::flight::rest_height(it.kind)+(-shaft.y).max(0.0)*length;
+                    }
                 }
             }
         }
+        motion.ready=true;
+        motion.state=it.state;
+        motion.velocity=velocity;
     }
     // Teddy Heist: your own team's teddies are not yours to take, so they do not glow
     let my_team = game.teams.get(crate::player::PLAYER_ID);
@@ -588,9 +656,8 @@ fn attach_wobble(
     }
 }
 
-/// The browser's `updateWobble`: each floppy item is a damped spring driven by how fast whoever
-/// holds it swings it, so the tip lags on the wind-up and whips through on the slap. Every
-/// footstep flicks it, a thrown one shakes, and a held one droops.
+/// Damped flex follows turns and gait; a held tip lags behind the grip, then
+/// settles after stopping. Throws keep their separate impact/airflow response.
 fn wobble_items(
     time: Res<Time>,
     mut roots: Query<(&FloppyChain, &mut Wobble, &FlopDrive, &GlobalTransform)>,
@@ -619,89 +686,128 @@ fn wobble_items(
         let angle = if angle > std::f32::consts::PI { angle - std::f32::consts::TAU } else { angle };
         let omega = q.inverse() * (axis * (angle / dt));
         let (mut wx, mut wz) = (omega.x, omega.z);
-        if angle.abs() > 1.4 || !omega.is_finite() {
+        if !w.ready || angle.abs() > 1.4 || !omega.is_finite() {
             wx = 0.0;
             wz = 0.0;
             w.wx = 0.0;
             w.wz = 0.0;
         }
         w.prev = q;
+        w.ready = true;
         wx = wx.clamp(-30.0, 30.0);
         wz = wz.clamp(-30.0, 30.0);
-        let g = 0.5;
+        let held = drive.mode == FlopMode::Held;
+        // Filter mouse/camera impulses before feeding the spring. Grip motion should
+        // lead the tip, without a one-frame turn producing an oversized whip.
+        if held {
+            let blend = 1.0 - (-14.0 * dt).exp();
+            wx = w.wx + (wx - w.wx) * blend;
+            wz = w.wz + (wz - w.wz) * blend;
+        }
+        let g = if held { 0.38 } else { 0.5 };
         w.vx -= (wx - w.wx) * g;
         w.vz -= (wz - w.wz) * g;
         w.wx = wx;
         w.wz = wz;
-        let held = drive.mode == FlopMode::Held;
         if held {
-            let sp = drive.speed;
-            w.phase += sp * dt * 2.4;
-            let ph = w.phase;
-            w.vx += (ph * 2.0).cos() * (sp / 5.0).min(1.0) * dt * 9.0;
-            w.vz += ph.sin() * (sp / 5.0).min(1.0) * dt * 5.0;
-            // every footstep while running gives it a little flop, side to side. No two are quite
-            // alike (Marcus, 6 Oct 2026): each step is a bit harder or softer, now and then it
-            // goes the other way, and now and then it is a big one
-            let step = (ph / std::f32::consts::PI).floor() as i32;
-            if w.step != step {
-                let f = if sp > 1.5 { (sp / 6.0).min(1.3) } else { 0.0 };
-                if f > 0.0 && w.step != i32::MIN {
-                    let seed = w.seed;
-                    let r = |k: u32| rand01(step, seed, k);
-                    let big = if r(4) > 0.9 { 1.5 } else { 1.0 };
-                    let amp = (0.55 + 0.9 * r(0)) * big;
-                    let side = if (step % 2 != 0) != (r(1) < 0.2) { 1.0 } else { -1.0 };
-                    w.vx -= 1.4 * f * d.step * amp * (0.7 + 0.6 * r(2));
-                    w.vz += side * 0.8 * f * d.step * 1.5 * amp * (0.6 + 0.8 * r(3));
-                }
-                w.step = step;
-            }
-            // and every second or so a small nudge from nowhere, even standing still, so it is
-            // never frozen: a shift of the hand, a bit of wind
-            w.nudge_t -= dt;
-            if w.nudge_t <= 0.0 {
-                w.nudges = w.nudges.wrapping_add(1);
-                let (n, seed) = (w.nudges as i32, w.seed + 31.0);
-                let r = |k: u32| rand01(n, seed, k);
-                w.nudge_t = 0.7 + 1.8 * r(0);
-                let scale = if drive.mine { 0.8 } else { 0.5 };
-                w.vx += (r(1) - 0.5) * 2.2 * scale;
-                w.vz += (r(2) - 0.5) * 3.0 * scale;
-            }
+            advance_held_drive(&mut w, drive.speed, dt, d.step);
+        } else {
+            w.held_speed = 0.0;
+        }
+        if drive.impact > 0.0 {
+            w.vx -= drive.impact * 0.45;
+            w.vz += drive.impact * 0.15;
         }
         if drive.mode == FlopMode::Flying {
-            w.vx += (t * 19.0 + w.seed).sin() * dt * 30.0;
-            w.vz += (t * 15.0).cos() * dt * 18.0;
+            // Airflow-driven flutter fades as the item slows; freefall does not
+            // continually pump energy into an otherwise unforced spring.
+            let air=(drive.speed/23.0).clamp(0.0,1.0);
+            w.vx += (t * 11.0 + w.seed).sin() * dt * 5.0 * air;
+            w.vz += (t * 9.0 + w.seed).cos() * dt * 3.0 * air;
         }
-        let n = 3;
-        let hd = dt / n as f32;
-        for _ in 0..n {
-            w.vx += (-d.k * w.x - d.c * w.vx) * hd;
-            w.vz += (-d.k * w.z - d.c * w.vz) * hd;
-            w.x += w.vx * hd;
-            w.z += w.vz * hd;
+        let (stiffness, damping, limit) = if held {
+            if chain.silicone { silicone_response(d) } else { held_response(d) }
+        } else {
+            (d.k, if drive.mode == FlopMode::Ground { d.c * 3.0 } else { d.c }, d.limit)
+        };
+        integrate_wobble(&mut w, stiffness, damping, limit, dt);
+        if drive.mode==FlopMode::Ground {
+            // The ground supports the chain: settle in the surface plane, not through it.
+            w.z=0.0; w.vz=0.0;
+            w.x=w.x.clamp(-0.22,0.22);
         }
-        w.x = w.x.clamp(-d.limit, d.limit);
-        w.z = w.z.clamp(-d.limit, d.limit);
         let dr = if held {
-            (d.droop + 0.02 * (t * 2.1 + w.seed).sin() + 0.03 * (t * 0.55 + w.seed * 1.7).sin()) * if drive.mine { -0.6 } else { 1.0 }
+            (d.droop * 1.12 + 0.006 * (t * 2.1 + w.seed).sin() + 0.009 * (t * 0.55 + w.seed * 1.7).sin()) * if drive.mine { -0.6 } else { 1.0 }
         } else {
             0.0
         };
         for (i, e) in chain.segs.iter().enumerate() {
             if let Ok(mut tf) = segs.get_mut(*e) {
-                let f = d.base + i as f32 * d.per_link;
+                let f = if chain.silicone { silicone_flex(i) } else { d.base + i as f32 * d.per_link };
                 let extra = if i > 0 { dr } else { 0.0 };
+                let mut bend = Vec2::new(w.x * f + extra, w.z * f + extra * 0.35);
+                if chain.silicone {
+                    // The grip stays put; successive sections take a little longer to follow.
+                    // Skin weights blend these joint poses into a continuous surface.
+                    let rate = 24.0 - i.min(6) as f32 * 2.5;
+                    w.bends[i] = w.bends[i].lerp(bend, 1.0 - (-rate * dt).exp());
+                    bend = w.bends[i];
+                }
                 tf.rotation = Quat::from_euler(
                     EulerRot::XYZ,
-                    w.x * f + extra,
+                    bend.x,
                     0.0,
-                    w.z * f + extra * 0.35,
+                    bend.y,
                 );
             }
         }
     }
+}
+
+fn silicone_response(d: bbq_core::looks::Floppy) -> (f32, f32, f32) {
+    (d.k * 0.48, d.c * 0.80, 0.42)
+}
+
+/// A stable grip with increasingly compliant shaft sections.
+fn silicone_flex(i: usize) -> f32 {
+    [0.0, 0.16, 0.34, 0.54, 0.75, 0.94, 1.10][i.min(6)]
+}
+
+/// Held-only response; flight and ground springs keep their existing tuning.
+fn held_response(d: bbq_core::looks::Floppy) -> (f32, f32, f32) {
+    // Softer under the grip, with enough damping to settle after a comic rebound.
+    // Foam gets a wider bend; the rubber retains a firmer, heavier response.
+    (d.k * 0.68, d.c + 0.25, if d.k < 90.0 { 0.48 } else { 0.40 })
+}
+
+/// Continuous gait and comic start/stop recoil, without random idle kicks.
+fn advance_held_drive(w: &mut Wobble, speed: f32, dt: f32, weight: f32) {
+    let previous = w.held_speed;
+    w.held_speed += (speed.clamp(0.0, 12.0) - previous) * (1.0 - (-10.0 * dt).exp());
+    let amount = (w.held_speed / 7.0).min(1.2);
+    if w.held_speed > 0.05 {
+        w.phase = (w.phase + (6.0 + w.held_speed * 0.7) * dt) % std::f32::consts::TAU;
+    }
+    let variation = 0.94 + 0.12 * rand01(0, w.seed, 0);
+    w.vx -= (w.held_speed - previous) * 0.32;
+    w.vx += (w.phase * 2.0).cos() * amount * dt * 6.5 * weight * variation;
+    w.vz += w.phase.sin() * amount * dt * 5.0 * variation;
+}
+
+fn integrate_wobble(w: &mut Wobble, stiffness: f32, damping: f32, limit: f32, dt: f32) {
+    let n = (dt * 120.0).ceil().max(1.0) as u32;
+    let hd = dt / n as f32;
+    for _ in 0..n {
+        w.vx += (-stiffness * w.x - damping * w.vx) * hd;
+        w.vz += (-stiffness * w.z - damping * w.vz) * hd;
+        w.x += w.vx * hd;
+        w.z += w.vz * hd;
+    }
+    w.x = w.x.clamp(-limit, limit);
+    w.z = w.z.clamp(-limit, limit);
+    // Discard outward energy at the stop rather than accumulating it behind a clamp.
+    if w.x.abs() >= limit && w.x * w.vx > 0.0 { w.vx = 0.0; }
+    if w.z.abs() >= limit && w.z * w.vz > 0.0 { w.vz = 0.0; }
 }
 
 /// A repeatable pseudo-random number between 0 and 1 from a few numbers (the step, the item's
@@ -719,6 +825,78 @@ fn rand01(a: i32, seed: f32, k: u32) -> f32 {
 #[cfg(test)]
 mod flop_tests {
     use super::*;
+
+    #[test]
+    fn large_rubber_items_tumble_slower_and_rest_preserves_heading() {
+        assert!(launch_spin(ItemKind::Dildo,20.0,1.38)<launch_spin(ItemKind::Dildo,20.0,0.66));
+        assert!(launch_spin(ItemKind::Noodle,20.0,1.0)<launch_spin(ItemKind::Dildo,20.0,1.0));
+        for a in [0.0,0.5,1.2,2.5] {
+            let q=Quat::from_euler(EulerRot::XYZ,a,0.4,0.8);
+            let flat=lie_along(q,Quat::IDENTITY)*Vec3::Y;
+            let previous=q*Vec3::Y;
+            assert!(flat.y.abs()<1e-5);
+            assert!(Vec2::new(flat.x,flat.z).normalize().dot(Vec2::new(previous.x,previous.z).normalize())>0.999);
+        }
+    }
+
+    #[test]
+    fn held_running_is_bounded_and_decays_after_stopping() {
+        for kind in [ItemKind::Dildo, ItemKind::Noodle] {
+            let d = bbq_core::looks::floppy(kind).unwrap();
+            let mut peaks = Vec::new();
+            for hz in [30, 60, 120] {
+                let dt = 1.0 / hz as f32;
+                let mut w = Wobble::default();
+                let mut peak = 0.0_f32;
+                for frame in 0..hz * 7 {
+                    let speed = if frame < hz * 3 { 8.0 } else { 0.0 };
+                    advance_held_drive(&mut w, speed, dt, d.step);
+                    let (k, c, limit) = held_response(d);
+                    integrate_wobble(&mut w, k, c, limit, dt);
+                    assert!(w.x.is_finite() && w.z.is_finite());
+                    peak = peak.max(w.x.abs()).max(w.z.abs());
+                }
+                assert!(peak > 0.02 && peak < 0.25, "{kind:?} {hz} Hz peak {peak}");
+                assert!(w.x.abs() + w.z.abs() < 0.001);
+                assert!(w.vx.abs() + w.vz.abs() < 0.01);
+                peaks.push(peak);
+            }
+            assert!(peaks.iter().copied().fold(0.0_f32, f32::max)
+                - peaks.iter().copied().fold(f32::INFINITY, f32::min) < 0.035);
+        }
+    }
+
+    #[test]
+    fn silicone_has_a_firm_grip_and_settles_at_multiple_frame_rates() {
+        assert_eq!(silicone_flex(0), 0.0);
+        assert!((1..7).all(|i| silicone_flex(i) > silicone_flex(i-1)));
+        let d = bbq_core::looks::floppy(ItemKind::Dildo).unwrap();
+        let (k,c,limit) = silicone_response(d);
+        for hz in [30,60,120] {
+            let dt=1.0/hz as f32; let mut w=Wobble::default();
+            let mut peak=0.0_f32;
+            for frame in 0..hz*8 {
+                advance_held_drive(&mut w, if frame<hz*3 {8.0} else {0.0}, dt, d.step);
+                integrate_wobble(&mut w,k,c,limit,dt);
+                peak=peak.max(w.x.abs()).max(w.z.abs());
+                assert!(w.x.is_finite() && w.z.is_finite());
+            }
+            assert!(peak>0.03 && peak<0.3,"{hz} Hz: {peak}");
+            assert!(w.x.abs()+w.z.abs()<0.001);
+            assert!(w.vx.abs()+w.vz.abs()<0.01);
+        }
+    }
+
+    #[test]
+    fn held_idle_has_no_random_kicks_and_limits_release_outward_energy() {
+        let mut w = Wobble::default();
+        for _ in 0..600 { advance_held_drive(&mut w, 0.0, 1.0/60.0, 1.8); }
+        assert_eq!((w.vx,w.vz), (0.0,0.0));
+        w.x = 0.5; w.vx = 20.0;
+        integrate_wobble(&mut w, 65.0, 6.5, 0.38, 1.0/60.0);
+        assert_eq!(w.x, 0.38);
+        assert_eq!(w.vx, 0.0);
+    }
 
     #[test]
     fn the_random_numbers_are_even_and_repeatable() {

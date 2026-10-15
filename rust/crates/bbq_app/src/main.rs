@@ -14,6 +14,7 @@ mod characters;
 mod decals;
 mod dirt;
 mod face;
+mod face_meshes;
 mod fx;
 mod game;
 mod gamepad;
@@ -35,8 +36,10 @@ mod online_world;
 mod results;
 mod round;
 mod shapes;
+mod silicone;
 mod shirt;
 mod shot;
+mod visual_review;
 mod style;
 mod ui;
 mod yard_scene;
@@ -119,6 +122,9 @@ fn main() {
     app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin, online::OnlinePlugin, face::FacePlugin, lobby::LobbyPlugin, legs::LegsPlugin, shirt::ShirtPlugin));
     if let Some(cfg) = shot {
         app.add_plugins(shot::ShotPlugin(cfg));
+        if args.iter().any(|a| a == "--review") {
+            app.add_plugins(visual_review::VisualReviewPlugin);
+        }
     }
     app.run();
 }

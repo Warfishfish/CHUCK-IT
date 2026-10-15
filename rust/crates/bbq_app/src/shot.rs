@@ -268,7 +268,7 @@ fn shot_camera(
         let a = d.face + side;
         let (dx, dz) = (a.sin(), a.cos());
         let (dist, y, fov) = if head {
-            (4.2, 1.45 + d.mover.y, 22.0f32)
+            (5.5, 1.62 + d.mover.y, 22.0f32)
         } else if wide {
             (7.5, 1.0 + d.mover.y, 36.0)
         } else if far {
@@ -360,6 +360,10 @@ fn take_shot(
     drawn: Query<(), With<Mesh3d>>,
 ) {
     *frame += 1;
+    // The review harness owns capture and exit timing for its longer measurement runs.
+    if std::env::args().any(|a| a == "--review") {
+        return;
+    }
     // `--stats`: how many meshes, materials and drawn parts there are (for measuring cuts)
     if *frame == 100 && std::env::args().any(|a| a == "--stats") {
         println!(

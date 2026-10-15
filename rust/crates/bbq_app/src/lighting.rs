@@ -59,14 +59,15 @@ impl LookMode {
             },
             // warm hard sun, cooler and a little dimmer sky fill, dry dusty ground bounce
             LookMode::Polished => match crate::style::current() {
-                // pop: vivid colours with clay's strong, low, golden sun, cool shade and warm bounce
+                // Pop: warm afternoon key with cool fill. Keep sky channels above ground
+                // channels so the hemisphere approximation never creates negative light.
                 crate::style::Style::Pop => Rig {
-                    sky: 0x9db4e0,
-                    ground: 0xb8864c,
-                    hemi: 0.38,
-                    sun: 0xffb868,
-                    sun_intensity: 1.42,
-                    grade: Grade { saturation: 1.2, warmth: 0.10, contrast: 1.12, vignette: 0.32 },
+                    sky: 0xb5d2ef,
+                    ground: 0x929791,
+                    hemi: 0.56,
+                    sun: 0xffd8a5,
+                    sun_intensity: 1.08,
+                    grade: Grade { saturation: 1.12, warmth: 0.03, contrast: 1.045, vignette: 0.14 },
                 },
                 // clay: a strong, low, golden sun with a cool blue shade and warm bounce light
                 crate::style::Style::Clay => Rig {
@@ -293,11 +294,62 @@ pub fn post_fx() -> impl Bundle {
     (
         Msaa::Off,
         Smaa::default(),
+        bevy::light::ShadowFilteringMethod::Gaussian,
         ScreenSpaceAmbientOcclusion {
             quality_level: ScreenSpaceAmbientOcclusionQualityLevel::High,
             constant_object_thickness: 0.25,
         },
     )
+}
+
+/// A texture-free sky gradient for the polished Pop lighting. A single unlit draw,
+/// no shadows or reflections; keep it centred on the eye so walking never reaches it.
+#[derive(Component)]
+pub struct AfternoonSky;
+
+pub fn spawn_afternoon_sky(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+) {
+    use bevy::mesh::VertexAttributeValues;
+    let mut mesh = Sphere::new(180.0).mesh().uv(48, 24);
+    if let Some(VertexAttributeValues::Float32x3(positions)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
+        let colours: Vec<[f32; 4]> = positions.iter().map(|p| {
+            let height = (p[1] / 180.0).max(0.0);
+            let t = (height / 0.7).clamp(0.0, 1.0).sqrt();
+            let horizon = Vec3::new(0.60, 0.80, 0.96);
+            let zenith = Vec3::new(0.20, 0.46, 0.84);
+            let c = horizon.lerp(zenith, t);
+            [c.x, c.y, c.z, 1.0]
+        }).collect();
+        mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colours);
+    }
+    commands.spawn((
+        AfternoonSky,
+        Mesh3d(meshes.add(mesh)),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::WHITE,
+            unlit: true,
+            fog_enabled: false,
+            cull_mode: Some(bevy::render::render_resource::Face::Front),
+            ..default()
+        })),
+        bevy::light::NotShadowCaster,
+        bevy::light::NotShadowReceiver,
+        Transform::default(),
+    ));
+}
+
+pub fn follow_sky(
+    camera: Query<&Transform, (With<crate::player::EyeCamera>, Without<AfternoonSky>)>,
+    mut sky: Query<&mut Transform, With<AfternoonSky>>,
+) {
+    if let Ok(camera) = camera.single() {
+        for mut transform in &mut sky {
+            transform.translation = camera.translation;
+        }
+    }
 }
 
 /// A weak cool light from the opposite side of the sun (polished look): a rim light that

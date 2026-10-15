@@ -1,0 +1,132 @@
+{
+  "normal": {
+    "before": {
+      "samples": 600.0,
+      "mean_ms": 6.284,
+      "median_ms": 6.235,
+      "p95_ms": 7.411,
+      "mean_fps": 159.15,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2594.0,
+      "materials": 776.0,
+      "mesh_entities": 6166.0,
+      "image_cpu_bytes": 39784856.0
+    },
+    "after": {
+      "samples": 600.0,
+      "mean_ms": 6.439,
+      "median_ms": 6.169,
+      "p95_ms": 7.535,
+      "mean_fps": 155.31,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2594.0,
+      "materials": 777.0,
+      "mesh_entities": 6166.0,
+      "image_cpu_bytes": 39784856.0
+    }
+  },
+  "gumdrop": {
+    "before": {
+      "samples": 600.0,
+      "mean_ms": 6.429,
+      "median_ms": 6.361,
+      "p95_ms": 7.568,
+      "mean_fps": 155.54,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2594.0,
+      "materials": 776.0,
+      "mesh_entities": 6190.0,
+      "image_cpu_bytes": 39784856.0
+    },
+    "after": {
+      "samples": 600.0,
+      "mean_ms": 6.563,
+      "median_ms": 6.399,
+      "p95_ms": 7.631,
+      "mean_fps": 152.36,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2594.0,
+      "materials": 777.0,
+      "mesh_entities": 6190.0,
+      "image_cpu_bytes": 39784856.0
+    }
+  },
+  "yard": {
+    "before": {
+      "samples": 600.0,
+      "mean_ms": 7.289,
+      "median_ms": 7.206,
+      "p95_ms": 8.458,
+      "mean_fps": 137.2,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2594.0,
+      "materials": 777.0,
+      "mesh_entities": 6171.0,
+      "image_cpu_bytes": 39784856.0
+    },
+    "after": {
+      "samples": 600.0,
+      "mean_ms": 7.393,
+      "median_ms": 7.232,
+      "p95_ms": 8.669,
+      "mean_fps": 135.26,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2594.0,
+      "materials": 778.0,
+      "mesh_entities": 6171.0,
+      "image_cpu_bytes": 39784856.0
+    }
+  },
+  "stress": {
+    "before": {
+      "samples": 600.0,
+      "mean_ms": 7.847,
+      "median_ms": 7.766,
+      "p95_ms": 8.774,
+      "mean_fps": 127.43,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2897.0,
+      "materials": 911.0,
+      "mesh_entities": 7736.0,
+      "image_cpu_bytes": 42129816.0
+    },
+    "after": {
+      "samples": 600.0,
+      "mean_ms": 7.734,
+      "median_ms": 7.694,
+      "p95_ms": 8.534,
+      "mean_fps": 129.3,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2897.0,
+      "materials": 912.0,
+      "mesh_entities": 7736.0,
+      "image_cpu_bytes": 42129816.0
+    }
+  },
+  "current": {
+    "before": {
+      "samples": 600.0,
+      "mean_ms": 6.06,
+      "median_ms": 6.019,
+      "p95_ms": 7.061,
+      "mean_fps": 165.02,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2496.0,
+      "materials": 765.0,
+      "mesh_entities": 5474.0,
+      "image_cpu_bytes": 37338180.0
+    },
+    "after": {
+      "samples": 600.0,
+      "mean_ms": 6.13,
+      "median_ms": 6.082,
+      "p95_ms": 7.274,
+      "mean_fps": 163.14,
+      "frames_over_16_67ms": 0.0,
+      "meshes": 2496.0,
+      "materials": 765.0,
+      "mesh_entities": 5474.0,
+      "image_cpu_bytes": 37338180.0
+    }
+  }
+}

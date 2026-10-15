@@ -1,0 +1,1 @@
+Three-file delta applied to starting files in an isolated directory; all restored bytes match the implementation.

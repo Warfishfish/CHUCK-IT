@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CHUCK IT — Characters & expressions review</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f0e5;color:#193a30;font:16px/1.5 system-ui,sans-serif}main{max-width:1380px;padding:36px 28px 60px;margin:auto}.eyebrow{font-size:12px;letter-spacing:2px;font-weight:800;color:#65725b}h1{font-size:clamp(28px,4vw,48px);line-height:1.12;letter-spacing:-1.5px;margin:12px 0}p{max-width:780px;color:#526258}nav,.controls{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0 14px}button{font:inherit;border:1px solid #b8c0ad;border-radius:30px;padding:9px 18px;background:transparent;color:#193a30;cursor:pointer}button[aria-pressed=true]{background:#193a30;color:#fff;border-color:#193a30}button:focus-visible,input:focus-visible{outline:3px solid #cc9419;outline-offset:4px}.comparison{position:relative;aspect-ratio:1.6;background:#16382c;border-radius:16px;overflow:hidden;box-shadow:0 12px 35px #15312622;--split:50%}.comparison img{display:block;width:100%;height:100%;object-fit:contain}.comparison .before{position:absolute;inset:0;clip-path:inset(0 calc(100% - var(--split)) 0 0)}.divider{position:absolute;top:0;bottom:0;left:var(--split);width:2px;background:#fff;pointer-events:none}.label{position:absolute;top:16px;background:#123326dc;color:white;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:800;letter-spacing:1px}.left{left:16px}.right{right:16px}label{font-weight:600}input[type=range]{width:100%;accent-color:#193a30;margin:14px 0}.caption{font-size:13px;color:#617063}.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:24px;margin-top:32px;padding-top:24px;border-top:1px solid #ccd1c0}.notes h2{font-size:17px;margin:0}.notes p{font-size:14px;margin-top:8px}a{color:#195a48}footer{font-size:13px;margin-top:32px;color:#647265}table{border-collapse:collapse;font-size:14px;width:100%;margin-top:18px}td,th{text-align:left;border-bottom:1px solid #d7dbce;padding:9px}th{font-weight:700}.tag{display:inline-block;background:#e8ddb7;border-radius:6px;padding:3px 9px;font-size:12px;font-weight:700;margin-left:8px}
+</style>
+<main>
+<div class="eyebrow">AUSTRALIAN BBQ / CHUCK IT · 14 OCTOBER 2026</div>
+<h1>A face for every backyard moment.</h1>
+<p>Milestone 2: characters and expressions. Actual game captures with the same lighting, camera, and simulation frame. Expression portraits are staged using the real game renderer. <span class="tag">Awaiting review · Uncommitted</span></p>
+<nav aria-label="Choose character or expression"><button data-view="normal" aria-pressed="true">Smile</button><button data-view="grit" aria-pressed="false">Throw</button><button data-view="ouch" aria-pressed="false">Hurt</button><button data-view="sip" aria-pressed="false">Sip</button><button data-view="cheer" aria-pressed="false">Cheer</button><button data-view="pear" aria-pressed="false">Pear</button><button data-view="egg" aria-pressed="false">Egg</button><button data-view="gumdrop" aria-pressed="false">Gumdrop</button><button data-view="profile" aria-pressed="false">Side view</button><button data-view="none" aria-pressed="false">No face</button><button data-view="stress" aria-pressed="false">11-bot Heist</button></nav>
+<div class="comparison" id="comparison">
+<img id="after" src="evidence/after-normal.png" alt="Implemented smile">
+<img class="before" id="before" src="evidence/before-normal.png" alt="Previous smile">
+<div class="divider"></div><span class="label left">BEFORE</span><span class="label right">AFTER</span>
+</div>
+<div class="controls"><button id="allBefore">Show before</button><button id="split">Compare</button><button id="allAfter">Show after</button></div>
+<label for="slider">Slide to compare</label><input id="slider" type="range" min="0" max="100" value="50" aria-label="Amount of original image visible">
+<div class="caption">1280 × 800 · Fixed camera and 60 Hz simulation · Capture at frame 240. Moving particles can vary slightly.</div>
+<div class="notes">
+<section><h2>Smoother expressions</h2><p>Blender-built continuous mouths and brows replace the small overlapping beads. Throws show gritted teeth; hurt reactions have a wider open mouth; cheers show teeth and a tongue.</p></section>
+<section><h2>More life in the eyes</h2><p>Staggered blinks, a focused squint, wider surprised eyes and small warm highlights. An outline bug that drew unwanted rings around eyes has been corrected.</p></section>
+<section><h2>Your character stays yours</h2><p>Four existing body shapes and all customization choices remain, including no mouth or brows. The lighting milestone is preserved. This does not claim the finish of the concept art.</p></section>
+</div>
+<section id="performance"><h2>Performance check</h2><p id="performance-result"><strong>11-bot Heist: 127 FPS average, compared with 122 FPS before.</strong> Mean frame time decreased by 4.6%; P95 was 8.71 ms. The scene used 678 fewer mesh entities. These are short-run observations, not a guarantee for every match.</p><p><a href="PERFORMANCE.md">Measured results and limits</a>. Short 1280 × 800 tests on this M1 Pro, with compilation and screenshot readback excluded.</p></section>
+<footer><a href="CHECKPOINT.md">Recovery checkpoint</a> · <a href="evidence/after-normal.png">Open full after image</a> · <a href="evidence/before-normal.png">Open full before image</a><br>All changes remain in the working tree for Marcus’s review. No commit or push.</footer>
+</main>
+<script>
+const slider=document.querySelector('#slider'), comparison=document.querySelector('#comparison');
+function reveal(n){slider.value=n;comparison.style.setProperty('--split',n+'%');comparison.querySelector('.left').style.visibility=Number(n)>0?'visible':'hidden';comparison.querySelector('.right').style.visibility=Number(n)<100?'visible':'hidden';comparison.querySelector('.divider').style.visibility=Number(n)>0&&Number(n)<100?'visible':'hidden'}
+slider.addEventListener('input',()=>reveal(slider.value));
+document.querySelector('#allBefore').onclick=()=>reveal(100);
+document.querySelector('#allAfter').onclick=()=>reveal(0);
+document.querySelector('#split').onclick=()=>reveal(50);
+document.querySelectorAll('[data-view]').forEach(button=>button.onclick=()=>{
+ document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));
+ for(const side of ['before','after']){document.querySelector(`footer a[href^="evidence/${side}-"]`).href=`evidence/${side}-${button.dataset.view}.png`;const img=document.querySelector('#'+side);img.src=`evidence/${side}-${button.dataset.view}.png`;img.alt=`${side==='before'?'Original':'Implemented'} ${button.textContent.toLowerCase()} game capture`;}
+});
+</script>
+</html>

@@ -1,0 +1,115 @@
+--- a/rust/crates/bbq_app/src/items_view.rs
++++ b/rust/crates/bbq_app/src/items_view.rs
+@@ -141,6 +141,9 @@
+     puddle_mat: Handle<StandardMaterial>,
+ }
+ 
++#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
++pub(crate) struct HeldViewSet;
++
+ pub struct ItemsViewPlugin;
+ 
+ impl Plugin for ItemsViewPlugin {
+@@ -151,7 +154,7 @@
+                 Update,
+                 (
+                     sync_items,
+-                    sync_viewmodel,
++                    sync_viewmodel.in_set(HeldViewSet),
+                     sync_puddles,
+                     draw_trajectory,
+                     attach_wobble,
+--- a/rust/crates/bbq_app/src/visual_review.rs
++++ b/rust/crates/bbq_app/src/visual_review.rs
+@@ -17,6 +17,7 @@
+         .init_resource::<ReviewTiming>()
+         .add_systems(Startup, configure_window)
+         .add_systems(PreUpdate, motion_fixture)
++        .add_systems(Update, held_fixture.before(crate::items_view::HeldViewSet).before(crate::player::update_camera))
+         .add_systems(Last, capture);
+     }
+ }
+@@ -123,12 +124,19 @@
+     static MODE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+     MODE.get_or_init(|| {
+         let a: Vec<String> = std::env::args().collect();
+-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw"].contains(&v.as_str())).cloned()
++        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber"].contains(&v.as_str())).cloned()
+     }).as_deref()
+ }
+ 
+ fn motion_fixture(mut game: ResMut<crate::game::Game>, mut frame: Local<u32>) {
+     let Some(mode) = motion_mode() else { return };
++    if mode.starts_with("held-") {
++        game.dummies.clear();
++        game.world.items.retain(|id, _| *id == 900001);
++        game.life.dazza.state = bbq_core::dazza::DazzaState::Ko;
++        game.life.dazza.pos = bbq_core::vec::V3::new(1000.0,0.0,1000.0);
++        return;
++    }
+     *frame += 1;
+     let g = &mut *game;
+     g.dummies.clear();
+@@ -153,3 +161,30 @@
+         }
+     }
+ }
++
++// Controlled first-person input playback. The camera remains in one location so
++// shape and spring behaviour are easy to compare; speed/turn inputs are staged.
++fn held_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut frame: Local<u32>) {
++    let Some(mode) = motion_mode().filter(|m| m.starts_with("held-")) else { return; };
++    *frame += 1;
++    let t = (*frame as f32 - 180.0) / 60.0;
++    use bbq_core::{flight::{Item,ItemState},items::ItemKind,vec::V3};
++    if *frame == 120 {
++        let kind = if mode == "held-noodle" { ItemKind::Noodle } else { ItemKind::Dildo };
++        let mut item = Item::new(900001,kind,V3::ZERO);
++        item.state = ItemState::Held;
++        item.holder = Some(crate::player::PLAYER_ID);
++        game.world.items.insert(item.id,item);
++        game.slots.clear();
++        game.slots.add(900001);
++    }
++    let speed = if t < 0.5 { 0.0 } else if t < 1.5 { 3.0 } else if t < 3.0 { 8.0 } else { 0.0 };
++    player.mover.vx = 0.0;
++    player.mover.vz = -speed;
++    player.mover.grounded = true;
++    player.mover.x = 0.0; player.mover.y = 0.0; player.mover.z = 14.0;
++    player.prev = Vec3::new(0.0,0.0,14.0);
++    player.walk += speed / 60.0 * 2.4;
++    player.yaw = if (1.5..3.0).contains(&t) { ((t-1.5)*std::f32::consts::TAU/1.5).sin()*0.3 } else { 0.0 };
++    player.pitch = -0.12;
++}
+--- a/rust/crates/bbq_app/src/player.rs
++++ b/rust/crates/bbq_app/src/player.rs
+@@ -418,7 +418,7 @@
+         String::new()
+     };
+     text.0 = format!(
+-        "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw (tap = slap), RMB catch, Q/E/wheel swap, R bar/meat/chest/smoko/help up, F grab someone who's down (tap put down, hold chuck), T taunt, H dance, B laugh, G drop what you're holding\n\
++        "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw (tap = slap), RMB catch, Q change weapon (E/wheel also swap), R bar/meat/chest/smoko/help up, F grab someone who's down (tap put down, hold chuck), T taunt, H dance, B laugh, G drop what you're holding\n\
+          F1-F4 features, F5 falls, F6 Drunk mode, F7 Cheeky mode ({}), F8 Naughty Corner ({}), F9 character ({}), F10 bots ({}), F11 bot level ({:?}) | viewer: J/K/L slapped, N stacked it, M emote, Y drunk, C crown, V sash, X stink, P +30 drunk\n\
+          SCORE {} | hits {} | taken {} | catches {} | streak {} | holding: {holding}{charge}\n\
+          pos {:.1}, {:.1}, {:.1} | speed {:.1} m/s | {boost} | FOV {:.0} | {pool}{tramp}{fps:.0} fps\n{}",
+--- a/rust/crates/bbq_app/src/menu.rs
++++ b/rust/crates/bbq_app/src/menu.rs
+@@ -1037,7 +1037,7 @@
+                 ("Right click", "Catch"),
+                 ("R", "Drink, grab, smoko, help up (hold)"),
+                 ("F", "Grab someone who's down and drag them, tap again to let go, hold to throw them"),
+-                ("Q", "Swap item"),
++                ("Q", "Change weapon"),
+                 ("T H B", "Taunt, dance, laugh"),
+                 ("G", "Throw away what you are holding"),
+                 ("Esc", "Pause"),
+--- a/rust/crates/bbq_app/src/hud.rs
++++ b/rust/crates/bbq_app/src/hud.rs
+@@ -446,6 +446,7 @@
+                 cd_chip(c, "Space", "Jump", None);
+                 cd_chip(c, "Shift", "Boost", Some(Cd::Boost));
+                 cd_chip(c, "Right click", "Catch", Some(Cd::Catch));
++                cd_chip(c, "Q", "Change weapon", None);
+             });
+             // item slots, bottom right
+             root.spawn(Node {

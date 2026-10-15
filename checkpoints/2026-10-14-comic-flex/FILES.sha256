@@ -1,0 +1,3 @@
+f45b07d53707c99468d5993354b68ff03d89ec48b0df2f03b6b20409747e19f5  rust/crates/bbq_app/src/items_view.rs
+bb96253e37e515de910ea03532d8cf4edd57f8064a4cf965439bdd8822af9f8f  rust/tools/held_motion_review.py
+12c93e246cc1b21d9c996aa3e065539b4e192a1d103a38d1da27210791b548ff  rust/tools/encode_held_motion.py

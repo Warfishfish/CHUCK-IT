@@ -201,13 +201,12 @@ fn smashes(it: &Item) -> bool {
 }
 
 fn hit_wall(it: &mut Item, axis: Axis, events: &mut Vec<FlightEvent>) -> Fate {
-    let d = it.kind.def();
     let sp = it.vel.len();
     if smashes(it) && sp > 4.0 {
         smash(it, events);
         return Fate::Removed;
     }
-    let k = -(d.bounce + 0.15);
+    let k = -(surface_bounce(it) + 0.15);
     match axis {
         Axis::X => it.vel.x *= k,
         Axis::Z => it.vel.z *= k,
@@ -238,7 +237,12 @@ fn smash(it: &Item, events: &mut Vec<FlightEvent>) {
 }
 
 /// The item landed on a surface of height `h` (0 for the ground).
-fn on_surface(it: &mut Item, h: f32, on: Option<&Collider>, events: &mut Vec<FlightEvent>) -> Fate {
+fn surface_bounce(it: &Item) -> f32 {
+    let scale = if it.kind == ItemKind::Dildo { it.variant.map_or(1.0, |v| v.def().scale).sqrt() } else { 1.0 };
+    it.kind.def().bounce / scale
+}
+
+fn on_surface(it: &mut Item, h: f32, on: Option<&Collider>, events: &mut Vec<FlightEvent>, dt: f32) -> Fate {
     let d = it.kind.def();
     let sp = it.vel.len();
     if it.pos.x.abs() > YARD_HALF_X || it.pos.z.abs() > YARD_HALF_Z {
@@ -273,6 +277,30 @@ fn on_surface(it: &mut Item, h: f32, on: Option<&Collider>, events: &mut Vec<Fli
     }
     it.live = false;
     it.pos.y = h + d.radius;
+    if matches!(it.kind, ItemKind::Dildo | ItemKind::Noodle) {
+        // Distinct material response without changing the pre-contact ballistic arc.
+        // Impact energy is removed once per bounce; sliding friction is time-based,
+        // so more collision substeps cannot make these items stop artificially faster.
+        let foam = it.kind == ItemKind::Noodle;
+        if it.vel.y < -2.5 {
+            it.vel.y = -it.vel.y * surface_bounce(it);
+            if it.vel.y < 0.8 { it.vel.y = 0.0; }
+            let retain = if foam { 0.45 } else { 0.68 };
+            it.vel.x *= retain;
+            it.vel.z *= retain;
+        } else {
+            it.vel.y = 0.0;
+            let speed = it.vel.horiz_len();
+            let friction = if foam { 10.0 } else { 7.0 };
+            let keep = if speed > 0.0 { (1.0 - friction * dt / speed).max(0.0) } else { 0.0 };
+            it.vel.x *= keep;
+            it.vel.z *= keep;
+        }
+        if it.vel.y == 0.0 && it.vel.horiz_len() < 0.5 {
+            rest_item(it, h, on, events);
+        }
+        return Fate::Alive;
+    }
     if it.vel.y < -2.5 {
         it.vel.y = -it.vel.y * d.bounce;
         it.vel.x *= 0.6;
@@ -300,6 +328,10 @@ pub fn collide_world(
     rng: &mut Rng,
     events: &mut Vec<FlightEvent>,
 ) -> Fate {
+    collide_world_with_dt(it, yard, rng, events, 1.0 / 60.0)
+}
+
+fn collide_world_with_dt(it: &mut Item, yard: &Yard, rng: &mut Rng, events: &mut Vec<FlightEvent>, dt: f32) -> Fate {
     let r = it.radius();
     // trampoline
     let (tx, tz) = (it.pos.x - TRAMP_X, it.pos.z - TRAMP_Z);
@@ -341,7 +373,7 @@ pub fn collide_world(
         0.0
     };
     if it.pos.y < floor_y {
-        if on_surface(it, 0.0, None, events) == Fate::Removed {
+        if on_surface(it, 0.0, None, events, dt) == Fate::Removed {
             return Fate::Removed;
         }
         if it.state != ItemState::Flying {
@@ -362,7 +394,7 @@ pub fn collide_world(
         let py = (c.h + r) - it.pos.y;
         if py <= px && py <= pz && it.vel.y <= 0.0 {
             it.pos.y = c.h + r;
-            if on_surface(it, c.h, Some(c), events) == Fate::Removed {
+            if on_surface(it, c.h, Some(c), events, dt) == Fate::Removed {
                 return Fate::Removed;
             }
             if it.state != ItemState::Flying {
@@ -435,7 +467,7 @@ pub fn step_flight(
         if it.state != ItemState::Flying {
             break;
         }
-        if collide_world(it, yard, rng, events) == Fate::Removed {
+        if collide_world_with_dt(it, yard, rng, events, h) == Fate::Removed {
             return Fate::Removed;
         }
     }
@@ -586,6 +618,77 @@ mod tests {
             }
         }
         (fate, ev)
+    }
+
+    #[test]
+    fn rubber_and_foam_impacts_lose_energy_and_foam_bounces_less() {
+        let mut heights=Vec::new();
+        for kind in [ItemKind::Dildo,ItemKind::Noodle] {
+            let mut it=thrown(kind,V3::new(0.0,0.1,10.0),V3::new(4.0,-10.0,2.0));
+            let before=it.vel.len_sq();
+            on_surface(&mut it,0.0,None,&mut vec![],DT);
+            assert!(it.vel.len_sq()<before);
+            assert!(!it.live);
+            heights.push(it.vel.y);
+        }
+        assert!(heights[0]>heights[1] && heights[0]<4.0 && heights[1]<2.0);
+        let mut small=thrown(ItemKind::Dildo,V3::ZERO,V3::ZERO);
+        small.variant=Some(crate::items::DildoVariant::Mini);
+        let mut big=small.clone();big.variant=Some(crate::items::DildoVariant::Jumbo);
+        assert!(surface_bounce(&big)<surface_bounce(&small));
+    }
+
+    #[test]
+    fn soft_items_settle_at_multiple_frame_rates_without_contact_chatter() {
+        let mut yard=Yard::new(Default::default(),0);yard.colliders.clear();
+        for kind in [ItemKind::Dildo,ItemKind::Noodle] {
+            let mut resting_x=Vec::new();
+            for dt in [1.0/30.0,1.0/60.0,1.0/120.0] {
+                let mut it=thrown(kind,V3::new(0.0,3.8,10.0),V3::new(7.0,1.0,0.0));
+                let mut rng=Rng::new(7);let mut events=Vec::new();
+                for _ in 0..(6.0/dt) as usize {
+                    if it.state==ItemState::Ground { break; }
+                    assert_eq!(step_flight(&mut it,dt,&yard,&mut rng,&mut events,&mut |_|false),Fate::Alive);
+                    assert!([it.pos.x,it.pos.y,it.pos.z,it.vel.x,it.vel.y,it.vel.z].iter().all(|x|x.is_finite()));
+                    assert!(it.pos.y>=0.0);
+                }
+                assert_eq!(it.state,ItemState::Ground,"{kind:?} dt={dt}");
+                assert_eq!(it.vel,V3::ZERO);
+                assert!((it.pos.y-rest_height(kind)).abs()<1e-5);
+                assert_eq!(events.iter().filter(|e|matches!(e,FlightEvent::Rested)).count(),1);
+                resting_x.push(it.pos.x);
+            }
+            let spread=resting_x.iter().copied().fold(f32::NEG_INFINITY,f32::max)-resting_x.iter().copied().fold(f32::INFINITY,f32::min);
+            assert!(spread<0.3,"{kind:?} resting position varies by {spread}m");
+        }
+    }
+
+    #[test]
+    fn soft_item_free_flight_still_matches_gravity_and_hit_checks() {
+        let mut yard=Yard::new(Default::default(),0);yard.colliders.clear();
+        for kind in [ItemKind::Dildo,ItemKind::Noodle] {
+            let mut it=thrown(kind,V3::new(0.0,10.0,10.0),V3::new(6.0,2.0,0.0));
+            let mut rng=Rng::new(1);let mut checks=0;
+            for _ in 0..30 {step_flight(&mut it,DT,&yard,&mut rng,&mut vec![],&mut |_|{checks+=1;false});}
+            assert!(checks>=30);
+            assert!(it.live);
+            assert!((it.pos.x-3.0).abs()<0.001);
+            assert!((it.vel.y-(2.0-ITEM_GRAV*kind.def().grav*0.5)).abs()<0.001);
+            assert_eq!(it.radius(),0.2,"hit/catch radius is unchanged");
+        }
+    }
+
+    #[test]
+    fn soft_items_still_float_and_walls_remove_energy() {
+        for kind in [ItemKind::Dildo,ItemKind::Noodle] {
+            let mut it=thrown(kind,V3::new(crate::yard::POOL_X0+1.0,0.0,crate::yard::POOL_Z0+1.0),V3::new(2.0,-8.0,0.0));
+            let mut events=vec![];on_surface(&mut it,0.0,None,&mut events,DT);
+            assert_eq!(it.state,ItemState::Ground);assert!((it.pos.y-(WATER_Y+0.04)).abs()<1e-5);
+            assert!(events.iter().any(|e|matches!(e,FlightEvent::Splash{..})));
+            let mut it=thrown(kind,V3::ZERO,V3::new(8.0,-2.0,3.0));let energy=it.vel.len_sq();
+            hit_wall(&mut it,Axis::X,&mut vec![]);
+            assert!(it.vel.x<0.0 && it.vel.len_sq()<energy);
+        }
     }
 
     #[test]

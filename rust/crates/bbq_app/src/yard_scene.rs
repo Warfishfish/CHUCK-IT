@@ -76,6 +76,7 @@ impl Plugin for YardScenePlugin {
         app.insert_resource(YardRes(Yard::default()))
             .init_resource::<Drift>()
             .add_systems(Startup, build_yard)
+            .add_systems(PostUpdate, crate::lighting::follow_sky.before(bevy::transform::TransformSystems::Propagate))
             .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_place, animate_magpies));
     }
 }
@@ -92,6 +93,9 @@ fn build_yard(
     mode: Res<crate::lighting::LookMode>,
 ) {
     let look = looks_yard::yard_styled(LOOK_SEED, *mode == crate::lighting::LookMode::Polished);
+    if *mode == crate::lighting::LookMode::Polished && crate::style::current() == crate::style::Style::Pop {
+        crate::lighting::spawn_afternoon_sky(&mut commands, &mut meshes, &mut mats);
+    }
 
     // everything that is always there (lawn, fence, house, trees, pool, props)
     let (_, kids) = cache.spawn_parts_with_children(

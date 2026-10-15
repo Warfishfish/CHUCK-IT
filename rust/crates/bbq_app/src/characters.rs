@@ -48,6 +48,7 @@ struct HandL;
 /// An eyeball: it bobs and pops a little as the blob walks, each eye in its own way.
 #[derive(Component)]
 struct EyePart {
+    aperture: f32,
     right: bool,
     base: Vec3,
     /// How far the eyeball has been jolted from its socket, and how fast it is moving.
@@ -261,6 +262,7 @@ fn spawn_model(
                   has_mat: Query<(), With<MeshMaterial3d<StandardMaterial>>>,
                   tfs: Query<&Transform>,
                   mesh_nodes: Query<(&Mesh3d, Option<&bevy::mesh::morph::MeshMorphWeights>)>,
+                  kit: Res<crate::face::FaceKit>,
                   mut meshes: ResMut<Assets<Mesh>>,
                   mut mats: ResMut<Assets<StandardMaterial>>,
                   mut commands: Commands| {
@@ -304,10 +306,13 @@ fn spawn_model(
                         let width = match name.as_str() {
                             n if n.starts_with("Pupil") || n.starts_with("Eye") || n.starts_with("Strap") || n.starts_with("Thong") => continue,
                             n if n.starts_with("Eye") => 0.009,
-                            n if n.starts_with("Hand") => 0.011,
-                            n if n.starts_with("Foot") => 0.011,
-                            n if n.starts_with("Singlet") || n.starts_with("Shorts_") => 0.009,
-                            _ => 0.013,
+                            n if n.starts_with("Hand") => 0.013,
+                            n if n.starts_with("Foot") => 0.013,
+                            n if n.starts_with("Singlet") || n.starts_with("Shorts_") => 0.010,
+                            "Head" | "Torso" | "Belly" => 0.016,
+                            // The Body container includes eyes and every other part. Outlining
+                            // its descendants duplicates shells and draws stray rings on eyes.
+                            _ => continue,
                         };
                         for e in std::iter::once(node).chain(children.iter_descendants(node)) {
                             let Ok((m3, morph)) = mesh_nodes.get(e) else { continue };
@@ -385,11 +390,22 @@ fn spawn_model(
                     match name.as_str() {
                         "EyeL" | "EyeR" => {
                             commands.entity(node).insert((
-                                EyePart { right: name.as_str() == "EyeR", base, off: Vec3::ZERO, vel: Vec3::ZERO },
+                                EyePart { aperture: 1.0, right: name.as_str() == "EyeR", base, off: Vec3::ZERO, vel: Vec3::ZERO },
                                 Blob(i),
                             ));
                         }
                         "PupilL" | "PupilR" => {
+                            if crate::style::current() == crate::style::Style::Pop {
+                                // One shared warm catchlight makes the gaze legible in shade.
+                                for e in std::iter::once(node).chain(children.iter_descendants(node)) {
+                                    let Ok((mesh, _)) = mesh_nodes.get(e) else { continue };
+                                    let Some(mesh) = meshes.get(&mesh.0) else { continue };
+                                    let Some(bevy::mesh::VertexAttributeValues::Float32x3(pos)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else { continue };
+                                    let r = pos.iter().map(|p| p[0].abs()).fold(0.0f32, f32::max);
+                                    commands.spawn((Mesh3d(kit.glint.clone()), MeshMaterial3d(kit.glint_material.clone()), Transform::from_xyz(-r * 0.28, r * 0.35, r * 0.9).with_scale(Vec3::splat(r * 0.18)), bevy::light::NotShadowCaster, ChildOf(node)));
+                                    break;
+                                }
+                            }
                             commands.entity(node).insert((
                                 PupilPart {
                                     right: name.as_str() == "PupilR",
@@ -1797,7 +1813,7 @@ fn animate_face_and_feet(
     let walk = |i: usize| (speed.get(i).copied().unwrap_or(0.0) / 4.0).clamp(0.0, 1.0);
     // each blob also differs a little from the others of its kind
     let quirk = |i: usize| 1.0 + ((i * 37 % 11) as f32 - 5.0) * 0.04;
-    let mut eye_off: std::collections::HashMap<(usize, bool), Vec3> = Default::default();
+    let mut eye_off: std::collections::HashMap<(usize, bool), (Vec3, f32)> = Default::default();
     for (b, mut e, mut tf) in &mut eyes {
         if b.0 >= n {
             continue;
@@ -1829,6 +1845,7 @@ fn animate_face_and_feet(
         let sway = (drive[b.0].phase * 0.5 - 0.8).sin() * st.sway * walk(b.0);
         let off = e.off + Vec3::new(sway, idle, 0.0);
         tf.translation = e.base + off;
+        tf.scale = Vec3::ONE;
         if st.squash > 0.0 {
             // squash when falling into the socket, stretch when flying up out of it
             let sq = (1.0 + e.vel.y * st.squash * 0.12).clamp(0.7, 1.35);
@@ -1837,7 +1854,13 @@ fn animate_face_and_feet(
             // googly: the eyeball swells as it pops out of the head
             tf.scale = Vec3::splat((1.0 + e.off.z.max(0.0) * st.bulge).min(1.5));
         }
-        eye_off.insert((b.0, e.right), off);
+        if crate::style::current() == crate::style::Style::Pop {
+            let mood = crate::visual_review::expression().unwrap_or_else(|| crate::face::blob_mood(&game.dummies[b.0]));
+            let target = crate::face::eye_open(mood, t, b.0);
+            e.aperture += (target - e.aperture) * (1.0 - (-35.0 * dt).exp());
+            tf.scale.y *= e.aperture;
+        }
+        eye_off.insert((b.0, e.right), (off, e.aperture));
     }
     for (b, mut p, mut tf) in &mut pupils {
         if b.0 >= n {
@@ -1876,8 +1899,9 @@ fn animate_face_and_feet(
         p.pos += v * dt;
         p.pos = p.pos.clamp_length_max(0.036);
         // the pupil rides on its eyeball
-        let eo = eye_off.get(&(b.0, p.right)).copied().unwrap_or(Vec3::ZERO);
-        tf.translation = p.base + eo + Vec3::new(p.pos.x, p.pos.y, 0.0);
+        let (eo, aperture) = eye_off.get(&(b.0, p.right)).copied().unwrap_or((Vec3::ZERO, 1.0));
+        tf.translation = p.base + eo + Vec3::new(p.pos.x, p.pos.y * aperture, 0.0);
+        tf.scale.y = aperture;
     }
     for (b, f, mut tf) in &mut feet {
         if b.0 >= n {

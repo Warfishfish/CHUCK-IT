@@ -1,0 +1,1 @@
+Starting archive extracted in a disposable directory. Cartoon implementation.patch passed git apply --check and applied successfully. All five resulting implementation files matched the working tree byte for byte. No repository reset, index change, commit or push.

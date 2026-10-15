@@ -1037,7 +1037,7 @@ fn how_panel(c: &mut ChildSpawnerCommands) {
                 ("Right click", "Catch"),
                 ("R", "Drink, grab, smoko, help up (hold)"),
                 ("F", "Grab someone who's down and drag them, tap again to let go, hold to throw them"),
-                ("Q", "Swap item"),
+                ("Q", "Change weapon"),
                 ("T H B", "Taunt, dance, laugh"),
                 ("G", "Throw away what you are holding"),
                 ("Esc", "Pause"),

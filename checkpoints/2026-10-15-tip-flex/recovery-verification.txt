@@ -1,0 +1,1 @@
+One-file delta applied to archived starting source in an isolated directory; bytes match current implementation.

@@ -109,7 +109,7 @@ static DILDO: ItemDef = ItemDef {
     knock: 9.0,
     charge: 0.75,
     radius: 0.2,
-    bounce: 0.6,
+    bounce: 0.34,
     melee: Melee::Down,
     adult: true,
     ..BASE
@@ -128,7 +128,7 @@ static NOODLE: ItemDef = ItemDef {
     speed: 21.0,
     knock: 5.0,
     radius: 0.2,
-    bounce: 0.45,
+    bounce: 0.16,
     grav: 0.85,
     melee: Melee::Stun,
     throwable: true,

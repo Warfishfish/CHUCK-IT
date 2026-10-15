@@ -45,7 +45,7 @@ pub fn init(args: &[String]) {
     // how far plain colours fade towards grey (negative = more vivid), and the lawn's colour
     let (fade, lawn) = match s {
         Style::Current => (0.14, 1.0),
-        Style::Pop => (-0.12, 1.06),
+        Style::Pop => (-0.04, 0.96),
         Style::Clay => (0.34, 0.8),
     };
     bbq_core::looks_yard::set_palette(fade, lawn);
@@ -89,7 +89,8 @@ pub fn cloth_material(colour: Color, assets: &AssetServer, dirt: Option<Handle<I
             None => assets.load_builder().with_settings(repeat).load("textures/fabric.png"),
         }),
         uv_transform: if dirty { bevy::math::Affine2::from_scale(Vec2::new(0.34, 0.5)) } else { bevy::math::Affine2::IDENTITY },
-        normal_map_texture: Some(assets.load_builder().with_settings(flat).load("textures/fabric_n.png")),
+        // Pop keeps cloth colour and dirt, with a simpler surface at gameplay distances.
+        normal_map_texture: if current() == Style::Pop { None } else { Some(assets.load_builder().with_settings(flat).load("textures/fabric_n.png")) },
         perceptual_roughness: 0.95,
         reflectance: 0.1,
         // the cloth is a thin shell: lit from both sides
@@ -154,8 +155,8 @@ pub fn body_material(colour: Color, assets: &AssetServer) -> StandardMaterial {
         // a soft sheen on the skin (C11.5): a thin glossy coat over the colour
         return StandardMaterial {
             base_color: colour,
-            perceptual_roughness: 0.55,
-            clearcoat: 0.2,
+            perceptual_roughness: if current() == Style::Pop { 0.60 } else { 0.55 },
+            clearcoat: if current() == Style::Pop { 0.12 } else { 0.2 },
             clearcoat_perceptual_roughness: 0.45,
             ..default()
         };

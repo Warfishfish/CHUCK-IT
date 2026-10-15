@@ -1,0 +1,42 @@
+--- a/rust/crates/bbq_app/src/face.rs
++++ b/rust/crates/bbq_app/src/face.rs
+@@ -448,6 +448,7 @@
+                 (d.look, mood_of(d.body.stun > 0.0, d.body.is_down(), d.bot.drunk.is_drinking(), d.bot.winding))
+             }
+         };
++        let mood = crate::visual_review::expression().unwrap_or(mood);
+         let want = FaceShown {
+             mouth: look.mouth,
+             brows: look.brows,
+--- a/rust/crates/bbq_app/src/visual_review.rs
++++ b/rust/crates/bbq_app/src/visual_review.rs
+@@ -85,3 +85,18 @@
+         exit.write(AppExit::Success);
+     }
+ }
++
++/// Staged expression captures only: does not alter gameplay state or saved customization.
++pub fn expression() -> Option<crate::face::Mood> {
++    static MOOD: std::sync::OnceLock<Option<crate::face::Mood>> = std::sync::OnceLock::new();
++    *MOOD.get_or_init(|| {
++        let args: Vec<String> = std::env::args().collect();
++        if !args.iter().any(|a| a == "--shot") || !args.iter().any(|a| a == "--review") { return None; }
++        let value = args.iter().position(|a| a == "--expression").and_then(|i| args.get(i + 1))?;
++        use crate::face::Mood;
++        match value.as_str() {
++            "normal" => Some(Mood::Normal), "grit" => Some(Mood::Grit),
++            "ouch" => Some(Mood::Ouch), "sip" => Some(Mood::Sip), "cheer" => Some(Mood::Cheer), _ => None,
++        }
++    })
++}
+--- a/rust/crates/bbq_app/src/shot.rs
++++ b/rust/crates/bbq_app/src/shot.rs
+@@ -268,7 +268,7 @@
+         let a = d.face + side;
+         let (dx, dz) = (a.sin(), a.cos());
+         let (dist, y, fov) = if head {
+-            (4.2, 1.45 + d.mover.y, 22.0f32)
++            (5.5, 1.62 + d.mover.y, 22.0f32)
+         } else if wide {
+             (7.5, 1.0 + d.mover.y, 36.0)
+         } else if far {

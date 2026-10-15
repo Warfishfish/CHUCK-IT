@@ -1,0 +1,1 @@
+Extracted starting-work.tar.gz into a disposable directory and verified every file against STARTING-FILES.sha256. All matched.

@@ -1,0 +1,1 @@
+Seven-file implementation delta applied to starting archive + unchanged HEAD files in an isolated directory. All resulting bytes match current implementation.

@@ -1,0 +1,6 @@
+Capturing after drop
+Saved drop
+Capturing after throw
+Saved throw
+Capturing after stress
+Saved stress

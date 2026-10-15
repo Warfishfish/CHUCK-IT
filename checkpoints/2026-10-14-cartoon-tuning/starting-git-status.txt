@@ -1,0 +1,21 @@
+ M rust/crates/bbq_app/src/characters.rs
+ M rust/crates/bbq_app/src/face.rs
+ M rust/crates/bbq_app/src/lighting.rs
+ M rust/crates/bbq_app/src/main.rs
+ M rust/crates/bbq_app/src/models.rs
+ M rust/crates/bbq_app/src/player.rs
+ M rust/crates/bbq_app/src/shot.rs
+ M rust/crates/bbq_app/src/style.rs
+ M rust/crates/bbq_app/src/yard_scene.rs
+?? checkpoints/2026-10-13-graphics-m1/
+?? checkpoints/2026-10-14-cartoon-tuning/
+?? checkpoints/2026-10-14-graphics-m2/
+?? rust/crates/bbq_app/assets/models/face_pop.json
+?? rust/crates/bbq_app/assets/textures/lawn_afternoon.png
+?? rust/crates/bbq_app/assets/textures/lawn_afternoon_n.png
+?? rust/crates/bbq_app/src/face_meshes.rs
+?? rust/crates/bbq_app/src/visual_review.rs
+?? rust/tools/character_review.py
+?? rust/tools/make_faces.py
+?? rust/tools/make_lawn.py
+?? rust/tools/visual_review.py
