@@ -53,9 +53,6 @@ struct MagpieHead {
 }
 #[derive(Component)]
 struct MagpieBody(f32);
-/// Part of the smoko area: it is moved when the round moves the pad (Teddy Heist).
-#[derive(Component)]
-struct SmokoShift(Vec3);
 /// One of the yard's other eskies and its lid.
 #[derive(Component)]
 struct DecorLid(usize);
@@ -77,7 +74,7 @@ impl Plugin for YardScenePlugin {
             .init_resource::<Drift>()
             .add_systems(Startup, build_yard)
             .add_systems(PostUpdate, crate::lighting::follow_sky.before(bevy::transform::TransformSystems::Propagate))
-            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_place, animate_magpies));
+            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_map, animate_magpies));
     }
 }
 
@@ -116,7 +113,6 @@ fn build_yard(
     for (parts, feature) in [
         (&look.bar, Feature::Bar),
         (&look.bbq, Feature::Bbq),
-        (&look.smoko, Feature::Smoko),
     ] {
         let e = cache.spawn_parts(
             &mut commands,
@@ -126,9 +122,6 @@ fn build_yard(
             Transform::default(),
         );
         commands.entity(e).insert(FeatureTag(feature));
-        if feature == Feature::Smoko {
-            commands.entity(e).insert(SmokoShift(Vec3::ZERO));
-        }
     }
     // what is on the bar depends on the mode: grog in Cheeky mode, soft drinks in family mode
     for (parts, cheeky) in [(&look.bar_grog, true), (&look.bar_soft, false)] {
@@ -138,34 +131,7 @@ fn build_yard(
     let e = cache.spawn_parts(&mut commands, &look.litter, &mut meshes, &mut mats, Transform::default());
     commands.entity(e).insert((CheekyOnly(true), Visibility::Hidden));
 
-    // the smoko pad and its chairs (one per person; the game has you plus three dummies for now)
-    let chairs = bbq_core::smoko::chair_count(4);
-    let r = bbq_core::smoko::zone_radius(4);
-    let pad = looks_yard::smoko_pad(r);
-    let e = cache.spawn_parts(
-        &mut commands,
-        &[pad],
-        &mut meshes,
-        &mut mats,
-        Transform::default(),
-    );
-    commands.entity(e).insert((FeatureTag(Feature::Smoko), SmokoShift(Vec3::ZERO)));
-    for i in 0..chairs {
-        let (x, z) = bbq_core::smoko::seat_pos(i, chairs);
-        let facing = bbq_core::smoko::seat_facing(i, chairs);
-        let e = cache.spawn_parts(
-            &mut commands,
-            &if *mode == crate::lighting::LookMode::Polished {
-                looks_yard::chair_styled(i)
-            } else {
-                looks_yard::chair()
-            },
-            &mut meshes,
-            &mut mats,
-            Transform::from_xyz(x, 0.0, z).with_rotation(Quat::from_rotation_y(facing)),
-        );
-        commands.entity(e).insert((FeatureTag(Feature::Smoko), SmokoShift(Vec3::new(x, 0.0, z))));
-    }
+    // The former Smoko area is open lawn. Shared prop builders remain in looks_yard.
 
     // the clothesline head
     let e = cache.spawn_parts(
@@ -440,21 +406,7 @@ fn animate_magpies(
     }
 }
 
-/// Slide the smoko pad, chairs and umbrella to wherever the round put the pad.
-fn sync_smoko_place(game: Res<Game>, mut q: Query<(&SmokoShift, &mut Transform)>) {
-    let (dx, dz) = (
-        game.life.smoko_at.0 - bbq_core::yard::SMOKO_X,
-        game.life.smoko_at.1 - bbq_core::yard::SMOKO_Z,
-    );
-    for (s, mut tf) in &mut q {
-        let want = Vec3::new(s.0.x + dx, tf.translation.y, s.0.z + dz);
-        if tf.translation != want {
-            tf.translation = want;
-        }
-    }
-}
-
-/// F1 bar, F2 BBQ, F3 chest, F4 smoko.
+/// F1 bar, F2 BBQ, F3 chest.
 fn toggle_features(
     keys: Res<ButtonInput<KeyCode>>,
     game: Res<crate::game::Game>,
@@ -469,7 +421,6 @@ fn toggle_features(
         (KeyCode::F1, Feature::Bar),
         (KeyCode::F2, Feature::Bbq),
         (KeyCode::F3, Feature::Chest),
-        (KeyCode::F4, Feature::Smoko),
     ] {
         if keys.just_pressed(key) {
             let mut feats: Features = yard_res.0.features;
@@ -477,6 +428,7 @@ fn toggle_features(
             let spot = yard_res.0.chest_spot;
             yard_res.0 = match yard_res.0.heist {
                 Some(teams) => Yard::heist(feats, spot, teams),
+                None if game.rules.mode == bbq_core::GameMode::Smoko => Yard::smoko(feats, spot),
                 None => Yard::new(feats, spot),
             };
             changed = true;
@@ -490,4 +442,32 @@ fn toggle_features(
             *vis = if on { Visibility::Inherited } else { Visibility::Hidden };
         }
     }
+}
+
+#[derive(Component)]
+struct SmokoMap;
+/// Only the selected Smoko map creates these props; other maps keep their open lawn.
+fn sync_smoko_map(
+    mut commands: Commands, game: Res<Game>, roots: Query<Entity, With<SmokoMap>>,
+    mut meshes: ResMut<Assets<Mesh>>, mut mats: ResMut<Assets<StandardMaterial>>,
+    mut cache: ResMut<ModelCache>, mode: Res<crate::lighting::LookMode>,
+) {
+    let active=game.rules.mode==bbq_core::GameMode::Smoko;
+    if !active { for e in &roots {commands.entity(e).despawn();} return; }
+    if !roots.is_empty(){return;}
+    let polished=*mode==crate::lighting::LookMode::Polished;
+    let mut parts=looks_yard::yard_styled(LOOK_SEED,polished).smoko;
+    parts.push(looks_yard::smoko_pad(crate::smoko_mode::RADIUS));
+    parts.push(Part::new(bbq_core::looks::Shape::Ring { inner: crate::smoko_mode::RADIUS-0.16, outer: crate::smoko_mode::RADIUS, seg:64 },
+        bbq_core::looks::Surface::matt(0xffd84a).no_shadow())
+        .at(bbq_core::yard::SMOKO_X,0.035,bbq_core::yard::SMOKO_Z).turn(-std::f32::consts::FRAC_PI_2,0.0,0.0));
+    // Chairs surround the boundary, leaving four wide entry lanes and the centre clear.
+    for i in 0..4 {
+        let a=std::f32::consts::FRAC_PI_4+i as f32*std::f32::consts::FRAC_PI_2;
+        let chair=if polished {looks_yard::chair_styled(i)} else {looks_yard::chair()};
+        parts.extend(looks_yard::place(chair,bbq_core::vec::V3::new(bbq_core::yard::SMOKO_X+a.cos()*4.3,0.0,bbq_core::yard::SMOKO_Z+a.sin()*4.3),bbq_core::vec::Quat::IDENTITY,1.0));
+    }
+    let delta=Vec3::new(crate::smoko_mode::CENTRE.0-bbq_core::yard::SMOKO_X,0.0,crate::smoko_mode::CENTRE.1-bbq_core::yard::SMOKO_Z);
+    let e=cache.spawn_parts(&mut commands,&parts,&mut meshes,&mut mats,Transform::from_translation(delta));
+    commands.entity(e).insert(SmokoMap);
 }

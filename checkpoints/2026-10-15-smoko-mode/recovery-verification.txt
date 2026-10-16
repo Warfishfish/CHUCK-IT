@@ -1,0 +1,1 @@
+16 October 2026: full patch (Milestones 1 and 2) applied to starting Git commit source in an isolated directory; every implementation hash matched.

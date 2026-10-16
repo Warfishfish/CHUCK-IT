@@ -1,0 +1,12 @@
+standard samples=600 mean_ms=7.810 median_ms=7.265 p95_ms=9.090 mean_fps=128.04 frames_over_16_67ms=3
+meshes=2548 materials=759 mesh_entities=5602 image_cpu_bytes=36639128
+Fixed 60 Hz simulation; 300 warmup frames; 600 wall-clock intervals; 1280x800 with --big; AutoNoVsync; not GPU timestamp measurements.
+
+heist samples=600 mean_ms=8.234 median_ms=8.030 p95_ms=10.546 mean_fps=121.45 frames_over_16_67ms=0
+meshes=2588 materials=781 mesh_entities=6028 image_cpu_bytes=40898968
+Fixed 60 Hz simulation; 300 warmup frames; 600 wall-clock intervals; 1280x800 with --big; AutoNoVsync; not GPU timestamp measurements.
+
+stress samples=600 mean_ms=8.732 median_ms=8.688 p95_ms=9.983 mean_fps=114.52 frames_over_16_67ms=0
+meshes=2851 materials=893 mesh_entities=7167 image_cpu_bytes=42129816
+Fixed 60 Hz simulation; 300 warmup frames; 600 wall-clock intervals; 1280x800 with --big; AutoNoVsync; not GPU timestamp measurements.
+

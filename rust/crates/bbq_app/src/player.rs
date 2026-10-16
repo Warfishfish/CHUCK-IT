@@ -259,6 +259,7 @@ fn step_player(
     let p = &mut *player;
     let g = &mut *game;
     p.prev = Vec3::new(p.mover.x, p.mover.y, p.mover.z);
+    if crate::smoko_mode::player_locked(g) { return; }
     // drunk: the walk drifts off line, and in Drunk mode the speed lurches
     let da = g.me.drunk.da();
     let wish = movement::drunk_steer(wanted.wish, da, g.now);
@@ -275,7 +276,7 @@ fn step_player(
         stunned: g.me.body.stun > 0.0,
         drinking: g.me.drunk.is_drinking(),
         at_smoko: g.life.seated.is_some(),
-        carrying: g.life.carry.is_some(),
+        carrying: g.life.carry.is_some() || g.smoko.carries.contains_key(&PLAYER_ID) || g.smoko.guest_carrying,
         frozen: g.rules.phase == bbq_core::scoring::Phase::Countdown,
         gait,
         dive: wanted.dive,
@@ -418,12 +419,11 @@ fn update_hud(
         String::new()
     };
     text.0 = format!(
-        "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw (tap = slap), RMB catch, Q change weapon (E/wheel also swap), R bar/meat/chest/smoko/help up, F grab someone who's down (tap put down, hold chuck), T taunt, H dance, B laugh, G drop what you're holding\n\
-         F1-F4 features, F5 falls, F6 Drunk mode, F7 Cheeky mode ({}), F8 Naughty Corner ({}), F9 character ({}), F10 bots ({}), F11 bot level ({:?}) | viewer: J/K/L slapped, N stacked it, M emote, Y drunk, C crown, V sash, X stink, P +30 drunk\n\
+        "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw (tap = slap), RMB catch, Q change weapon (E/wheel also swap), R bar/meat/chest/help up, F grab someone who's down (tap put down, hold chuck), T taunt, H dance, B laugh, G drop what you're holding\n\
+         F1-F3 features, F5 falls, F6 Drunk mode, F7 Cheeky mode ({}), F9 character ({}), F10 bots ({}), F11 bot level ({:?}) | viewer: J/K/L slapped, N stacked it, M emote, Y drunk, C crown, V sash, X stink, P +30 drunk\n\
          SCORE {} | hits {} | taken {} | catches {} | streak {} | holding: {holding}{charge}\n\
          pos {:.1}, {:.1}, {:.1} | speed {:.1} m/s | {boost} | FOV {:.0} | {pool}{tramp}{fps:.0} fps\n{}",
         if game.options.adult { "on" } else { "off" },
-        if game.options.naughty { "on" } else { "off" },
         cast.mine.name(),
         if game.options.bots_on { "on" } else { "frozen" },
         game.options.bot_difficulty,

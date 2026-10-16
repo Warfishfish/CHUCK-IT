@@ -56,6 +56,7 @@ impl Setup {
     pub fn mode_name(&self) -> String {
         match self.mode {
             GameMode::FreeForAll => "Free for all".to_string(),
+            GameMode::Smoko => "Smoko Yard".to_string(),
             GameMode::Teams => "Teams".to_string(),
             GameMode::Heist => format!("Teddy Heist ({} teams)", self.heist_teams),
         }
@@ -70,7 +71,8 @@ impl Setup {
                 self.heist_teams = 2;
             }
             (GameMode::Heist, n) if n < 4 => self.heist_teams = n + 1,
-            (GameMode::Heist, _) => self.mode = GameMode::FreeForAll,
+            (GameMode::Heist, _) => self.mode = GameMode::Smoko,
+            (GameMode::Smoko, _) => self.mode = GameMode::FreeForAll,
         }
         if self.mode == GameMode::Heist {
             self.friendly_fire = false;
@@ -199,7 +201,7 @@ pub fn sync_bot_count(g: &mut Game, want: usize) {
 pub fn assign_teams(g: &mut Game, reshuffle: bool) {
     let ids = everyone(g);
     match g.round.setup.mode {
-        GameMode::FreeForAll => g.teams.clear(),
+        GameMode::FreeForAll | GameMode::Smoko => g.teams.clear(),
         GameMode::Teams => {
             let mut rng = Rng::new(g.rng.f32().to_bits() as u64 + 77);
             g.teams.balance(&ids, reshuffle, false, &mut rng);
@@ -215,7 +217,7 @@ pub fn assign_teams(g: &mut Game, reshuffle: bool) {
 
 /// Copy teams onto the blobs (their sashes).
 pub fn show_teams(g: &mut Game) {
-    let teamed = g.rules.mode != GameMode::FreeForAll;
+    let teamed = matches!(g.rules.mode, GameMode::Teams | GameMode::Heist);
     for i in 0..g.dummies.len() {
         let id = g.dummies[i].id;
         g.dummies[i].team = if teamed { g.teams.get(id) } else { None };
@@ -257,16 +259,18 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
     let spot = pick_chest_spot(g, setup.mode, setup.heist_teams);
     yard.0 = if setup.mode == GameMode::Heist {
         Yard::heist(features, spot, setup.heist_teams)
+    } else if setup.mode == GameMode::Smoko {
+        Yard::smoko(features, spot)
     } else {
         Yard::new(features, spot)
     };
     g.life.chest.new_round(spot);
-    // Teddy Heist moves the smoko pad out of the red base's way, next to the pool
-    g.life.smoko_at = if setup.mode == GameMode::Heist {
-        heist::smoko_spot(setup.heist_teams)
-    } else {
-        bbq_core::smoko::DEFAULT_CENTRE
-    };
+    // Clear delivery state on every round/mode transition.
+    g.smoko = Default::default();
+    // No voluntary safe seating in the competitive Smoko mode.
+    g.options.smoko_on = setup.mode == GameMode::Smoko;
+    g.options.naughty = false;
+    g.life.smoko_at = if setup.mode == GameMode::Smoko { crate::smoko_mode::CENTRE } else { bbq_core::smoko::DEFAULT_CENTRE };
     g.life.dazza.reset();
     g.life.carry = None;
     g.life.f_down = None;
@@ -394,7 +398,7 @@ pub fn end_round(g: &mut Game) {
     g.rules.phase = Phase::Results;
     let rows = standings(g);
     let winner = match g.rules.mode {
-        GameMode::FreeForAll => matchflow::round_winner_ffa(&rows),
+        GameMode::FreeForAll | GameMode::Smoko => matchflow::round_winner_ffa(&rows),
         GameMode::Teams => matchflow::round_winner_teams(&rows, &g.teams),
         GameMode::Heist => g
             .heist
@@ -439,7 +443,7 @@ pub fn end_round(g: &mut Game) {
         let team = g
             .teams
             .get(*id)
-            .filter(|_| g.rules.mode != GameMode::FreeForAll)
+            .filter(|_| matches!(g.rules.mode, GameMode::Teams | GameMode::Heist))
             .map_or(String::new(), |t| format!(" [{}]", t.name()));
         lines.push(format!(
             "{}. {}{team}: {score} (hits {}, taken {}, catches {}{})",
@@ -569,6 +573,7 @@ fn start_from_args(mut game: ResMut<Game>, mut player: ResMut<Player>, mut yard:
     }
     s.mode = match mode.as_str() {
         "heist" => GameMode::Heist,
+        "smoko" => GameMode::Smoko,
         "teams" => GameMode::Teams,
         _ => GameMode::FreeForAll,
     };
@@ -797,7 +802,7 @@ fn update_round_hud(
     if let Some(t) = g
         .teams
         .get(PLAYER_ID)
-        .filter(|_| g.rules.mode != GameMode::FreeForAll)
+        .filter(|_| matches!(g.rules.mode, GameMode::Teams | GameMode::Heist))
     {
         lines.push(format!("You are on the {} team", t.name()));
     }
@@ -855,10 +860,10 @@ mod tests {
     }
 
     #[test]
-    fn the_mode_key_goes_round_all_five_modes() {
+    fn the_mode_key_goes_round_all_six_modes() {
         let mut s = Setup::default();
         let mut seen = vec![s.mode_name()];
-        for _ in 0..5 {
+        for _ in 0..6 {
             s.next_mode();
             seen.push(s.mode_name());
         }
@@ -870,6 +875,7 @@ mod tests {
                 "Teddy Heist (2 teams)",
                 "Teddy Heist (3 teams)",
                 "Teddy Heist (4 teams)",
+                "Smoko Yard",
                 "Free for all"
             ]
         );

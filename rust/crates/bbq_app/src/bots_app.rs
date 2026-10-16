@@ -312,8 +312,10 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &Yard) {
             held,
             selected: sel,
         };
-        let (heist_goal, carrying_stolen_teddy) = if mode == GameMode::Heist {
+        let (objective_goal, carrying_stolen_teddy) = if mode == GameMode::Heist {
             crate::heist_app::goal_for_bot(g, i)
+        } else if mode == GameMode::Smoko {
+            (crate::smoko_mode::bot_goal(g,p,id),false)
         } else {
             (None, false)
         };
@@ -338,14 +340,18 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &Yard) {
             free_seats: &seats_free,
             dazza_chasing,
             difficulty: diff,
-            heist_goal,
+            objective_goal,
             carrying_stolen_teddy,
         };
         let mut brain = match g.crowd.brains.remove(&id) {
             Some(b) => b,
             None => bots::BotBrain::new(&mut g.rng),
         };
-        let cmd = brain.think(&me, &w, &mut g.rng);
+        let mut cmd = brain.think(&me, &w, &mut g.rng);
+        if mode == GameMode::Smoko && g.smoko.carries.contains_key(&id) {
+            cmd.throw=None;cmd.swing=None;cmd.act=None;cmd.winding=false;
+            cmd.wish.0*=0.75;cmd.wish.1*=0.75;
+        }
         g.crowd.brains.insert(id, brain);
         g.crowd.claim(id, cmd.claim);
         act(g, p, yard, i, &cmd);

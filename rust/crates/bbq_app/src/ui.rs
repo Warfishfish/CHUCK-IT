@@ -274,8 +274,6 @@ pub enum CheckId {
     Bar,
     Bbq,
     Chest,
-    Smoko,
-    Naughty,
     Falls,
     DrunkAll,
     Sound,

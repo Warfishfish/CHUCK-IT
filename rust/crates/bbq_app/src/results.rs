@@ -89,7 +89,7 @@ pub fn build(g: &Game, _settings: &Settings) -> ResultsText {
         .board
         .iter()
         .map(|(id, s)| {
-            let teamed = g.rules.mode != GameMode::FreeForAll;
+            let teamed = matches!(g.rules.mode, GameMode::Teams | GameMode::Heist);
             Row {
                 place: 0,
                 name: if id == PLAYER_ID { "You".into() } else { name_of(g, id) },
@@ -189,7 +189,7 @@ pub fn build(g: &Game, _settings: &Settings) -> ResultsText {
                 );
             }
         }
-        GameMode::FreeForAll => {}
+        GameMode::FreeForAll | GameMode::Smoko => {}
     }
     let m = &g.round.mtch;
     let match_line = (m.len > 1).then(|| {

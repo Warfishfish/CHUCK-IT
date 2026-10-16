@@ -1,0 +1,650 @@
+diff --git a/rust/crates/bbq_app/src/characters.rs b/rust/crates/bbq_app/src/characters.rs
+index 62a70a3..dbec9c9 100644
+--- a/rust/crates/bbq_app/src/characters.rs
++++ b/rust/crates/bbq_app/src/characters.rs
+@@ -1066,9 +1066,6 @@ fn viewer_keys(keys: Res<ButtonInput<KeyCode>>, mut game: ResMut<Game>, mut cast
+     if keys.just_pressed(KeyCode::F7) {
+         g.options.adult = !g.options.adult;
+     }
+-    if keys.just_pressed(KeyCode::F8) {
+-        g.options.naughty = !g.options.naughty;
+-    }
+     let dur = bbq_core::items::DOWN_TIME;
+     let kinds = [
+         (KeyCode::KeyJ, SlapKind::SentFlying),
+diff --git a/rust/crates/bbq_app/src/game.rs b/rust/crates/bbq_app/src/game.rs
+index e1bd732..f1057fc 100644
+--- a/rust/crates/bbq_app/src/game.rs
++++ b/rust/crates/bbq_app/src/game.rs
+@@ -290,8 +290,8 @@ impl Plugin for GamePlugin {
+                 drunk_mode: false,
+                 fall_duration: drinks::FALL_DURATION_DEFAULT,
+                 adult: false,
+-                naughty: true,
+-                smoko_on: true,
++                naughty: false,
++                smoko_on: false,
+                 bots_on: true,
+                 bot_difficulty: bbq_core::bots::Difficulty::Fair,
+             },
+@@ -1635,12 +1635,76 @@ mod tests {
+         assert!((g.life.dazza.pos.x - bbq_core::dazza::HOME.x).abs() < 0.01);
+     }
+ 
++    // Shared legacy mechanics are retained for the future mode, not enabled by map defaults.
++    fn enable_smoko_fixture(app: &mut App) {
++        app.world_mut().resource_mut::<YardRes>().0.features.smoko = true;
++    }
++
+     fn put_in_smoko(app: &mut App) {
++        enable_smoko_fixture(app);
+         put_player(app, yard::SMOKO_X + 1.0, yard::SMOKO_Z);
+         ticks(app, 2);
+     }
+     use bbq_core::yard;
+ 
++    #[test]
++    fn former_smoko_zones_do_not_seat_or_score_in_current_modes() {
++        for mode in [GameMode::FreeForAll, GameMode::Teams, GameMode::Heist] {
++            for (x, z) in [bbq_core::smoko::DEFAULT_CENTRE, bbq_core::heist::smoko_spot(2)] {
++                let mut app = app();
++                // Simulate old saved settings before a fresh round.
++                app.world_mut().resource_mut::<YardRes>().0.features.smoko = true;
++                app.world_mut().resource_mut::<Game>().options.naughty = true;
++                start_with(&mut app, setup(mode, 3));
++                {
++                    let mut g = app.world_mut().resource_mut::<Game>();
++                    assert!(!g.options.smoko_on && !g.options.naughty);
++                    g.options.bots_on = false;
++                    g.rules.phase = Phase::Play;
++                    g.world.clear();
++                    g.life.smoko_at = (x, z); // even a legacy zone centre must be inert
++                }
++                assert!(!app.world().resource::<YardRes>().0.features.smoko);
++                put_player(&mut app, x + 1.0, z);
++                press_r(&mut app);
++                ticks(&mut app, 2);
++                assert!(app.world().resource::<Game>().life.seated.is_none());
++
++                // Round setup randomises spawns; place a victim in clear grass explicitly.
++                app.world_mut().resource_mut::<Game>().dummies[0].mover = Mover::new(29.0, 18.0);
++                put_player(&mut app, 29.0, 16.5);
++                fell(&mut app);
++                app.world_mut().resource_mut::<Wanted>().grab_pressed = true;
++                ticks(&mut app, 2);
++                assert!(app.world().resource::<Game>().life.carry.is_some());
++                put_player(&mut app, x + 1.5, z);
++                ticks(&mut app, 4);
++                let g = app.world().resource::<Game>();
++                assert!(g.life.carry.is_some(), "no auto-delivery in {mode:?}");
++                assert!(g.dummies[0].seat.is_none());
++                assert_eq!(g.dummies[0].naughty_t, 0.0);
++                assert_eq!(g.board.score(PLAYER_ID), 0);
++                assert!(!g.prompt.contains("smoko") && !g.prompt.contains("Naughty"));
++            }
++        }
++    }
++
++    #[test]
++    fn menu_background_ignores_legacy_smoko_settings() {
++        let mut app = app();
++        let mut settings = crate::menu::Settings::default();
++        settings.features.smoko = true;
++        settings.naughty = true;
++        app.world_mut().resource_scope(|w, mut g: Mut<Game>| {
++            w.resource_scope(|w, mut p: Mut<Player>| {
++                let mut yard = w.resource_mut::<YardRes>();
++                crate::menu::attract(&settings, &mut g, &mut p, &mut yard);
++                assert!(!yard.0.features.smoko);
++                assert!(!g.options.smoko_on && !g.options.naughty);
++            });
++        });
++    }
++
+     #[test]
+     fn r_in_the_smoko_zone_sits_you_down_and_the_drinks_keep_coming() {
+         let mut app = app();
+@@ -1708,6 +1772,7 @@ mod tests {
+     #[test]
+     fn with_the_naughty_corner_on_the_zone_is_not_a_safe_break() {
+         let mut app = app();
++        app.world_mut().resource_mut::<Game>().options.naughty = true;
+         put_in_smoko(&mut app);
+         press_r(&mut app);
+         ticks(&mut app, 2);
+@@ -1772,6 +1837,8 @@ mod tests {
+     #[test]
+     fn dragging_someone_onto_the_smoko_pad_sends_them_to_the_naughty_corner_by_itself() {
+         let mut app = app();
++        enable_smoko_fixture(&mut app);
++        app.world_mut().resource_mut::<Game>().options.naughty = true;
+         near_dummy0(&mut app);
+         fell(&mut app);
+         app.world_mut().resource_mut::<Wanted>().grab_pressed = true;
+@@ -1826,6 +1893,8 @@ mod tests {
+     #[test]
+     fn setting_someone_down_in_the_smoko_zone_sends_them_to_the_naughty_corner() {
+         let mut app = app();
++        enable_smoko_fixture(&mut app);
++        app.world_mut().resource_mut::<Game>().options.naughty = true;
+         near_dummy0(&mut app);
+         fell(&mut app);
+         app.world_mut().resource_mut::<Wanted>().grab_pressed = true;
+diff --git a/rust/crates/bbq_app/src/gamepad.rs b/rust/crates/bbq_app/src/gamepad.rs
+index 8dc1efb..91afe0a 100644
+--- a/rust/crates/bbq_app/src/gamepad.rs
++++ b/rust/crates/bbq_app/src/gamepad.rs
+@@ -10,7 +10,7 @@
+ //! | Right trigger       | Hold to wind up, let go to throw or slap (like left click)  |
+ //! | Left trigger        | Catch (like right click)                                    |
+ //! | Bumpers             | Swap item                                                   |
+-//! | X (left)            | Drink, grab, smoko, help up (like R)                        |
++//! | X (left)            | Drink, grab, help up (like R)                        |
+ //! | Y (top)             | Grab someone who's down, drag, throw (like F)               |
+ //! | B (right)           | Throw away what you're holding (like G)                     |
+ //! | Left stick press    | Speed boost (like Shift)                                    |
+diff --git a/rust/crates/bbq_app/src/main.rs b/rust/crates/bbq_app/src/main.rs
+index 167c81b..5cf10bf 100644
+--- a/rust/crates/bbq_app/src/main.rs
++++ b/rust/crates/bbq_app/src/main.rs
+@@ -3,7 +3,7 @@
+ //!
+ //! Click the window to grab the mouse. WASD walk, mouse looks, Space jumps, Shift boosts,
+ //! hold and release the left button to throw, right button catches, Q/E/wheel swap items,
+-//! `[` and `]` change the field of view, F1-F4 switch the bar, BBQ, chest and smoko off and on,
++//! `[` and `]` change the field of view, F1-F3 switch the bar, BBQ and chest off and on,
+ //! Esc lets go of the mouse. All the rules live in `bbq_core`; this crate only draws and reads input.
+ 
+ // Bevy systems take many parameters by design.
+diff --git a/rust/crates/bbq_app/src/menu.rs b/rust/crates/bbq_app/src/menu.rs
+index 3a2c598..c6da1d4 100644
+--- a/rust/crates/bbq_app/src/menu.rs
++++ b/rust/crates/bbq_app/src/menu.rs
+@@ -1,5 +1,5 @@
+ //! Phase 8: the screens around the game, as close to the browser page as the engine allows:
+-//! the main menu (Solo / With mates / How to play), the pause card ("Smoko") and the results
++//! the main menu (Solo / With mates / How to play), the pause card ("Paused") and the results
+ //! card, plus the flow between them and the settings that are saved on this computer.
+ //!
+ //! The yard behind the menu is the browser's "attract mode": three bots wander and chuck things
+@@ -235,8 +235,8 @@ impl Settings {
+                 "bar" => s.features.bar = b,
+                 "bbq" => s.features.bbq = b,
+                 "chest" => s.features.chest = b,
+-                "smoko" => s.features.smoko = b,
+-                "naughty" => s.naughty = b,
++                "smoko" => s.features.smoko = false, // ignore legacy feature setting
++                "naughty" => s.naughty = false, // reserved for the future separate mode
+                 "falls" => s.falls = b,
+                 "drunk_all" => s.drunk_all = b,
+                 "character" => {
+@@ -929,8 +929,6 @@ fn settings_panel(c: &mut ChildSpawnerCommands) {
+                         check(w, CheckId::Bbq, "BBQ & Dazza");
+                         let chest = check(w, CheckId::Chest, "Chest");
+                         w.commands().entity(chest).insert(ShowWhen::Cheeky);
+-                        check(w, CheckId::Smoko, "Smoko");
+-                        check(w, CheckId::Naughty, "Smoko is the Naughty Corner");
+                         // drinking only happens in Cheeky mode (family mode has no alcohol)
+                         let falls = check(w, CheckId::Falls, "Stacking it");
+                         w.commands().entity(falls).insert(ShowWhen::Cheeky);
+@@ -1005,13 +1003,11 @@ fn how_panel(c: &mut ChildSpawnerCommands) {
+         // (some lines are for Cheeky mode only: family mode has no alcohol and no chest)
+         for (line, only) in [
+             ("Grab stuff off the lawn and chuck it at your mates. +100 a hit, -50 if you cop one.", None),
+-            ("R does everything else: drink at the bar, raid the BBQ, sit on smoko, help a mate up, raid the chest.", Some(ShowWhen::Cheeky)),
+-            ("R does everything else: grab a cold drink, raid the BBQ, sit on smoko.", Some(ShowWhen::Family)),
++            ("R does everything else: drink at the bar, raid the BBQ, help a mate up, raid the chest.", Some(ShowWhen::Cheeky)),
++            ("R does everything else: grab a cold drink, raid the BBQ.", Some(ShowWhen::Family)),
+             ("Drunk = wobbly, but hits score extra. Don't stack it.", Some(ShowWhen::Cheeky)),
+             ("Steaks and fish are for slapping, and so is anything from the chest. Get up close and click.", Some(ShowWhen::Cheeky)),
+             ("Steaks and fish are for slapping. Get up close and click.", Some(ShowWhen::Family)),
+-            ("Smoko keeps you safe for 20 seconds, but you're drinking the whole time.", Some(ShowWhen::Cheeky)),
+-            ("Smoko keeps you safe for 20 seconds.", Some(ShowWhen::Family)),
+         ] {
+             let mut e = p.spawn(text(format!("•  {line}"), 14.0, false, INK));
+             if let Some(w) = only {
+@@ -1035,7 +1031,7 @@ fn how_panel(c: &mut ChildSpawnerCommands) {
+                 ("Space", "Jump"),
+                 ("Shift", "Speed boost (dive, in the pool)"),
+                 ("Right click", "Catch"),
+-                ("R", "Drink, grab, smoko, help up (hold)"),
++                ("R", "Drink, grab, help up (hold)"),
+                 ("F", "Grab someone who's down and drag them, tap again to let go, hold to throw them"),
+                 ("Q", "Change weapon"),
+                 ("T H B", "Taunt, dance, laugh"),
+@@ -1077,7 +1073,7 @@ fn spawn_pause(mut commands: Commands) {
+         .with_children(|o| {
+             o.spawn(card(520.0)).with_children(|c| {
+                 c.spawn((
+-                    Text::new("Smoko"),
++                    Text::new("Paused"),
+                     display_font(34.0),
+                     TextColor(INK),
+                 ));
+@@ -1280,8 +1276,6 @@ fn widget_clicks(
+             CheckId::Bar => settings.features.bar = !settings.features.bar,
+             CheckId::Bbq => settings.features.bbq = !settings.features.bbq,
+             CheckId::Chest => settings.features.chest = !settings.features.chest,
+-            CheckId::Smoko => settings.features.smoko = !settings.features.smoko,
+-            CheckId::Naughty => settings.naughty = !settings.naughty,
+             CheckId::Falls => settings.falls = !settings.falls,
+             CheckId::DrunkAll => settings.drunk_all = !settings.drunk_all,
+             CheckId::Sound => settings.sound = !settings.sound,
+@@ -1594,8 +1588,6 @@ fn paint_widgets(
+         CheckId::Bar => settings.features.bar,
+         CheckId::Bbq => settings.features.bbq,
+         CheckId::Chest => settings.features.chest,
+-        CheckId::Smoko => settings.features.smoko,
+-        CheckId::Naughty => settings.naughty,
+         CheckId::Falls => settings.falls,
+         CheckId::DrunkAll => settings.drunk_all,
+         CheckId::Sound => settings.sound,
+@@ -1729,8 +1721,8 @@ pub fn begin(settings: &Settings, g: &mut Game, p: &mut Player, yard: &mut YardR
+     };
+     g.options.adult = settings.cheeky;
+     g.world.bottles = settings.bottles.weight();
+-    g.options.naughty = settings.naughty && settings.features.smoko;
+-    g.options.smoko_on = settings.features.smoko;
++    g.options.naughty = false;
++    g.options.smoko_on = false;
+     g.options.falls_on = settings.falls;
+     // drinking (and so Drunk mode) is a Cheeky-mode thing: family mode has no alcohol
+     g.options.drunk_mode = settings.drunk_all && settings.cheeky;
+@@ -1755,8 +1747,8 @@ pub fn attract(settings: &Settings, g: &mut Game, p: &mut Player, yard: &mut Yar
+     g.teams.clear();
+     g.options.bots_on = true;
+     g.options.adult = settings.cheeky;
+-    g.options.naughty = settings.naughty && settings.features.smoko;
+-    g.options.smoko_on = settings.features.smoko;
++    g.options.naughty = false;
++    g.options.smoko_on = false;
+     g.options.falls_on = settings.falls;
+     g.options.drunk_mode = false;
+     g.options.bot_difficulty = Difficulty::Fair;
+diff --git a/rust/crates/bbq_app/src/online_world.rs b/rust/crates/bbq_app/src/online_world.rs
+index d475d11..5cebccd 100644
+--- a/rust/crates/bbq_app/src/online_world.rs
++++ b/rust/crates/bbq_app/src/online_world.rs
+@@ -268,12 +268,14 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
+     g.round.setup.mode = g.rules.mode;
+     g.round.banner = r.banner.clone();
+     g.options.adult = r.features & FEAT_ADULT != 0;
+-    g.options.smoko_on = r.features & FEAT_SMOKO != 0;
++    g.options.smoko_on = false;
++    g.options.naughty = false;
++    g.life.seated = None;
+     let features = Features {
+         bar: r.features & FEAT_BAR != 0,
+         bbq: r.features & FEAT_BBQ != 0,
+         chest: r.features & FEAT_CHEST != 0,
+-        smoko: r.features & FEAT_SMOKO != 0,
++        smoko: false, // legacy host flags cannot add Smoko to these maps
+     };
+     let spot = r.chest_spot as usize;
+     let heist = (r.heist_teams > 0).then_some(r.heist_teams as usize);
+@@ -315,8 +317,8 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
+         d.fallen = b.flags & BOT_FALLEN != 0;
+         d.crown = b.flags & BOT_CROWN != 0;
+         d.smelly = b.flags & BOT_SMELLY != 0;
+-        d.seat = (b.seat != 255).then_some(b.seat as usize);
+-        d.naughty_t = if b.flags & BOT_NAUGHTY != 0 { 1.0 } else { 0.0 };
++        d.seat = None;
++        d.naughty_t = 0.0;
+         d.team = team_of_code(b.team);
+         d.bot.winding = b.flags & BOT_WINDING != 0;
+         d.bot.wind_progress = b.charge;
+@@ -606,6 +608,27 @@ mod tests {
+         app
+     }
+ 
++    #[test]
++    fn legacy_smoko_snapshot_flags_cannot_restore_the_removed_area() {
++        let host = busy_host();
++        let hg = host.world().resource::<Game>();
++        let mut snap = build_world(hg, &bbq_core::yard::Yard::default(), 1, 0.0, &[]);
++        assert_eq!(snap.round.features & FEAT_SMOKO, 0);
++        snap.round.features |= FEAT_SMOKO;
++        for bot in &mut snap.bots {
++            bot.seat = 0;
++            bot.flags |= BOT_NAUGHTY | BOT_SEATED;
++        }
++        let mut guest = app();
++        let mut g = guest.world_mut().resource_mut::<Game>();
++        let mut yard = bbq_core::yard::Yard::default();
++        apply_world(&mut g, &mut yard, &snap, 3, "Marcus");
++        assert!(!yard.features.smoko && !g.options.smoko_on && !g.options.naughty);
++        assert!(g.life.seated.is_none());
++        assert!(g.dummies.iter().all(|d| d.seat.is_none() && d.naughty_t == 0.0));
++        assert_eq!(g.board.score(REMOTE_ID_BASE + 1), hg.board.score(PLAYER_ID));
++    }
++
+     #[test]
+     fn a_guest_ends_up_with_the_hosts_yard() {
+         let host = busy_host();
+diff --git a/rust/crates/bbq_app/src/player.rs b/rust/crates/bbq_app/src/player.rs
+index 6db03d6..a80a592 100644
+--- a/rust/crates/bbq_app/src/player.rs
++++ b/rust/crates/bbq_app/src/player.rs
+@@ -418,12 +418,11 @@ fn update_hud(
+         String::new()
+     };
+     text.0 = format!(
+-        "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw (tap = slap), RMB catch, Q change weapon (E/wheel also swap), R bar/meat/chest/smoko/help up, F grab someone who's down (tap put down, hold chuck), T taunt, H dance, B laugh, G drop what you're holding\n\
+-         F1-F4 features, F5 falls, F6 Drunk mode, F7 Cheeky mode ({}), F8 Naughty Corner ({}), F9 character ({}), F10 bots ({}), F11 bot level ({:?}) | viewer: J/K/L slapped, N stacked it, M emote, Y drunk, C crown, V sash, X stink, P +30 drunk\n\
++        "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw (tap = slap), RMB catch, Q change weapon (E/wheel also swap), R bar/meat/chest/help up, F grab someone who's down (tap put down, hold chuck), T taunt, H dance, B laugh, G drop what you're holding\n\
++         F1-F3 features, F5 falls, F6 Drunk mode, F7 Cheeky mode ({}), F9 character ({}), F10 bots ({}), F11 bot level ({:?}) | viewer: J/K/L slapped, N stacked it, M emote, Y drunk, C crown, V sash, X stink, P +30 drunk\n\
+          SCORE {} | hits {} | taken {} | catches {} | streak {} | holding: {holding}{charge}\n\
+          pos {:.1}, {:.1}, {:.1} | speed {:.1} m/s | {boost} | FOV {:.0} | {pool}{tramp}{fps:.0} fps\n{}",
+         if game.options.adult { "on" } else { "off" },
+-        if game.options.naughty { "on" } else { "off" },
+         cast.mine.name(),
+         if game.options.bots_on { "on" } else { "frozen" },
+         game.options.bot_difficulty,
+diff --git a/rust/crates/bbq_app/src/round.rs b/rust/crates/bbq_app/src/round.rs
+index c650e3b..e9c2591 100644
+--- a/rust/crates/bbq_app/src/round.rs
++++ b/rust/crates/bbq_app/src/round.rs
+@@ -261,12 +261,10 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
+         Yard::new(features, spot)
+     };
+     g.life.chest.new_round(spot);
+-    // Teddy Heist moves the smoko pad out of the red base's way, next to the pool
+-    g.life.smoko_at = if setup.mode == GameMode::Heist {
+-        heist::smoko_spot(setup.heist_teams)
+-    } else {
+-        bbq_core::smoko::DEFAULT_CENTRE
+-    };
++    // Smoko is reserved for a separate map/mode, never the standard yard or Heist.
++    g.options.smoko_on = false;
++    g.options.naughty = false;
++    g.life.smoko_at = bbq_core::smoko::DEFAULT_CENTRE;
+     g.life.dazza.reset();
+     g.life.carry = None;
+     g.life.f_down = None;
+diff --git a/rust/crates/bbq_app/src/ui.rs b/rust/crates/bbq_app/src/ui.rs
+index 495b92e..dc3a8e3 100644
+--- a/rust/crates/bbq_app/src/ui.rs
++++ b/rust/crates/bbq_app/src/ui.rs
+@@ -274,8 +274,6 @@ pub enum CheckId {
+     Bar,
+     Bbq,
+     Chest,
+-    Smoko,
+-    Naughty,
+     Falls,
+     DrunkAll,
+     Sound,
+diff --git a/rust/crates/bbq_app/src/yard_scene.rs b/rust/crates/bbq_app/src/yard_scene.rs
+index 60ab63d..023cb70 100644
+--- a/rust/crates/bbq_app/src/yard_scene.rs
++++ b/rust/crates/bbq_app/src/yard_scene.rs
+@@ -53,9 +53,6 @@ struct MagpieHead {
+ }
+ #[derive(Component)]
+ struct MagpieBody(f32);
+-/// Part of the smoko area: it is moved when the round moves the pad (Teddy Heist).
+-#[derive(Component)]
+-struct SmokoShift(Vec3);
+ /// One of the yard's other eskies and its lid.
+ #[derive(Component)]
+ struct DecorLid(usize);
+@@ -77,7 +74,7 @@ impl Plugin for YardScenePlugin {
+             .init_resource::<Drift>()
+             .add_systems(Startup, build_yard)
+             .add_systems(PostUpdate, crate::lighting::follow_sky.before(bevy::transform::TransformSystems::Propagate))
+-            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_place, animate_magpies));
++            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, animate_magpies));
+     }
+ }
+ 
+@@ -116,7 +113,6 @@ fn build_yard(
+     for (parts, feature) in [
+         (&look.bar, Feature::Bar),
+         (&look.bbq, Feature::Bbq),
+-        (&look.smoko, Feature::Smoko),
+     ] {
+         let e = cache.spawn_parts(
+             &mut commands,
+@@ -126,9 +122,6 @@ fn build_yard(
+             Transform::default(),
+         );
+         commands.entity(e).insert(FeatureTag(feature));
+-        if feature == Feature::Smoko {
+-            commands.entity(e).insert(SmokoShift(Vec3::ZERO));
+-        }
+     }
+     // what is on the bar depends on the mode: grog in Cheeky mode, soft drinks in family mode
+     for (parts, cheeky) in [(&look.bar_grog, true), (&look.bar_soft, false)] {
+@@ -138,34 +131,7 @@ fn build_yard(
+     let e = cache.spawn_parts(&mut commands, &look.litter, &mut meshes, &mut mats, Transform::default());
+     commands.entity(e).insert((CheekyOnly(true), Visibility::Hidden));
+ 
+-    // the smoko pad and its chairs (one per person; the game has you plus three dummies for now)
+-    let chairs = bbq_core::smoko::chair_count(4);
+-    let r = bbq_core::smoko::zone_radius(4);
+-    let pad = looks_yard::smoko_pad(r);
+-    let e = cache.spawn_parts(
+-        &mut commands,
+-        &[pad],
+-        &mut meshes,
+-        &mut mats,
+-        Transform::default(),
+-    );
+-    commands.entity(e).insert((FeatureTag(Feature::Smoko), SmokoShift(Vec3::ZERO)));
+-    for i in 0..chairs {
+-        let (x, z) = bbq_core::smoko::seat_pos(i, chairs);
+-        let facing = bbq_core::smoko::seat_facing(i, chairs);
+-        let e = cache.spawn_parts(
+-            &mut commands,
+-            &if *mode == crate::lighting::LookMode::Polished {
+-                looks_yard::chair_styled(i)
+-            } else {
+-                looks_yard::chair()
+-            },
+-            &mut meshes,
+-            &mut mats,
+-            Transform::from_xyz(x, 0.0, z).with_rotation(Quat::from_rotation_y(facing)),
+-        );
+-        commands.entity(e).insert((FeatureTag(Feature::Smoko), SmokoShift(Vec3::new(x, 0.0, z))));
+-    }
++    // The former Smoko area is open lawn. Shared prop builders remain in looks_yard.
+ 
+     // the clothesline head
+     let e = cache.spawn_parts(
+@@ -440,21 +406,7 @@ fn animate_magpies(
+     }
+ }
+ 
+-/// Slide the smoko pad, chairs and umbrella to wherever the round put the pad.
+-fn sync_smoko_place(game: Res<Game>, mut q: Query<(&SmokoShift, &mut Transform)>) {
+-    let (dx, dz) = (
+-        game.life.smoko_at.0 - bbq_core::yard::SMOKO_X,
+-        game.life.smoko_at.1 - bbq_core::yard::SMOKO_Z,
+-    );
+-    for (s, mut tf) in &mut q {
+-        let want = Vec3::new(s.0.x + dx, tf.translation.y, s.0.z + dz);
+-        if tf.translation != want {
+-            tf.translation = want;
+-        }
+-    }
+-}
+-
+-/// F1 bar, F2 BBQ, F3 chest, F4 smoko.
++/// F1 bar, F2 BBQ, F3 chest.
+ fn toggle_features(
+     keys: Res<ButtonInput<KeyCode>>,
+     game: Res<crate::game::Game>,
+@@ -469,7 +421,6 @@ fn toggle_features(
+         (KeyCode::F1, Feature::Bar),
+         (KeyCode::F2, Feature::Bbq),
+         (KeyCode::F3, Feature::Chest),
+-        (KeyCode::F4, Feature::Smoko),
+     ] {
+         if keys.just_pressed(key) {
+             let mut feats: Features = yard_res.0.features;
+diff --git a/rust/crates/bbq_core/src/bots.rs b/rust/crates/bbq_core/src/bots.rs
+index 26e0aa7..7a8e787 100644
+--- a/rust/crates/bbq_core/src/bots.rs
++++ b/rust/crates/bbq_core/src/bots.rs
+@@ -1450,7 +1450,7 @@ mod tests {
+                 leader: None,
+                 mode: GameMode::FreeForAll,
+                 counting_down: false,
+-                features: Features::default(),
++                features: Features { smoko: true, ..Features::default() }, // shared Smoko errand fixture
+                 adult: false,
+                 naughty: false,
+                 chest_stock: 2,
+@@ -2208,6 +2208,20 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn current_map_bots_never_choose_a_smoko_errand() {
++        let s = Scene::new();
++        let mut world = s.view(0.0);
++        world.features = Features::default();
++        for seed in 0..2000 {
++            let mut rng = Rng::new(seed);
++            let mut brain = BotBrain::new(&mut rng);
++            if let Some(errand) = brain.pick_errand(&me_at(0.0, 0.0), &world, &mut rng) {
++                assert_ne!(errand.kind, ErrandKind::Smoko);
++            }
++        }
++    }
++
+     #[test]
+     fn naughty_corner_mode_and_a_full_pad_rule_out_smoko() {
+         let mut s = Scene::new();
+diff --git a/rust/crates/bbq_core/src/looks_yard.rs b/rust/crates/bbq_core/src/looks_yard.rs
+index c2b5f32..916e793 100644
+--- a/rust/crates/bbq_core/src/looks_yard.rs
++++ b/rust/crates/bbq_core/src/looks_yard.rs
+@@ -284,7 +284,7 @@ fn litter_piece(kind: u32, x: f32, z: f32, yaw: f32, size: f32, colour: u32) ->
+ 
+ /// Fallen leaves and bark (step 2c, A1.6): thickest along the fences, where the wind from the
+ /// trees outside drops them, thinning out onto the lawn; and a litter patch under every tree.
+-/// Flat, tiny, no shadow, and clear of the pool and the smoko pad. Visual only.
++/// Flat, tiny, no shadow, and clear of the pool. Visual only.
+ fn leaf_litter(trees: &[(f32, f32)], seed: u64) -> Vec<Part> {
+     let mut rng = Rng::new(seed ^ 0x1EAF);
+     let leaf_cols = [0x6f6f3a_u32, 0x5f5f30, 0x8a7a3e, 0x7e5e32, 0x56442a, 0x9a7438];
+@@ -292,8 +292,7 @@ fn leaf_litter(trees: &[(f32, f32)], seed: u64) -> Vec<Part> {
+     let mut v = Vec::new();
+     let clear = |x: f32, z: f32| {
+         let in_pool = (POOL_X0 - 0.5..POOL_X1 + 0.5).contains(&x) && (POOL_Z0 - 0.5..POOL_Z1 + 0.5).contains(&z);
+-        let in_smoko = (x - SMOKO_X).hypot(z - SMOKO_Z) < 5.2;
+-        !in_pool && !in_smoko
++        !in_pool
+     };
+     // along the fences: the closer to the fence, the more
+     for n in 0..170 {
+@@ -1874,8 +1873,8 @@ pub struct DirtSpot {
+ }
+ 
+ /// Worn dirt, placed the way it really wears: along the paths people walk (back door to the bar,
+-/// the BBQ, the Hills Hoist, then on to smoko), in a wider scuffed patch where people stand (bar,
+-/// BBQ, hoist, under the trampoline, smoko), and a few ragged bare patches that creep in from the
++/// the BBQ, the Hills Hoist and woodpile), in a wider scuffed patch where people stand (bar,
++/// BBQ, hoist, under the trampoline), and a few ragged bare patches that creep in from the
+ /// fence lines. Each patch is a cluster of overlapping ellipses of different sizes and tones so no
+ /// edge is a neat circle.
+ pub fn dirt_spots(seed: u64) -> Vec<DirtSpot> {
+@@ -1895,7 +1894,7 @@ pub fn dirt_spots(seed: u64) -> Vec<DirtSpot> {
+     let paths: [&[(f32, f32)]; 3] = [
+         &[(3.0, -23.8), (1.0, -20.0), (-4.0, -17.0), (-8.7, -16.4)],
+         &[(3.0, -23.8), (3.2, -16.0), (1.5, -8.0), (0.4, 2.2)],
+-        &[(-8.7, -16.4), (-16.0, -10.0), (-22.6, -4.4)],
++        &[(-8.7, -16.4), (-14.0, -10.0), (-13.5, -4.5)],
+     ];
+     for pts in paths {
+         for w in pts.windows(2) {
+@@ -1925,7 +1924,6 @@ pub fn dirt_spots(seed: u64) -> Vec<DirtSpot> {
+         (-8.7, -16.8, 2.2),
+         (0.0, 3.0, 1.8),
+         (TRAMP_X, TRAMP_Z, TRAMP_R + 0.6),
+-        // (not the smoko pad: the dirt drawn at the pad's height made the pad flicker)
+     ] {
+         for _ in 0..4 {
+             let a = rng.range(0.0, 2.0 * PI);
+diff --git a/rust/crates/bbq_core/src/yard.rs b/rust/crates/bbq_core/src/yard.rs
+index 1a9cd5d..a83f338 100644
+--- a/rust/crates/bbq_core/src/yard.rs
++++ b/rust/crates/bbq_core/src/yard.rs
+@@ -213,7 +213,7 @@ impl Default for Features {
+             bar: true,
+             bbq: true,
+             chest: true,
+-            smoko: true,
++            smoko: false,
+         }
+     }
+ }
+@@ -228,7 +228,10 @@ pub struct Yard {
+ }
+ 
+ impl Yard {
+-    pub fn new(features: Features, chest_spot: usize) -> Self {
++    pub fn new(mut features: Features, chest_spot: usize) -> Self {
++        // The standard yard (including Teams and Heist) has no Smoko area.
++        // Ignore legacy saved/network feature flags; shared Smoko primitives remain reusable.
++        features.smoko = false;
+         let mut c = Vec::new();
+         let mut pole = Collider::centred(0.0, 3.0, 0.3, 0.3, 2.3).of(Kind::Pole);
+         pole.no_top = true;
+@@ -323,6 +326,19 @@ pub fn inside_yard(x: f32, z: f32, margin: f32) -> bool {
+ mod tests {
+     use super::*;
+ 
++    #[test]
++    fn current_maps_ignore_legacy_smoko_flags() {
++        assert!(!Features::default().smoko);
++        let legacy = Features { smoko: true, ..Features::default() };
++        assert!(!Yard::new(legacy, 0).features.smoko);
++        for teams in 2..=4 {
++            let yard = Yard::heist(legacy, 0, teams);
++            assert!(!yard.features.smoko);
++            assert_eq!(yard.heist, Some(teams));
++            assert!(yard.colliders.iter().any(|c| c.kind == Kind::HeistWall));
++        }
++    }
++
+     #[test]
+     fn full_yard_has_all_the_boxes() {
+         // pole, shed, 4 eskies, table, grill, meat table, bins, crates, hedge, 2 tyres,
+diff --git a/rust/tools/smoko_removal_review.py b/rust/tools/smoko_removal_review.py
+new file mode 100644
+index 0000000..a87ebfb
+--- /dev/null
++++ b/rust/tools/smoko_removal_review.py
+@@ -0,0 +1,30 @@
++#!/usr/bin/env python3
++"""Capture the former Smoko areas and matched performance, one game process at a time."""
++import argparse
++import os
++from pathlib import Path
++import subprocess
++
++root = Path(__file__).resolve().parents[2]
++p = argparse.ArgumentParser(description=__doc__)
++p.add_argument('--label', required=True)
++p.add_argument('--binary', type=Path, default=root/'rust/target/release/bbq_app')
++a = p.parse_args()
++out = root/'checkpoints/2026-10-15-smoko-removal/evidence'
++out.mkdir(parents=True, exist_ok=True)
++views = {
++    'standard': ['--cam', '-16,2.2,-3,90,-8,85'],
++    'heist': ['--cam', '0,3.5,12,70,-12,80', '--mode', 'heist'],
++    'stress': ['--cam', '0,5,20,0,-10,78', '--mode', 'heist', '--bots', '11'],
++}
++env = dict(os.environ, BEVY_ASSET_ROOT=str(root/'rust/crates/bbq_app'), RUST_LOG='warn')
++for name, extra in views.items():
++    target = out/f'{a.label}-{name}.png'
++    r = subprocess.run([str(a.binary.resolve()), '--shot', str(target), '--review', '--big',
++                        '--look', 'polished', '--style', 'pop', '--cheeky', *extra],
++                       cwd=root/'rust', env=env, text=True, stdout=subprocess.PIPE,
++                       stderr=subprocess.STDOUT, timeout=240)
++    target.with_suffix('.log').write_text(r.stdout)
++    if r.returncode or 'ERROR' in r.stdout or not target.exists() or not target.with_suffix('.metrics.txt').exists():
++        raise SystemExit(f'Capture failed: {target}')
++    print(name, target.with_suffix('.metrics.txt').read_text(), flush=True)

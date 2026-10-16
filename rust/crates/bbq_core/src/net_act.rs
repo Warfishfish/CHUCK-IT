@@ -26,11 +26,15 @@ pub enum GuestAct {
     Select { item: u32 },
     /// Right click: hold the catch.
     Catch,
+    /// F edge; the host chooses/validates the victim and measures throw hold time.
+    Carry { pressed: bool },
 }
 
 /// What the host tells a guest that happened to them.
 #[derive(Clone, Debug, PartialEq)]
 pub enum HitMsg {
+    /// Host-owned pose while carried/thrown, or authoritative respawn.
+    Smoko { pos: (f32,f32,f32), vel: (f32,f32,f32), locked: bool, carrying: bool },
     /// Hit by a thrown item: its kind (an index into `ItemKind::ALL`), the direction it was
     /// going (flat), and whether it was a power throw that flattens.
     Item { kind: u8, dir: (f32, f32, f32), flatten: bool },
@@ -69,6 +73,7 @@ impl GuestAct {
                 w.u32(*item);
             }
             GuestAct::Catch => w.u8(5),
+            GuestAct::Carry { pressed } => { w.u8(6); w.u8(*pressed as u8); },
         }
     }
 
@@ -79,6 +84,7 @@ impl GuestAct {
             3 => GuestAct::Drop { item: r.u32()? },
             4 => GuestAct::Select { item: r.u32()? },
             5 => GuestAct::Catch,
+            6 => GuestAct::Carry { pressed: r.u8()? != 0 },
             k => return Err(DecodeError::UnknownKind(k)),
         })
     }
@@ -98,6 +104,7 @@ impl GuestAct {
 impl HitMsg {
     pub(crate) fn write(&self, w: &mut Writer) {
         match self {
+            HitMsg::Smoko {pos,vel,locked,carrying} => {w.u8(3);w.triple(*pos);w.triple(*vel);w.u8(*locked as u8);w.u8(*carrying as u8);},
             HitMsg::Item { kind, dir, flatten } => {
                 w.u8(1);
                 w.u8(*kind);
@@ -125,6 +132,7 @@ impl HitMsg {
     pub(crate) fn read(r: &mut Reader) -> Result<HitMsg, DecodeError> {
         let clamp = |v: f32, max: f32| v.clamp(-max, max);
         Ok(match r.u8()? {
+            3 => HitMsg::Smoko {pos:r.triple()?,vel:r.triple()?,locked:r.u8()?!=0,carrying:r.u8()?!=0},
             1 => HitMsg::Item { kind: r.u8()?, dir: r.triple()?, flatten: r.u8()? != 0 },
             2 => HitMsg::Slap {
                 dir: r.triple()?,
@@ -156,6 +164,9 @@ mod tests {
             Msg::Act(GuestAct::Drop { item: 4 }),
             Msg::Act(GuestAct::Select { item: 5 }),
             Msg::Act(GuestAct::Catch),
+            Msg::Act(GuestAct::Carry {pressed:true}),
+            Msg::Act(GuestAct::Carry {pressed:false}),
+            Msg::Hit(HitMsg::Smoko {pos:(1.0,0.8,2.0),vel:(0.0,0.0,0.0),locked:true,carrying:false}),
             Msg::Hit(HitMsg::Item { kind: 4, dir: (0.0, 0.0, -1.0), flatten: true }),
             Msg::Hit(HitMsg::Slap { dir: (1.0, 0.0, 0.0), knock: 13.0, up: 5.5, stun: 0.5, dizzy: 0.0, down: Some((1, 3.5)) }),
             Msg::Hit(HitMsg::Slap { dir: (1.0, 0.0, 0.0), knock: 8.0, up: 3.0, stun: 2.0, dizzy: 2.0, down: None }),

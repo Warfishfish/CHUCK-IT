@@ -100,6 +100,7 @@ fn mode_code(m: GameMode) -> u8 {
         GameMode::FreeForAll => 0,
         GameMode::Teams => 1,
         GameMode::Heist => 2,
+        GameMode::Smoko => 3,
     }
 }
 
@@ -107,6 +108,7 @@ fn mode_of_code(c: u8) -> GameMode {
     match c {
         1 => GameMode::Teams,
         2 => GameMode::Heist,
+        3 => GameMode::Smoko,
         _ => GameMode::FreeForAll,
     }
 }
@@ -256,6 +258,10 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
     // ---- the round ----
     let r = &snap.round;
     let was_over = g.rules.phase == Phase::Results;
+    if g.rules.mode != mode_of_code(r.mode) || g.round.mtch.no != r.round_no as u32
+        || (g.rules.phase != Phase::Countdown && Phase::from_index(r.phase)==Phase::Countdown) {
+        g.smoko=Default::default();
+    }
     g.rules = Rules {
         mode: mode_of_code(r.mode),
         friendly_fire: r.features & FEAT_FRIENDLY_FIRE != 0,
@@ -268,18 +274,21 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
     g.round.setup.mode = g.rules.mode;
     g.round.banner = r.banner.clone();
     g.options.adult = r.features & FEAT_ADULT != 0;
-    g.options.smoko_on = r.features & FEAT_SMOKO != 0;
+    g.options.smoko_on = g.rules.mode == GameMode::Smoko;
+    g.options.naughty = false;
+    g.life.seated = None;
     let features = Features {
         bar: r.features & FEAT_BAR != 0,
         bbq: r.features & FEAT_BBQ != 0,
         chest: r.features & FEAT_CHEST != 0,
-        smoko: r.features & FEAT_SMOKO != 0,
+        smoko: g.rules.mode == GameMode::Smoko,
     };
     let spot = r.chest_spot as usize;
     let heist = (r.heist_teams > 0).then_some(r.heist_teams as usize);
     if yard.features != features || yard.chest_spot != spot || yard.heist != heist {
         *yard = match heist {
             Some(n) if g.rules.mode == GameMode::Heist => Yard::heist(features, spot, n),
+            _ if g.rules.mode == GameMode::Smoko => Yard::smoko(features, spot),
             _ => Yard::new(features, spot),
         };
     }
@@ -315,8 +324,8 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
         d.fallen = b.flags & BOT_FALLEN != 0;
         d.crown = b.flags & BOT_CROWN != 0;
         d.smelly = b.flags & BOT_SMELLY != 0;
-        d.seat = (b.seat != 255).then_some(b.seat as usize);
-        d.naughty_t = if b.flags & BOT_NAUGHTY != 0 { 1.0 } else { 0.0 };
+        d.seat = None;
+        d.naughty_t = 0.0;
         d.team = team_of_code(b.team);
         d.bot.winding = b.flags & BOT_WINDING != 0;
         d.bot.wind_progress = b.charge;
@@ -604,6 +613,62 @@ mod tests {
             g.dummies[1].drunk = 40.0;
         }
         app
+    }
+
+    #[test]
+    fn legacy_smoko_snapshot_flags_cannot_restore_the_removed_area() {
+        let host = busy_host();
+        let hg = host.world().resource::<Game>();
+        let mut snap = build_world(hg, &bbq_core::yard::Yard::default(), 1, 0.0, &[]);
+        assert_eq!(snap.round.features & FEAT_SMOKO, 0);
+        snap.round.features |= FEAT_SMOKO;
+        for bot in &mut snap.bots {
+            bot.seat = 0;
+            bot.flags |= BOT_NAUGHTY | BOT_SEATED;
+        }
+        let mut guest = app();
+        let mut g = guest.world_mut().resource_mut::<Game>();
+        let mut yard = bbq_core::yard::Yard::default();
+        apply_world(&mut g, &mut yard, &snap, 3, "Marcus");
+        assert!(!yard.features.smoko && !g.options.smoko_on && !g.options.naughty);
+        assert!(g.life.seated.is_none());
+        assert!(g.dummies.iter().all(|d| d.seat.is_none() && d.naughty_t == 0.0));
+        assert_eq!(g.board.score(REMOTE_ID_BASE + 1), hg.board.score(PLAYER_ID));
+    }
+
+    #[test]
+    fn smoko_network_actions_are_host_validated_and_map_choice_round_trips() {
+        let mut host=host_with_a_guest_and(1);
+        {
+            let mut g=host.world_mut().resource_mut::<Game>();
+            g.rules.mode=GameMode::Smoko;
+            let d=g.dummies.iter_mut().find(|d|d.id==100).unwrap();
+            d.mover=bbq_core::movement::Mover::new(8.0,-1.5);
+            d.body=Default::default();
+        }
+        act(&mut host,GuestAct::Carry{pressed:true});
+        assert!(host.world().resource::<Game>().smoko.carries.is_empty(),"standing opponents are not eligible");
+        host.world_mut().resource_mut::<Game>().dummies.iter_mut().find(|d|d.id==100).unwrap().body.down_t=4.0;
+        act(&mut host,GuestAct::Carry{pressed:true});
+        let id=REMOTE_ID_BASE+2;
+        assert_eq!(host.world().resource::<Game>().smoko.carries[&id].victim,100);
+        {
+            let mut p=host.world_mut().remove_resource::<Player>().unwrap();
+            let mut g=host.world_mut().resource_mut::<Game>();
+            let d=g.dummies.iter_mut().find(|d|d.id==id).unwrap();
+            d.mover=bbq_core::movement::Mover::new(0.0,11.0);
+            crate::smoko_mode::step(&mut g,&mut p,&mut Wanted::default());
+            assert_eq!(g.board.score(id),100);assert_eq!(g.board.score(PLAYER_ID),0);
+            host.world_mut().insert_resource(p);
+        }
+        let hg=host.world().resource::<Game>();
+        let snap=build_world(hg,&Yard::smoko(Default::default(),0),1,0.0,&[]);
+        let bytes=bbq_core::net::Msg::World(Box::new(snap)).encode();
+        let Ok(bbq_core::net::Msg::World(snap))=bbq_core::net::Msg::decode(&bytes) else{panic!()};
+        let mut guest=app();let mut g=guest.world_mut().resource_mut::<Game>();let mut y=Yard::default();
+        apply_world(&mut g,&mut y,&snap,2,"Host");
+        assert_eq!(g.rules.mode,GameMode::Smoko);assert!(y.features.smoko);
+        assert_eq!(g.board.score(PLAYER_ID),100);
     }
 
     #[test]
@@ -1033,6 +1098,11 @@ mod tests {
 /// yard, but what you do is sent to the host (`Game::net_acts`) instead of done here. The host's
 /// next picture then shows the result (your item in the air, the other person knocked over).
 pub fn guest_hands(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
+    if g.rules.mode == GameMode::Smoko {
+        if std::mem::take(&mut wanted.grab_pressed) { g.net_acts.push(GuestAct::Carry {pressed:true}); }
+        if std::mem::take(&mut wanted.grab_released) { g.net_acts.push(GuestAct::Carry {pressed:false}); }
+        g.prompt = if g.now < g.smoko.guest_until {"Being carried or thrown — the host controls your landing"} else if g.smoko.guest_carrying {"Deliver to SMOKO • Tap F: drop • Hold F, release: throw"} else {"SMOKO: Knock someone down → F to pick up → deliver (+100)"}.into();
+    }
     let now = g.now;
     g.catcher.tick(dt);
     let before = g.slots.selected();
@@ -1069,7 +1139,7 @@ pub fn guest_hands(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
         stunned_standing: g.me.body.stun > 0.0 && g.me.body.down_t <= 0.0,
         drinking: g.me.drunk.is_drinking(),
         at_smoko: false,
-        carrying_someone: false,
+        carrying_someone: g.smoko.guest_carrying,
     };
     if std::mem::take(&mut wanted.throw_down) {
         match g.wind.press(now, selected_kind, &situation) {
@@ -1146,6 +1216,15 @@ pub fn apply_hit(g: &mut Game, p: &mut Player, hit: &HitMsg) {
     g.me.drunk.cancel_drink();
     g.wind.cancel();
     match hit {
+        HitMsg::Smoko { pos, vel, locked, carrying } => {
+            if g.rules.mode != GameMode::Smoko { return; }
+            p.mover.x=pos.0; p.mover.y=pos.1; p.mover.z=pos.2;
+            p.mover.vx=vel.0; p.mover.vy=vel.1; p.mover.vz=vel.2;
+            p.mover.grounded=pos.1<=0.01;
+            g.smoko.guest_until=if *locked {g.now+0.3} else {0.0};
+            g.smoko.guest_carrying=*carrying;
+            if *locked { g.me.body.down_t=0.3; } else {g.me.body=Default::default();}
+        }
         HitMsg::Item { kind, dir, flatten } => {
             let spirit = *kind >= 100;
             let Some(&kind) = ItemKind::ALL.get((*kind % 100) as usize) else { return };
@@ -1225,9 +1304,10 @@ pub fn apply_guest_act(g: &mut Game, p: &mut Player, net_id: u32, act: &GuestAct
     let id = g.dummies[i].id;
     let now = g.now;
     let in_play = g.rules.in_play();
-    let can_act = in_play && g.dummies[i].body.stun <= 0.0 && !g.dummies[i].body.is_down() && g.dummies[i].seat.is_none();
+    let can_act = in_play && !g.smoko.carries.contains_key(&id) && g.dummies[i].body.stun <= 0.0 && !g.dummies[i].body.is_down() && g.dummies[i].seat.is_none();
     let holds = |g: &Game, item: u32| g.dummies[i].bot.slots.ids().contains(&item);
     match act {
+        GuestAct::Carry { pressed } => crate::smoko_mode::input(g,p,id,*pressed),
         GuestAct::Select { item } => {
             let slots = &mut g.dummies[i].bot.slots;
             if let Some(n) = slots.ids().iter().position(|x| x == item) {

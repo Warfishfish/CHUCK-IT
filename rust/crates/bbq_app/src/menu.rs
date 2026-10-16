@@ -1,5 +1,5 @@
 //! Phase 8: the screens around the game, as close to the browser page as the engine allows:
-//! the main menu (Solo / With mates / How to play), the pause card ("Smoko") and the results
+//! the main menu (Solo / With mates / How to play), the pause card ("Paused") and the results
 //! card, plus the flow between them and the settings that are saved on this computer.
 //!
 //! The yard behind the menu is the browser's "attract mode": three bots wander and chuck things
@@ -172,6 +172,7 @@ impl Settings {
             GameMode::FreeForAll => "ffa",
             GameMode::Teams => "teams",
             GameMode::Heist => "heist",
+            GameMode::Smoko => "smoko",
         };
         let skill = match self.skill {
             Difficulty::Easy => "easy",
@@ -216,6 +217,7 @@ impl Settings {
                     s.mode = match v {
                         "teams" => GameMode::Teams,
                         "heist" => GameMode::Heist,
+                        "smoko" => GameMode::Smoko,
                         _ => GameMode::FreeForAll,
                     }
                 }
@@ -235,8 +237,8 @@ impl Settings {
                 "bar" => s.features.bar = b,
                 "bbq" => s.features.bbq = b,
                 "chest" => s.features.chest = b,
-                "smoko" => s.features.smoko = b,
-                "naughty" => s.naughty = b,
+                "smoko" => s.features.smoko = false, // ignore legacy feature setting
+                "naughty" => s.naughty = false, // reserved for the future separate mode
                 "falls" => s.falls = b,
                 "drunk_all" => s.drunk_all = b,
                 "character" => {
@@ -320,6 +322,7 @@ pub enum ShowWhen {
     HeistTeams,
     FriendlyFire,
     HeistNote,
+    SmokoNote,
     MoreOpen,
     Cheeky,
     /// Only with Cheeky mode off (family mode: no alcohol).
@@ -357,7 +360,14 @@ impl Plugin for MenuPlugin {
         let direct = args.iter().any(|a| a == "--mode" || a == "--shot");
         let menu_shot = args.iter().any(|a| a == "--menu");
         app.init_resource::<ShowDev>()
-            .insert_resource(Settings::load())
+            .insert_resource({
+                let mut settings=Settings::load();
+                // Screenshot-only selection; never writes over the user's saved choice.
+                if args.iter().any(|a| a=="--menu") && args.windows(2).any(|a| a==["--preview-mode","smoko"]) {
+                    settings.mode=GameMode::Smoko;
+                }
+                settings
+            })
             .insert_resource(MenuUi {
                 // `--tab look` (screenshots) opens on the Customise tab
                 tab: match args.iter().position(|a| a == "--tab").and_then(|i| args.get(i + 1)).map(String::as_str) {
@@ -582,7 +592,7 @@ fn lobby_card(o: &mut ChildSpawnerCommands) {
         // the host picks the game right here
         c.spawn((column(0.0), ShowWhen::LobbyHost)).with_children(|w| {
             // Teddy Heist does not work online yet (9.8 in the plan)
-            seg(w, SegId::Mode, "Game mode", &[("Free for all", 0), ("Teams", 1)]);
+            seg(w, SegId::Mode, "Maps / Game modes", &[("Free for all", 0), ("Teams", 1)]);
         });
         c.spawn((text("", 14.0, true, INK), LobbyStatus));
         c.spawn(row(8.0)).with_children(|r| {
@@ -871,8 +881,8 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
         seg(
             p,
             SegId::Mode,
-            "Game mode",
-            &[("Free for all", 0), ("Teams (2 v 2)", 1), ("Teddy Heist", 2)],
+            "Maps / Game modes",
+            &[("Backyard", 0), ("Backyard Teams", 1), ("Teddy Heist", 2), ("Smoko", 3)],
         );
         p.spawn((
             Node { display: Display::None, ..default() },
@@ -883,6 +893,11 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
                 false,
                 MUTED
             )],
+        ));
+        p.spawn((
+            Node { display: Display::None, ..default() },
+            ShowWhen::SmokoNote,
+            children![text("SMOKO YARD — Knock someone down, press F to pick them up, then carry or throw them into the marked pad. Tap F to drop; hold F and release to throw. +100 per delivery. Hits alone score nothing. Delivered players respawn away from the pad.", 13.0, false, MUTED)],
         ));
         p.spawn((column(6.0), ShowWhen::HeistTeams))
             .with_children(|h| {
@@ -929,8 +944,6 @@ fn settings_panel(c: &mut ChildSpawnerCommands) {
                         check(w, CheckId::Bbq, "BBQ & Dazza");
                         let chest = check(w, CheckId::Chest, "Chest");
                         w.commands().entity(chest).insert(ShowWhen::Cheeky);
-                        check(w, CheckId::Smoko, "Smoko");
-                        check(w, CheckId::Naughty, "Smoko is the Naughty Corner");
                         // drinking only happens in Cheeky mode (family mode has no alcohol)
                         let falls = check(w, CheckId::Falls, "Stacking it");
                         w.commands().entity(falls).insert(ShowWhen::Cheeky);
@@ -1005,13 +1018,11 @@ fn how_panel(c: &mut ChildSpawnerCommands) {
         // (some lines are for Cheeky mode only: family mode has no alcohol and no chest)
         for (line, only) in [
             ("Grab stuff off the lawn and chuck it at your mates. +100 a hit, -50 if you cop one.", None),
-            ("R does everything else: drink at the bar, raid the BBQ, sit on smoko, help a mate up, raid the chest.", Some(ShowWhen::Cheeky)),
-            ("R does everything else: grab a cold drink, raid the BBQ, sit on smoko.", Some(ShowWhen::Family)),
+            ("R does everything else: drink at the bar, raid the BBQ, help a mate up, raid the chest.", Some(ShowWhen::Cheeky)),
+            ("R does everything else: grab a cold drink, raid the BBQ.", Some(ShowWhen::Family)),
             ("Drunk = wobbly, but hits score extra. Don't stack it.", Some(ShowWhen::Cheeky)),
             ("Steaks and fish are for slapping, and so is anything from the chest. Get up close and click.", Some(ShowWhen::Cheeky)),
             ("Steaks and fish are for slapping. Get up close and click.", Some(ShowWhen::Family)),
-            ("Smoko keeps you safe for 20 seconds, but you're drinking the whole time.", Some(ShowWhen::Cheeky)),
-            ("Smoko keeps you safe for 20 seconds.", Some(ShowWhen::Family)),
         ] {
             let mut e = p.spawn(text(format!("•  {line}"), 14.0, false, INK));
             if let Some(w) = only {
@@ -1035,7 +1046,7 @@ fn how_panel(c: &mut ChildSpawnerCommands) {
                 ("Space", "Jump"),
                 ("Shift", "Speed boost (dive, in the pool)"),
                 ("Right click", "Catch"),
-                ("R", "Drink, grab, smoko, help up (hold)"),
+                ("R", "Drink, grab, help up (hold)"),
                 ("F", "Grab someone who's down and drag them, tap again to let go, hold to throw them"),
                 ("Q", "Change weapon"),
                 ("T H B", "Taunt, dance, laugh"),
@@ -1077,7 +1088,7 @@ fn spawn_pause(mut commands: Commands) {
         .with_children(|o| {
             o.spawn(card(520.0)).with_children(|c| {
                 c.spawn((
-                    Text::new("Smoko"),
+                    Text::new("Paused"),
                     display_font(34.0),
                     TextColor(INK),
                 ));
@@ -1249,6 +1260,7 @@ fn widget_clicks(
                 settings.mode = match v {
                     1 => GameMode::Teams,
                     2 => GameMode::Heist,
+                    3 => GameMode::Smoko,
                     _ => GameMode::FreeForAll,
                 }
             }
@@ -1280,8 +1292,6 @@ fn widget_clicks(
             CheckId::Bar => settings.features.bar = !settings.features.bar,
             CheckId::Bbq => settings.features.bbq = !settings.features.bbq,
             CheckId::Chest => settings.features.chest = !settings.features.chest,
-            CheckId::Smoko => settings.features.smoko = !settings.features.smoko,
-            CheckId::Naughty => settings.naughty = !settings.naughty,
             CheckId::Falls => settings.falls = !settings.falls,
             CheckId::DrunkAll => settings.drunk_all = !settings.drunk_all,
             CheckId::Sound => settings.sound = !settings.sound,
@@ -1569,6 +1579,7 @@ fn paint_widgets(
                     GameMode::FreeForAll => 0,
                     GameMode::Teams => 1,
                     GameMode::Heist => 2,
+                    GameMode::Smoko => 3,
                 }
             }
             SegId::HeistTeams => settings.heist_teams as i32 == v,
@@ -1594,8 +1605,6 @@ fn paint_widgets(
         CheckId::Bar => settings.features.bar,
         CheckId::Bbq => settings.features.bbq,
         CheckId::Chest => settings.features.chest,
-        CheckId::Smoko => settings.features.smoko,
-        CheckId::Naughty => settings.naughty,
         CheckId::Falls => settings.falls,
         CheckId::DrunkAll => settings.drunk_all,
         CheckId::Sound => settings.sound,
@@ -1626,6 +1635,7 @@ fn paint_widgets(
             ShowWhen::NotGuest => !(lobby.in_yard && !lobby.host),
             ShowWhen::NotLook => matches!(ui.tab, Tab::Solo | Tab::How),
             ShowWhen::HeistTeams | ShowWhen::HeistNote => heist,
+            ShowWhen::SmokoNote => settings.mode == GameMode::Smoko,
             ShowWhen::FriendlyFire => teams,
             ShowWhen::MoreOpen => ui.more_open,
             ShowWhen::Cheeky => settings.cheeky,
@@ -1682,6 +1692,7 @@ fn paint_widgets(
     }
     let label = match settings.mode {
         GameMode::Heist => "Play Teddy Heist",
+        GameMode::Smoko => "Play Smoko",
         GameMode::Teams => "Play Teams",
         GameMode::FreeForAll => "Play",
     };
@@ -1729,8 +1740,8 @@ pub fn begin(settings: &Settings, g: &mut Game, p: &mut Player, yard: &mut YardR
     };
     g.options.adult = settings.cheeky;
     g.world.bottles = settings.bottles.weight();
-    g.options.naughty = settings.naughty && settings.features.smoko;
-    g.options.smoko_on = settings.features.smoko;
+    g.options.naughty = false;
+    g.options.smoko_on = false;
     g.options.falls_on = settings.falls;
     // drinking (and so Drunk mode) is a Cheeky-mode thing: family mode has no alcohol
     g.options.drunk_mode = settings.drunk_all && settings.cheeky;
@@ -1755,8 +1766,8 @@ pub fn attract(settings: &Settings, g: &mut Game, p: &mut Player, yard: &mut Yar
     g.teams.clear();
     g.options.bots_on = true;
     g.options.adult = settings.cheeky;
-    g.options.naughty = settings.naughty && settings.features.smoko;
-    g.options.smoko_on = settings.features.smoko;
+    g.options.naughty = false;
+    g.options.smoko_on = false;
     g.options.falls_on = settings.falls;
     g.options.drunk_mode = false;
     g.options.bot_difficulty = Difficulty::Fair;

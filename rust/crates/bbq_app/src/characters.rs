@@ -1066,9 +1066,6 @@ fn viewer_keys(keys: Res<ButtonInput<KeyCode>>, mut game: ResMut<Game>, mut cast
     if keys.just_pressed(KeyCode::F7) {
         g.options.adult = !g.options.adult;
     }
-    if keys.just_pressed(KeyCode::F8) {
-        g.options.naughty = !g.options.naughty;
-    }
     let dur = bbq_core::items::DOWN_TIME;
     let kinds = [
         (KeyCode::KeyJ, SlapKind::SentFlying),

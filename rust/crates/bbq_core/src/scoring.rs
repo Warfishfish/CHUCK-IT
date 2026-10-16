@@ -48,7 +48,7 @@ impl Rules {
     }
     /// Normal scoring: in play, and not Heist.
     pub fn scoring(&self) -> bool {
-        self.in_play() && self.mode != GameMode::Heist
+        self.in_play() && !matches!(self.mode, GameMode::Heist | GameMode::Smoko)
     }
 }
 
@@ -223,7 +223,7 @@ impl Scoreboard {
         if !rules.in_play() {
             return;
         }
-        if rules.mode != GameMode::Heist
+        if !matches!(rules.mode, GameMode::Heist | GameMode::Smoko)
             && let Some(s) = self.stats.get_mut(&catcher)
         {
             s.score += CATCH;
@@ -368,6 +368,7 @@ impl Scoreboard {
         if !rules.in_play() {
             return 0;
         }
+        if rules.mode == GameMode::Smoko { return 0; }
         let pts = DAZZA_SLAP[outcome.min(2)];
         match self.stats.get_mut(&id) {
             Some(s) => {
@@ -376,6 +377,15 @@ impl Scoreboard {
             }
             None => 0,
         }
+    }
+
+    /// Only the authoritative delivery system calls this after consuming eligibility.
+    pub fn deliver(&mut self, rules: &Rules, id: PlayerId) -> i32 {
+        if !rules.in_play() || rules.mode != GameMode::Smoko { return 0; }
+        let s = self.stats.entry(id).or_default();
+        s.score += 100;
+        s.banked += 1;
+        100
     }
 
     /// Bank a stolen teddy: +150 and one more teddy on this player's count. Returns the points.

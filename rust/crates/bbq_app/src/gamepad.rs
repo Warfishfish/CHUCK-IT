@@ -10,7 +10,7 @@
 //! | Right trigger       | Hold to wind up, let go to throw or slap (like left click)  |
 //! | Left trigger        | Catch (like right click)                                    |
 //! | Bumpers             | Swap item                                                   |
-//! | X (left)            | Drink, grab, smoko, help up (like R)                        |
+//! | X (left)            | Drink, grab, help up (like R)                        |
 //! | Y (top)             | Grab someone who's down, drag, throw (like F)               |
 //! | B (right)           | Throw away what you're holding (like G)                     |
 //! | Left stick press    | Speed boost (like Shift)                                    |

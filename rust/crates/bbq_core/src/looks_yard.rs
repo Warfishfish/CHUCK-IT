@@ -284,7 +284,7 @@ fn litter_piece(kind: u32, x: f32, z: f32, yaw: f32, size: f32, colour: u32) -> 
 
 /// Fallen leaves and bark (step 2c, A1.6): thickest along the fences, where the wind from the
 /// trees outside drops them, thinning out onto the lawn; and a litter patch under every tree.
-/// Flat, tiny, no shadow, and clear of the pool and the smoko pad. Visual only.
+/// Flat, tiny, no shadow, and clear of the pool. Visual only.
 fn leaf_litter(trees: &[(f32, f32)], seed: u64) -> Vec<Part> {
     let mut rng = Rng::new(seed ^ 0x1EAF);
     let leaf_cols = [0x6f6f3a_u32, 0x5f5f30, 0x8a7a3e, 0x7e5e32, 0x56442a, 0x9a7438];
@@ -292,8 +292,7 @@ fn leaf_litter(trees: &[(f32, f32)], seed: u64) -> Vec<Part> {
     let mut v = Vec::new();
     let clear = |x: f32, z: f32| {
         let in_pool = (POOL_X0 - 0.5..POOL_X1 + 0.5).contains(&x) && (POOL_Z0 - 0.5..POOL_Z1 + 0.5).contains(&z);
-        let in_smoko = (x - SMOKO_X).hypot(z - SMOKO_Z) < 5.2;
-        !in_pool && !in_smoko
+        !in_pool
     };
     // along the fences: the closer to the fence, the more
     for n in 0..170 {
@@ -1874,8 +1873,8 @@ pub struct DirtSpot {
 }
 
 /// Worn dirt, placed the way it really wears: along the paths people walk (back door to the bar,
-/// the BBQ, the Hills Hoist, then on to smoko), in a wider scuffed patch where people stand (bar,
-/// BBQ, hoist, under the trampoline, smoko), and a few ragged bare patches that creep in from the
+/// the BBQ, the Hills Hoist and woodpile), in a wider scuffed patch where people stand (bar,
+/// BBQ, hoist, under the trampoline), and a few ragged bare patches that creep in from the
 /// fence lines. Each patch is a cluster of overlapping ellipses of different sizes and tones so no
 /// edge is a neat circle.
 pub fn dirt_spots(seed: u64) -> Vec<DirtSpot> {
@@ -1895,7 +1894,7 @@ pub fn dirt_spots(seed: u64) -> Vec<DirtSpot> {
     let paths: [&[(f32, f32)]; 3] = [
         &[(3.0, -23.8), (1.0, -20.0), (-4.0, -17.0), (-8.7, -16.4)],
         &[(3.0, -23.8), (3.2, -16.0), (1.5, -8.0), (0.4, 2.2)],
-        &[(-8.7, -16.4), (-16.0, -10.0), (-22.6, -4.4)],
+        &[(-8.7, -16.4), (-14.0, -10.0), (-13.5, -4.5)],
     ];
     for pts in paths {
         for w in pts.windows(2) {
@@ -1925,7 +1924,6 @@ pub fn dirt_spots(seed: u64) -> Vec<DirtSpot> {
         (-8.7, -16.8, 2.2),
         (0.0, 3.0, 1.8),
         (TRAMP_X, TRAMP_Z, TRAMP_R + 0.6),
-        // (not the smoko pad: the dirt drawn at the pad's height made the pad flicker)
     ] {
         for _ in 0..4 {
             let a = rng.range(0.0, 2.0 * PI);

@@ -1071,7 +1071,9 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>) {
         return;
     };
     let now = game.now;
+    let controlled: Vec<_> = game.dummies.iter().filter(|d| crate::smoko_mode::controlled(&game,d.id)).map(|d|d.id).collect();
     for d in game.dummies.iter_mut() {
+        if controlled.contains(&d.id) {continue;}
         let Some(r) = &d.remote else { continue };
         let Some(h) = session.heard.get(&r.net_id) else { continue };
         let s = h.state;

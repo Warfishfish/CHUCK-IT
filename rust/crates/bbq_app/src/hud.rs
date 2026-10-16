@@ -595,7 +595,7 @@ fn update_board(
     mut last: Local<String>,
 ) {
     let g = &*game;
-    let teamed = g.rules.mode != GameMode::FreeForAll;
+    let teamed = matches!(g.rules.mode, GameMode::Teams | GameMode::Heist);
     let mut rows: Vec<(u32, String, Color, i32, Option<Team>, u32)> = g
         .board
         .iter()
@@ -1134,7 +1134,7 @@ fn update_hint(
     let phase = g.rules.phase;
     let prev = hints.last_phase.replace(phase);
     if g.round.timed && prev == Some(Phase::Countdown) && phase == Phase::Play {
-        if let Some(t) = g.teams.get(PLAYER_ID).filter(|_| g.rules.mode != GameMode::FreeForAll) {
+        if let Some(t) = g.teams.get(PLAYER_ID).filter(|_| matches!(g.rules.mode, GameMode::Teams | GameMode::Heist)) {
             let line = if t == Team::Wildcard {
                 "You're the <b>Wildcard</b>. Everyone is fair game, and everyone is after you.".to_string()
             } else {

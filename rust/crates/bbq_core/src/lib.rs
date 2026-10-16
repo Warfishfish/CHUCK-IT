@@ -52,4 +52,5 @@ pub enum GameMode {
     FreeForAll,
     Teams,
     Heist,
+    Smoko,
 }

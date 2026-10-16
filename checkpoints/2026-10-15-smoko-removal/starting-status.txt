@@ -1,0 +1,1 @@
+Clean tracked and untracked working tree. Prior ignored raw captures retained locally.

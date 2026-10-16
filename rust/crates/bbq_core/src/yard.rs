@@ -213,7 +213,7 @@ impl Default for Features {
             bar: true,
             bbq: true,
             chest: true,
-            smoko: true,
+            smoko: false,
         }
     }
 }
@@ -228,7 +228,10 @@ pub struct Yard {
 }
 
 impl Yard {
-    pub fn new(features: Features, chest_spot: usize) -> Self {
+    pub fn new(mut features: Features, chest_spot: usize) -> Self {
+        // The standard yard (including Teams and Heist) has no Smoko area.
+        // Ignore legacy saved/network feature flags; shared Smoko primitives remain reusable.
+        features.smoko = false;
         let mut c = Vec::new();
         let mut pole = Collider::centred(0.0, 3.0, 0.3, 0.3, 2.3).of(Kind::Pole);
         pole.no_top = true;
@@ -278,6 +281,13 @@ impl Yard {
         y
     }
 
+    /// Dedicated Smoko layout; existing maps cannot opt in through legacy flags.
+    pub fn smoko(features: Features, chest_spot: usize) -> Self {
+        let mut y = Self::new(features, chest_spot);
+        y.features.smoko = true;
+        y
+    }
+
     /// True when `(x, z)` is at least `r` clear of every Heist wall, step and crate.
     pub fn heist_clear(&self, x: f32, z: f32, r: f32) -> bool {
         !self.colliders.iter().any(|c| {
@@ -322,6 +332,19 @@ pub fn inside_yard(x: f32, z: f32, margin: f32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn current_maps_ignore_legacy_smoko_flags() {
+        assert!(!Features::default().smoko);
+        let legacy = Features { smoko: true, ..Features::default() };
+        assert!(!Yard::new(legacy, 0).features.smoko);
+        for teams in 2..=4 {
+            let yard = Yard::heist(legacy, 0, teams);
+            assert!(!yard.features.smoko);
+            assert_eq!(yard.heist, Some(teams));
+            assert!(yard.colliders.iter().any(|c| c.kind == Kind::HeistWall));
+        }
+    }
 
     #[test]
     fn full_yard_has_all_the_boxes() {

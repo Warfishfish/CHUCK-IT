@@ -3,7 +3,7 @@
 //!
 //! Click the window to grab the mouse. WASD walk, mouse looks, Space jumps, Shift boosts,
 //! hold and release the left button to throw, right button catches, Q/E/wheel swap items,
-//! `[` and `]` change the field of view, F1-F4 switch the bar, BBQ, chest and smoko off and on,
+//! `[` and `]` change the field of view, F1-F3 switch the bar, BBQ and chest off and on,
 //! Esc lets go of the mouse. All the rules live in `bbq_core`; this crate only draws and reads input.
 
 // Bevy systems take many parameters by design.
@@ -37,6 +37,7 @@ mod results;
 mod round;
 mod shapes;
 mod silicone;
+mod smoko_mode;
 mod shirt;
 mod shot;
 mod visual_review;

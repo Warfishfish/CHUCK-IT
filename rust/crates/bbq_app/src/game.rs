@@ -193,6 +193,7 @@ pub struct Game {
     pub fx: Vec<crate::fx::FxEvent>,
     /// The other people in an online yard (empty when playing alone).
     pub remotes: Vec<RemoteInfo>,
+    pub smoko: crate::smoko_mode::State,
     /// Online guest: this game does not run the yard, it shows what the host says (see
     /// `online_world.rs`).
     pub mirror: bool,
@@ -290,8 +291,8 @@ impl Plugin for GamePlugin {
                 drunk_mode: false,
                 fall_duration: drinks::FALL_DURATION_DEFAULT,
                 adult: false,
-                naughty: true,
-                smoko_on: true,
+                naughty: false,
+                smoko_on: false,
                 bots_on: true,
                 bot_difficulty: bbq_core::bots::Difficulty::Fair,
             },
@@ -304,6 +305,7 @@ impl Plugin for GamePlugin {
             attract: false,
             fx: Vec::new(),
             remotes: Vec::new(),
+            smoko: Default::default(),
             mirror: false,
             net_fx: false,
             fx_out: Vec::new(),
@@ -527,7 +529,7 @@ pub fn step_game(
         stunned_standing: g.me.body.stun > 0.0 && g.me.body.down_t <= 0.0,
         drinking: g.me.drunk.is_drinking(),
         at_smoko: seated,
-        carrying_someone: g.life.carry.is_some(),
+        carrying_someone: g.life.carry.is_some() || g.smoko.carries.contains_key(&PLAYER_ID),
     };
 
     if std::mem::take(&mut wanted.throw_down) {
@@ -863,6 +865,7 @@ pub fn step_game(
 
     // Dazza, smoko, dragging, emotes
     crate::life::step(g, p, &mut wanted, &yard.0);
+    crate::smoko_mode::step(g, p, &mut wanted);
 
     // keep the feed tidy
     g.feed.retain(|(_, t)| now - *t < 6.0);
@@ -1635,11 +1638,75 @@ mod tests {
         assert!((g.life.dazza.pos.x - bbq_core::dazza::HOME.x).abs() < 0.01);
     }
 
+    // Shared legacy mechanics are retained for the future mode, not enabled by map defaults.
+    fn enable_smoko_fixture(app: &mut App) {
+        app.world_mut().resource_mut::<YardRes>().0.features.smoko = true;
+    }
+
     fn put_in_smoko(app: &mut App) {
+        enable_smoko_fixture(app);
         put_player(app, yard::SMOKO_X + 1.0, yard::SMOKO_Z);
         ticks(app, 2);
     }
     use bbq_core::yard;
+
+    #[test]
+    fn former_smoko_zones_do_not_seat_or_score_in_current_modes() {
+        for mode in [GameMode::FreeForAll, GameMode::Teams, GameMode::Heist] {
+            for (x, z) in [bbq_core::smoko::DEFAULT_CENTRE, bbq_core::heist::smoko_spot(2)] {
+                let mut app = app();
+                // Simulate old saved settings before a fresh round.
+                app.world_mut().resource_mut::<YardRes>().0.features.smoko = true;
+                app.world_mut().resource_mut::<Game>().options.naughty = true;
+                start_with(&mut app, setup(mode, 3));
+                {
+                    let mut g = app.world_mut().resource_mut::<Game>();
+                    assert!(!g.options.smoko_on && !g.options.naughty);
+                    g.options.bots_on = false;
+                    g.rules.phase = Phase::Play;
+                    g.world.clear();
+                    g.life.smoko_at = (x, z); // even a legacy zone centre must be inert
+                }
+                assert!(!app.world().resource::<YardRes>().0.features.smoko);
+                put_player(&mut app, x + 1.0, z);
+                press_r(&mut app);
+                ticks(&mut app, 2);
+                assert!(app.world().resource::<Game>().life.seated.is_none());
+
+                // Round setup randomises spawns; place a victim in clear grass explicitly.
+                app.world_mut().resource_mut::<Game>().dummies[0].mover = Mover::new(29.0, 18.0);
+                put_player(&mut app, 29.0, 16.5);
+                fell(&mut app);
+                app.world_mut().resource_mut::<Wanted>().grab_pressed = true;
+                ticks(&mut app, 2);
+                assert!(app.world().resource::<Game>().life.carry.is_some());
+                put_player(&mut app, x + 1.5, z);
+                ticks(&mut app, 4);
+                let g = app.world().resource::<Game>();
+                assert!(g.life.carry.is_some(), "no auto-delivery in {mode:?}");
+                assert!(g.dummies[0].seat.is_none());
+                assert_eq!(g.dummies[0].naughty_t, 0.0);
+                assert_eq!(g.board.score(PLAYER_ID), 0);
+                assert!(!g.prompt.contains("smoko") && !g.prompt.contains("Naughty"));
+            }
+        }
+    }
+
+    #[test]
+    fn menu_background_ignores_legacy_smoko_settings() {
+        let mut app = app();
+        let mut settings = crate::menu::Settings::default();
+        settings.features.smoko = true;
+        settings.naughty = true;
+        app.world_mut().resource_scope(|w, mut g: Mut<Game>| {
+            w.resource_scope(|w, mut p: Mut<Player>| {
+                let mut yard = w.resource_mut::<YardRes>();
+                crate::menu::attract(&settings, &mut g, &mut p, &mut yard);
+                assert!(!yard.0.features.smoko);
+                assert!(!g.options.smoko_on && !g.options.naughty);
+            });
+        });
+    }
 
     #[test]
     fn r_in_the_smoko_zone_sits_you_down_and_the_drinks_keep_coming() {
@@ -1708,6 +1775,7 @@ mod tests {
     #[test]
     fn with_the_naughty_corner_on_the_zone_is_not_a_safe_break() {
         let mut app = app();
+        app.world_mut().resource_mut::<Game>().options.naughty = true;
         put_in_smoko(&mut app);
         press_r(&mut app);
         ticks(&mut app, 2);
@@ -1772,6 +1840,8 @@ mod tests {
     #[test]
     fn dragging_someone_onto_the_smoko_pad_sends_them_to_the_naughty_corner_by_itself() {
         let mut app = app();
+        enable_smoko_fixture(&mut app);
+        app.world_mut().resource_mut::<Game>().options.naughty = true;
         near_dummy0(&mut app);
         fell(&mut app);
         app.world_mut().resource_mut::<Wanted>().grab_pressed = true;
@@ -1826,6 +1896,8 @@ mod tests {
     #[test]
     fn setting_someone_down_in_the_smoko_zone_sends_them_to_the_naughty_corner() {
         let mut app = app();
+        enable_smoko_fixture(&mut app);
+        app.world_mut().resource_mut::<Game>().options.naughty = true;
         near_dummy0(&mut app);
         fell(&mut app);
         app.world_mut().resource_mut::<Wanted>().grab_pressed = true;
@@ -2464,6 +2536,40 @@ mod tests {
             g.round.mtch.leader(),
             Some(bbq_core::matchflow::Key::Player(PLAYER_ID))
         );
+    }
+
+    #[test]
+    fn smoko_throw_lands_in_pad_and_scores_with_real_physics() {
+        let mut app=app();start_with(&mut app,setup(GameMode::Smoko,1));
+        put_player(&mut app,1.5,3.5);
+        app.world_mut().resource_mut::<Player>().yaw=std::f32::consts::PI;
+        {
+            let mut g=app.world_mut().resource_mut::<Game>();
+            g.rules.phase=Phase::Play;g.options.bots_on=false;g.world.clear();
+            g.dummies[0].mover=Mover::new(1.5,5.0);g.dummies[0].body.down_t=8.0;
+        }
+        app.world_mut().resource_mut::<Wanted>().grab_pressed=true;ticks(&mut app,2);
+        assert!(app.world().resource::<Game>().smoko.carries.contains_key(&PLAYER_ID));
+        app.world_mut().resource_mut::<Wanted>().grab_pressed=true;ticks(&mut app,30);
+        app.world_mut().resource_mut::<Wanted>().grab_released=true;ticks(&mut app,180);
+        assert_eq!(app.world().resource::<Game>().board.score(PLAYER_ID),100);
+    }
+
+    #[test]
+    fn smoko_bots_collect_and_deliver_using_real_movement() {
+        let mut app=app();
+        start_with(&mut app,setup(GameMode::Smoko,2));
+        put_player(&mut app,29.0,-20.0);
+        {
+            let mut g=app.world_mut().resource_mut::<Game>();
+            g.rules.phase=Phase::Play;g.world.clear();
+            g.dummies[0].mover=Mover::new(5.0,10.0);g.dummies[0].body=Default::default();
+            g.dummies[1].mover=Mover::new(6.0,10.0);g.dummies[1].body.down_t=8.0;
+        }
+        ticks(&mut app,60*7);
+        let g=app.world().resource::<Game>();
+        assert_eq!(g.board.score(100),100,"bot should collect and bank its opponent");
+        assert!(g.smoko.carries.is_empty());
     }
 
     // ---- Teddy Heist ----

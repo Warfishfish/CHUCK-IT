@@ -556,7 +556,7 @@ fn chest_dist(p: &Player, chest_spot: usize) -> f32 {
 }
 
 fn in_smoko_zone(g: &Game, p: &Player) -> bool {
-    g.options.smoko_on && smoko::in_zone_at(g.life.smoko_at, p.mover.x, p.mover.y, p.mover.z, people_count(g))
+    g.rules.mode != bbq_core::GameMode::Smoko && g.options.smoko_on && smoko::in_zone_at(g.life.smoko_at, p.mover.x, p.mover.y, p.mover.z, people_count(g))
 }
 
 /// What R would do here, as a line of text (empty if nothing).
@@ -1041,8 +1041,10 @@ pub fn step(g: &mut Game, p: &mut Player, wanted: &mut Wanted, yard: &yard::Yard
     wanted.jump_pressed = false;
 
     soak_step(g, p);
-    carry_step(g, p, wanted);
-    thrown_step(g);
+    if g.rules.mode != bbq_core::GameMode::Smoko {
+        carry_step(g, p, wanted);
+        thrown_step(g);
+    }
     emote_step(g, wanted);
 
     // dummies in the Naughty Corner sit still, then get up

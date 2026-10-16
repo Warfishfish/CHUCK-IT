@@ -57,7 +57,12 @@ fn capture(
             }
         }
         if timing.frame == 240 { commands.spawn(Screenshot::primary_window()).observe(save_to_disk(cfg.out.clone())); }
-        if timing.frame == 540 { exit.write(AppExit::Success); }
+        if timing.frame == 540 {
+            if motion_mode()==Some("smoko") {
+                println!("SMOKO_REVIEW final_score={} carries={}",game.board.score(crate::player::PLAYER_ID),game.smoko.carries.len());
+            }
+            exit.write(AppExit::Success);
+        }
         return;
     }
     let now = Instant::now();
@@ -124,12 +129,30 @@ fn motion_mode() -> Option<&'static str> {
     static MODE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
     MODE.get_or_init(|| {
         let a: Vec<String> = std::env::args().collect();
-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber"].contains(&v.as_str())).cloned()
+        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko"].contains(&v.as_str())).cloned()
     }).as_deref()
 }
 
-fn motion_fixture(mut game: ResMut<crate::game::Game>, mut frame: Local<u32>) {
+fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut wanted: ResMut<crate::player::Wanted>, mut frame: Local<u32>) {
     let Some(mode) = motion_mode() else { return };
+    if mode=="smoko" {
+        *frame+=1;
+        if *frame==120 {
+            game.options.bots_on=false;game.world.clear();game.rules.phase=bbq_core::scoring::Phase::Play;
+            game.round.time_left=180.0;game.round.banner=None;
+            game.smoko=Default::default();game.board.clear();
+            game.board.ensure(crate::player::PLAYER_ID);game.board.ensure(100);
+            player.mover=bbq_core::movement::Mover::new(1.5,3.5);
+            player.yaw=std::f32::consts::PI;player.pitch=-0.12;
+            game.dummies.truncate(1);
+            if let Some(d)=game.dummies.first_mut() {
+                d.mover=bbq_core::movement::Mover::new(1.5,5.0);d.home=(1.5,5.0);d.body.down_t=8.0;
+            }
+        }
+        if *frame==180 || *frame==220 {wanted.grab_pressed=true;}
+        if *frame==181 || *frame==244 {wanted.grab_released=true;}
+        return;
+    }
     if mode.starts_with("held-") {
         game.dummies.clear();
         game.world.items.retain(|id, _| *id == 900001);

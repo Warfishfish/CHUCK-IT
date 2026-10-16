@@ -295,7 +295,7 @@ pub struct WorldView<'a> {
     pub dazza_chasing: bool,
     pub difficulty: Difficulty,
     /// Heist: where this bot should go (raid, guard, chase, bank), if anything.
-    pub heist_goal: Option<V3>,
+    pub objective_goal: Option<V3>,
     /// Heist: this bot is carrying a stolen teddy.
     pub carrying_stolen_teddy: bool,
 }
@@ -818,12 +818,12 @@ impl BotBrain {
         let mut face_to: Option<V3> = None;
         let near = self.nearest_free_item(me, w);
         let n_held = me.held.len();
-        let hg = w.heist_goal;
+        let hg = w.objective_goal;
         let carrying_teddy = w.mode == GameMode::Heist && w.carrying_stolen_teddy;
 
         // little errands
         self.err_cd -= dt;
-        if self.errand.is_none() && self.err_cd <= 0.0 && w.mode != GameMode::Heist {
+        if self.errand.is_none() && self.err_cd <= 0.0 && !matches!(w.mode, GameMode::Heist | GameMode::Smoko) {
             self.err_cd = rng.range(ERRAND_GAP.0, ERRAND_GAP.1);
             self.errand = self.pick_errand(me, w, rng);
         }
@@ -1450,7 +1450,7 @@ mod tests {
                 leader: None,
                 mode: GameMode::FreeForAll,
                 counting_down: false,
-                features: Features::default(),
+                features: Features { smoko: true, ..Features::default() }, // shared Smoko errand fixture
                 adult: false,
                 naughty: false,
                 chest_stock: 2,
@@ -1459,7 +1459,7 @@ mod tests {
                 smoko_at: (SMOKO_X, SMOKO_Z),
                 dazza_chasing: false,
                 difficulty: Difficulty::Fair,
-                heist_goal: None,
+                objective_goal: None,
                 carrying_stolen_teddy: false,
             }
         }
@@ -2209,6 +2209,20 @@ mod tests {
     }
 
     #[test]
+    fn current_map_bots_never_choose_a_smoko_errand() {
+        let s = Scene::new();
+        let mut world = s.view(0.0);
+        world.features = Features::default();
+        for seed in 0..2000 {
+            let mut rng = Rng::new(seed);
+            let mut brain = BotBrain::new(&mut rng);
+            if let Some(errand) = brain.pick_errand(&me_at(0.0, 0.0), &world, &mut rng) {
+                assert_ne!(errand.kind, ErrandKind::Smoko);
+            }
+        }
+    }
+
+    #[test]
     fn naughty_corner_mode_and_a_full_pad_rule_out_smoko() {
         let mut s = Scene::new();
         s.seats = vec![true, false, false, false]; // only one free chair
@@ -2234,14 +2248,14 @@ mod tests {
     }
 
     #[test]
-    fn heist_bots_do_not_run_errands_and_follow_their_heist_goal() {
+    fn heist_bots_do_not_run_errands_and_follow_their_objective_goal() {
         let mut rng = Rng::new(20);
         let mut brain = BotBrain::new(&mut rng);
         brain.err_cd = 0.0;
         let s = Scene::new();
         let mut w = s.view(0.0);
         w.mode = GameMode::Heist;
-        w.heist_goal = Some(V3::new(10.0, 0.0, 0.0));
+        w.objective_goal = Some(V3::new(10.0, 0.0, 0.0));
         let mut c = Command::default();
         for i in 0..60 {
             let mut ww = w;
