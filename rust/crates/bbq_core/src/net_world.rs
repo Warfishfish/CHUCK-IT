@@ -139,7 +139,16 @@ pub struct FxSnap {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct WetSnap {
+    pub id: u32,
+    pub remaining: f32,
+    pub pos: (f32, f32, f32),
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct WorldSnap {
+    /// Host-only status, including zero for recovery. Position bounds wet remote prediction.
+    pub wet: Vec<WetSnap>,
     /// Counts up, so a late old snapshot is thrown away.
     pub seq: u32,
     /// The host's game clock.
@@ -159,6 +168,10 @@ pub struct WorldSnap {
 
 impl WorldSnap {
     pub(crate) fn write(&self, w: &mut Writer) {
+        w.u8(self.wet.len().min(MAX_BOARD) as u8);
+        for s in self.wet.iter().take(MAX_BOARD) {
+            w.u32(s.id); w.f32(s.remaining); w.triple(s.pos);
+        }
         w.u32(self.seq);
         w.f32(self.now);
         let r = &self.round;
@@ -245,6 +258,15 @@ impl WorldSnap {
     }
 
     pub(crate) fn read(r: &mut Reader) -> Result<WorldSnap, DecodeError> {
+        let count = |r: &mut Reader, max: usize| -> Result<usize, DecodeError> {
+            let n = r.u8()? as usize;
+            if n > max { Err(DecodeError::TooMany) } else { Ok(n) }
+        };
+        let n = count(r, MAX_BOARD)?;
+        let mut wet = Vec::with_capacity(n);
+        for _ in 0..n {
+            wet.push(WetSnap { id: r.u32()?, remaining: r.f32()?.clamp(0.0, crate::stun::WET_DURATION), pos: r.triple()? });
+        }
         let seq = r.u32()?;
         let now = r.f32()?;
         let round = RoundSnap {
@@ -263,10 +285,6 @@ impl WorldSnap {
                 1 => Some((r.line(LINE_MAX)?, r.f32()?)),
                 _ => return Err(DecodeError::BadText),
             },
-        };
-        let count = |r: &mut Reader, max: usize| -> Result<usize, DecodeError> {
-            let n = r.u8()? as usize;
-            if n > max { Err(DecodeError::TooMany) } else { Ok(n) }
         };
         let n = count(r, MAX_ITEMS)?;
         let mut items = Vec::with_capacity(n);
@@ -341,7 +359,7 @@ impl WorldSnap {
         for _ in 0..n {
             fx.push(FxSnap { kind: r.u8()?, at: r.triple()? });
         }
-        Ok(WorldSnap { seq, now, round, items, bots, dazza, board, teams, feed, fx })
+        Ok(WorldSnap { wet, seq, now, round, items, bots, dazza, board, teams, feed, fx })
     }
 }
 
@@ -352,6 +370,7 @@ mod tests {
 
     fn sample() -> WorldSnap {
         WorldSnap {
+            wet: vec![WetSnap { id: 2, remaining: 3.75, pos: (1.0, 0.0, 2.0) }],
             seq: 42,
             now: 123.5,
             round: RoundSnap {
@@ -441,7 +460,7 @@ mod tests {
         let mut s = sample();
         s.round.banner = None;
         let mut bytes = Msg::World(Box::new(s)).encode();
-        let at = 1 + 4 + 4 + 3 + 4 + 4 + 8 + 1 + 1; // kind, seq, now, phase/mode/features, time, round/len/spot/stock, smoko, heist, banner flag
+        let at = 1 + 1 + 20 + 4 + 4 + 3 + 4 + 4 + 8 + 1 + 1; // kind, seq, now, phase/mode/features, time, round/len/spot/stock, smoko, heist, banner flag
         bytes[at] = 200;
         assert!(Msg::decode(&bytes).is_err());
         // every cut-off version is refused, never a panic

@@ -1584,7 +1584,7 @@ mod tests {
         });
         s.ground.push(GroundView {
             id: 8,
-            kind: ItemKind::Gnome,
+            kind: ItemKind::WaterBalloon,
             pos: V3::new(-9.0, 0.2, 9.0),
             ground_y: 0.0,
             claimed_by_other: false,

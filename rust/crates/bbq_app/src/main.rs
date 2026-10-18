@@ -16,8 +16,10 @@ mod dirt;
 mod face;
 mod face_meshes;
 mod fx;
+mod wet;
 mod game;
 mod gamepad;
+mod grass;
 mod heist_app;
 mod hud;
 mod hud_fx;
@@ -38,6 +40,7 @@ mod round;
 mod shapes;
 mod silicone;
 mod smoko_mode;
+mod race;
 mod shirt;
 mod shot;
 mod visual_review;
@@ -120,6 +123,7 @@ fn main() {
             >::default(),
         ),
     );
+    app.add_plugins(wet::WetPlugin);
     app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin, online::OnlinePlugin, face::FacePlugin, lobby::LobbyPlugin, legs::LegsPlugin, shirt::ShirtPlugin));
     if let Some(cfg) = shot {
         app.add_plugins(shot::ShotPlugin(cfg));

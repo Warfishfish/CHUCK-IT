@@ -53,4 +53,5 @@ pub enum GameMode {
     Teams,
     Heist,
     Smoko,
+    Race,
 }

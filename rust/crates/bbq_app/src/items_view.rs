@@ -24,7 +24,7 @@ pub fn kind_name(k: ItemKind) -> &'static str {
     match k {
         ItemKind::Teddy => "Teddy",
         ItemKind::Stubby => "VP can",
-        ItemKind::Gnome => "Gnome",
+        ItemKind::WaterBalloon => "Water balloon",
         ItemKind::Dildo => "Cheeky",
         ItemKind::Steak => "Steak",
         ItemKind::Fish => "Fish",

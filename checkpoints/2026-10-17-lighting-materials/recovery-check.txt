@@ -1,0 +1,1 @@
+Visual patch reverse-applied in a separate temporary directory. All three restored files match the exact before-source SHA256 hashes. Working checkout not modified. Revert dry-run passed.

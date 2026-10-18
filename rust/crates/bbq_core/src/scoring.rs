@@ -48,7 +48,7 @@ impl Rules {
     }
     /// Normal scoring: in play, and not Heist.
     pub fn scoring(&self) -> bool {
-        self.in_play() && !matches!(self.mode, GameMode::Heist | GameMode::Smoko)
+        self.in_play() && !matches!(self.mode, GameMode::Heist | GameMode::Smoko | GameMode::Race)
     }
 }
 
@@ -223,7 +223,7 @@ impl Scoreboard {
         if !rules.in_play() {
             return;
         }
-        if !matches!(rules.mode, GameMode::Heist | GameMode::Smoko)
+        if !matches!(rules.mode, GameMode::Heist | GameMode::Smoko | GameMode::Race)
             && let Some(s) = self.stats.get_mut(&catcher)
         {
             s.score += CATCH;

@@ -27,6 +27,7 @@ pub struct Row {
 }
 
 pub struct ResultsText {
+    pub race_lines: Option<Vec<String>>,
     pub title: String,
     pub line: String,
     pub match_line: Option<String>,
@@ -85,6 +86,7 @@ fn standings(g: &Game) -> String {
 }
 
 pub fn build(g: &Game, _settings: &Settings) -> ResultsText {
+    if g.rules.mode==GameMode::Race {let winner=g.round.results.as_ref().and_then(|r|r.winner);return ResultsText {race_lines:Some(crate::race::lines(g)),title:format!("{} wins the race",key_name(g,winner)),line:"Three laps • Finish time decides. Unfinished racers rank by checkpoints, then distance to the next gate.".into(),match_line:None,again_label:"Race again".into(),heist:false,rows:vec![]};}
     let mut rows: Vec<Row> = g
         .board
         .iter()
@@ -189,7 +191,7 @@ pub fn build(g: &Game, _settings: &Settings) -> ResultsText {
                 );
             }
         }
-        GameMode::FreeForAll | GameMode::Smoko => {}
+        GameMode::FreeForAll | GameMode::Smoko | GameMode::Race => {}
     }
     let m = &g.round.mtch;
     let match_line = (m.len > 1).then(|| {
@@ -222,6 +224,7 @@ pub fn build(g: &Game, _settings: &Settings) -> ResultsText {
         "Play again".to_string()
     };
     ResultsText {
+        race_lines: None,
         title,
         line,
         match_line,
@@ -233,6 +236,7 @@ pub fn build(g: &Game, _settings: &Settings) -> ResultsText {
 
 /// The scores table.
 pub fn table(c: &mut ChildSpawnerCommands, t: &ResultsText) {
+    if let Some(lines)=&t.race_lines {for line in lines {c.spawn(text(line.clone(),16.0,true,INK));}return;}
     let mut cols: Vec<(&str, f32)> = vec![
         ("#", 26.0),
         ("Player", 0.0),

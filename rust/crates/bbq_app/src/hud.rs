@@ -595,6 +595,11 @@ fn update_board(
     mut last: Local<String>,
 ) {
     let g = &*game;
+    if g.rules.mode==GameMode::Race {
+        let lines=crate::race::lines(g);let sig=format!("race:{lines:?}");if *last==sig{return;}*last=sig;
+        commands.entity(*board).despawn_children();commands.entity(*board).with_children(|b|{b.spawn(text("RACE • 3 LAPS",14.0,true,SUN));for line in lines{b.spawn(text(line,13.0,false,WHITE));}});return;
+    }
+
     let teamed = matches!(g.rules.mode, GameMode::Teams | GameMode::Heist);
     let mut rows: Vec<(u32, String, Color, i32, Option<Team>, u32)> = g
         .board
@@ -972,7 +977,7 @@ fn item_colour(kind: bbq_core::items::ItemKind) -> Color {
     crate::models::hex(match kind {
         Teddy => 0xa86b3c,
         Stubby => 0x1e7d3a,
-        Gnome => 0xd63a2f,
+        WaterBalloon => 0x25b8ed,
         Dildo => 0xa44de0,
         Steak => 0xc4455a,
         Fish => 0xa9bcc8,
@@ -1028,7 +1033,9 @@ fn update_slots(
                     ));
                     let def = it.kind.def();
                     let name = crate::items_view::item_name(it);
-                    let label = if def.melee != Melee::None {
+                    let label = if it.kind == bbq_core::items::ItemKind::WaterBalloon {
+                        format!("{name} · Wet: −20% / {:.0}s", bbq_core::stun::WET_DURATION)
+                    } else if def.melee != Melee::None {
                         let u = it.uses.unwrap_or(3);
                         format!("{name} · {u} slap{}", if u == 1 { "" } else { "s" })
                     } else {
@@ -1175,7 +1182,7 @@ fn update_hint(
     if hints.secs > 0.0 {
         hints.secs -= dt;
     }
-    let want = if hints.secs > 0.0 { hints.text.clone() } else { String::new() };
+    let want = if g.rules.mode==GameMode::Race {String::new()} else if hints.secs > 0.0 { hints.text.clone() } else { String::new() };
     if *shown != want {
         *shown = want.clone();
         pill(&mut commands, e, &want, 14.0);

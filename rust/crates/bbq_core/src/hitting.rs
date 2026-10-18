@@ -101,7 +101,7 @@ pub fn contact(item: &Item, t: &Target, ctx: &Context) -> Contact {
     }
     Contact::Hit {
         dir: dir.normalised(),
-        flatten: item.power && t.flattenable,
+        flatten: item.kind != crate::items::ItemKind::WaterBalloon && item.power && t.flattenable,
     }
 }
 
@@ -159,6 +159,10 @@ pub fn apply_item_hit(
     dir: V3,
     flatten: bool,
 ) -> HitResult {
+    if item.kind == crate::items::ItemKind::WaterBalloon {
+        body.wet_t = crate::stun::WET_DURATION;
+        return HitResult { effect: HitEffect { stunned: false, knocked_down: false }, knock: V3::ZERO };
+    }
     let knock = item.knock();
     let min_up = knock * 0.38;
     knock_mover(mover, dir, knock, min_up);
@@ -173,6 +177,7 @@ pub fn apply_item_hit(
 /// "live" state and bounces away at `(-vx*0.2, 3.5, -vz*0.2)`. Returns true if it smashed.
 pub fn item_after_hit(item: &mut Item) -> bool {
     if item.kind.def().smash {
+        item.live = false;
         return true;
     }
     item.live = false;
@@ -401,7 +406,7 @@ mod tests {
     #[test]
     fn a_hit_shoves_and_stuns_but_stuns_never_stack() {
         let it = flying(
-            ItemKind::Gnome,
+            ItemKind::Teddy,
             V3::new(0.0, 1.0, 0.0),
             V3::new(0.0, 0.0, -10.0),
             Some(1),
@@ -410,14 +415,14 @@ mod tests {
         let (mut b, mut m) = (Body::default(), Mover::new(0.0, 0.0));
         let r = apply_item_hit(&mut b, &mut m, &it, dir, false);
         assert!(r.effect.stunned);
-        assert!((b.stun - 0.65).abs() < 1e-5);
-        assert!((m.vz + 15.0).abs() < 1e-4);
-        assert!((m.vy - 15.0 * 0.38).abs() < 1e-4);
+        assert!((b.stun - ItemKind::Teddy.hit_stun()).abs() < 1e-5);
+        assert!((m.vz + 6.0).abs() < 1e-4);
+        assert!((m.vy - 6.0 * 0.38).abs() < 1e-4);
         assert!(!m.grounded);
         // second hit while stunned: shoved again, no new stun
         let r2 = apply_item_hit(&mut b, &mut m, &it, dir, false);
         assert!(!r2.effect.stunned);
-        assert!((m.vz + 30.0).abs() < 1e-3);
+        assert!((m.vz + 12.0).abs() < 1e-3);
     }
 
     #[test]
@@ -508,5 +513,40 @@ mod tests {
         );
         assert_eq!(board.score(1), 0);
         assert_eq!(board.score(2), 0);
+    }
+}
+
+#[cfg(test)]
+mod balloon_tests {
+    use super::*;
+    use crate::{items::ItemKind, movement::{Modifiers, MoveInput}, stun::{WET_DURATION, WET_SPEED}, yard::Yard};
+    #[test]
+    fn balloon_wets_without_stun_knock_or_flatten_and_refreshes() {
+        let mut body = Body::default(); let mut mover = Mover::new(8.0,0.0);
+        let item = Item::new(1, ItemKind::WaterBalloon, V3::ZERO);
+        for _ in 0..3 {
+            let hit = apply_item_hit(&mut body,&mut mover,&item,V3::new(1.0,0.0,0.0),true);
+            assert!(!hit.effect.stunned && !hit.effect.knocked_down);
+            assert_eq!(body.wet_t,WET_DURATION); assert_eq!(mover.vx,0.0);
+            body.tick(1.0);
+        }
+        body.tick(3.1); assert_eq!(body.wet_t,0.0);
+        assert_eq!(Body::default().wet_t,0.0);
+    }
+    #[test]
+    fn wet_walk_and_sprint_are_exactly_eighty_percent_then_recover() {
+        let mut dry = Mover::new(8.0,0.0); let mut wet = dry;
+        let mods = Modifiers {wet:true,..Default::default()};
+        assert!((wet.max_speed(&mods) / dry.max_speed(&Modifiers::default())-WET_SPEED).abs()<1e-6);
+        let yard=Yard::default();
+        for _ in 0..60 {
+            let input=MoveInput{wish:(0.0,1.0),..Default::default()};
+            dry.step(1.0/60.0,input,&Modifiers::default(),&yard);
+            wet.step(1.0/60.0,input,&mods,&yard);
+        }
+        assert!((wet.speed()/dry.speed()-WET_SPEED).abs()<0.001);
+        dry.try_boost(&Modifiers::default());wet.try_boost(&mods);
+        assert!((wet.max_speed(&mods)/dry.max_speed(&Modifiers::default())-WET_SPEED).abs()<1e-6);
+        assert_eq!(wet.max_speed(&Modifiers::default()),dry.max_speed(&Modifiers::default()));
     }
 }

@@ -155,7 +155,7 @@ impl ItemWorld {
     }
 
     /// Start of a round: `8 + floor(players * 1.5)` items on shuffled spots (the first three
-    /// are a teddy, a stubby and a gnome), plus the noodles.
+    /// are a teddy, a stubby and a water balloon), plus the noodles.
     pub fn initial_fill(
         &mut self,
         players: usize,
@@ -175,7 +175,7 @@ impl ItemWorld {
                 0 => ItemKind::Teddy,
                 1 if self.drinks() > 0.0 => ItemKind::Stubby,
                 1 => ItemKind::Teddy, // no bottles wanted
-                2 => ItemKind::Gnome,
+                2 => ItemKind::WaterBalloon,
                 _ => random_type_with(rng.f32(), self.drinks()),
             };
             self.spawn(kind, s.0, s.1, true, rng);
@@ -385,7 +385,10 @@ impl ItemWorld {
                     });
                     out.extend(contacts);
                     let mut removed = fate == Fate::Removed;
-                    if smashed_by_hit {
+                    if smashed_by_hit && it.kind == ItemKind::WaterBalloon {
+                        // The Hit event owns the one splash on a victim.
+                        removed = true;
+                    } else if smashed_by_hit {
                         let puddle =
                             it.pos.y < 1.4 && !crate::yard::in_pool_rect(it.pos.x, it.pos.z);
                         fl.push(FlightEvent::Smash {
@@ -478,14 +481,40 @@ mod tests {
     }
 
     #[test]
+    fn balloon_bursts_once_hits_only_one_person_and_leaves_no_puddle() {
+        let mut w=ItemWorld::new();let mut rng=Rng::new(1);
+        let id=w.spawn(ItemKind::WaterBalloon,8.0,4.0,false,&mut rng);
+        w.give(id,1);w.throw(id,1,V3::new(8.0,1.1,4.0),V3::new(0.0,1.5,-14.0),1.0,true);
+        let ev=run(&mut w,2.0,&[victim(2,8.0,0.0),victim(3,8.0,0.0)],&mut rng,false);
+        assert_eq!(ev.iter().filter(|e|matches!(e,WorldEvent::Hit{..})).count(),1);
+        assert!(!w.items.contains_key(&id));assert!(w.puddles.0.is_empty());
+        assert!(ev.iter().any(|e|matches!(e,WorldEvent::Hit{flatten:false,..})));
+    }
+    #[test]
+    fn caught_balloon_is_intact_and_a_miss_bursts_without_a_hit() {
+        for catching in [true,false] {
+            let mut w=ItemWorld::new();let mut rng=Rng::new(1);
+            let id=w.spawn(ItemKind::WaterBalloon,8.0,4.0,false,&mut rng);
+            w.give(id,1);w.throw(id,1,V3::new(8.0,1.1,4.0),V3::new(0.0,1.5,-14.0),0.5,true);
+            let mut t=victim(2,8.0,0.0);t.catching=true;
+            let targets=if catching{vec![t]}else{vec![]};
+            let ev=run(&mut w,2.0,&targets,&mut rng,false);
+            assert!(!ev.iter().any(|e|matches!(e,WorldEvent::Hit{..})));
+            assert!(w.puddles.0.is_empty());
+            if catching { assert_eq!(w.items[&id].state,ItemState::Held); }
+            else { assert!(!w.items.contains_key(&id)); assert!(ev.iter().any(|e|matches!(e,WorldEvent::Flight{ev:FlightEvent::WaterBurst{..},..}))); }
+        }
+    }
+
+    #[test]
     fn start_of_round_places_8_plus_one_and_a_half_per_player_plus_two_noodles() {
         let mut w = ItemWorld::new();
         let mut rng = Rng::new(1);
         w.initial_fill(4, &no_walls, &mut rng);
         assert_eq!(w.items.len(), 14 + 2);
         assert_eq!(w.count(ItemKind::Noodle), 2);
-        // the first three non-noodle items are a teddy, a stubby and a gnome
-        for k in [ItemKind::Teddy, ItemKind::Stubby, ItemKind::Gnome] {
+        // the first three non-noodle items are a teddy, a stubby and a water balloon
+        for k in [ItemKind::Teddy, ItemKind::Stubby, ItemKind::WaterBalloon] {
             assert!(w.count(k) >= 1);
         }
         // all start in the air except noodles
@@ -571,7 +600,7 @@ mod tests {
     fn a_hit_registers_only_once_per_throw() {
         let mut w = ItemWorld::new();
         let mut rng = Rng::new(4);
-        let id = w.spawn(ItemKind::Gnome, 0.0, 0.0, false, &mut rng);
+        let id = w.spawn(ItemKind::WaterBalloon, 0.0, 0.0, false, &mut rng);
         w.give(id, 1);
         w.throw(
             id,

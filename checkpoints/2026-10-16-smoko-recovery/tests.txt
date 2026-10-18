@@ -1,0 +1,161 @@
+warning: unused imports: `SMOKO_X` and `SMOKO_Z`
+  --> crates/bbq_core/src/bots.rs:19:57
+   |
+19 | use crate::yard::{BAR, Features, MEAT_TABLE, POOL_SINK, SMOKO_X, SMOKO_Z, Yard};
+   |                                                         ^^^^^^^  ^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::shapes::build_mesh`
+  --> crates/bbq_app/src/models.rs:15:5
+   |
+15 | use crate::shapes::build_mesh;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> crates/bbq_app/src/legs.rs:189:13
+    |
+189 |         let mut part = |commands: &mut Commands, (mesh, line): &(Handle<Mesh>, Handle<Mesh>)| -> (Entity, Option<Entity>) {
+    |             ----^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `peers`
+   --> crates/bbq_app/src/online.rs:277:24
+    |
+277 |             In::Snap { peers, .. } => {
+    |                        ^^^^^ help: try ignoring the field: `peers: _`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> crates/bbq_app/src/shapes.rs:571:17
+    |
+571 |             let mut corner = |x: f32, z: f32, b: &mut Buf| {
+    |                 ----^^^^^^
+    |                 |
+    |                 help: remove this `mut`
+
+warning: unused variable: `mid`
+   --> crates/bbq_app/src/yard_scene.rs:516:141
+    |
+516 | ...dz);let yaw=dx.atan2(dz);let mid=((a.0+b.0)*0.5,(a.1+b.1)*0.5);
+    |                                 ^^^ help: if this is intentional, prefix it with an underscore: `_mid`
+
+warning: associated function `on` is never used
+   --> crates/bbq_app/src/lighting.rs:170:12
+    |
+169 | impl DisplayRaw {
+    | --------------- associated function in this implementation
+170 |     pub fn on() -> Self {
+    |            ^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: variant `MoreOpen` is never constructed
+   --> crates/bbq_app/src/menu.rs:333:5
+    |
+308 | pub enum ShowWhen {
+    |          -------- variant in this enum
+...
+333 |     MoreOpen,
+    |     ^^^^^^^^
+    |
+    = note: `ShowWhen` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: struct `PlayLabel` is never constructed
+   --> crates/bbq_app/src/menu.rs:357:8
+    |
+357 | struct PlayLabel;
+    |        ^^^^^^^^^
+
+warning: struct `AmmoNote` is never constructed
+   --> crates/bbq_app/src/menu.rs:359:8
+    |
+359 | struct AmmoNote;
+    |        ^^^^^^^^
+
+warning: variant `Leave` is never constructed
+  --> crates/bbq_app/src/net_link.rs:25:5
+   |
+21 | pub enum Out {
+   |          --- variant in this enum
+...
+25 |     Leave(String),
+   |     ^^^^^
+   |
+   = note: `Out` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: method `active` is never used
+   --> crates/bbq_app/src/online.rs:551:12
+    |
+543 | impl Online {
+    | ----------- method in this implementation
+...
+551 |     pub fn active(&self) -> bool {
+    |            ^^^^^^
+
+warning: field `match_over` is never read
+  --> crates/bbq_app/src/round.rs:92:9
+   |
+89 | pub struct Results {
+   |            ------- field in this struct
+...
+92 |     pub match_over: bool,
+   |         ^^^^^^^^^^
+   |
+   = note: `Results` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: field `rng` is never read
+   --> crates/bbq_app/src/round.rs:107:9
+    |
+ 96 | pub struct RoundCtl {
+    |            -------- field in this struct
+...
+107 |     pub rng: Rng,
+    |         ^^^
+
+warning: variants `More` and `LookStep` are never constructed
+   --> crates/bbq_app/src/ui.rs:189:5
+    |
+186 | pub enum Action {
+    |          ------ variants in this enum
+...
+189 |     More,
+    |     ^^^^
+...
+201 |     LookStep(LookRow, i32),
+    |     ^^^^^^^^
+    |
+    = note: `Action` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: variant `Character` is never constructed
+   --> crates/bbq_app/src/ui.rs:263:5
+    |
+254 | pub enum SegId {
+    |          ----- variant in this enum
+...
+263 |     Character,
+    |     ^^^^^^^^^
+    |
+    = note: `SegId` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: field `base` is never read
+   --> crates/bbq_app/src/ui.rs:438:9
+    |
+437 | pub struct ButtonLook {
+    |            ---------- field in this struct
+438 |     pub base: Color,
+    |         ^^^^
+
+
+running 201 tests
+....................................................................................... 87/201
+....................................................................................... 174/201
+......i....................
+test result: ok. 200 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.35s
+

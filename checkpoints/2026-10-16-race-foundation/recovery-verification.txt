@@ -1,0 +1,1 @@
+Triple-length oval patch restored separately from 8936178; all 17 implementation hashes match.

@@ -31,6 +31,7 @@ pub struct Setup {
     pub mode: GameMode,
     /// Heist: how many teams (2 to 4).
     pub heist_teams: usize,
+    pub race_role: crate::race::Role,
     pub bots: usize,
     pub round_len: f32,
     /// Rounds in the match: 1, 3 or 5.
@@ -43,6 +44,7 @@ impl Default for Setup {
         Setup {
             mode: GameMode::FreeForAll,
             heist_teams: 2,
+            race_role: crate::race::Role::Racer,
             bots: 3,
             round_len: 180.0,
             match_len: 1,
@@ -57,6 +59,7 @@ impl Setup {
         match self.mode {
             GameMode::FreeForAll => "Free for all".to_string(),
             GameMode::Smoko => "Smoko Yard".to_string(),
+            GameMode::Race => "Backyard Circuit".into(),
             GameMode::Teams => "Teams".to_string(),
             GameMode::Heist => format!("Teddy Heist ({} teams)", self.heist_teams),
         }
@@ -72,7 +75,8 @@ impl Setup {
             }
             (GameMode::Heist, n) if n < 4 => self.heist_teams = n + 1,
             (GameMode::Heist, _) => self.mode = GameMode::Smoko,
-            (GameMode::Smoko, _) => self.mode = GameMode::FreeForAll,
+            (GameMode::Smoko, _) => self.mode = GameMode::Race,
+            (GameMode::Race, _) => self.mode = GameMode::FreeForAll,
         }
         if self.mode == GameMode::Heist {
             self.friendly_fire = false;
@@ -201,7 +205,7 @@ pub fn sync_bot_count(g: &mut Game, want: usize) {
 pub fn assign_teams(g: &mut Game, reshuffle: bool) {
     let ids = everyone(g);
     match g.round.setup.mode {
-        GameMode::FreeForAll | GameMode::Smoko => g.teams.clear(),
+        GameMode::FreeForAll | GameMode::Smoko | GameMode::Race => g.teams.clear(),
         GameMode::Teams => {
             let mut rng = Rng::new(g.rng.f32().to_bits() as u64 + 77);
             g.teams.balance(&ids, reshuffle, false, &mut rng);
@@ -247,7 +251,7 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
 
     // a clean yard and the right number of bots
     g.world.clear();
-    sync_bot_count(g, setup.bots);
+    sync_bot_count(g, if setup.mode==GameMode::Race {if setup.race_role==crate::race::Role::Racer{2}else{3}} else {setup.bots});
     assign_teams(g, false);
     g.board = Scoreboard::new();
     for id in everyone(g) {
@@ -343,6 +347,7 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
         g.heist = None;
     }
 
+    crate::race::start(g,p,yard);
     g.round.time_left = COUNTDOWN;
     g.round.last_beep = 4;
     let n = g.round.mtch.clone();
@@ -356,8 +361,8 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
         "Round {}: {} with {} bot{}",
         g.round.mtch.no,
         setup.mode_name(),
-        setup.bots,
-        if setup.bots == 1 { "" } else { "s" }
+        g.round.setup.bots,
+        if g.round.setup.bots == 1 { "" } else { "s" }
     ));
 }
 
@@ -395,10 +400,13 @@ fn key_name(g: &Game, k: Key) -> String {
 
 /// The whistle: work out who won and open the results.
 pub fn end_round(g: &mut Game) {
+    g.me.body.wet_t = 0.0;
+    for d in &mut g.dummies { d.body.wet_t = 0.0; }
     g.rules.phase = Phase::Results;
     let rows = standings(g);
     let winner = match g.rules.mode {
         GameMode::FreeForAll | GameMode::Smoko => matchflow::round_winner_ffa(&rows),
+        GameMode::Race => crate::race::standings(g).first().filter(|id|!g.race.racers[id].disconnected).map(|id|Key::Player(*id)),
         GameMode::Teams => matchflow::round_winner_teams(&rows, &g.teams),
         GameMode::Heist => g
             .heist
@@ -574,9 +582,11 @@ fn start_from_args(mut game: ResMut<Game>, mut player: ResMut<Player>, mut yard:
     s.mode = match mode.as_str() {
         "heist" => GameMode::Heist,
         "smoko" => GameMode::Smoko,
+        "race" => GameMode::Race,
         "teams" => GameMode::Teams,
         _ => GameMode::FreeForAll,
     };
+    if args.iter().any(|a|a=="--sideline") {game.round.setup.race_role=crate::race::Role::Thrower;}
     start_round(&mut game, &mut player, &mut yard);
     // `--swim` (testing): start in the middle of the pool, facing the length of it
     if args.iter().any(|a| a == "--swim") {
@@ -584,7 +594,7 @@ fn start_from_args(mut game: ResMut<Game>, mut player: ResMut<Player>, mut yard:
         player.mover.z = 10.0;
         player.yaw = std::f32::consts::FRAC_PI_2;
     }
-    // `--give noodle|dildo|steak|fish|teddy|stubby|gnome`: start with one in your hand (testing)
+    // `--give noodle|dildo|steak|fish|teddy|stubby|balloon`: start with one in your hand (testing)
     if let Some(k) = args.iter().position(|a| a == "--give").and_then(|i| args.get(i + 1)) {
         let kind = match k.as_str() {
             "noodle" => Some(bbq_core::items::ItemKind::Noodle),
@@ -593,7 +603,7 @@ fn start_from_args(mut game: ResMut<Game>, mut player: ResMut<Player>, mut yard:
             "fish" => Some(bbq_core::items::ItemKind::Fish),
             "teddy" => Some(bbq_core::items::ItemKind::Teddy),
             "stubby" => Some(bbq_core::items::ItemKind::Stubby),
-            "gnome" => Some(bbq_core::items::ItemKind::Gnome),
+            "balloon" | "water-balloon" | "gnome" => Some(bbq_core::items::ItemKind::WaterBalloon),
             _ => None,
         };
         if let Some(kind) = kind {
@@ -860,10 +870,10 @@ mod tests {
     }
 
     #[test]
-    fn the_mode_key_goes_round_all_six_modes() {
+    fn the_mode_key_goes_round_all_seven_modes() {
         let mut s = Setup::default();
         let mut seen = vec![s.mode_name()];
-        for _ in 0..6 {
+        for _ in 0..7 {
             s.next_mode();
             seen.push(s.mode_name());
         }
@@ -876,6 +886,7 @@ mod tests {
                 "Teddy Heist (3 teams)",
                 "Teddy Heist (4 teams)",
                 "Smoko Yard",
+                "Backyard Circuit",
                 "Free for all"
             ]
         );

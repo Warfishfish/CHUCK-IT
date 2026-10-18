@@ -11,3 +11,6 @@ checkpoints/**/evidence/*-[0-9][0-9][0-9].png
 
 # Invalid captures from a locked macOS session remain local.
 checkpoints/**/evidence/locked-session-invalid/
+
+# Water-balloon raw frames stay local; review WebP and stills are versioned.
+checkpoints/**/motion/water-[0-9][0-9][0-9].png

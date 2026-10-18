@@ -1,0 +1,1 @@
+FINAL visual-only patch reverse-applied in a temporary folder. All four original source hashes match and new grass.rs is removed. Working checkout and existing race/Smoko work unchanged.

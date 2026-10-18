@@ -24,6 +24,11 @@ pub struct FeatureTag(pub Feature);
 pub struct CheekyOnly(pub bool);
 
 /// Where the trees and clouds go. Any number gives a believable yard.
+#[derive(Component)]
+struct NormalYard;
+#[derive(Component)]
+struct RaceMap;
+
 const LOOK_SEED: u64 = 0xBB0;
 
 /// The clothesline's turning head (it turns 0.12 radians a second).
@@ -73,8 +78,9 @@ impl Plugin for YardScenePlugin {
         app.insert_resource(YardRes(Yard::default()))
             .init_resource::<Drift>()
             .add_systems(Startup, build_yard)
+            .add_systems(Update, (crate::grass::sync, crate::grass::distance_cull).chain())
             .add_systems(PostUpdate, crate::lighting::follow_sky.before(bevy::transform::TransformSystems::Propagate))
-            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_map, animate_magpies));
+            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_map, sync_race_map, animate_magpies));
     }
 }
 
@@ -89,19 +95,21 @@ fn build_yard(
     mut cache: ResMut<ModelCache>,
     mode: Res<crate::lighting::LookMode>,
 ) {
+    let yard_root=commands.spawn((Transform::default(),Visibility::default(),NormalYard)).id();
     let look = looks_yard::yard_styled(LOOK_SEED, *mode == crate::lighting::LookMode::Polished);
     if *mode == crate::lighting::LookMode::Polished && crate::style::current() == crate::style::Style::Pop {
         crate::lighting::spawn_afternoon_sky(&mut commands, &mut meshes, &mut mats);
     }
 
     // everything that is always there (lawn, fence, house, trees, pool, props)
-    let (_, kids) = cache.spawn_parts_with_children(
+    let (world_root, kids) = cache.spawn_parts_with_children(
         &mut commands,
         &look.world,
         &mut meshes,
         &mut mats,
         Transform::default(),
     );
+    commands.entity(yard_root).add_child(world_root);
     if let Some(i) = find(&look.world, Tex::PoolWater) {
         commands.entity(kids[i]).insert(PoolWater);
     }
@@ -122,14 +130,17 @@ fn build_yard(
             Transform::default(),
         );
         commands.entity(e).insert(FeatureTag(feature));
+        commands.entity(yard_root).add_child(e);
     }
     // what is on the bar depends on the mode: grog in Cheeky mode, soft drinks in family mode
     for (parts, cheeky) in [(&look.bar_grog, true), (&look.bar_soft, false)] {
         let e = cache.spawn_parts(&mut commands, parts, &mut meshes, &mut mats, Transform::default());
         commands.entity(e).insert((FeatureTag(Feature::Bar), CheekyOnly(cheeky), Visibility::Hidden));
+        commands.entity(yard_root).add_child(e);
     }
     let e = cache.spawn_parts(&mut commands, &look.litter, &mut meshes, &mut mats, Transform::default());
     commands.entity(e).insert((CheekyOnly(true), Visibility::Hidden));
+    commands.entity(yard_root).add_child(e);
 
     // The former Smoko area is open lawn. Shared prop builders remain in looks_yard.
 
@@ -142,6 +153,7 @@ fn build_yard(
         Transform::from_xyz(HOIST_AT.x, HOIST_AT.y, HOIST_AT.z),
     );
     commands.entity(e).insert(HoistHead);
+    commands.entity(yard_root).add_child(e);
     if *mode == crate::lighting::LookMode::Polished {
         // the Hills Hoist leans: its head sits on the tilted pole's top
         let top = looks_yard::hoist_lean().1;
@@ -179,6 +191,7 @@ fn build_yard(
         Transform::from_xyz(look.chest_pivot.x, look.chest_pivot.y, look.chest_pivot.z),
     );
     commands.entity(lid).insert(ChestLid);
+    commands.entity(yard_root).add_child(root);
     commands.entity(root).add_children(&[base, lid]);
     for k in 0..bbq_core::chest::MAX_STOCK as usize {
         let (at, rot, scale) = looks_yard::chest_toy_place(k);
@@ -226,7 +239,8 @@ fn build_yard(
             Transform::from_xyz(m.neck.x, m.neck.y, m.neck.z),
         );
         commands.entity(head).insert(MagpieHead { body_yaw: *yaw, seed: i as f32 * 3.7, yaw: 0.0, pitch: 0.0 });
-        commands.entity(root).add_children(&[body, head]);
+        commands.entity(yard_root).add_child(root);
+    commands.entity(root).add_children(&[body, head]);
     }
 
     // the yard's other eskies: they open, but hold nothing yet
@@ -247,7 +261,8 @@ fn build_yard(
                 .with_rotation(Quat::from_rotation_x(-0.08)),
         );
         commands.entity(lid).insert(DecorLid(i));
-        commands.entity(root).add_children(&[base, lid]);
+        commands.entity(yard_root).add_child(root);
+    commands.entity(root).add_children(&[base, lid]);
     }
 
     // the sun, with shadows, and the soft light from the sky
@@ -422,7 +437,7 @@ fn toggle_features(
         (KeyCode::F2, Feature::Bbq),
         (KeyCode::F3, Feature::Chest),
     ] {
-        if keys.just_pressed(key) {
+        if keys.just_pressed(key) && game.rules.mode != bbq_core::GameMode::Race {
             let mut feats: Features = yard_res.0.features;
             feats.toggle(f);
             let spot = yard_res.0.chest_spot;
@@ -470,4 +485,60 @@ fn sync_smoko_map(
     let delta=Vec3::new(crate::smoko_mode::CENTRE.0-bbq_core::yard::SMOKO_X,0.0,crate::smoko_mode::CENTRE.1-bbq_core::yard::SMOKO_Z);
     let e=cache.spawn_parts(&mut commands,&parts,&mut meshes,&mut mats,Transform::from_translation(delta));
     commands.entity(e).insert(SmokoMap);
+}
+
+fn sync_race_map(
+ mut commands:Commands,game:Res<Game>,mut normal:Query<&mut Visibility,With<NormalYard>>,
+ roots:Query<Entity,With<RaceMap>>,mut meshes:ResMut<Assets<Mesh>>,mut mats:ResMut<Assets<StandardMaterial>>,mut cache:ResMut<ModelCache>,
+) {
+ let active=game.rules.mode==bbq_core::GameMode::Race;
+ for mut v in &mut normal {*v=if active{Visibility::Hidden}else{Visibility::Inherited};}
+ if !active {for e in &roots{commands.entity(e).despawn();}return;}
+ if !roots.is_empty(){return;}
+ use bbq_core::looks::{Shape,Surface};
+ let block=|w:f32,h:f32,d:f32,x:f32,y:f32,z:f32,c:u32|Part::new(Shape::Cuboid{w,h,d},Surface::matt(c)).at(x,y,z);
+ // Reuse the backyard lawn tile across the oval; no extra geometry or texture assets.
+ let mut lawn_surface=Surface::matt(0xd4e4b6).textured(bbq_core::looks::Tex::Lawn);
+ lawn_surface.repeat=(12.,9.);
+ let mut lawn=Part::new(Shape::Cylinder{top:1.,bottom:1.,h:0.2,seg:96,caps:true},lawn_surface).at(0.,-0.12,0.);
+ lawn.scale=bbq_core::vec::V3::new(52.,1.,37.);
+ let mut parts=vec![lawn];
+ // Many short shared strips make a smooth constant-width racing surface.
+ for i in 0..96 {
+  let t=i as f32*std::f32::consts::TAU/96.;let u=(i+1) as f32*std::f32::consts::TAU/96.;
+  let a=crate::race::oval(t);let b=crate::race::oval(u);let dx=b.0-a.0;let dz=b.1-a.1;let len=dx.hypot(dz);let yaw=dx.atan2(dz);
+  parts.push(block(crate::race::WIDTH,0.04,len+0.12,(a.0+b.0)*0.5,0.015,(a.1+b.1)*0.5,0xd48b57).turn(0.,yaw,0.));
+  for side in [-1.,1.] {let off=crate::race::WIDTH*0.5*side;parts.push(block(0.12,0.035,len+0.08,(a.0+b.0)*0.5+dz/len*off,0.055,(a.1+b.1)*0.5-dx/len*off,0xfff5cf).turn(0.,yaw,0.));}
+  let a=(50.*t.sin(),-35.*t.cos());let b=(50.*u.sin(),-35.*u.cos());let dx=b.0-a.0;let dz=b.1-a.1;
+  parts.push(block(0.14,1.1,dx.hypot(dz)+0.04,(a.0+b.0)*0.5,0.55,(a.1+b.1)*0.5,0x99623a).turn(0.,dx.atan2(dz),0.));
+ }
+ // Curved spectator terrace follows the near bend, outside the racing lane.
+ for i in 0..40 {let a=-0.85+i as f32*1.7/40.;let b=-0.85+(i+1) as f32*1.7/40.;let p=(44.*a.sin(),-29.5*a.cos());let q=(44.*b.sin(),-29.5*b.cos());let dx=q.0-p.0;let dz=q.1-p.1;
+  parts.push(block(3.4,0.035,dx.hypot(dz)+0.12,(p.0+q.0)*0.5,0.01,(p.1+q.1)*0.5,0xe6bd79).turn(0.,dx.atan2(dz),0.));
+ }
+ for i in 0..8 {
+  let a=crate::race::TRACK[i];let b=crate::race::TRACK[(i+1)%8];let dx=b.0-a.0;let dz=b.1-a.1;let len=dx.hypot(dz);let yaw=dx.atan2(dz);let mid=((a.0+b.0)*0.5,(a.1+b.1)*0.5);
+  // Repeated arrow chevrons on the racing surface communicate direction without colour alone.
+  for t in [0.3,0.65] {let (x,z)=crate::race::oval((i as f32+t)*std::f32::consts::TAU/8.);
+   for side in [-1.,1.] {parts.push(block(0.12,0.04,0.85,x+dz/len*side*0.27,0.08,z-dx/len*side*0.27,0xffdf43).turn(0.,yaw-side*0.7,0.));}
+  }
+  // Checkpoint gate: two posts, overhead numbered panel, open lane below.
+  let n=(i+1)%8;let at=crate::race::TRACK[n];
+  for side in [-1.,1.] {parts.push(block(0.16,3.3,0.16,at.0+dz/len*2.65*side,1.65,at.1-dx/len*2.65*side,0xfdf2c6));}
+  parts.push(block(5.5,0.7,0.16,at.0,3.3,at.1,if n==0{0x173c36}else{0x225c88}).turn(0.,yaw,0.));
+  // Seven-segment gate numbers (finish is 8), made from cheap shared cuboids.
+  let digit=if n==0{8}else{n};let masks=[0,0b0110000,0b1101101,0b1111001,0b0110011,0b1011011,0b1011111,0b1110000,0b1111111];
+  let segments=[(0.,0.24,0.3,0.055),(0.17,0.12,0.055,0.22),(0.17,-0.12,0.055,0.22),(0.,-0.24,0.3,0.055),(-0.17,-0.12,0.055,0.22),(-0.17,0.12,0.055,0.22),(0.,0.,0.3,0.055)];
+  for (k,(x,y,w,h)) in segments.iter().enumerate(){if masks[digit]&(1<<(6-k))!=0 {
+   parts.push(block(*w,*h,0.2,at.0+x*yaw.cos(),3.3+y,at.1-x*yaw.sin(),0xffdc43).turn(0.,yaw,0.));
+  }}
+ }
+ // Chequered finish stripe across the lane at gate 8.
+ for x in 0..2{for z in 0..10 {parts.push(block(0.4,0.04,0.48,-0.2+x as f32*0.4,0.09,-26.4+z as f32*0.48,if (x+z)%2==0{0xffffff}else{0x172823}));}}
+ // Timber boundary, trees and spectator seats give the circuit a backyard identity.
+ for i in 0..10 {let t=i as f32*std::f32::consts::TAU/10.;let x=47.*t.sin();let z=-32.*t.cos();if z < -25. {continue;}
+  parts.push(block(0.5,3.,0.5,x,1.5,z,0x825433));parts.push(Part::new(Shape::Sphere{r:1.7,ws:8,hs:6},Surface::matt(0x386b37)).at(x,4.,z));
+ }
+ for t in [-0.7_f32,-0.35,0.,0.35,0.7] {parts.extend(looks_yard::place(looks_yard::chair_styled(0),bbq_core::vec::V3::new(45.*t.sin(),0.,-30.5*t.cos()),bbq_core::vec::Quat::from_euler_xyz(0.,-t,0.),1.0));}
+ let e=cache.spawn_parts(&mut commands,&parts,&mut meshes,&mut mats,Transform::default());commands.entity(e).insert(RaceMap);
 }

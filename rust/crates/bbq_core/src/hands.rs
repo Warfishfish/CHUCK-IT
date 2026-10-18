@@ -326,17 +326,17 @@ mod tests {
     #[test]
     fn releasing_throws_with_the_charge() {
         let mut w = Wind::default();
-        w.press(0.0, Some(ItemKind::Gnome), &can());
+        w.press(0.0, Some(ItemKind::WaterBalloon), &can());
         for _ in 0..50 {
-            w.tick(0.01, Some(ItemKind::Gnome));
+            w.tick(0.01, Some(ItemKind::WaterBalloon));
         }
-        let Release::Throw { charge } = w.release(0.5, Some(ItemKind::Gnome), true) else {
+        let Release::Throw { charge } = w.release(0.5, Some(ItemKind::WaterBalloon), true) else {
             panic!()
         };
         assert!((charge - 0.5).abs() < 1e-4);
         assert!(!w.charging);
         assert_eq!(
-            w.release(0.6, Some(ItemKind::Gnome), true),
+            w.release(0.6, Some(ItemKind::WaterBalloon), true),
             Release::Nothing
         );
     }

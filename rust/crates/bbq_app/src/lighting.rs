@@ -62,12 +62,12 @@ impl LookMode {
                 // Pop: warm afternoon key with cool fill. Keep sky channels above ground
                 // channels so the hemisphere approximation never creates negative light.
                 crate::style::Style::Pop => Rig {
-                    sky: 0xb5d2ef,
-                    ground: 0x929791,
-                    hemi: 0.56,
-                    sun: 0xffd8a5,
-                    sun_intensity: 1.08,
-                    grade: Grade { saturation: 1.12, warmth: 0.03, contrast: 1.045, vignette: 0.14 },
+                    sky: 0xb5d0f5,
+                    ground: 0xa4b29c,
+                    hemi: 0.75,
+                    sun: 0xffd294,
+                    sun_intensity: 1.10,
+                    grade: Grade { saturation: 1.04, warmth: 0.02, contrast: 1.025, vignette: 0.08 },
                 },
                 // clay: a strong, low, golden sun with a cool blue shade and warm bounce light
                 crate::style::Style::Clay => Rig {
@@ -247,7 +247,9 @@ pub fn sun(look: LookMode) -> (DirectionalLight, Transform) {
             ..default()
         },
         // clay: a lower sun, so shadows are long and the light rakes across the surfaces
-        Transform::from_translation(if crate::style::current() != crate::style::Style::Current {
+        Transform::from_translation(if look == LookMode::Polished && crate::style::current() == crate::style::Style::Pop {
+            Vec3::new(SUN_AT.x, SUN_AT.y * 0.52, SUN_AT.z)
+        } else if crate::style::current() != crate::style::Style::Current {
             Vec3::new(SUN_AT.x, SUN_AT.y * 0.62, SUN_AT.z)
         } else {
             SUN_AT

@@ -46,18 +46,23 @@ fn capture(
 ) {
     timing.frame += 1;
     if motion_mode().is_some() {
-        if (180..480).contains(&timing.frame) && (timing.frame - 180) % 4 == 0 {
-            let index = (timing.frame - 180) / 4;
+        let water = motion_mode()==Some("water-balloon");
+        let frame = timing.frame.saturating_sub(if water {720} else {0});
+        if (180..if water {600} else {480}).contains(&frame) && (frame - 180) % 4 == 0 {
+            let index = (frame - 180) / 4;
             let path = cfg.out.replace(".png", &format!("-{index:03}.png"));
             commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path));
             for id in [900001, 900002, 900003] {
                 if let Some(it) = game.world.items.get(&id) {
-                    println!("MOTION frame={} id={} state={:?} pos={:.4},{:.4},{:.4} vel={:.4},{:.4},{:.4}", timing.frame, id, it.state, it.pos.x,it.pos.y,it.pos.z,it.vel.x,it.vel.y,it.vel.z);
+                    println!("MOTION frame={} id={} state={:?} pos={:.4},{:.4},{:.4} vel={:.4},{:.4},{:.4}", frame, id, it.state, it.pos.x,it.pos.y,it.pos.z,it.vel.x,it.vel.y,it.vel.z);
                 }
             }
         }
-        if timing.frame == 240 { commands.spawn(Screenshot::primary_window()).observe(save_to_disk(cfg.out.clone())); }
-        if timing.frame == 540 {
+        if frame == 240 { commands.spawn(Screenshot::primary_window()).observe(save_to_disk(cfg.out.clone())); }
+        if water && frame > 0 && frame % 4 == 0 && let Some(d) = game.dummies.first() {
+            println!("WATER_REVIEW frame={} wet={:.3} speed={:.3} x={:.3} z={:.3}", frame, d.body.wet_t, d.mover.speed(), d.mover.x, d.mover.z);
+        }
+        if frame == if water {660} else {540} {
             if motion_mode()==Some("smoko") {
                 println!("SMOKO_REVIEW final_score={} carries={}",game.board.score(crate::player::PLAYER_ID),game.smoko.carries.len());
             }
@@ -65,22 +70,24 @@ fn capture(
         }
         return;
     }
+    let args:Vec<String>=std::env::args().collect();
+    let shot_frame=args.iter().position(|a|a=="--capture-frame").and_then(|i|args.get(i+1)).and_then(|v|v.parse::<u32>().ok()).unwrap_or(240);
     let now = Instant::now();
     let previous = timing.previous.replace(now);
     // Capture before timing, then allow readback and PNG writing to finish.
-    if timing.frame == 240 {
+    if timing.frame == shot_frame {
         commands
             .spawn(Screenshot::primary_window())
             .observe(save_to_disk(cfg.out.clone()));
     }
-    if (301..=900).contains(&timing.frame)
+    if (shot_frame+61..=shot_frame+660).contains(&timing.frame)
         && let Some(previous) = previous
     {
         timing
             .milliseconds
             .push(now.duration_since(previous).as_secs_f64() * 1000.0);
     }
-    if timing.frame == 900 {
+    if timing.frame == shot_frame+660 {
         let samples = &mut timing.milliseconds;
         samples.sort_by(f64::total_cmp);
         let mean = samples.iter().sum::<f64>() / samples.len() as f64;
@@ -129,12 +136,46 @@ fn motion_mode() -> Option<&'static str> {
     static MODE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
     MODE.get_or_init(|| {
         let a: Vec<String> = std::env::args().collect();
-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko"].contains(&v.as_str())).cloned()
+        if !a.iter().any(|v|v=="--shot") || !a.iter().any(|v|v=="--review") { return None; }
+        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon"].contains(&v.as_str())).cloned()
     }).as_deref()
 }
 
+pub fn is_water_review() -> bool { motion_mode() == Some("water-balloon") }
+
 fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut wanted: ResMut<crate::player::Wanted>, mut frame: Local<u32>) {
     let Some(mode) = motion_mode() else { return };
+    if mode=="race" {return;}
+    if mode=="water-balloon" {
+        use bbq_core::{movement::Mover, vec::V3, items::ItemKind};
+        *frame+=1;
+        let frame_no=frame.saturating_sub(720);
+        game.options.bots_on=false;
+        if frame_no==120 {
+            game.options.bots_on=false;game.options.falls_on=false;
+            game.world.clear();game.me.body=Default::default();game.me.drunk.reset();game.life.seated=None;game.rules.phase=bbq_core::scoring::Phase::Play;
+            game.round.time_left=180.0;game.round.banner=None;
+            game.dummies.truncate(1);game.board.clear();game.feed.clear();game.popups.clear();game.slots.clear();
+            game.board.ensure(crate::player::PLAYER_ID);game.board.ensure(100);
+            if let Some(d)=game.dummies.first_mut() {d.bot.slots.clear();d.crown=false;d.mover=Mover::new(-16.0,18.0);d.body=Default::default();d.seat=None;d.dragged=None;d.bot.catcher=Default::default();d.face=std::f32::consts::FRAC_PI_2;}
+            player.mover=Mover::new(8.0,0.0);
+        }
+        if frame_no>=120 {
+            if let Some(d)=game.dummies.first_mut() {
+                d.bot.wish=if frame_no<560 {(1.0,0.0)}else{(0.0,0.0)};
+                d.home=(d.mover.x,d.mover.z);
+            }
+            game.life.dazza.pos=V3::new(1000.0,0.0,1000.0);
+        }
+        if frame_no==200 {
+            let d=&game.dummies[0];let (x,z)=(d.mover.x,d.mover.z);
+            let mut rng=game.rng.clone();
+            let id=game.world.spawn(ItemKind::WaterBalloon,x,z-4.0,false,&mut rng);
+            game.world.give(id,crate::player::PLAYER_ID);
+            game.world.throw(id,crate::player::PLAYER_ID,V3::new(x,1.2,z-4.0),V3::new(6.2,1.5,14.0),0.5,true);
+        }
+        return;
+    }
     if mode=="smoko" {
         *frame+=1;
         if *frame==120 {

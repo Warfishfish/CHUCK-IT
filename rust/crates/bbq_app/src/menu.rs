@@ -44,6 +44,7 @@ pub struct Settings {
     pub bots: usize,
     pub mode: GameMode,
     pub heist_teams: usize,
+    pub race_role: crate::race::Role,
     pub cheeky: bool,
     pub round_len: f32,
     pub skill: Difficulty,
@@ -75,6 +76,7 @@ impl Default for Settings {
             bots: 3,
             mode: GameMode::FreeForAll,
             heist_teams: 2,
+            race_role: crate::race::Role::Racer,
             cheeky: false,
             round_len: 180.0,
             skill: Difficulty::Fair,
@@ -173,6 +175,7 @@ impl Settings {
             GameMode::Teams => "teams",
             GameMode::Heist => "heist",
             GameMode::Smoko => "smoko",
+            GameMode::Race => "race",
         };
         let skill = match self.skill {
             Difficulty::Easy => "easy",
@@ -186,7 +189,7 @@ impl Settings {
             self.bottles.name(), self.rounds, self.friendly_fire, f.bar, f.bbq, f.chest, f.smoko, self.naughty,
             self.falls, self.drunk_all, self.character.name(), self.belly, self.sound,
             self.server, self.room
-        ) + &self.look.to_lines();
+        ) + &format!("race_role={}\n",if self.race_role==crate::race::Role::Thrower{"thrower"}else{"racer"}) + &self.look.to_lines();
         write_settings(&s);
     }
 
@@ -218,9 +221,11 @@ impl Settings {
                         "teams" => GameMode::Teams,
                         "heist" => GameMode::Heist,
                         "smoko" => GameMode::Smoko,
+                        "race" => GameMode::Race,
                         _ => GameMode::FreeForAll,
                     }
                 }
+                "race_role" => s.race_role = if v=="thrower" {crate::race::Role::Thrower}else{crate::race::Role::Racer},
                 "heist_teams" => s.heist_teams = v.parse().unwrap_or(2usize).clamp(2, 4),
                 "cheeky" => s.cheeky = b,
                 "round_len" => s.round_len = if v.parse::<f32>().unwrap_or(180.0) <= 60.0 { 60.0 } else { 180.0 },
@@ -323,6 +328,8 @@ pub enum ShowWhen {
     FriendlyFire,
     HeistNote,
     SmokoNote,
+    RaceNote,
+    StandardBots,
     MoreOpen,
     Cheeky,
     /// Only with Cheeky mode off (family mode: no alcohol).
@@ -366,6 +373,9 @@ impl Plugin for MenuPlugin {
                 if args.iter().any(|a| a=="--menu") && args.windows(2).any(|a| a==["--preview-mode","smoko"]) {
                     settings.mode=GameMode::Smoko;
                 }
+                if args.iter().any(|a|a=="--menu") && args.windows(2).any(|a|a==["--preview-mode","race"]) {settings.mode=GameMode::Race;}
+                if args.iter().any(|a|a=="--sideline") {settings.race_role=crate::race::Role::Thrower;}
+
                 settings
             })
             .insert_resource(MenuUi {
@@ -875,14 +885,14 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
             let b = button(r, Action::Play, "Play", Some(TOMATO));
             r.commands().entity(b).insert(PlayLabelMarker);
         });
-        p.spawn((column(0.0), ShowWhen::Offline)).with_children(|w| {
+        p.spawn((column(0.0), ShowWhen::StandardBots)).with_children(|w| {
             seg(w, SegId::Bots, "Bots", &[("None", 0), ("1", 1), ("2", 2), ("3", 3)]);
         });
         seg(
             p,
             SegId::Mode,
             "Maps / Game modes",
-            &[("Backyard", 0), ("Backyard Teams", 1), ("Teddy Heist", 2), ("Smoko", 3)],
+            &[("Backyard", 0), ("Backyard Teams", 1), ("Teddy Heist", 2), ("Smoko", 3), ("Race", 4)],
         );
         p.spawn((
             Node { display: Display::None, ..default() },
@@ -899,6 +909,10 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
             ShowWhen::SmokoNote,
             children![text("SMOKO YARD — Knock someone down, press F to pick them up, then carry or throw them into the marked pad. Tap F to drop; hold F and release to throw. +100 per delivery. Hits alone score nothing. Delivered players respawn away from the pad.", 13.0, false, MUTED)],
         ));
+        p.spawn((column(6.0), ShowWhen::RaceNote)).with_children(|r| {
+            seg(r,SegId::RaceRole,"Your role",&[("Racer",0),("Sideline Thrower",1)]);
+            r.spawn(text("BACKYARD OVAL • 3 racers, 3 laps, about 190m per lap. Follow numbered gates. Bots fill racer places. Sideline role previews the race; throwing arrives next milestone. Solo preview only.",13.0,false,MUTED));
+        });
         p.spawn((column(6.0), ShowWhen::HeistTeams))
             .with_children(|h| {
                 seg(h, SegId::HeistTeams, "Heist teams", &[("2", 2), ("3", 3), ("4", 4)]);
@@ -1261,10 +1275,12 @@ fn widget_clicks(
                     1 => GameMode::Teams,
                     2 => GameMode::Heist,
                     3 => GameMode::Smoko,
+                    4 => GameMode::Race,
                     _ => GameMode::FreeForAll,
                 }
             }
             SegId::HeistTeams => settings.heist_teams = v as usize,
+            SegId::RaceRole => settings.race_role=if v==1{crate::race::Role::Thrower}else{crate::race::Role::Racer},
             SegId::RoundLen => settings.round_len = v as f32,
             SegId::Skill => {
                 settings.skill = match v {
@@ -1580,9 +1596,11 @@ fn paint_widgets(
                     GameMode::Teams => 1,
                     GameMode::Heist => 2,
                     GameMode::Smoko => 3,
+                    GameMode::Race => 4,
                 }
             }
             SegId::HeistTeams => settings.heist_teams as i32 == v,
+            SegId::RaceRole => (settings.race_role==crate::race::Role::Thrower) as i32 == v,
             SegId::RoundLen => settings.round_len as i32 == v,
             SegId::Skill => {
                 v == match settings.skill {
@@ -1636,6 +1654,8 @@ fn paint_widgets(
             ShowWhen::NotLook => matches!(ui.tab, Tab::Solo | Tab::How),
             ShowWhen::HeistTeams | ShowWhen::HeistNote => heist,
             ShowWhen::SmokoNote => settings.mode == GameMode::Smoko,
+            ShowWhen::RaceNote => settings.mode == GameMode::Race,
+            ShowWhen::StandardBots => !lobby.in_yard && settings.mode != GameMode::Race,
             ShowWhen::FriendlyFire => teams,
             ShowWhen::MoreOpen => ui.more_open,
             ShowWhen::Cheeky => settings.cheeky,
@@ -1693,6 +1713,7 @@ fn paint_widgets(
     let label = match settings.mode {
         GameMode::Heist => "Play Teddy Heist",
         GameMode::Smoko => "Play Smoko",
+        GameMode::Race => "Race preview",
         GameMode::Teams => "Play Teams",
         GameMode::FreeForAll => "Play",
     };
@@ -1732,6 +1753,7 @@ pub fn begin(settings: &Settings, g: &mut Game, p: &mut Player, yard: &mut YardR
     g.round.setup = Setup {
         mode: settings.mode,
         heist_teams: settings.heist_teams,
+        race_role: settings.race_role,
         // with mates in the yard the bots stay out of it (for now)
         bots: if g.remotes.is_empty() { settings.bots } else { 0 },
         round_len: settings.round_len,
@@ -1794,6 +1816,7 @@ pub fn attract(settings: &Settings, g: &mut Game, p: &mut Player, yard: &mut Yar
 }
 
 fn run_requests(
+    lobby: Res<crate::online::Lobby>,
     mut ui: ResMut<MenuUi>,
     mut screen: ResMut<Screen>,
     mut settings: ResMut<Settings>,
@@ -1846,6 +1869,7 @@ fn run_requests(
         }
         // a guest does not start rounds: the host does
         Request::Play | Request::Again if game.mirror => {}
+        Request::Play | Request::Again if settings.mode==GameMode::Race && lobby.in_yard => {game.say("Race is a solo preview until online race syncing is ready.");}
         Request::Play => {
             begin(&settings, &mut game, &mut player, &mut yard, &mut cast);
             *screen = Screen::Playing;

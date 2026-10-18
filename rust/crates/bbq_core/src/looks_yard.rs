@@ -2329,6 +2329,26 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         }
     }
     if polished {
+        // Front-boundary shade trees: reuse gum assets to cast broken canopy shadows
+        // across the lawn. Trunks remain outside the playable fence.
+        let mut shade_rng = Rng::new(seed ^ 0x5ADE);
+        for (x, z) in [(12.0, D + 4.0), (-14.0, D + 4.5), (W + 4.0, 8.0)] {
+            let tree = gum_tree_dusty(&mut shade_rng, 0.0, 0.0, 0.0);
+            let mut airy = Vec::new();
+            for part in tree {
+                if let Shape::Ico { r, .. } = part.shape {
+                    // Separate small crowns leave sunlit gaps instead of one solid silhouette.
+                    for k in 0..5 {
+                        let mut leaf = part;
+                        let a = k as f32 * 2.0 * PI / 5.0;
+                        leaf.scale = part.scale * 0.40;
+                        leaf.pos = part.pos + V3::new(a.cos() * r * 0.85, (k % 2) as f32 * 0.18, a.sin() * r * 0.85);
+                        airy.push(leaf);
+                    }
+                } else { airy.push(part); }
+            }
+            world.extend(place(airy, V3::new(x, 0.0, z), turn_y(0.0), 1.55));
+        }
         // a scatter of far trees out in the dry paddock, beyond the houses
         let mut fr = Rng::new(seed ^ 0xFA27);
         for _ in 0..22 {

@@ -120,6 +120,7 @@ pub enum FlightEvent {
     },
     /// A stubby broke. `puddle` says whether it left one; `bottle` is set for Cheeky mode's
     /// glass bottles (they shatter; the VP can just bursts).
+    WaterBurst { pos: V3 },
     Smash {
         pos: V3,
         puddle: bool,
@@ -148,7 +149,7 @@ pub enum Fate {
 pub fn rest_height(kind: ItemKind) -> f32 {
     match kind {
         ItemKind::Stubby => 0.07,
-        ItemKind::Gnome => 0.28,
+        ItemKind::WaterBalloon => 0.28,
         ItemKind::Dildo => 0.14,
         ItemKind::Noodle => 0.08,
         ItemKind::Steak => 0.03,
@@ -202,7 +203,7 @@ fn smashes(it: &Item) -> bool {
 
 fn hit_wall(it: &mut Item, axis: Axis, events: &mut Vec<FlightEvent>) -> Fate {
     let sp = it.vel.len();
-    if smashes(it) && sp > 4.0 {
+    if smashes(it) && (sp > 4.0 || it.kind == ItemKind::WaterBalloon) {
         smash(it, events);
         return Fate::Removed;
     }
@@ -215,7 +216,7 @@ fn hit_wall(it: &mut Item, axis: Axis, events: &mut Vec<FlightEvent>) -> Fate {
     if sp > 5.0 {
         events.push(FlightEvent::Thud {
             pos: it.pos,
-            gnome: it.kind == ItemKind::Gnome,
+            gnome: false,
         });
     }
     Fate::Alive
@@ -228,6 +229,10 @@ enum Axis {
 }
 
 fn smash(it: &Item, events: &mut Vec<FlightEvent>) {
+    if it.kind == ItemKind::WaterBalloon {
+        events.push(FlightEvent::WaterBurst { pos: it.pos });
+        return;
+    }
     let puddle = it.pos.y < 1.4 && !in_pool_rect(it.pos.x, it.pos.z);
     events.push(FlightEvent::Smash {
         pos: it.pos,
@@ -265,14 +270,14 @@ fn on_surface(it: &mut Item, h: f32, on: Option<&Collider>, events: &mut Vec<Fli
         it.pos.y = WATER_Y + 0.04;
         return Fate::Alive;
     }
-    if smashes(it) && sp > 5.0 {
+    if smashes(it) && (sp > 5.0 || it.kind == ItemKind::WaterBalloon) {
         smash(it, events);
         return Fate::Removed;
     }
     if sp > 5.0 {
         events.push(FlightEvent::Thud {
             pos: V3::new(it.pos.x, h + 0.05, it.pos.z),
-            gnome: it.kind == ItemKind::Gnome,
+            gnome: false,
         });
     }
     it.live = false;
@@ -341,6 +346,7 @@ fn collide_world_with_dt(it: &mut Item, yard: &Yard, rng: &mut Rng, events: &mut
         && it.vel.y < 0.0
     {
         it.pos.y = TRAMP_H + r;
+        if it.kind == ItemKind::WaterBalloon && it.live { smash(it, events); return Fate::Removed; }
         events.push(FlightEvent::Boing { pos: it.pos });
         if it.kind == ItemKind::Teddy {
             // A teddy bounces like a ball: the first bounce is the trampoline's own kick, then
@@ -476,7 +482,7 @@ pub fn step_flight(
 
 /// Spin speed for a flying item, radians per second (spec: `min(18, speed*0.6)`, gnome x0.6).
 pub fn spin_rate(kind: ItemKind, speed: f32) -> f32 {
-    speed.mul_add(0.6, 0.0).min(18.0) * if kind == ItemKind::Gnome { 0.6 } else { 1.0 }
+    speed.mul_add(0.6, 0.0).min(18.0) * if kind == ItemKind::WaterBalloon { 0.6 } else { 1.0 }
 }
 
 // --- puddles and sliding ---------------------------------------------------------------
@@ -718,7 +724,7 @@ mod tests {
     #[test]
     fn landing_makes_it_harmless() {
         let yard = Yard::default();
-        let mut it = thrown(ItemKind::Gnome, V3::new(0.0, 0.5, 10.0), V3::ZERO);
+        let mut it = thrown(ItemKind::Teddy, V3::new(0.0, 0.5, 10.0), V3::ZERO);
         let mut rng = Rng::new(1);
         let mut ev = Vec::new();
         for _ in 0..30 {
@@ -915,7 +921,7 @@ mod tests {
     #[test]
     fn rest_heights_match_the_spec() {
         assert_eq!(rest_height(ItemKind::Stubby), 0.07);
-        assert_eq!(rest_height(ItemKind::Gnome), 0.28);
+        assert_eq!(rest_height(ItemKind::WaterBalloon), 0.28);
         assert_eq!(rest_height(ItemKind::Fish), 0.17);
         assert_eq!(rest_height(ItemKind::Teddy), 0.24);
     }
@@ -1010,6 +1016,6 @@ mod tests {
     #[test]
     fn spin_rate_caps_and_gnome_is_slower() {
         assert_eq!(spin_rate(ItemKind::Teddy, 100.0), 18.0);
-        assert!((spin_rate(ItemKind::Gnome, 100.0) - 10.8).abs() < 1e-4);
+        assert!((spin_rate(ItemKind::WaterBalloon, 100.0) - 10.8).abs() < 1e-4);
     }
 }

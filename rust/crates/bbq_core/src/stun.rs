@@ -4,6 +4,9 @@
 //! **1 second grace** during which no new stun can start (you can still be shoved).
 
 /// A stun that has just ended gives this long before another can start.
+pub const WET_DURATION: f32 = 4.0;
+pub const WET_SPEED: f32 = 0.8;
+
 pub const STUN_GRACE: f32 = 1.0;
 /// A power throw (charge of 0.90 or more) flattens for this long.
 pub const POWER_DOWN: f32 = 2.0;
@@ -12,6 +15,8 @@ pub const POWER_CHARGE: f32 = 0.90;
 
 #[derive(Clone, Debug, Default)]
 pub struct Body {
+    /// Host-owned wet timer. Repeated valid balloon hits refresh, never stack.
+    pub wet_t: f32,
     /// Seconds of stun left.
     pub stun: f32,
     /// Seconds of grace left after a stun ended.
@@ -95,6 +100,7 @@ impl Body {
 
     pub fn tick(&mut self, dt: f32) -> TickEvents {
         let mut ev = TickEvents::default();
+        self.wet_t = (self.wet_t - dt).max(0.0);
         let before = self.stun;
         self.stun = (self.stun - dt).max(0.0);
         if before > 0.0 && self.stun <= 0.0 {

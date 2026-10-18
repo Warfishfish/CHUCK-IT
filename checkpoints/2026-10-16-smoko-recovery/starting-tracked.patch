@@ -1,0 +1,788 @@
+diff --git a/checkpoints/LATEST.md b/checkpoints/LATEST.md
+index 3bacfe3..88a7be0 100644
+--- a/checkpoints/LATEST.md
++++ b/checkpoints/LATEST.md
+@@ -1,3 +1,3 @@
+ # Latest recovery checkpoint
+ 
+-[Smoko map/mode — reviewed and approved for commit/push](2026-10-15-smoko-mode/CHECKPOINT.md). [Actual game/UI/motion review](2026-10-15-smoko-mode/review.html). Includes both Smoko milestones, Maps / Game modes selector, 607 passing tests, release build, final motion capture and performance comparison. User approved commit/push on 16 October 2026. Next milestone requires review.
++[Race foundation — triple-length oval complete, awaiting review](2026-10-16-race-foundation/CHECKPOINT.md). [Actual game/menu/motion review](2026-10-16-race-foundation/review.html). Course is 190.39m per lap (3× the smaller oval), three laps. 613 tests and release build pass; full bot race and captures verified. Preserve all uncommitted work; no commit/push or next milestone without review.
+diff --git a/rust/crates/bbq_app/src/game.rs b/rust/crates/bbq_app/src/game.rs
+index f9eca1e..a8b7fae 100644
+--- a/rust/crates/bbq_app/src/game.rs
++++ b/rust/crates/bbq_app/src/game.rs
+@@ -194,6 +194,7 @@ pub struct Game {
+     /// The other people in an online yard (empty when playing alone).
+     pub remotes: Vec<RemoteInfo>,
+     pub smoko: crate::smoko_mode::State,
++    pub race: crate::race::State,
+     /// Online guest: this game does not run the yard, it shows what the host says (see
+     /// `online_world.rs`).
+     pub mirror: bool,
+@@ -306,6 +307,7 @@ impl Plugin for GamePlugin {
+             fx: Vec::new(),
+             remotes: Vec::new(),
+             smoko: Default::default(),
++            race: Default::default(),
+             mirror: false,
+             net_fx: false,
+             fx_out: Vec::new(),
+@@ -366,6 +368,7 @@ pub fn step_game(
+ 
+     // ---- the round clock, and Heist banking ----
+     crate::round::step(g);
++    if g.rules.mode == GameMode::Race { crate::race::step(g,p,&mut wanted,&yard); return; }
+     crate::heist_app::step(g, p);
+ 
+     // ---- the player's body: drinking, falling over, helping mates up ----
+@@ -3101,4 +3104,27 @@ mod tests {
+         ticks(&mut app, 2);
+         assert_eq!(app.world().resource::<Game>().slots.len(), 1, "G is ignored while you are stunned");
+     }
++    #[test]
++    fn race_bot_fill_finishes_three_laps_and_has_no_combat_points() {
++        let mut app=app();let mut cfg=setup(GameMode::Race,0);cfg.race_role=crate::race::Role::Thrower;
++        start_with(&mut app,cfg);
++        assert_eq!(app.world().resource::<Game>().race.racers.len(),3);
++        for _ in 0..12000 {ticks(&mut app,1);if app.world().resource::<Game>().rules.phase==Phase::Results {break;}}
++        let g=app.world().resource::<Game>();
++        assert_eq!(g.rules.phase,Phase::Results);
++        assert!(g.race.racers.values().all(|r|r.finish.is_some()),"{:?}",g.race.racers);
++        assert!(g.board.iter().all(|(_,s)|s.score==0));
++        assert!(g.round.results.as_ref().unwrap().winner.is_some());
++    }
++    #[test]
++    fn race_racer_role_fills_two_bots_and_mode_switch_restores_yard() {
++        let mut app=app();start_with(&mut app,setup(GameMode::Race,0));
++        assert_eq!(app.world().resource::<Game>().dummies.len(),2);
++        assert!(app.world().resource::<Game>().race.racers.contains_key(&PLAYER_ID));
++        assert!(app.world().resource::<YardRes>().0.colliders.is_empty());
++        start_with(&mut app,setup(GameMode::Smoko,1));
++        assert!(app.world().resource::<Game>().race.racers.is_empty());
++        assert!(!app.world().resource::<YardRes>().0.colliders.is_empty());
++    }
++
+ }
+diff --git a/rust/crates/bbq_app/src/hud.rs b/rust/crates/bbq_app/src/hud.rs
+index eda422a..105604f 100644
+--- a/rust/crates/bbq_app/src/hud.rs
++++ b/rust/crates/bbq_app/src/hud.rs
+@@ -595,6 +595,11 @@ fn update_board(
+     mut last: Local<String>,
+ ) {
+     let g = &*game;
++    if g.rules.mode==GameMode::Race {
++        let lines=crate::race::lines(g);let sig=format!("race:{lines:?}");if *last==sig{return;}*last=sig;
++        commands.entity(*board).despawn_children();commands.entity(*board).with_children(|b|{b.spawn(text("RACE • 3 LAPS",14.0,true,SUN));for line in lines{b.spawn(text(line,13.0,false,WHITE));}});return;
++    }
++
+     let teamed = matches!(g.rules.mode, GameMode::Teams | GameMode::Heist);
+     let mut rows: Vec<(u32, String, Color, i32, Option<Team>, u32)> = g
+         .board
+@@ -1175,7 +1180,7 @@ fn update_hint(
+     if hints.secs > 0.0 {
+         hints.secs -= dt;
+     }
+-    let want = if hints.secs > 0.0 { hints.text.clone() } else { String::new() };
++    let want = if g.rules.mode==GameMode::Race {String::new()} else if hints.secs > 0.0 { hints.text.clone() } else { String::new() };
+     if *shown != want {
+         *shown = want.clone();
+         pill(&mut commands, e, &want, 14.0);
+diff --git a/rust/crates/bbq_app/src/main.rs b/rust/crates/bbq_app/src/main.rs
+index 07953cb..2f76c86 100644
+--- a/rust/crates/bbq_app/src/main.rs
++++ b/rust/crates/bbq_app/src/main.rs
+@@ -38,6 +38,7 @@ mod round;
+ mod shapes;
+ mod silicone;
+ mod smoko_mode;
++mod race;
+ mod shirt;
+ mod shot;
+ mod visual_review;
+diff --git a/rust/crates/bbq_app/src/menu.rs b/rust/crates/bbq_app/src/menu.rs
+index fff534f..360c41a 100644
+--- a/rust/crates/bbq_app/src/menu.rs
++++ b/rust/crates/bbq_app/src/menu.rs
+@@ -44,6 +44,7 @@ pub struct Settings {
+     pub bots: usize,
+     pub mode: GameMode,
+     pub heist_teams: usize,
++    pub race_role: crate::race::Role,
+     pub cheeky: bool,
+     pub round_len: f32,
+     pub skill: Difficulty,
+@@ -75,6 +76,7 @@ impl Default for Settings {
+             bots: 3,
+             mode: GameMode::FreeForAll,
+             heist_teams: 2,
++            race_role: crate::race::Role::Racer,
+             cheeky: false,
+             round_len: 180.0,
+             skill: Difficulty::Fair,
+@@ -173,6 +175,7 @@ impl Settings {
+             GameMode::Teams => "teams",
+             GameMode::Heist => "heist",
+             GameMode::Smoko => "smoko",
++            GameMode::Race => "race",
+         };
+         let skill = match self.skill {
+             Difficulty::Easy => "easy",
+@@ -186,7 +189,7 @@ impl Settings {
+             self.bottles.name(), self.rounds, self.friendly_fire, f.bar, f.bbq, f.chest, f.smoko, self.naughty,
+             self.falls, self.drunk_all, self.character.name(), self.belly, self.sound,
+             self.server, self.room
+-        ) + &self.look.to_lines();
++        ) + &format!("race_role={}\n",if self.race_role==crate::race::Role::Thrower{"thrower"}else{"racer"}) + &self.look.to_lines();
+         write_settings(&s);
+     }
+ 
+@@ -218,9 +221,11 @@ impl Settings {
+                         "teams" => GameMode::Teams,
+                         "heist" => GameMode::Heist,
+                         "smoko" => GameMode::Smoko,
++                        "race" => GameMode::Race,
+                         _ => GameMode::FreeForAll,
+                     }
+                 }
++                "race_role" => s.race_role = if v=="thrower" {crate::race::Role::Thrower}else{crate::race::Role::Racer},
+                 "heist_teams" => s.heist_teams = v.parse().unwrap_or(2usize).clamp(2, 4),
+                 "cheeky" => s.cheeky = b,
+                 "round_len" => s.round_len = if v.parse::<f32>().unwrap_or(180.0) <= 60.0 { 60.0 } else { 180.0 },
+@@ -323,6 +328,8 @@ pub enum ShowWhen {
+     FriendlyFire,
+     HeistNote,
+     SmokoNote,
++    RaceNote,
++    StandardBots,
+     MoreOpen,
+     Cheeky,
+     /// Only with Cheeky mode off (family mode: no alcohol).
+@@ -366,6 +373,9 @@ impl Plugin for MenuPlugin {
+                 if args.iter().any(|a| a=="--menu") && args.windows(2).any(|a| a==["--preview-mode","smoko"]) {
+                     settings.mode=GameMode::Smoko;
+                 }
++                if args.iter().any(|a|a=="--menu") && args.windows(2).any(|a|a==["--preview-mode","race"]) {settings.mode=GameMode::Race;}
++                if args.iter().any(|a|a=="--sideline") {settings.race_role=crate::race::Role::Thrower;}
++
+                 settings
+             })
+             .insert_resource(MenuUi {
+@@ -875,14 +885,14 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
+             let b = button(r, Action::Play, "Play", Some(TOMATO));
+             r.commands().entity(b).insert(PlayLabelMarker);
+         });
+-        p.spawn((column(0.0), ShowWhen::Offline)).with_children(|w| {
++        p.spawn((column(0.0), ShowWhen::StandardBots)).with_children(|w| {
+             seg(w, SegId::Bots, "Bots", &[("None", 0), ("1", 1), ("2", 2), ("3", 3)]);
+         });
+         seg(
+             p,
+             SegId::Mode,
+             "Maps / Game modes",
+-            &[("Backyard", 0), ("Backyard Teams", 1), ("Teddy Heist", 2), ("Smoko", 3)],
++            &[("Backyard", 0), ("Backyard Teams", 1), ("Teddy Heist", 2), ("Smoko", 3), ("Race", 4)],
+         );
+         p.spawn((
+             Node { display: Display::None, ..default() },
+@@ -899,6 +909,10 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
+             ShowWhen::SmokoNote,
+             children![text("SMOKO YARD — Knock someone down, press F to pick them up, then carry or throw them into the marked pad. Tap F to drop; hold F and release to throw. +100 per delivery. Hits alone score nothing. Delivered players respawn away from the pad.", 13.0, false, MUTED)],
+         ));
++        p.spawn((column(6.0), ShowWhen::RaceNote)).with_children(|r| {
++            seg(r,SegId::RaceRole,"Your role",&[("Racer",0),("Sideline Thrower",1)]);
++            r.spawn(text("BACKYARD OVAL • 3 racers, 3 laps, about 190m per lap. Follow numbered gates. Bots fill racer places. Sideline role previews the race; throwing arrives next milestone. Solo preview only.",13.0,false,MUTED));
++        });
+         p.spawn((column(6.0), ShowWhen::HeistTeams))
+             .with_children(|h| {
+                 seg(h, SegId::HeistTeams, "Heist teams", &[("2", 2), ("3", 3), ("4", 4)]);
+@@ -1261,10 +1275,12 @@ fn widget_clicks(
+                     1 => GameMode::Teams,
+                     2 => GameMode::Heist,
+                     3 => GameMode::Smoko,
++                    4 => GameMode::Race,
+                     _ => GameMode::FreeForAll,
+                 }
+             }
+             SegId::HeistTeams => settings.heist_teams = v as usize,
++            SegId::RaceRole => settings.race_role=if v==1{crate::race::Role::Thrower}else{crate::race::Role::Racer},
+             SegId::RoundLen => settings.round_len = v as f32,
+             SegId::Skill => {
+                 settings.skill = match v {
+@@ -1580,9 +1596,11 @@ fn paint_widgets(
+                     GameMode::Teams => 1,
+                     GameMode::Heist => 2,
+                     GameMode::Smoko => 3,
++                    GameMode::Race => 4,
+                 }
+             }
+             SegId::HeistTeams => settings.heist_teams as i32 == v,
++            SegId::RaceRole => (settings.race_role==crate::race::Role::Thrower) as i32 == v,
+             SegId::RoundLen => settings.round_len as i32 == v,
+             SegId::Skill => {
+                 v == match settings.skill {
+@@ -1636,6 +1654,8 @@ fn paint_widgets(
+             ShowWhen::NotLook => matches!(ui.tab, Tab::Solo | Tab::How),
+             ShowWhen::HeistTeams | ShowWhen::HeistNote => heist,
+             ShowWhen::SmokoNote => settings.mode == GameMode::Smoko,
++            ShowWhen::RaceNote => settings.mode == GameMode::Race,
++            ShowWhen::StandardBots => !lobby.in_yard && settings.mode != GameMode::Race,
+             ShowWhen::FriendlyFire => teams,
+             ShowWhen::MoreOpen => ui.more_open,
+             ShowWhen::Cheeky => settings.cheeky,
+@@ -1693,6 +1713,7 @@ fn paint_widgets(
+     let label = match settings.mode {
+         GameMode::Heist => "Play Teddy Heist",
+         GameMode::Smoko => "Play Smoko",
++        GameMode::Race => "Race preview",
+         GameMode::Teams => "Play Teams",
+         GameMode::FreeForAll => "Play",
+     };
+@@ -1732,6 +1753,7 @@ pub fn begin(settings: &Settings, g: &mut Game, p: &mut Player, yard: &mut YardR
+     g.round.setup = Setup {
+         mode: settings.mode,
+         heist_teams: settings.heist_teams,
++        race_role: settings.race_role,
+         // with mates in the yard the bots stay out of it (for now)
+         bots: if g.remotes.is_empty() { settings.bots } else { 0 },
+         round_len: settings.round_len,
+@@ -1794,6 +1816,7 @@ pub fn attract(settings: &Settings, g: &mut Game, p: &mut Player, yard: &mut Yar
+ }
+ 
+ fn run_requests(
++    lobby: Res<crate::online::Lobby>,
+     mut ui: ResMut<MenuUi>,
+     mut screen: ResMut<Screen>,
+     mut settings: ResMut<Settings>,
+@@ -1846,6 +1869,7 @@ fn run_requests(
+         }
+         // a guest does not start rounds: the host does
+         Request::Play | Request::Again if game.mirror => {}
++        Request::Play | Request::Again if settings.mode==GameMode::Race && lobby.in_yard => {game.say("Race is a solo preview until online race syncing is ready.");}
+         Request::Play => {
+             begin(&settings, &mut game, &mut player, &mut yard, &mut cast);
+             *screen = Screen::Playing;
+diff --git a/rust/crates/bbq_app/src/online_world.rs b/rust/crates/bbq_app/src/online_world.rs
+index 548b727..3bc0768 100644
+--- a/rust/crates/bbq_app/src/online_world.rs
++++ b/rust/crates/bbq_app/src/online_world.rs
+@@ -101,6 +101,7 @@ fn mode_code(m: GameMode) -> u8 {
+         GameMode::Teams => 1,
+         GameMode::Heist => 2,
+         GameMode::Smoko => 3,
++        GameMode::Race => 4,
+     }
+ }
+ 
+@@ -109,6 +110,7 @@ fn mode_of_code(c: u8) -> GameMode {
+         1 => GameMode::Teams,
+         2 => GameMode::Heist,
+         3 => GameMode::Smoko,
++        4 => GameMode::Race,
+         _ => GameMode::FreeForAll,
+     }
+ }
+diff --git a/rust/crates/bbq_app/src/player.rs b/rust/crates/bbq_app/src/player.rs
+index 9009894..c2445b4 100644
+--- a/rust/crates/bbq_app/src/player.rs
++++ b/rust/crates/bbq_app/src/player.rs
+@@ -260,6 +260,7 @@ fn step_player(
+     let g = &mut *game;
+     p.prev = Vec3::new(p.mover.x, p.mover.y, p.mover.z);
+     if crate::smoko_mode::player_locked(g) { return; }
++    if g.rules.mode == bbq_core::GameMode::Race && (g.rules.phase == bbq_core::scoring::Phase::Results || g.race.racers.get(&PLAYER_ID).is_some_and(|r|r.finish.is_some())) {return;}
+     // drunk: the walk drifts off line, and in Drunk mode the speed lurches
+     let da = g.me.drunk.da();
+     let wish = movement::drunk_steer(wanted.wish, da, g.now);
+diff --git a/rust/crates/bbq_app/src/results.rs b/rust/crates/bbq_app/src/results.rs
+index 5ff5a14..332d2ee 100644
+--- a/rust/crates/bbq_app/src/results.rs
++++ b/rust/crates/bbq_app/src/results.rs
+@@ -27,6 +27,7 @@ pub struct Row {
+ }
+ 
+ pub struct ResultsText {
++    pub race_lines: Option<Vec<String>>,
+     pub title: String,
+     pub line: String,
+     pub match_line: Option<String>,
+@@ -85,6 +86,7 @@ fn standings(g: &Game) -> String {
+ }
+ 
+ pub fn build(g: &Game, _settings: &Settings) -> ResultsText {
++    if g.rules.mode==GameMode::Race {let winner=g.round.results.as_ref().and_then(|r|r.winner);return ResultsText {race_lines:Some(crate::race::lines(g)),title:format!("{} wins the race",key_name(g,winner)),line:"Three laps • Finish time decides. Unfinished racers rank by checkpoints, then distance to the next gate.".into(),match_line:None,again_label:"Race again".into(),heist:false,rows:vec![]};}
+     let mut rows: Vec<Row> = g
+         .board
+         .iter()
+@@ -189,7 +191,7 @@ pub fn build(g: &Game, _settings: &Settings) -> ResultsText {
+                 );
+             }
+         }
+-        GameMode::FreeForAll | GameMode::Smoko => {}
++        GameMode::FreeForAll | GameMode::Smoko | GameMode::Race => {}
+     }
+     let m = &g.round.mtch;
+     let match_line = (m.len > 1).then(|| {
+@@ -222,6 +224,7 @@ pub fn build(g: &Game, _settings: &Settings) -> ResultsText {
+         "Play again".to_string()
+     };
+     ResultsText {
++        race_lines: None,
+         title,
+         line,
+         match_line,
+@@ -233,6 +236,7 @@ pub fn build(g: &Game, _settings: &Settings) -> ResultsText {
+ 
+ /// The scores table.
+ pub fn table(c: &mut ChildSpawnerCommands, t: &ResultsText) {
++    if let Some(lines)=&t.race_lines {for line in lines {c.spawn(text(line.clone(),16.0,true,INK));}return;}
+     let mut cols: Vec<(&str, f32)> = vec![
+         ("#", 26.0),
+         ("Player", 0.0),
+diff --git a/rust/crates/bbq_app/src/round.rs b/rust/crates/bbq_app/src/round.rs
+index 1a5afb9..e1a7001 100644
+--- a/rust/crates/bbq_app/src/round.rs
++++ b/rust/crates/bbq_app/src/round.rs
+@@ -31,6 +31,7 @@ pub struct Setup {
+     pub mode: GameMode,
+     /// Heist: how many teams (2 to 4).
+     pub heist_teams: usize,
++    pub race_role: crate::race::Role,
+     pub bots: usize,
+     pub round_len: f32,
+     /// Rounds in the match: 1, 3 or 5.
+@@ -43,6 +44,7 @@ impl Default for Setup {
+         Setup {
+             mode: GameMode::FreeForAll,
+             heist_teams: 2,
++            race_role: crate::race::Role::Racer,
+             bots: 3,
+             round_len: 180.0,
+             match_len: 1,
+@@ -57,6 +59,7 @@ impl Setup {
+         match self.mode {
+             GameMode::FreeForAll => "Free for all".to_string(),
+             GameMode::Smoko => "Smoko Yard".to_string(),
++            GameMode::Race => "Backyard Circuit".into(),
+             GameMode::Teams => "Teams".to_string(),
+             GameMode::Heist => format!("Teddy Heist ({} teams)", self.heist_teams),
+         }
+@@ -72,7 +75,8 @@ impl Setup {
+             }
+             (GameMode::Heist, n) if n < 4 => self.heist_teams = n + 1,
+             (GameMode::Heist, _) => self.mode = GameMode::Smoko,
+-            (GameMode::Smoko, _) => self.mode = GameMode::FreeForAll,
++            (GameMode::Smoko, _) => self.mode = GameMode::Race,
++            (GameMode::Race, _) => self.mode = GameMode::FreeForAll,
+         }
+         if self.mode == GameMode::Heist {
+             self.friendly_fire = false;
+@@ -201,7 +205,7 @@ pub fn sync_bot_count(g: &mut Game, want: usize) {
+ pub fn assign_teams(g: &mut Game, reshuffle: bool) {
+     let ids = everyone(g);
+     match g.round.setup.mode {
+-        GameMode::FreeForAll | GameMode::Smoko => g.teams.clear(),
++        GameMode::FreeForAll | GameMode::Smoko | GameMode::Race => g.teams.clear(),
+         GameMode::Teams => {
+             let mut rng = Rng::new(g.rng.f32().to_bits() as u64 + 77);
+             g.teams.balance(&ids, reshuffle, false, &mut rng);
+@@ -247,7 +251,7 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
+ 
+     // a clean yard and the right number of bots
+     g.world.clear();
+-    sync_bot_count(g, setup.bots);
++    sync_bot_count(g, if setup.mode==GameMode::Race {if setup.race_role==crate::race::Role::Racer{2}else{3}} else {setup.bots});
+     assign_teams(g, false);
+     g.board = Scoreboard::new();
+     for id in everyone(g) {
+@@ -343,6 +347,7 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
+         g.heist = None;
+     }
+ 
++    crate::race::start(g,p,yard);
+     g.round.time_left = COUNTDOWN;
+     g.round.last_beep = 4;
+     let n = g.round.mtch.clone();
+@@ -356,8 +361,8 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
+         "Round {}: {} with {} bot{}",
+         g.round.mtch.no,
+         setup.mode_name(),
+-        setup.bots,
+-        if setup.bots == 1 { "" } else { "s" }
++        g.round.setup.bots,
++        if g.round.setup.bots == 1 { "" } else { "s" }
+     ));
+ }
+ 
+@@ -399,6 +404,7 @@ pub fn end_round(g: &mut Game) {
+     let rows = standings(g);
+     let winner = match g.rules.mode {
+         GameMode::FreeForAll | GameMode::Smoko => matchflow::round_winner_ffa(&rows),
++        GameMode::Race => crate::race::standings(g).first().filter(|id|!g.race.racers[id].disconnected).map(|id|Key::Player(*id)),
+         GameMode::Teams => matchflow::round_winner_teams(&rows, &g.teams),
+         GameMode::Heist => g
+             .heist
+@@ -574,9 +580,11 @@ fn start_from_args(mut game: ResMut<Game>, mut player: ResMut<Player>, mut yard:
+     s.mode = match mode.as_str() {
+         "heist" => GameMode::Heist,
+         "smoko" => GameMode::Smoko,
++        "race" => GameMode::Race,
+         "teams" => GameMode::Teams,
+         _ => GameMode::FreeForAll,
+     };
++    if args.iter().any(|a|a=="--sideline") {game.round.setup.race_role=crate::race::Role::Thrower;}
+     start_round(&mut game, &mut player, &mut yard);
+     // `--swim` (testing): start in the middle of the pool, facing the length of it
+     if args.iter().any(|a| a == "--swim") {
+@@ -860,10 +868,10 @@ mod tests {
+     }
+ 
+     #[test]
+-    fn the_mode_key_goes_round_all_six_modes() {
++    fn the_mode_key_goes_round_all_seven_modes() {
+         let mut s = Setup::default();
+         let mut seen = vec![s.mode_name()];
+-        for _ in 0..6 {
++        for _ in 0..7 {
+             s.next_mode();
+             seen.push(s.mode_name());
+         }
+@@ -876,6 +884,7 @@ mod tests {
+                 "Teddy Heist (3 teams)",
+                 "Teddy Heist (4 teams)",
+                 "Smoko Yard",
++                "Backyard Circuit",
+                 "Free for all"
+             ]
+         );
+diff --git a/rust/crates/bbq_app/src/ui.rs b/rust/crates/bbq_app/src/ui.rs
+index dc3a8e3..c9e8f22 100644
+--- a/rust/crates/bbq_app/src/ui.rs
++++ b/rust/crates/bbq_app/src/ui.rs
+@@ -255,6 +255,7 @@ pub enum SegId {
+     Bots,
+     Mode,
+     HeistTeams,
++    RaceRole,
+     RoundLen,
+     Skill,
+     Rounds,
+diff --git a/rust/crates/bbq_app/src/visual_review.rs b/rust/crates/bbq_app/src/visual_review.rs
+index 59bf873..848d7ac 100644
+--- a/rust/crates/bbq_app/src/visual_review.rs
++++ b/rust/crates/bbq_app/src/visual_review.rs
+@@ -65,22 +65,24 @@ fn capture(
+         }
+         return;
+     }
++    let args:Vec<String>=std::env::args().collect();
++    let shot_frame=args.iter().position(|a|a=="--capture-frame").and_then(|i|args.get(i+1)).and_then(|v|v.parse::<u32>().ok()).unwrap_or(240);
+     let now = Instant::now();
+     let previous = timing.previous.replace(now);
+     // Capture before timing, then allow readback and PNG writing to finish.
+-    if timing.frame == 240 {
++    if timing.frame == shot_frame {
+         commands
+             .spawn(Screenshot::primary_window())
+             .observe(save_to_disk(cfg.out.clone()));
+     }
+-    if (301..=900).contains(&timing.frame)
++    if (shot_frame+61..=shot_frame+660).contains(&timing.frame)
+         && let Some(previous) = previous
+     {
+         timing
+             .milliseconds
+             .push(now.duration_since(previous).as_secs_f64() * 1000.0);
+     }
+-    if timing.frame == 900 {
++    if timing.frame == shot_frame+660 {
+         let samples = &mut timing.milliseconds;
+         samples.sort_by(f64::total_cmp);
+         let mean = samples.iter().sum::<f64>() / samples.len() as f64;
+@@ -129,12 +131,13 @@ fn motion_mode() -> Option<&'static str> {
+     static MODE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+     MODE.get_or_init(|| {
+         let a: Vec<String> = std::env::args().collect();
+-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko"].contains(&v.as_str())).cloned()
++        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race"].contains(&v.as_str())).cloned()
+     }).as_deref()
+ }
+ 
+ fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut wanted: ResMut<crate::player::Wanted>, mut frame: Local<u32>) {
+     let Some(mode) = motion_mode() else { return };
++    if mode=="race" {return;}
+     if mode=="smoko" {
+         *frame+=1;
+         if *frame==120 {
+diff --git a/rust/crates/bbq_app/src/yard_scene.rs b/rust/crates/bbq_app/src/yard_scene.rs
+index 460bf53..3bcab10 100644
+--- a/rust/crates/bbq_app/src/yard_scene.rs
++++ b/rust/crates/bbq_app/src/yard_scene.rs
+@@ -24,6 +24,11 @@ pub struct FeatureTag(pub Feature);
+ pub struct CheekyOnly(pub bool);
+ 
+ /// Where the trees and clouds go. Any number gives a believable yard.
++#[derive(Component)]
++struct NormalYard;
++#[derive(Component)]
++struct RaceMap;
++
+ const LOOK_SEED: u64 = 0xBB0;
+ 
+ /// The clothesline's turning head (it turns 0.12 radians a second).
+@@ -74,7 +79,7 @@ impl Plugin for YardScenePlugin {
+             .init_resource::<Drift>()
+             .add_systems(Startup, build_yard)
+             .add_systems(PostUpdate, crate::lighting::follow_sky.before(bevy::transform::TransformSystems::Propagate))
+-            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_map, animate_magpies));
++            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_map, sync_race_map, animate_magpies));
+     }
+ }
+ 
+@@ -89,19 +94,21 @@ fn build_yard(
+     mut cache: ResMut<ModelCache>,
+     mode: Res<crate::lighting::LookMode>,
+ ) {
++    let yard_root=commands.spawn((Transform::default(),Visibility::default(),NormalYard)).id();
+     let look = looks_yard::yard_styled(LOOK_SEED, *mode == crate::lighting::LookMode::Polished);
+     if *mode == crate::lighting::LookMode::Polished && crate::style::current() == crate::style::Style::Pop {
+         crate::lighting::spawn_afternoon_sky(&mut commands, &mut meshes, &mut mats);
+     }
+ 
+     // everything that is always there (lawn, fence, house, trees, pool, props)
+-    let (_, kids) = cache.spawn_parts_with_children(
++    let (world_root, kids) = cache.spawn_parts_with_children(
+         &mut commands,
+         &look.world,
+         &mut meshes,
+         &mut mats,
+         Transform::default(),
+     );
++    commands.entity(yard_root).add_child(world_root);
+     if let Some(i) = find(&look.world, Tex::PoolWater) {
+         commands.entity(kids[i]).insert(PoolWater);
+     }
+@@ -122,14 +129,17 @@ fn build_yard(
+             Transform::default(),
+         );
+         commands.entity(e).insert(FeatureTag(feature));
++        commands.entity(yard_root).add_child(e);
+     }
+     // what is on the bar depends on the mode: grog in Cheeky mode, soft drinks in family mode
+     for (parts, cheeky) in [(&look.bar_grog, true), (&look.bar_soft, false)] {
+         let e = cache.spawn_parts(&mut commands, parts, &mut meshes, &mut mats, Transform::default());
+         commands.entity(e).insert((FeatureTag(Feature::Bar), CheekyOnly(cheeky), Visibility::Hidden));
++        commands.entity(yard_root).add_child(e);
+     }
+     let e = cache.spawn_parts(&mut commands, &look.litter, &mut meshes, &mut mats, Transform::default());
+     commands.entity(e).insert((CheekyOnly(true), Visibility::Hidden));
++    commands.entity(yard_root).add_child(e);
+ 
+     // The former Smoko area is open lawn. Shared prop builders remain in looks_yard.
+ 
+@@ -142,6 +152,7 @@ fn build_yard(
+         Transform::from_xyz(HOIST_AT.x, HOIST_AT.y, HOIST_AT.z),
+     );
+     commands.entity(e).insert(HoistHead);
++    commands.entity(yard_root).add_child(e);
+     if *mode == crate::lighting::LookMode::Polished {
+         // the Hills Hoist leans: its head sits on the tilted pole's top
+         let top = looks_yard::hoist_lean().1;
+@@ -179,6 +190,7 @@ fn build_yard(
+         Transform::from_xyz(look.chest_pivot.x, look.chest_pivot.y, look.chest_pivot.z),
+     );
+     commands.entity(lid).insert(ChestLid);
++    commands.entity(yard_root).add_child(root);
+     commands.entity(root).add_children(&[base, lid]);
+     for k in 0..bbq_core::chest::MAX_STOCK as usize {
+         let (at, rot, scale) = looks_yard::chest_toy_place(k);
+@@ -226,7 +238,8 @@ fn build_yard(
+             Transform::from_xyz(m.neck.x, m.neck.y, m.neck.z),
+         );
+         commands.entity(head).insert(MagpieHead { body_yaw: *yaw, seed: i as f32 * 3.7, yaw: 0.0, pitch: 0.0 });
+-        commands.entity(root).add_children(&[body, head]);
++        commands.entity(yard_root).add_child(root);
++    commands.entity(root).add_children(&[body, head]);
+     }
+ 
+     // the yard's other eskies: they open, but hold nothing yet
+@@ -247,7 +260,8 @@ fn build_yard(
+                 .with_rotation(Quat::from_rotation_x(-0.08)),
+         );
+         commands.entity(lid).insert(DecorLid(i));
+-        commands.entity(root).add_children(&[base, lid]);
++        commands.entity(yard_root).add_child(root);
++    commands.entity(root).add_children(&[base, lid]);
+     }
+ 
+     // the sun, with shadows, and the soft light from the sky
+@@ -422,7 +436,7 @@ fn toggle_features(
+         (KeyCode::F2, Feature::Bbq),
+         (KeyCode::F3, Feature::Chest),
+     ] {
+-        if keys.just_pressed(key) {
++        if keys.just_pressed(key) && game.rules.mode != bbq_core::GameMode::Race {
+             let mut feats: Features = yard_res.0.features;
+             feats.toggle(f);
+             let spot = yard_res.0.chest_spot;
+@@ -471,3 +485,56 @@ fn sync_smoko_map(
+     let e=cache.spawn_parts(&mut commands,&parts,&mut meshes,&mut mats,Transform::from_translation(delta));
+     commands.entity(e).insert(SmokoMap);
+ }
++
++fn sync_race_map(
++ mut commands:Commands,game:Res<Game>,mut normal:Query<&mut Visibility,With<NormalYard>>,
++ roots:Query<Entity,With<RaceMap>>,mut meshes:ResMut<Assets<Mesh>>,mut mats:ResMut<Assets<StandardMaterial>>,mut cache:ResMut<ModelCache>,
++) {
++ let active=game.rules.mode==bbq_core::GameMode::Race;
++ for mut v in &mut normal {*v=if active{Visibility::Hidden}else{Visibility::Inherited};}
++ if !active {for e in &roots{commands.entity(e).despawn();}return;}
++ if !roots.is_empty(){return;}
++ use bbq_core::looks::{Shape,Surface};
++ let block=|w:f32,h:f32,d:f32,x:f32,y:f32,z:f32,c:u32|Part::new(Shape::Cuboid{w,h,d},Surface::matt(c)).at(x,y,z);
++ let mut lawn=Part::new(Shape::Cylinder{top:1.,bottom:1.,h:0.2,seg:96,caps:true},Surface::matt(0x6da13c)).at(0.,-0.12,0.);
++ lawn.scale=bbq_core::vec::V3::new(52.,1.,37.);
++ let mut parts=vec![lawn];
++ // Many short shared strips make a smooth constant-width racing surface.
++ for i in 0..96 {
++  let t=i as f32*std::f32::consts::TAU/96.;let u=(i+1) as f32*std::f32::consts::TAU/96.;
++  let a=crate::race::oval(t);let b=crate::race::oval(u);let dx=b.0-a.0;let dz=b.1-a.1;let len=dx.hypot(dz);let yaw=dx.atan2(dz);
++  parts.push(block(crate::race::WIDTH,0.04,len+0.12,(a.0+b.0)*0.5,0.015,(a.1+b.1)*0.5,0xd48b57).turn(0.,yaw,0.));
++  for side in [-1.,1.] {let off=crate::race::WIDTH*0.5*side;parts.push(block(0.12,0.035,len+0.08,(a.0+b.0)*0.5+dz/len*off,0.055,(a.1+b.1)*0.5-dx/len*off,0xfff5cf).turn(0.,yaw,0.));}
++  let a=(50.*t.sin(),-35.*t.cos());let b=(50.*u.sin(),-35.*u.cos());let dx=b.0-a.0;let dz=b.1-a.1;
++  parts.push(block(0.14,1.1,dx.hypot(dz)+0.04,(a.0+b.0)*0.5,0.55,(a.1+b.1)*0.5,0x99623a).turn(0.,dx.atan2(dz),0.));
++ }
++ // Curved spectator terrace follows the near bend, outside the racing lane.
++ for i in 0..40 {let a=-0.85+i as f32*1.7/40.;let b=-0.85+(i+1) as f32*1.7/40.;let p=(44.*a.sin(),-29.5*a.cos());let q=(44.*b.sin(),-29.5*b.cos());let dx=q.0-p.0;let dz=q.1-p.1;
++  parts.push(block(3.4,0.035,dx.hypot(dz)+0.12,(p.0+q.0)*0.5,0.01,(p.1+q.1)*0.5,0xe6bd79).turn(0.,dx.atan2(dz),0.));
++ }
++ for i in 0..8 {
++  let a=crate::race::TRACK[i];let b=crate::race::TRACK[(i+1)%8];let dx=b.0-a.0;let dz=b.1-a.1;let len=dx.hypot(dz);let yaw=dx.atan2(dz);let mid=((a.0+b.0)*0.5,(a.1+b.1)*0.5);
++  // Repeated arrow chevrons on the racing surface communicate direction without colour alone.
++  for t in [0.3,0.65] {let (x,z)=crate::race::oval((i as f32+t)*std::f32::consts::TAU/8.);
++   for side in [-1.,1.] {parts.push(block(0.12,0.04,0.85,x+dz/len*side*0.27,0.08,z-dx/len*side*0.27,0xffdf43).turn(0.,yaw-side*0.7,0.));}
++  }
++  // Checkpoint gate: two posts, overhead numbered panel, open lane below.
++  let n=(i+1)%8;let at=crate::race::TRACK[n];
++  for side in [-1.,1.] {parts.push(block(0.16,3.3,0.16,at.0+dz/len*2.65*side,1.65,at.1-dx/len*2.65*side,0xfdf2c6));}
++  parts.push(block(5.5,0.7,0.16,at.0,3.3,at.1,if n==0{0x173c36}else{0x225c88}).turn(0.,yaw,0.));
++  // Seven-segment gate numbers (finish is 8), made from cheap shared cuboids.
++  let digit=if n==0{8}else{n};let masks=[0,0b0110000,0b1101101,0b1111001,0b0110011,0b1011011,0b1011111,0b1110000,0b1111111];
++  let segments=[(0.,0.24,0.3,0.055),(0.17,0.12,0.055,0.22),(0.17,-0.12,0.055,0.22),(0.,-0.24,0.3,0.055),(-0.17,-0.12,0.055,0.22),(-0.17,0.12,0.055,0.22),(0.,0.,0.3,0.055)];
++  for (k,(x,y,w,h)) in segments.iter().enumerate(){if masks[digit]&(1<<(6-k))!=0 {
++   parts.push(block(*w,*h,0.2,at.0+x*yaw.cos(),3.3+y,at.1-x*yaw.sin(),0xffdc43).turn(0.,yaw,0.));
++  }}
++ }
++ // Chequered finish stripe across the lane at gate 8.
++ for x in 0..2{for z in 0..10 {parts.push(block(0.4,0.04,0.48,-0.2+x as f32*0.4,0.09,-26.4+z as f32*0.48,if (x+z)%2==0{0xffffff}else{0x172823}));}}
++ // Timber boundary, trees and spectator seats give the circuit a backyard identity.
++ for i in 0..10 {let t=i as f32*std::f32::consts::TAU/10.;let x=47.*t.sin();let z=-32.*t.cos();if z < -25. {continue;}
++  parts.push(block(0.5,3.,0.5,x,1.5,z,0x825433));parts.push(Part::new(Shape::Sphere{r:1.7,ws:8,hs:6},Surface::matt(0x386b37)).at(x,4.,z));
++ }
++ for t in [-0.7_f32,-0.35,0.,0.35,0.7] {parts.extend(looks_yard::place(looks_yard::chair_styled(0),bbq_core::vec::V3::new(45.*t.sin(),0.,-30.5*t.cos()),bbq_core::vec::Quat::from_euler_xyz(0.,-t,0.),1.0));}
++ let e=cache.spawn_parts(&mut commands,&parts,&mut meshes,&mut mats,Transform::default());commands.entity(e).insert(RaceMap);
++}
+diff --git a/rust/crates/bbq_core/src/lib.rs b/rust/crates/bbq_core/src/lib.rs
+index aa89ced..58a7d35 100644
+--- a/rust/crates/bbq_core/src/lib.rs
++++ b/rust/crates/bbq_core/src/lib.rs
+@@ -53,4 +53,5 @@ pub enum GameMode {
+     Teams,
+     Heist,
+     Smoko,
++    Race,
+ }
+diff --git a/rust/crates/bbq_core/src/movement.rs b/rust/crates/bbq_core/src/movement.rs
+index 947d6c3..7dbcb9e 100644
+--- a/rust/crates/bbq_core/src/movement.rs
++++ b/rust/crates/bbq_core/src/movement.rs
+@@ -270,7 +270,7 @@ impl Mover {
+         let mut ev = MoveEvents::default();
+ 
+         // pool
+-        self.in_pool = in_pool_rect(self.x, self.z) && self.y < 0.1;
++        self.in_pool = !yard.race && in_pool_rect(self.x, self.z) && self.y < 0.1;
+         if self.in_pool && !self.was_in_pool {
+             ev.splash = true;
+         }
+@@ -419,13 +419,14 @@ impl Mover {
+         }
+ 
+         // yard edge
+-        self.x = self.x.clamp(-YARD_HALF_X + 0.45, YARD_HALF_X - 0.45);
+-        self.z = self.z.clamp(-YARD_HALF_Z + 0.45, YARD_HALF_Z - 0.45);
++        let (half_x,half_z)=if yard.race {(52.,37.)}else{(YARD_HALF_X,YARD_HALF_Z)};
++        self.x = self.x.clamp(-half_x + 0.45, half_x - 0.45);
++        self.z = self.z.clamp(-half_z + 0.45, half_z - 0.45);
+ 
+         // floor, trampoline and landing
+         let floor = yard.floor_at(self.x, self.z, self.y, self.prev_y);
+         let (tdx, tdz) = (self.x - TRAMP_X, self.z - TRAMP_Z);
+-        if tdx * tdx + tdz * tdz < TRAMP_R * TRAMP_R && self.y <= TRAMP_H + 0.02 && self.vy <= 0.0 {
++        if !yard.race && tdx * tdx + tdz * tdz < TRAMP_R * TRAMP_R && self.y <= TRAMP_H + 0.02 && self.vy <= 0.0 {
+             let n = if self.tramp_chain {
+                 (self.tramp_n + 1).min(TRAMP_MAX)
+             } else {
+@@ -727,6 +728,19 @@ mod tests {
+         assert!((m.x - (YARD_HALF_X - 0.45)).abs() < 1e-4);
+     }
+ 
++    #[test]
++    fn race_arena_has_wider_bounds_and_no_backyard_water_or_trampoline() {
++        let mut yard=Yard::default();yard.race=true;yard.colliders.clear();
++        let mut m=Mover::new(35.0,0.0);settle(&mut m,&yard);
++        assert!(m.x>34.9);
++        walk(&mut m,&yard,(1.,0.),10.,&Modifiers::default());
++        assert!((m.x-51.55).abs()<0.01);
++        let mut water=Mover::new(-20.,10.);settle(&mut water,&yard);
++        assert!(!water.in_pool);assert_eq!(water.sink,0.);
++        let mut tramp=Mover::new(TRAMP_X,TRAMP_Z);settle(&mut tramp,&yard);
++        assert!(!tramp.tramp_chain);assert!(tramp.y.abs()<0.01);
++    }
++
+     #[test]
+     fn walls_push_you_out_and_kill_the_velocity_into_them() {
+         let yard = Yard::default();
+diff --git a/rust/crates/bbq_core/src/scoring.rs b/rust/crates/bbq_core/src/scoring.rs
+index 65f344e..acc7933 100644
+--- a/rust/crates/bbq_core/src/scoring.rs
++++ b/rust/crates/bbq_core/src/scoring.rs
+@@ -48,7 +48,7 @@ impl Rules {
+     }
+     /// Normal scoring: in play, and not Heist.
+     pub fn scoring(&self) -> bool {
+-        self.in_play() && !matches!(self.mode, GameMode::Heist | GameMode::Smoko)
++        self.in_play() && !matches!(self.mode, GameMode::Heist | GameMode::Smoko | GameMode::Race)
+     }
+ }
+ 
+@@ -223,7 +223,7 @@ impl Scoreboard {
+         if !rules.in_play() {
+             return;
+         }
+-        if !matches!(rules.mode, GameMode::Heist | GameMode::Smoko)
++        if !matches!(rules.mode, GameMode::Heist | GameMode::Smoko | GameMode::Race)
+             && let Some(s) = self.stats.get_mut(&catcher)
+         {
+             s.score += CATCH;
+diff --git a/rust/crates/bbq_core/src/yard.rs b/rust/crates/bbq_core/src/yard.rs
+index 92f57d2..e3246bd 100644
+--- a/rust/crates/bbq_core/src/yard.rs
++++ b/rust/crates/bbq_core/src/yard.rs
+@@ -220,6 +220,8 @@ impl Default for Features {
+ 
+ #[derive(Clone, Debug)]
+ pub struct Yard {
++    /// Separate enlarged race arena; disables legacy pool/trampoline.
++    pub race: bool,
+     pub colliders: Vec<Collider>,
+     pub features: Features,
+     pub chest_spot: usize,
+@@ -268,6 +270,7 @@ impl Yard {
+             features,
+             chest_spot,
+             heist: None,
++            race: false,
+         }
+     }
+ 

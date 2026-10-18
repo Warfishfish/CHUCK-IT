@@ -255,6 +255,7 @@ pub enum SegId {
     Bots,
     Mode,
     HeistTeams,
+    RaceRole,
     RoundLen,
     Skill,
     Rounds,

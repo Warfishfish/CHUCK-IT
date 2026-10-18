@@ -224,7 +224,7 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &Yard) {
     }
     if !g.options.bots_on {
         for d in &mut g.dummies {
-            d.bot.wish = (0.0, 0.0);
+            if !crate::visual_review::is_water_review() { d.bot.wish = (0.0, 0.0); }
             d.bot.winding = false;
             d.bot.wind_progress = 0.0;
         }
@@ -574,7 +574,8 @@ fn slap_player(
         }
         Melee::Down => {
             let variant = variant.unwrap_or(DildoVariant::Classic);
-            let roll = melee::roll_dildo(&mut g.rng, variant);
+            let mut roll = melee::roll_dildo(&mut g.rng, variant);
+            roll.down = crate::smoko_mode::knockdown_time(g.rules.mode, roll.down);
             let fx = melee::dildo_slap(&roll);
             melee::apply(&mut g.me.body, &mut p.mover, dir, &fx);
             g.board.dildo_slap(
@@ -750,12 +751,13 @@ pub fn hit_player(
     start: V3,
 ) {
     g.fx(
-        if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
+        if kind == ItemKind::WaterBalloon { crate::fx::FxKind::Splash } else if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
         V3::new(p.mover.x, 1.0, p.mover.z),
     );
     let mut item = Item::new(0, kind, V3::ZERO);
     item.bottle = bottle;
     let res = hitting::apply_item_hit(&mut g.me.body, &mut p.mover, &item, dir, flatten);
+                crate::smoko_mode::extend_knockdown(g.rules.mode, &mut g.me.body, res.effect.knocked_down);
     g.me.drunk.cancel_drink();
     g.wind.cancel();
     p.shake = p.shake.max(0.12 + item.knock() * 0.012);
@@ -791,7 +793,7 @@ pub fn hit_player(
         msg += " KNOCKED OVER!";
     }
     g.say(msg);
-    g.popup(format!("{who} got you!"), true);
+    g.popup(if kind == ItemKind::WaterBalloon { "SPLASH! Wet: 80% speed".to_string() } else { format!("{who} got you!") }, true);
 }
 
 /// Items that thrown or knocked about by bots are told apart from yours.

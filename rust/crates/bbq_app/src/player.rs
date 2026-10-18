@@ -260,6 +260,7 @@ fn step_player(
     let g = &mut *game;
     p.prev = Vec3::new(p.mover.x, p.mover.y, p.mover.z);
     if crate::smoko_mode::player_locked(g) { return; }
+    if g.rules.mode == bbq_core::GameMode::Race && (g.rules.phase == bbq_core::scoring::Phase::Results || g.race.racers.get(&PLAYER_ID).is_some_and(|r|r.finish.is_some())) {return;}
     // drunk: the walk drifts off line, and in Drunk mode the speed lurches
     let da = g.me.drunk.da();
     let wish = movement::drunk_steer(wanted.wish, da, g.now);
@@ -273,6 +274,7 @@ fn step_player(
             .gait(movement::step_dt(), g.now, &env, &mut g.rng);
     let mods = Modifiers {
         charging: g.wind.charging,
+        wet: g.me.body.wet_t > 0.0,
         stunned: g.me.body.stun > 0.0,
         drinking: g.me.drunk.is_drinking(),
         at_smoko: g.life.seated.is_some(),

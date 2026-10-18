@@ -142,7 +142,7 @@ pub struct Options {
     pub drunk_mode: bool,
     /// How long a fall lasts (10 s; the host can pick 20 or 30).
     pub fall_duration: f32,
-    /// Cheeky mode: bare-handed slaps, the chest, rude Dazza lines, gnomes in Dazza's bum.
+    /// Cheeky mode: bare-handed slaps, the chest, rude Dazza lines, water balloons in Dazza's bum.
     pub adult: bool,
     /// The Naughty Corner (needs smoko).
     pub naughty: bool,
@@ -194,6 +194,7 @@ pub struct Game {
     /// The other people in an online yard (empty when playing alone).
     pub remotes: Vec<RemoteInfo>,
     pub smoko: crate::smoko_mode::State,
+    pub race: crate::race::State,
     /// Online guest: this game does not run the yard, it shows what the host says (see
     /// `online_world.rs`).
     pub mirror: bool,
@@ -306,6 +307,7 @@ impl Plugin for GamePlugin {
             fx: Vec::new(),
             remotes: Vec::new(),
             smoko: Default::default(),
+            race: Default::default(),
             mirror: false,
             net_fx: false,
             fx_out: Vec::new(),
@@ -366,6 +368,7 @@ pub fn step_game(
 
     // ---- the round clock, and Heist banking ----
     crate::round::step(g);
+    if g.rules.mode == GameMode::Race { crate::race::step(g,p,&mut wanted,&yard); return; }
     crate::heist_app::step(g, p);
 
     // ---- the player's body: drinking, falling over, helping mates up ----
@@ -622,15 +625,20 @@ pub fn step_game(
             continue; // sitting in a smoko chair, or being dragged: placed by hand
         }
         let mods = Modifiers {
+            wet: d.body.wet_t > 0.0,
             stunned: d.body.stun > 0.0,
             charging: d.bot.winding,
             drinking: d.bot.drunk.is_drinking(),
             frozen: countdown,
             ..Default::default()
         };
+        let previous_xz = (d.mover.x, d.mover.z);
         let ev = d
             .mover
             .step(dt, MoveInput { wish: d.bot.wish, ..Default::default() }, &mods, &yard.0);
+        if d.remote.is_some() && d.body.wet_t > 0.0 && d.body.stun <= 0.0 {
+            d.mover.x = previous_xz.0; d.mover.z = previous_xz.1;
+        }
         if d.remote.is_some() || d.net_dive > 0.0 {
             d.mover.force_dive(d.net_dive); // people online dive as they say
         }
@@ -741,7 +749,7 @@ pub fn step_game(
                 };
                 let (vx, vz) = (g.dummies[di].mover.x, g.dummies[di].mover.z);
                 g.fx(
-                    if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
+                    if kind == ItemKind::WaterBalloon { crate::fx::FxKind::Splash } else if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
                     V3::new(vx, 1.2, vz),
                 );
                 let leader = g.board.leader() == Some(victim);
@@ -753,9 +761,11 @@ pub fn step_game(
                     d.last_hit = Some((t, now));
                 }
                 let res = hitting::apply_item_hit(&mut d.body, &mut d.mover, &item, dir, flatten);
+                crate::smoko_mode::extend_knockdown(g.rules.mode, &mut d.body, res.effect.knocked_down);
+                if g.rules.mode == GameMode::Smoko && res.effect.knocked_down { d.anim.start_slap(bbq_core::pose::SlapKind::Timber, d.body.down_t); }
                 let sign = if g.rng.chance(0.5) { -1.0 } else { 1.0 };
                 d.anim.tumble(dir, item.knock(), sign);
-                if d.remote.is_some() {
+                if d.remote.is_some() && kind != ItemKind::WaterBalloon {
                     // a person online: their own computer knocks them about too
                     g.net_hits.push((victim, bbq_core::net_act::HitMsg::Item { kind: crate::online_world::hit_code(kind, bottle), dir: (dir.x, dir.y, dir.z), flatten }));
                 }
@@ -790,7 +800,9 @@ pub fn step_game(
                 if flatten && res.effect.knocked_down {
                     msg += " KNOCKED OVER!";
                 }
-                if !res.effect.stunned && !res.effect.knocked_down {
+                if kind == ItemKind::WaterBalloon {
+                    msg += " SPLASH! Wet: 80% speed";
+                } else if !res.effect.stunned && !res.effect.knocked_down {
                     msg += " (already stunned, no new stun)";
                 }
                 if thrower == Some(PLAYER_ID) {
@@ -840,6 +852,9 @@ pub fn step_game(
             } if t == PLAYER_ID => {
                 g.say("Over the fence!");
             }
+            WorldEvent::Flight { ev: bbq_core::flight::FlightEvent::WaterBurst { pos }, .. } => {
+                g.fx(crate::fx::FxKind::Splash, pos);
+            }
             // a glass bottle that lands hard shatters where it lands (the VP can just goes flat)
             WorldEvent::Flight {
                 ev: bbq_core::flight::FlightEvent::Smash { pos, bottle: Some(b), .. },
@@ -852,7 +867,7 @@ pub fn step_game(
     }
 
     // dummies that wandered off (knocked) are put back after a bit once they've settled
-    for d in g.dummies.iter_mut().filter(|_| !g.options.bots_on) {
+    for d in g.dummies.iter_mut().filter(|_| !g.options.bots_on && !crate::visual_review::is_water_review()) {
         if !d.body.is_down() && d.body.stun <= 0.0 && d.mover.grounded && d.mover.speed() < 0.3 {
             let (hx, hz) = d.home;
             let dist = ((d.mover.x - hx).powi(2) + (d.mover.z - hz).powi(2)).sqrt();
@@ -982,11 +997,11 @@ mod tests {
         {
             let mut g = app.world_mut().resource_mut::<Game>();
             let mut rng = Rng::new(3);
-            g.world.spawn(ItemKind::Gnome, 8.3, 0.2, false, &mut rng);
+            g.world.spawn(ItemKind::WaterBalloon, 8.3, 0.2, false, &mut rng);
         }
         ticks(&mut app, 120); // it lands and rests
         let g = app.world().resource::<Game>();
-        assert_eq!(g.slots.len(), 1, "should have picked the gnome up");
+        assert_eq!(g.slots.len(), 1, "should have picked the water balloon up");
     }
 
     #[test]
@@ -3061,7 +3076,7 @@ mod tests {
             let a = g.world.spawn(ItemKind::Teddy, 8.0, 0.0, false, &mut rng);
             g.world.give(a, PLAYER_ID);
             g.slots.add(a);
-            let b = g.world.spawn(ItemKind::Gnome, 8.0, 0.0, false, &mut rng);
+            let b = g.world.spawn(ItemKind::WaterBalloon, 8.0, 0.0, false, &mut rng);
             g.world.give(b, PLAYER_ID);
             g.slots.add(b);
         }
@@ -3101,4 +3116,27 @@ mod tests {
         ticks(&mut app, 2);
         assert_eq!(app.world().resource::<Game>().slots.len(), 1, "G is ignored while you are stunned");
     }
+    #[test]
+    fn race_bot_fill_finishes_three_laps_and_has_no_combat_points() {
+        let mut app=app();let mut cfg=setup(GameMode::Race,0);cfg.race_role=crate::race::Role::Thrower;
+        start_with(&mut app,cfg);
+        assert_eq!(app.world().resource::<Game>().race.racers.len(),3);
+        for _ in 0..12000 {ticks(&mut app,1);if app.world().resource::<Game>().rules.phase==Phase::Results {break;}}
+        let g=app.world().resource::<Game>();
+        assert_eq!(g.rules.phase,Phase::Results);
+        assert!(g.race.racers.values().all(|r|r.finish.is_some()),"{:?}",g.race.racers);
+        assert!(g.board.iter().all(|(_,s)|s.score==0));
+        assert!(g.round.results.as_ref().unwrap().winner.is_some());
+    }
+    #[test]
+    fn race_racer_role_fills_two_bots_and_mode_switch_restores_yard() {
+        let mut app=app();start_with(&mut app,setup(GameMode::Race,0));
+        assert_eq!(app.world().resource::<Game>().dummies.len(),2);
+        assert!(app.world().resource::<Game>().race.racers.contains_key(&PLAYER_ID));
+        assert!(app.world().resource::<YardRes>().0.colliders.is_empty());
+        start_with(&mut app,setup(GameMode::Smoko,1));
+        assert!(app.world().resource::<Game>().race.racers.is_empty());
+        assert!(!app.world().resource::<YardRes>().0.colliders.is_empty());
+    }
+
 }

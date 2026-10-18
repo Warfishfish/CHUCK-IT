@@ -293,7 +293,8 @@ pub fn slap_dummy(
         }
         Melee::Down => {
             let variant = variant.unwrap_or(DildoVariant::Classic);
-            let roll = melee::roll_dildo(&mut g.rng, variant);
+            let mut roll = melee::roll_dildo(&mut g.rng, variant);
+            roll.down = crate::smoko_mode::knockdown_time(g.rules.mode, roll.down);
             let fx = melee::dildo_slap(&roll);
             let d = &mut g.dummies[i];
             let res = melee::apply(&mut d.body, &mut d.mover, dir, &fx);
@@ -466,7 +467,7 @@ fn slap_dazza(g: &mut Game, kind: ItemKind) -> bool {
                 flip_grill(g);
             }
             if let SlapResult::KnockedOut { bum_out: true } = other {
-                gnome_from_bum(g);
+                balloon_from_bum(g);
             }
         }
     }
@@ -500,13 +501,13 @@ fn flip_grill(g: &mut Game) {
     }
 }
 
-/// Cheeky mode: a gnome pops out of Dazza's bum when he's knocked out.
-fn gnome_from_bum(g: &mut Game) {
+/// Cheeky mode: a water balloon pops out of Dazza's bum when he's knocked out.
+fn balloon_from_bum(g: &mut Game) {
     let d = g.life.dazza.pos;
     let (jx, jz) = (g.rng.range(-1.0, 1.0), g.rng.range(-1.0, 1.0));
     let id = g
         .world
-        .spawn(ItemKind::Gnome, d.x + jx, d.z + jz, true, &mut g.rng);
+        .spawn(ItemKind::WaterBalloon, d.x + jx, d.z + jz, true, &mut g.rng);
     let (vx, vy, vz) = (
         g.rng.range(-2.0, 2.0),
         g.rng.range(4.0, 6.0),
@@ -516,7 +517,7 @@ fn gnome_from_bum(g: &mut Game) {
         it.pos = V3::new(d.x + jx, 1.0, d.z + jz);
         it.vel = V3::new(vx, vy, vz);
     }
-    g.say("A gnome popped out of Dazza's bum!");
+    g.say("A water balloon popped out of Dazza's bum!");
 }
 
 // ------------------------------------------------------------------ R: meat, chest, smoko

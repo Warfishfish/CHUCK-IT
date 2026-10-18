@@ -1,0 +1,1248 @@
+--- a/rust/crates/bbq_app/src/bots_app.rs
++++ b/rust/crates/bbq_app/src/bots_app.rs
+@@ -224,7 +224,7 @@
+     }
+     if !g.options.bots_on {
+         for d in &mut g.dummies {
+-            d.bot.wish = (0.0, 0.0);
++            if !crate::visual_review::is_water_review() { d.bot.wish = (0.0, 0.0); }
+             d.bot.winding = false;
+             d.bot.wind_progress = 0.0;
+         }
+@@ -751,7 +751,7 @@
+     start: V3,
+ ) {
+     g.fx(
+-        if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
++        if kind == ItemKind::WaterBalloon { crate::fx::FxKind::Splash } else if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
+         V3::new(p.mover.x, 1.0, p.mover.z),
+     );
+     let mut item = Item::new(0, kind, V3::ZERO);
+@@ -793,7 +793,7 @@
+         msg += " KNOCKED OVER!";
+     }
+     g.say(msg);
+-    g.popup(format!("{who} got you!"), true);
++    g.popup(if kind == ItemKind::WaterBalloon { "SPLASH! Wet: 80% speed".to_string() } else { format!("{who} got you!") }, true);
+ }
+ 
+ /// Items that thrown or knocked about by bots are told apart from yours.
+--- a/rust/crates/bbq_app/src/game.rs
++++ b/rust/crates/bbq_app/src/game.rs
+@@ -142,7 +142,7 @@
+     pub drunk_mode: bool,
+     /// How long a fall lasts (10 s; the host can pick 20 or 30).
+     pub fall_duration: f32,
+-    /// Cheeky mode: bare-handed slaps, the chest, rude Dazza lines, gnomes in Dazza's bum.
++    /// Cheeky mode: bare-handed slaps, the chest, rude Dazza lines, water balloons in Dazza's bum.
+     pub adult: bool,
+     /// The Naughty Corner (needs smoko).
+     pub naughty: bool,
+@@ -625,15 +625,20 @@
+             continue; // sitting in a smoko chair, or being dragged: placed by hand
+         }
+         let mods = Modifiers {
++            wet: d.body.wet_t > 0.0,
+             stunned: d.body.stun > 0.0,
+             charging: d.bot.winding,
+             drinking: d.bot.drunk.is_drinking(),
+             frozen: countdown,
+             ..Default::default()
+         };
++        let previous_xz = (d.mover.x, d.mover.z);
+         let ev = d
+             .mover
+             .step(dt, MoveInput { wish: d.bot.wish, ..Default::default() }, &mods, &yard.0);
++        if d.remote.is_some() && d.body.wet_t > 0.0 && d.body.stun <= 0.0 {
++            d.mover.x = previous_xz.0; d.mover.z = previous_xz.1;
++        }
+         if d.remote.is_some() || d.net_dive > 0.0 {
+             d.mover.force_dive(d.net_dive); // people online dive as they say
+         }
+@@ -744,7 +749,7 @@
+                 };
+                 let (vx, vz) = (g.dummies[di].mover.x, g.dummies[di].mover.z);
+                 g.fx(
+-                    if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
++                    if kind == ItemKind::WaterBalloon { crate::fx::FxKind::Splash } else if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
+                     V3::new(vx, 1.2, vz),
+                 );
+                 let leader = g.board.leader() == Some(victim);
+@@ -760,7 +765,7 @@
+                 if g.rules.mode == GameMode::Smoko && res.effect.knocked_down { d.anim.start_slap(bbq_core::pose::SlapKind::Timber, d.body.down_t); }
+                 let sign = if g.rng.chance(0.5) { -1.0 } else { 1.0 };
+                 d.anim.tumble(dir, item.knock(), sign);
+-                if d.remote.is_some() {
++                if d.remote.is_some() && kind != ItemKind::WaterBalloon {
+                     // a person online: their own computer knocks them about too
+                     g.net_hits.push((victim, bbq_core::net_act::HitMsg::Item { kind: crate::online_world::hit_code(kind, bottle), dir: (dir.x, dir.y, dir.z), flatten }));
+                 }
+@@ -795,7 +800,9 @@
+                 if flatten && res.effect.knocked_down {
+                     msg += " KNOCKED OVER!";
+                 }
+-                if !res.effect.stunned && !res.effect.knocked_down {
++                if kind == ItemKind::WaterBalloon {
++                    msg += " SPLASH! Wet: 80% speed";
++                } else if !res.effect.stunned && !res.effect.knocked_down {
+                     msg += " (already stunned, no new stun)";
+                 }
+                 if thrower == Some(PLAYER_ID) {
+@@ -845,6 +852,9 @@
+             } if t == PLAYER_ID => {
+                 g.say("Over the fence!");
+             }
++            WorldEvent::Flight { ev: bbq_core::flight::FlightEvent::WaterBurst { pos }, .. } => {
++                g.fx(crate::fx::FxKind::Splash, pos);
++            }
+             // a glass bottle that lands hard shatters where it lands (the VP can just goes flat)
+             WorldEvent::Flight {
+                 ev: bbq_core::flight::FlightEvent::Smash { pos, bottle: Some(b), .. },
+@@ -857,7 +867,7 @@
+     }
+ 
+     // dummies that wandered off (knocked) are put back after a bit once they've settled
+-    for d in g.dummies.iter_mut().filter(|_| !g.options.bots_on) {
++    for d in g.dummies.iter_mut().filter(|_| !g.options.bots_on && !crate::visual_review::is_water_review()) {
+         if !d.body.is_down() && d.body.stun <= 0.0 && d.mover.grounded && d.mover.speed() < 0.3 {
+             let (hx, hz) = d.home;
+             let dist = ((d.mover.x - hx).powi(2) + (d.mover.z - hz).powi(2)).sqrt();
+@@ -987,11 +997,11 @@
+         {
+             let mut g = app.world_mut().resource_mut::<Game>();
+             let mut rng = Rng::new(3);
+-            g.world.spawn(ItemKind::Gnome, 8.3, 0.2, false, &mut rng);
++            g.world.spawn(ItemKind::WaterBalloon, 8.3, 0.2, false, &mut rng);
+         }
+         ticks(&mut app, 120); // it lands and rests
+         let g = app.world().resource::<Game>();
+-        assert_eq!(g.slots.len(), 1, "should have picked the gnome up");
++        assert_eq!(g.slots.len(), 1, "should have picked the water balloon up");
+     }
+ 
+     #[test]
+@@ -3066,7 +3076,7 @@
+             let a = g.world.spawn(ItemKind::Teddy, 8.0, 0.0, false, &mut rng);
+             g.world.give(a, PLAYER_ID);
+             g.slots.add(a);
+-            let b = g.world.spawn(ItemKind::Gnome, 8.0, 0.0, false, &mut rng);
++            let b = g.world.spawn(ItemKind::WaterBalloon, 8.0, 0.0, false, &mut rng);
+             g.world.give(b, PLAYER_ID);
+             g.slots.add(b);
+         }
+--- a/rust/crates/bbq_app/src/hud.rs
++++ b/rust/crates/bbq_app/src/hud.rs
+@@ -977,7 +977,7 @@
+     crate::models::hex(match kind {
+         Teddy => 0xa86b3c,
+         Stubby => 0x1e7d3a,
+-        Gnome => 0xd63a2f,
++        WaterBalloon => 0x25b8ed,
+         Dildo => 0xa44de0,
+         Steak => 0xc4455a,
+         Fish => 0xa9bcc8,
+@@ -1033,7 +1033,9 @@
+                     ));
+                     let def = it.kind.def();
+                     let name = crate::items_view::item_name(it);
+-                    let label = if def.melee != Melee::None {
++                    let label = if it.kind == bbq_core::items::ItemKind::WaterBalloon {
++                        format!("{name} · Wet: −20% / {:.0}s", bbq_core::stun::WET_DURATION)
++                    } else if def.melee != Melee::None {
+                         let u = it.uses.unwrap_or(3);
+                         format!("{name} · {u} slap{}", if u == 1 { "" } else { "s" })
+                     } else {
+--- a/rust/crates/bbq_app/src/items_view.rs
++++ b/rust/crates/bbq_app/src/items_view.rs
+@@ -24,7 +24,7 @@
+     match k {
+         ItemKind::Teddy => "Teddy",
+         ItemKind::Stubby => "VP can",
+-        ItemKind::Gnome => "Gnome",
++        ItemKind::WaterBalloon => "Water balloon",
+         ItemKind::Dildo => "Cheeky",
+         ItemKind::Steak => "Steak",
+         ItemKind::Fish => "Fish",
+--- a/rust/crates/bbq_app/src/life.rs
++++ b/rust/crates/bbq_app/src/life.rs
+@@ -467,7 +467,7 @@
+                 flip_grill(g);
+             }
+             if let SlapResult::KnockedOut { bum_out: true } = other {
+-                gnome_from_bum(g);
++                balloon_from_bum(g);
+             }
+         }
+     }
+@@ -501,13 +501,13 @@
+     }
+ }
+ 
+-/// Cheeky mode: a gnome pops out of Dazza's bum when he's knocked out.
+-fn gnome_from_bum(g: &mut Game) {
++/// Cheeky mode: a water balloon pops out of Dazza's bum when he's knocked out.
++fn balloon_from_bum(g: &mut Game) {
+     let d = g.life.dazza.pos;
+     let (jx, jz) = (g.rng.range(-1.0, 1.0), g.rng.range(-1.0, 1.0));
+     let id = g
+         .world
+-        .spawn(ItemKind::Gnome, d.x + jx, d.z + jz, true, &mut g.rng);
++        .spawn(ItemKind::WaterBalloon, d.x + jx, d.z + jz, true, &mut g.rng);
+     let (vx, vy, vz) = (
+         g.rng.range(-2.0, 2.0),
+         g.rng.range(4.0, 6.0),
+@@ -517,7 +517,7 @@
+         it.pos = V3::new(d.x + jx, 1.0, d.z + jz);
+         it.vel = V3::new(vx, vy, vz);
+     }
+-    g.say("A gnome popped out of Dazza's bum!");
++    g.say("A water balloon popped out of Dazza's bum!");
+ }
+ 
+ // ------------------------------------------------------------------ R: meat, chest, smoko
+--- a/rust/crates/bbq_app/src/main.rs
++++ b/rust/crates/bbq_app/src/main.rs
+@@ -16,6 +16,7 @@
+ mod face;
+ mod face_meshes;
+ mod fx;
++mod wet;
+ mod game;
+ mod gamepad;
+ mod grass;
+@@ -122,6 +123,7 @@
+             >::default(),
+         ),
+     );
++    app.add_plugins(wet::WetPlugin);
+     app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin, online::OnlinePlugin, face::FacePlugin, lobby::LobbyPlugin, legs::LegsPlugin, shirt::ShirtPlugin));
+     if let Some(cfg) = shot {
+         app.add_plugins(shot::ShotPlugin(cfg));
+--- a/rust/crates/bbq_app/src/models.rs
++++ b/rust/crates/bbq_app/src/models.rs
+@@ -55,7 +55,7 @@
+             None
+         };
+         let n = match kind {
+-            ItemKind::Noodle => id % 4,
++            ItemKind::Noodle | ItemKind::WaterBalloon => id % 4,
+             ItemKind::Dildo => bbq_core::looks::DildoSkin::from_id(id).canonical_id(),
+             _ => 0,
+         };
+--- a/rust/crates/bbq_app/src/online.rs
++++ b/rust/crates/bbq_app/src/online.rs
+@@ -885,6 +885,7 @@
+ 
+ /// The host tells everyone how the yard looks, 15 times a second.
+ fn online_world_send(
++    player: Res<Player>,
+     time: Res<Time>,
+     mut online: ResMut<Online>,
+     mut game: ResMut<Game>,
+@@ -906,7 +907,8 @@
+     *every = 1.0 / crate::online_world::WORLD_HZ;
+     *seq = seq.wrapping_add(1);
+     let fx = std::mem::take(&mut game.fx_out);
+-    let snap = crate::online_world::build_world(&game, &yard.0, *seq, *feed_sent, &fx);
++    let mut snap = crate::online_world::build_world(&game, &yard.0, *seq, *feed_sent, &fx);
++    if let Some(host) = snap.wet.first_mut() { host.pos = (player.mover.x, player.mover.y, player.mover.z); }
+     if let Some((_, t)) = game.feed.last() {
+         *feed_sent = *t;
+     }
+@@ -914,11 +916,16 @@
+ }
+ 
+ /// A guest copies the host's picture of the yard.
+-fn online_world_apply(mut online: ResMut<Online>, mut game: ResMut<Game>, mut yard: ResMut<crate::yard_scene::YardRes>) {
++fn online_world_apply(mut player: ResMut<Player>, mut online: ResMut<Online>, mut game: ResMut<Game>, mut yard: ResMut<crate::yard_scene::YardRes>) {
+     let Some(session) = online.session.as_mut().filter(|s| s.role == Role::Guest && s.joined()) else { return };
+     let Some(snap) = session.world.take() else { return };
+     let (my_id, host) = (session.my_id, session.host_name());
+     crate::online_world::apply_world(&mut game, &mut yard.0, &snap, my_id, &host);
++    if let Some(s) = snap.wet.iter().find(|s| s.id == my_id && s.remaining > 0.0) {
++        if (player.mover.x-s.pos.0).hypot(player.mover.z-s.pos.2) > 1.0 {
++            player.mover.x = s.pos.0; player.mover.z = s.pos.2;
++        }
++    }
+ }
+ 
+ /// A guest goes where the host goes: into the round when the host starts one, and back to the
+@@ -1071,9 +1078,11 @@
+         return;
+     };
+     let now = game.now;
++    let mirror = game.mirror;
+     let controlled: Vec<_> = game.dummies.iter().filter(|d| crate::smoko_mode::controlled(&game,d.id)).map(|d|d.id).collect();
+     for d in game.dummies.iter_mut() {
+-        if controlled.contains(&d.id) {continue;}
++        // While stunned, the host simulates physical knockback; client positions cannot cancel it.
++        if controlled.contains(&d.id) || (d.body.wet_t > 0.0 && (mirror || d.body.stun > 0.0)) {continue;}
+         let Some(r) = &d.remote else { continue };
+         let Some(h) = session.heard.get(&r.net_id) else { continue };
+         let s = h.state;
+@@ -1082,8 +1091,17 @@
+         let k = 1.0 - (-18.0 * bbq_core::sim::TICK_DT).exp();
+         let far = (target.0 - d.mover.x).hypot(target.2 - d.mover.z) > 4.0;
+         let k = if far { 1.0 } else { k };
+-        d.mover.x += (target.0 - d.mover.x) * k;
+-        d.mover.z += (target.2 - d.mover.z) * k;
++        let (mut dx, mut dz) = ((target.0 - d.mover.x) * k, (target.2 - d.mover.z) * k);
++        if !mirror && d.body.wet_t > 0.0 {
++            let mods = bbq_core::movement::Modifiers { wet: true, stunned: d.body.stun > 0.0, charging: d.bot.winding, ..Default::default() };
++            // Sprint requests remain subject to the host mover's duration/cooldown.
++            if s.vel.0.hypot(s.vel.1) > bbq_core::movement::BASE_SPEED { d.mover.try_boost(&mods); }
++            let step = d.mover.max_speed(&mods) * bbq_core::sim::TICK_DT;
++            let length = dx.hypot(dz);
++            if length > step { dx *= step / length; dz *= step / length; }
++        }
++        d.mover.x += dx;
++        d.mover.z += dz;
+         d.mover.y = target.1;
+         d.mover.vx = s.vel.0;
+         d.mover.vz = s.vel.1;
+@@ -1298,6 +1316,7 @@
+         use bbq_core::net_world::*;
+         let mut p = Pair::new();
+         let snap = |seq| WorldSnap {
++            wet: vec![],
+             seq,
+             now: 1.0,
+             round: RoundSnap { phase: 3, mode: 0, features: 0, time_left: 9.0, round_no: 1, match_len: 1, chest_spot: 0, chest_stock: 3, smoko_at: (0.0, 0.0), heist_teams: 0, banner: None },
+--- a/rust/crates/bbq_app/src/online_world.rs
++++ b/rust/crates/bbq_app/src/online_world.rs
+@@ -248,7 +248,9 @@
+         .rev()
+         .collect();
+     let fx = fx.iter().take(MAX_FX).map(|e| FxSnap { kind: e.kind.index(), at: (e.at.x, e.at.y, e.at.z) }).collect();
+-    WorldSnap { seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
++    let mut wet = vec![WetSnap { id: 1, remaining: g.me.body.wet_t, pos: (0.0, 0.0, 0.0) }];
++    wet.extend(g.dummies.iter().map(|d| WetSnap { id: net(d.id), remaining: d.body.wet_t, pos: (d.mover.x, d.mover.y, d.mover.z) }));
++    WorldSnap { wet, seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
+ }
+ 
+ /// Make this game look like the host's. `my_net` is our own number; `host_name` replaces
+@@ -346,6 +348,20 @@
+         d.bot.swing_t = b.swing as f32 / 100.0;
+     }
+ 
++    // Status comes only from the host, including zero on respawn/round reset.
++    g.me.body.wet_t = 0.0;
++    for d in &mut g.dummies { d.body.wet_t = 0.0; }
++    for s in &snap.wet {
++        let id = local(s.id);
++        if id == PLAYER_ID { g.me.body.wet_t = s.remaining; }
++        else if let Some(d) = g.dummies.iter_mut().find(|d| d.id == id) {
++            d.body.wet_t = s.remaining;
++            if s.remaining > 0.0 && d.remote.is_some() {
++                d.net_target = Some((V3::new(s.pos.0, s.pos.1, s.pos.2), (0.0,0.0), g.now));
++            }
++        }
++    }
++
+     // ---- the items (and who holds what) ----
+     let mut items: BTreeMap<u32, Item> = BTreeMap::new();
+     for s in &snap.items {
+@@ -510,6 +526,7 @@
+     let now = g.now;
+     let k = 1.0 - (-14.0 * dt).exp();
+     for d in g.dummies.iter_mut() {
++        d.body.wet_t = (d.body.wet_t - dt).max(0.0);
+         let Some((pos, vel, at)) = d.net_target else { continue };
+         let age = (now - at).clamp(0.0, 0.2);
+         let (tx, tz) = (pos.x + vel.0 * age, pos.z + vel.1 * age);
+@@ -528,6 +545,48 @@
+ mod tests {
+     use super::*;
+     use bevy::prelude::*;
++
++    #[test]
++    fn balloon_host_hit_replicates_and_recovers_without_replaying_timer() {
++        use bbq_core::net::Msg;
++        let mut host=host_with_a_guest();
++        let id;
++        {
++            let mut g=host.world_mut().resource_mut::<Game>();
++            let mut rng=bbq_core::rng::Rng::new(2);
++            id=g.world.spawn(ItemKind::WaterBalloon,8.0,6.0,false,&mut rng);
++            g.world.give(id,PLAYER_ID);
++            g.world.throw(id,PLAYER_ID,V3::new(8.0,1.2,4.0),V3::new(0.0,1.5,-14.0),1.0,true);
++        }
++        for _ in 0..40 {host.world_mut().run_schedule(FixedUpdate);}
++        let g=host.world().resource::<Game>();
++        let remote=REMOTE_ID_BASE+2;
++        assert!(g.dummies.iter().find(|d|d.id==remote).unwrap().body.wet_t>3.0);
++        assert_eq!(g.board.get(PLAYER_ID).unwrap().hits,1);
++        assert!(!g.world.items.contains_key(&id));assert!(g.net_hits.is_empty());
++        let snap=build_world(g,&Yard::default(),1,-1.0,&g.fx_out);
++        let Msg::World(snap)=Msg::decode(&Msg::World(Box::new(snap)).encode()).unwrap() else {panic!()};
++        let mut guest=app();let mut yard=Yard::default();
++        apply_world(&mut guest.world_mut().resource_mut::<Game>(),&mut yard,&snap,2,"Host");
++        assert!(guest.world().resource::<Game>().me.body.wet_t>3.0);
++        // Host timer ticks; a repeat snapshot is a remaining duration, not a fresh four seconds.
++        for _ in 0..260 {host.world_mut().run_schedule(FixedUpdate);}
++        let snap=build_world(host.world().resource::<Game>(),&Yard::default(),2,-1.0,&[]);
++        apply_world(&mut guest.world_mut().resource_mut::<Game>(),&mut yard,&snap,2,"Host");
++        assert_eq!(guest.world().resource::<Game>().me.body.wet_t,0.0);
++        assert_eq!(host.world().resource::<Game>().board.get(PLAYER_ID).unwrap().hits,1);
++    }
++    #[test]
++    fn round_end_clears_all_wet_status() {
++        for mode in [GameMode::FreeForAll,GameMode::Teams,GameMode::Heist,GameMode::Smoko,GameMode::Race] {
++            let mut app=app();let mut g=app.world_mut().resource_mut::<Game>();
++            g.rules.mode=mode;g.me.body.wet_t=4.0;
++            for d in &mut g.dummies {d.body.wet_t=4.0;}
++            crate::round::end_round(&mut g);
++            assert_eq!(g.me.body.wet_t,0.0);
++            assert!(g.dummies.iter().all(|d|d.body.wet_t==0.0));
++        }
++    }
+ 
+     #[test]
+     fn ids_go_to_the_network_and_back() {
+@@ -1233,6 +1292,8 @@
+             let mut item = Item::new(0, kind, V3::ZERO);
+             item.bottle = spirit.then_some(bbq_core::items::Bottle::Spirit);
+             let dir = V3::new(dir.0, dir.1, dir.2);
++            // Balloons use absolute host snapshot status, not a timer-start message.
++            if kind == ItemKind::WaterBalloon { return; }
+             let res = bbq_core::hitting::apply_item_hit(&mut g.me.body, &mut p.mover, &item, dir, *flatten);
+             crate::smoko_mode::extend_knockdown(g.rules.mode, &mut g.me.body, res.effect.knocked_down);
+             p.shake = p.shake.max(0.12 + item.knock() * 0.012);
+--- a/rust/crates/bbq_app/src/player.rs
++++ b/rust/crates/bbq_app/src/player.rs
+@@ -274,6 +274,7 @@
+             .gait(movement::step_dt(), g.now, &env, &mut g.rng);
+     let mods = Modifiers {
+         charging: g.wind.charging,
++        wet: g.me.body.wet_t > 0.0,
+         stunned: g.me.body.stun > 0.0,
+         drinking: g.me.drunk.is_drinking(),
+         at_smoko: g.life.seated.is_some(),
+--- a/rust/crates/bbq_app/src/round.rs
++++ b/rust/crates/bbq_app/src/round.rs
+@@ -400,6 +400,8 @@
+ 
+ /// The whistle: work out who won and open the results.
+ pub fn end_round(g: &mut Game) {
++    g.me.body.wet_t = 0.0;
++    for d in &mut g.dummies { d.body.wet_t = 0.0; }
+     g.rules.phase = Phase::Results;
+     let rows = standings(g);
+     let winner = match g.rules.mode {
+@@ -592,7 +594,7 @@
+         player.mover.z = 10.0;
+         player.yaw = std::f32::consts::FRAC_PI_2;
+     }
+-    // `--give noodle|dildo|steak|fish|teddy|stubby|gnome`: start with one in your hand (testing)
++    // `--give noodle|dildo|steak|fish|teddy|stubby|balloon`: start with one in your hand (testing)
+     if let Some(k) = args.iter().position(|a| a == "--give").and_then(|i| args.get(i + 1)) {
+         let kind = match k.as_str() {
+             "noodle" => Some(bbq_core::items::ItemKind::Noodle),
+@@ -601,7 +603,7 @@
+             "fish" => Some(bbq_core::items::ItemKind::Fish),
+             "teddy" => Some(bbq_core::items::ItemKind::Teddy),
+             "stubby" => Some(bbq_core::items::ItemKind::Stubby),
+-            "gnome" => Some(bbq_core::items::ItemKind::Gnome),
++            "balloon" | "water-balloon" | "gnome" => Some(bbq_core::items::ItemKind::WaterBalloon),
+             _ => None,
+         };
+         if let Some(kind) = kind {
+--- a/rust/crates/bbq_app/src/shot.rs
++++ b/rust/crates/bbq_app/src/shot.rs
+@@ -81,7 +81,7 @@
+     for (i, k) in [
+         ItemKind::Teddy,
+         ItemKind::Stubby,
+-        ItemKind::Gnome,
++        ItemKind::WaterBalloon,
+         ItemKind::Steak,
+         ItemKind::Fish,
+         ItemKind::Noodle,
+--- a/rust/crates/bbq_app/src/smoko_mode.rs
++++ b/rust/crates/bbq_app/src/smoko_mode.rs
+@@ -442,12 +442,14 @@
+     fn carried_delivery_scores_once_respawns_and_protects() {
+         let (mut a, mut p) = fixture();
+         let mut g = a.world_mut().resource_mut::<Game>();
++        g.dummies[0].body.wet_t = 4.0;
+         input(&mut g, &mut p, PLAYER_ID, true);
+         assert_eq!(g.smoko.carries[&PLAYER_ID].victim, 100);
+         p.mover = Mover::new(0.0, 9.0);
+         step(&mut g, &mut p, &mut Wanted::default());
+         assert_eq!(g.board.score(PLAYER_ID), 100);
+         assert!(g.smoko.carries.is_empty());
++        assert_eq!(g.dummies[0].body.wet_t,0.0);
+         assert!(!in_pad(pos(&g, &p, 100).unwrap()));
+         for _ in 0..20 {
+             step(&mut g, &mut p, &mut Wanted::default());
+--- a/rust/crates/bbq_app/src/visual_review.rs
++++ b/rust/crates/bbq_app/src/visual_review.rs
+@@ -46,18 +46,23 @@
+ ) {
+     timing.frame += 1;
+     if motion_mode().is_some() {
+-        if (180..480).contains(&timing.frame) && (timing.frame - 180) % 4 == 0 {
+-            let index = (timing.frame - 180) / 4;
++        let water = motion_mode()==Some("water-balloon");
++        let frame = timing.frame.saturating_sub(if water {720} else {0});
++        if (180..if water {600} else {480}).contains(&frame) && (frame - 180) % 4 == 0 {
++            let index = (frame - 180) / 4;
+             let path = cfg.out.replace(".png", &format!("-{index:03}.png"));
+             commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path));
+             for id in [900001, 900002, 900003] {
+                 if let Some(it) = game.world.items.get(&id) {
+-                    println!("MOTION frame={} id={} state={:?} pos={:.4},{:.4},{:.4} vel={:.4},{:.4},{:.4}", timing.frame, id, it.state, it.pos.x,it.pos.y,it.pos.z,it.vel.x,it.vel.y,it.vel.z);
++                    println!("MOTION frame={} id={} state={:?} pos={:.4},{:.4},{:.4} vel={:.4},{:.4},{:.4}", frame, id, it.state, it.pos.x,it.pos.y,it.pos.z,it.vel.x,it.vel.y,it.vel.z);
+                 }
+             }
+         }
+-        if timing.frame == 240 { commands.spawn(Screenshot::primary_window()).observe(save_to_disk(cfg.out.clone())); }
+-        if timing.frame == 540 {
++        if frame == 240 { commands.spawn(Screenshot::primary_window()).observe(save_to_disk(cfg.out.clone())); }
++        if water && frame > 0 && frame % 4 == 0 && let Some(d) = game.dummies.first() {
++            println!("WATER_REVIEW frame={} wet={:.3} speed={:.3} x={:.3} z={:.3}", frame, d.body.wet_t, d.mover.speed(), d.mover.x, d.mover.z);
++        }
++        if frame == if water {660} else {540} {
+             if motion_mode()==Some("smoko") {
+                 println!("SMOKO_REVIEW final_score={} carries={}",game.board.score(crate::player::PLAYER_ID),game.smoko.carries.len());
+             }
+@@ -131,13 +136,46 @@
+     static MODE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+     MODE.get_or_init(|| {
+         let a: Vec<String> = std::env::args().collect();
+-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race"].contains(&v.as_str())).cloned()
++        if !a.iter().any(|v|v=="--shot") || !a.iter().any(|v|v=="--review") { return None; }
++        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon"].contains(&v.as_str())).cloned()
+     }).as_deref()
+ }
++
++pub fn is_water_review() -> bool { motion_mode() == Some("water-balloon") }
+ 
+ fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut wanted: ResMut<crate::player::Wanted>, mut frame: Local<u32>) {
+     let Some(mode) = motion_mode() else { return };
+     if mode=="race" {return;}
++    if mode=="water-balloon" {
++        use bbq_core::{movement::Mover, vec::V3, items::ItemKind};
++        *frame+=1;
++        let frame_no=frame.saturating_sub(720);
++        game.options.bots_on=false;
++        if frame_no==120 {
++            game.options.bots_on=false;game.options.falls_on=false;
++            game.world.clear();game.me.body=Default::default();game.me.drunk.reset();game.life.seated=None;game.rules.phase=bbq_core::scoring::Phase::Play;
++            game.round.time_left=180.0;game.round.banner=None;
++            game.dummies.truncate(1);game.board.clear();game.feed.clear();game.popups.clear();game.slots.clear();
++            game.board.ensure(crate::player::PLAYER_ID);game.board.ensure(100);
++            if let Some(d)=game.dummies.first_mut() {d.bot.slots.clear();d.crown=false;d.mover=Mover::new(-16.0,18.0);d.body=Default::default();d.seat=None;d.dragged=None;d.bot.catcher=Default::default();d.face=std::f32::consts::FRAC_PI_2;}
++            player.mover=Mover::new(8.0,0.0);
++        }
++        if frame_no>=120 {
++            if let Some(d)=game.dummies.first_mut() {
++                d.bot.wish=if frame_no<560 {(1.0,0.0)}else{(0.0,0.0)};
++                d.home=(d.mover.x,d.mover.z);
++            }
++            game.life.dazza.pos=V3::new(1000.0,0.0,1000.0);
++        }
++        if frame_no==200 {
++            let d=&game.dummies[0];let (x,z)=(d.mover.x,d.mover.z);
++            let mut rng=game.rng.clone();
++            let id=game.world.spawn(ItemKind::WaterBalloon,x,z-4.0,false,&mut rng);
++            game.world.give(id,crate::player::PLAYER_ID);
++            game.world.throw(id,crate::player::PLAYER_ID,V3::new(x,1.2,z-4.0),V3::new(6.2,1.5,14.0),0.5,true);
++        }
++        return;
++    }
+     if mode=="smoko" {
+         *frame+=1;
+         if *frame==120 {
+--- /dev/null
++++ b/rust/crates/bbq_app/src/wet.rs
+@@ -0,0 +1,43 @@
++//! Pooled wet droplets preserve faces and team colours and never affect collisions.
++use bevy::prelude::*;
++use bevy::light::NotShadowCaster;
++use crate::game::Game;
++pub struct WetPlugin;
++impl Plugin for WetPlugin {
++    fn build(&self, app: &mut App) { app.add_systems(Startup, setup).add_systems(Update, update); }
++}
++#[derive(Component)]
++struct WetDrop { slot: usize, drop: usize }
++#[derive(Component)]
++struct WetLabel;
++fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
++    let mesh = meshes.add(Sphere::new(0.035).mesh().uv(6, 4));
++    let material = materials.add(StandardMaterial { base_color: Color::srgb(0.23, 0.72, 0.98), emissive: LinearRgba::rgb(0.02, 0.10, 0.15), perceptual_roughness: 0.15, ..default() });
++    for slot in 0..(crate::characters::MAX_BOTS + bbq_core::net::MAX_PLAYERS) {
++        for drop in 0..8 {
++            commands.spawn((WetDrop { slot, drop }, Mesh3d(mesh.clone()), MeshMaterial3d(material.clone()), Transform::default(), Visibility::Hidden, NotShadowCaster));
++        }
++    }
++    commands.spawn((WetLabel, Text::new(""), crate::ui::body_font(19.0, true), TextColor(Color::srgb(0.60, 0.91, 1.0)), TextShadow::default(), Node { position_type: PositionType::Absolute, left: percent(22.0), top: percent(74.0), ..default() }));
++}
++fn update(game: Res<Game>, player: Res<crate::player::Player>, screen: Res<crate::menu::Screen>, mut drops: Query<(&WetDrop, &mut Transform, &mut Visibility)>, mut label: Query<&mut Text, With<WetLabel>>) {
++    let playing = matches!(*screen, crate::menu::Screen::Playing | crate::menu::Screen::Paused);
++    for (drop, mut tf, mut vis) in &mut drops {
++        let (m, wet) = if drop.slot == 0 { (&player.mover, game.me.body.wet_t) }
++            else if let Some(d) = game.dummies.get(drop.slot - 1) { (&d.mover, d.body.wet_t) }
++            else { *vis = Visibility::Hidden; continue; };
++        *vis = if playing && wet > 0.0 { Visibility::Visible } else { Visibility::Hidden };
++        if wet <= 0.0 {continue;}
++        let angle = drop.drop as f32 * std::f32::consts::TAU / 8.0;
++        let phase = (game.now * 1.2 + drop.drop as f32 * 0.173).fract();
++        let radius = 0.48 + 0.08 * phase;
++        tf.translation = Vec3::new(m.x + angle.cos() * radius, m.y + 1.5 - phase * 1.3 - m.sink, m.z + angle.sin() * radius);
++        tf.scale = Vec3::new(1.0, 1.6 + phase, 1.0);
++    }
++    let review = crate::visual_review::is_water_review();
++    for mut text in &mut label {
++        text.0 = if playing && game.me.body.wet_t > 0.0 { format!("WET · 80% speed · {:.1}s", game.me.body.wet_t) } else if review && let Some(d)=game.dummies.first() {
++            format!("REVIEW TARGET · {} · {:.2} m/s · {:.1}s", if d.body.wet_t>0.0 {"WET — 80% speed"} else {"DRY — normal speed"}, d.mover.speed(), d.body.wet_t)
++        } else { String::new() };
++    }
++}
+--- a/rust/crates/bbq_core/src/bots.rs
++++ b/rust/crates/bbq_core/src/bots.rs
+@@ -1584,7 +1584,7 @@
+         });
+         s.ground.push(GroundView {
+             id: 8,
+-            kind: ItemKind::Gnome,
++            kind: ItemKind::WaterBalloon,
+             pos: V3::new(-9.0, 0.2, 9.0),
+             ground_y: 0.0,
+             claimed_by_other: false,
+--- a/rust/crates/bbq_core/src/dazza_brain.rs
++++ b/rust/crates/bbq_core/src/dazza_brain.rs
+@@ -32,7 +32,7 @@
+ pub const KO_TIME: f32 = 8.0;
+ /// Angry for this long when someone takes meat.
+ pub const ANGRY_TIME: f32 = 3.5;
+-/// Gnomes that can pop out of a KO'd Dazza in Cheeky mode, per round.
++/// Water balloons that can pop out of a KO'd Dazza in Cheeky mode, per round.
+ pub const BUM_OUTS: u32 = 3;
+ 
+ /// How long a chase lasts at his current anger level. Longer than the browser game's 8 + 2 per
+@@ -99,7 +99,7 @@
+     Ignored,
+     /// Steak, fish or noodle: a short stun, then he chases.
+     Stunned { secs: f32 },
+-    /// Dildo, outcome 1: out cold for 8 s. `bum_out` means a gnome pops out (Cheeky mode).
++    /// Dildo, outcome 1: out cold for 8 s. `bum_out` means a water balloon pops out (Cheeky mode).
+     KnockedOut { bum_out: bool },
+     /// Dildo, outcome 2: he chases at once, faster.
+     Berserk,
+@@ -981,7 +981,7 @@
+     }
+ 
+     #[test]
+-    fn bum_out_gnomes_only_in_cheeky_mode_and_at_most_three_a_round() {
++    fn bum_out_water_balloons_only_in_cheeky_mode_and_at_most_three_a_round() {
+         let mut total = 0;
+         let mut b = Brain::default();
+         for seed in 0..200 {
+--- a/rust/crates/bbq_core/src/flight.rs
++++ b/rust/crates/bbq_core/src/flight.rs
+@@ -120,6 +120,7 @@
+     },
+     /// A stubby broke. `puddle` says whether it left one; `bottle` is set for Cheeky mode's
+     /// glass bottles (they shatter; the VP can just bursts).
++    WaterBurst { pos: V3 },
+     Smash {
+         pos: V3,
+         puddle: bool,
+@@ -148,7 +149,7 @@
+ pub fn rest_height(kind: ItemKind) -> f32 {
+     match kind {
+         ItemKind::Stubby => 0.07,
+-        ItemKind::Gnome => 0.28,
++        ItemKind::WaterBalloon => 0.28,
+         ItemKind::Dildo => 0.14,
+         ItemKind::Noodle => 0.08,
+         ItemKind::Steak => 0.03,
+@@ -202,7 +203,7 @@
+ 
+ fn hit_wall(it: &mut Item, axis: Axis, events: &mut Vec<FlightEvent>) -> Fate {
+     let sp = it.vel.len();
+-    if smashes(it) && sp > 4.0 {
++    if smashes(it) && (sp > 4.0 || it.kind == ItemKind::WaterBalloon) {
+         smash(it, events);
+         return Fate::Removed;
+     }
+@@ -215,7 +216,7 @@
+     if sp > 5.0 {
+         events.push(FlightEvent::Thud {
+             pos: it.pos,
+-            gnome: it.kind == ItemKind::Gnome,
++            gnome: false,
+         });
+     }
+     Fate::Alive
+@@ -228,6 +229,10 @@
+ }
+ 
+ fn smash(it: &Item, events: &mut Vec<FlightEvent>) {
++    if it.kind == ItemKind::WaterBalloon {
++        events.push(FlightEvent::WaterBurst { pos: it.pos });
++        return;
++    }
+     let puddle = it.pos.y < 1.4 && !in_pool_rect(it.pos.x, it.pos.z);
+     events.push(FlightEvent::Smash {
+         pos: it.pos,
+@@ -265,14 +270,14 @@
+         it.pos.y = WATER_Y + 0.04;
+         return Fate::Alive;
+     }
+-    if smashes(it) && sp > 5.0 {
++    if smashes(it) && (sp > 5.0 || it.kind == ItemKind::WaterBalloon) {
+         smash(it, events);
+         return Fate::Removed;
+     }
+     if sp > 5.0 {
+         events.push(FlightEvent::Thud {
+             pos: V3::new(it.pos.x, h + 0.05, it.pos.z),
+-            gnome: it.kind == ItemKind::Gnome,
++            gnome: false,
+         });
+     }
+     it.live = false;
+@@ -341,6 +346,7 @@
+         && it.vel.y < 0.0
+     {
+         it.pos.y = TRAMP_H + r;
++        if it.kind == ItemKind::WaterBalloon && it.live { smash(it, events); return Fate::Removed; }
+         events.push(FlightEvent::Boing { pos: it.pos });
+         if it.kind == ItemKind::Teddy {
+             // A teddy bounces like a ball: the first bounce is the trampoline's own kick, then
+@@ -476,7 +482,7 @@
+ 
+ /// Spin speed for a flying item, radians per second (spec: `min(18, speed*0.6)`, gnome x0.6).
+ pub fn spin_rate(kind: ItemKind, speed: f32) -> f32 {
+-    speed.mul_add(0.6, 0.0).min(18.0) * if kind == ItemKind::Gnome { 0.6 } else { 1.0 }
++    speed.mul_add(0.6, 0.0).min(18.0) * if kind == ItemKind::WaterBalloon { 0.6 } else { 1.0 }
+ }
+ 
+ // --- puddles and sliding ---------------------------------------------------------------
+@@ -718,7 +724,7 @@
+     #[test]
+     fn landing_makes_it_harmless() {
+         let yard = Yard::default();
+-        let mut it = thrown(ItemKind::Gnome, V3::new(0.0, 0.5, 10.0), V3::ZERO);
++        let mut it = thrown(ItemKind::Teddy, V3::new(0.0, 0.5, 10.0), V3::ZERO);
+         let mut rng = Rng::new(1);
+         let mut ev = Vec::new();
+         for _ in 0..30 {
+@@ -915,7 +921,7 @@
+     #[test]
+     fn rest_heights_match_the_spec() {
+         assert_eq!(rest_height(ItemKind::Stubby), 0.07);
+-        assert_eq!(rest_height(ItemKind::Gnome), 0.28);
++        assert_eq!(rest_height(ItemKind::WaterBalloon), 0.28);
+         assert_eq!(rest_height(ItemKind::Fish), 0.17);
+         assert_eq!(rest_height(ItemKind::Teddy), 0.24);
+     }
+@@ -1010,6 +1016,6 @@
+     #[test]
+     fn spin_rate_caps_and_gnome_is_slower() {
+         assert_eq!(spin_rate(ItemKind::Teddy, 100.0), 18.0);
+-        assert!((spin_rate(ItemKind::Gnome, 100.0) - 10.8).abs() < 1e-4);
+-    }
+-}
++        assert!((spin_rate(ItemKind::WaterBalloon, 100.0) - 10.8).abs() < 1e-4);
++    }
++}
+--- a/rust/crates/bbq_core/src/hands.rs
++++ b/rust/crates/bbq_core/src/hands.rs
+@@ -326,17 +326,17 @@
+     #[test]
+     fn releasing_throws_with_the_charge() {
+         let mut w = Wind::default();
+-        w.press(0.0, Some(ItemKind::Gnome), &can());
++        w.press(0.0, Some(ItemKind::WaterBalloon), &can());
+         for _ in 0..50 {
+-            w.tick(0.01, Some(ItemKind::Gnome));
+-        }
+-        let Release::Throw { charge } = w.release(0.5, Some(ItemKind::Gnome), true) else {
++            w.tick(0.01, Some(ItemKind::WaterBalloon));
++        }
++        let Release::Throw { charge } = w.release(0.5, Some(ItemKind::WaterBalloon), true) else {
+             panic!()
+         };
+         assert!((charge - 0.5).abs() < 1e-4);
+         assert!(!w.charging);
+         assert_eq!(
+-            w.release(0.6, Some(ItemKind::Gnome), true),
++            w.release(0.6, Some(ItemKind::WaterBalloon), true),
+             Release::Nothing
+         );
+     }
+--- a/rust/crates/bbq_core/src/hitting.rs
++++ b/rust/crates/bbq_core/src/hitting.rs
+@@ -101,7 +101,7 @@
+     }
+     Contact::Hit {
+         dir: dir.normalised(),
+-        flatten: item.power && t.flattenable,
++        flatten: item.kind != crate::items::ItemKind::WaterBalloon && item.power && t.flattenable,
+     }
+ }
+ 
+@@ -159,6 +159,10 @@
+     dir: V3,
+     flatten: bool,
+ ) -> HitResult {
++    if item.kind == crate::items::ItemKind::WaterBalloon {
++        body.wet_t = crate::stun::WET_DURATION;
++        return HitResult { effect: HitEffect { stunned: false, knocked_down: false }, knock: V3::ZERO };
++    }
+     let knock = item.knock();
+     let min_up = knock * 0.38;
+     knock_mover(mover, dir, knock, min_up);
+@@ -173,6 +177,7 @@
+ /// "live" state and bounces away at `(-vx*0.2, 3.5, -vz*0.2)`. Returns true if it smashed.
+ pub fn item_after_hit(item: &mut Item) -> bool {
+     if item.kind.def().smash {
++        item.live = false;
+         return true;
+     }
+     item.live = false;
+@@ -401,7 +406,7 @@
+     #[test]
+     fn a_hit_shoves_and_stuns_but_stuns_never_stack() {
+         let it = flying(
+-            ItemKind::Gnome,
++            ItemKind::Teddy,
+             V3::new(0.0, 1.0, 0.0),
+             V3::new(0.0, 0.0, -10.0),
+             Some(1),
+@@ -410,14 +415,14 @@
+         let (mut b, mut m) = (Body::default(), Mover::new(0.0, 0.0));
+         let r = apply_item_hit(&mut b, &mut m, &it, dir, false);
+         assert!(r.effect.stunned);
+-        assert!((b.stun - 0.65).abs() < 1e-5);
+-        assert!((m.vz + 15.0).abs() < 1e-4);
+-        assert!((m.vy - 15.0 * 0.38).abs() < 1e-4);
++        assert!((b.stun - ItemKind::Teddy.hit_stun()).abs() < 1e-5);
++        assert!((m.vz + 6.0).abs() < 1e-4);
++        assert!((m.vy - 6.0 * 0.38).abs() < 1e-4);
+         assert!(!m.grounded);
+         // second hit while stunned: shoved again, no new stun
+         let r2 = apply_item_hit(&mut b, &mut m, &it, dir, false);
+         assert!(!r2.effect.stunned);
+-        assert!((m.vz + 30.0).abs() < 1e-3);
++        assert!((m.vz + 12.0).abs() < 1e-3);
+     }
+ 
+     #[test]
+@@ -510,3 +515,38 @@
+         assert_eq!(board.score(2), 0);
+     }
+ }
++
++#[cfg(test)]
++mod balloon_tests {
++    use super::*;
++    use crate::{items::ItemKind, movement::{Modifiers, MoveInput}, stun::{WET_DURATION, WET_SPEED}, yard::Yard};
++    #[test]
++    fn balloon_wets_without_stun_knock_or_flatten_and_refreshes() {
++        let mut body = Body::default(); let mut mover = Mover::new(8.0,0.0);
++        let item = Item::new(1, ItemKind::WaterBalloon, V3::ZERO);
++        for _ in 0..3 {
++            let hit = apply_item_hit(&mut body,&mut mover,&item,V3::new(1.0,0.0,0.0),true);
++            assert!(!hit.effect.stunned && !hit.effect.knocked_down);
++            assert_eq!(body.wet_t,WET_DURATION); assert_eq!(mover.vx,0.0);
++            body.tick(1.0);
++        }
++        body.tick(3.1); assert_eq!(body.wet_t,0.0);
++        assert_eq!(Body::default().wet_t,0.0);
++    }
++    #[test]
++    fn wet_walk_and_sprint_are_exactly_eighty_percent_then_recover() {
++        let mut dry = Mover::new(8.0,0.0); let mut wet = dry;
++        let mods = Modifiers {wet:true,..Default::default()};
++        assert!((wet.max_speed(&mods) / dry.max_speed(&Modifiers::default())-WET_SPEED).abs()<1e-6);
++        let yard=Yard::default();
++        for _ in 0..60 {
++            let input=MoveInput{wish:(0.0,1.0),..Default::default()};
++            dry.step(1.0/60.0,input,&Modifiers::default(),&yard);
++            wet.step(1.0/60.0,input,&mods,&yard);
++        }
++        assert!((wet.speed()/dry.speed()-WET_SPEED).abs()<0.001);
++        dry.try_boost(&Modifiers::default());wet.try_boost(&mods);
++        assert!((wet.max_speed(&mods)/dry.max_speed(&Modifiers::default())-WET_SPEED).abs()<1e-6);
++        assert_eq!(wet.max_speed(&Modifiers::default()),dry.max_speed(&Modifiers::default()));
++    }
++}
+--- a/rust/crates/bbq_core/src/items.rs
++++ b/rust/crates/bbq_core/src/items.rs
+@@ -5,7 +5,7 @@
+ pub enum ItemKind {
+     Teddy,
+     Stubby,
+-    Gnome,
++    WaterBalloon,
+     Dildo,
+     Steak,
+     Fish,
+@@ -93,15 +93,16 @@
+     smash: true,
+     ..BASE
+ };
+-static GNOME: ItemDef = ItemDef {
++static WATER_BALLOON: ItemDef = ItemDef {
+     speed: 19.0,
+-    knock: 15.0,
++    knock: 0.0,
+     charge: 1.0,
+     radius: 0.28,
+-    bounce: 0.25,
++    bounce: 0.0,
+     grav: 1.15,
++    smash: true,
+     weight: 20.0,
+-    stun: Some(0.65),
++    stun: Some(0.0),
+     ..BASE
+ };
+ static DILDO: ItemDef = ItemDef {
+@@ -151,7 +152,7 @@
+         ItemKind::Dildo,
+         ItemKind::Steak,
+         ItemKind::Fish,
+-        ItemKind::Gnome,
++        ItemKind::WaterBalloon,
+         ItemKind::Noodle,
+         ItemKind::Snag,
+     ];
+@@ -160,7 +161,7 @@
+         match self {
+             ItemKind::Teddy => &TEDDY,
+             ItemKind::Stubby => &STUBBY,
+-            ItemKind::Gnome => &GNOME,
++            ItemKind::WaterBalloon => &WATER_BALLOON,
+             ItemKind::Dildo => &DILDO,
+             ItemKind::Steak => &STEAK,
+             ItemKind::Fish => &FISH,
+@@ -551,7 +552,7 @@
+         assert!(near(ItemKind::Steak.hit_stun(), 0.455));
+         assert!(near(ItemKind::Fish.hit_stun(), 0.455));
+         assert!(near(ItemKind::Noodle.hit_stun(), 0.525));
+-        assert!(near(ItemKind::Gnome.hit_stun(), 0.65));
++        assert!(near(ItemKind::WaterBalloon.hit_stun(), 0.0));
+     }
+ 
+     #[test]
+@@ -562,8 +563,8 @@
+         assert_eq!(random_type(0.449), ItemKind::Teddy);
+         assert_eq!(random_type(0.451), ItemKind::Stubby);
+         assert_eq!(random_type(0.799), ItemKind::Stubby);
+-        assert_eq!(random_type(0.801), ItemKind::Gnome);
+-        assert_eq!(random_type(0.999), ItemKind::Gnome);
++        assert_eq!(random_type(0.801), ItemKind::WaterBalloon);
++        assert_eq!(random_type(0.999), ItemKind::WaterBalloon);
+     }
+ 
+     #[test]
+--- a/rust/crates/bbq_core/src/itemworld.rs
++++ b/rust/crates/bbq_core/src/itemworld.rs
+@@ -155,7 +155,7 @@
+     }
+ 
+     /// Start of a round: `8 + floor(players * 1.5)` items on shuffled spots (the first three
+-    /// are a teddy, a stubby and a gnome), plus the noodles.
++    /// are a teddy, a stubby and a water balloon), plus the noodles.
+     pub fn initial_fill(
+         &mut self,
+         players: usize,
+@@ -175,7 +175,7 @@
+                 0 => ItemKind::Teddy,
+                 1 if self.drinks() > 0.0 => ItemKind::Stubby,
+                 1 => ItemKind::Teddy, // no bottles wanted
+-                2 => ItemKind::Gnome,
++                2 => ItemKind::WaterBalloon,
+                 _ => random_type_with(rng.f32(), self.drinks()),
+             };
+             self.spawn(kind, s.0, s.1, true, rng);
+@@ -385,7 +385,10 @@
+                     });
+                     out.extend(contacts);
+                     let mut removed = fate == Fate::Removed;
+-                    if smashed_by_hit {
++                    if smashed_by_hit && it.kind == ItemKind::WaterBalloon {
++                        // The Hit event owns the one splash on a victim.
++                        removed = true;
++                    } else if smashed_by_hit {
+                         let puddle =
+                             it.pos.y < 1.4 && !crate::yard::in_pool_rect(it.pos.x, it.pos.z);
+                         fl.push(FlightEvent::Smash {
+@@ -478,14 +481,40 @@
+     }
+ 
+     #[test]
++    fn balloon_bursts_once_hits_only_one_person_and_leaves_no_puddle() {
++        let mut w=ItemWorld::new();let mut rng=Rng::new(1);
++        let id=w.spawn(ItemKind::WaterBalloon,8.0,4.0,false,&mut rng);
++        w.give(id,1);w.throw(id,1,V3::new(8.0,1.1,4.0),V3::new(0.0,1.5,-14.0),1.0,true);
++        let ev=run(&mut w,2.0,&[victim(2,8.0,0.0),victim(3,8.0,0.0)],&mut rng,false);
++        assert_eq!(ev.iter().filter(|e|matches!(e,WorldEvent::Hit{..})).count(),1);
++        assert!(!w.items.contains_key(&id));assert!(w.puddles.0.is_empty());
++        assert!(ev.iter().any(|e|matches!(e,WorldEvent::Hit{flatten:false,..})));
++    }
++    #[test]
++    fn caught_balloon_is_intact_and_a_miss_bursts_without_a_hit() {
++        for catching in [true,false] {
++            let mut w=ItemWorld::new();let mut rng=Rng::new(1);
++            let id=w.spawn(ItemKind::WaterBalloon,8.0,4.0,false,&mut rng);
++            w.give(id,1);w.throw(id,1,V3::new(8.0,1.1,4.0),V3::new(0.0,1.5,-14.0),0.5,true);
++            let mut t=victim(2,8.0,0.0);t.catching=true;
++            let targets=if catching{vec![t]}else{vec![]};
++            let ev=run(&mut w,2.0,&targets,&mut rng,false);
++            assert!(!ev.iter().any(|e|matches!(e,WorldEvent::Hit{..})));
++            assert!(w.puddles.0.is_empty());
++            if catching { assert_eq!(w.items[&id].state,ItemState::Held); }
++            else { assert!(!w.items.contains_key(&id)); assert!(ev.iter().any(|e|matches!(e,WorldEvent::Flight{ev:FlightEvent::WaterBurst{..},..}))); }
++        }
++    }
++
++    #[test]
+     fn start_of_round_places_8_plus_one_and_a_half_per_player_plus_two_noodles() {
+         let mut w = ItemWorld::new();
+         let mut rng = Rng::new(1);
+         w.initial_fill(4, &no_walls, &mut rng);
+         assert_eq!(w.items.len(), 14 + 2);
+         assert_eq!(w.count(ItemKind::Noodle), 2);
+-        // the first three non-noodle items are a teddy, a stubby and a gnome
+-        for k in [ItemKind::Teddy, ItemKind::Stubby, ItemKind::Gnome] {
++        // the first three non-noodle items are a teddy, a stubby and a water balloon
++        for k in [ItemKind::Teddy, ItemKind::Stubby, ItemKind::WaterBalloon] {
+             assert!(w.count(k) >= 1);
+         }
+         // all start in the air except noodles
+@@ -571,7 +600,7 @@
+     fn a_hit_registers_only_once_per_throw() {
+         let mut w = ItemWorld::new();
+         let mut rng = Rng::new(4);
+-        let id = w.spawn(ItemKind::Gnome, 0.0, 0.0, false, &mut rng);
++        let id = w.spawn(ItemKind::WaterBalloon, 0.0, 0.0, false, &mut rng);
+         w.give(id, 1);
+         w.throw(
+             id,
+--- a/rust/crates/bbq_core/src/looks.rs
++++ b/rust/crates/bbq_core/src/looks.rs
+@@ -508,9 +508,9 @@
+ 
+ /// The teddy bear.
+ pub fn teddy() -> Vec<Part> {
++    let dk = Surface::matt(0x24160c);
+     let fur = Surface::matt(0xa86b3c);
+     let lt = Surface::matt(0xe2b98a);
+-    let dk = Surface::matt(0x24160c);
+     let mut v = vec![
+         Part::new(sphere(0.17, 14, 10), fur)
+             .at(0.0, -0.07, 0.0)
+@@ -1071,6 +1071,18 @@
+     v.def().scale
+ }
+ 
++/// Opaque latex keeps the small projectile legible; a tied neck distinguishes it from a ball.
++pub fn water_balloon(id: u32) -> Vec<Part> {
++    let color = [0x25b8ed, 0xf878a4, 0xffc935, 0x64d5ba][id as usize % 4];
++    let latex = Surface::shiny(color, 0xffffff, 65.0);
++    vec![
++        Part::new(sphere(0.25, 20, 14), latex).stretch(1.0, 1.12, 1.0),
++        Part::new(cyl(0.025, 0.07, 0.09, 12), latex).at(0.0, 0.28, 0.0),
++        Part::new(sphere(0.04, 10, 6), latex).at(0.0, 0.33, 0.0).stretch(1.2, 0.6, 1.0),
++        Part::new(Shape::Cone { r: 0.045, h: 0.05, seg: 10 }, latex).at(0.0, 0.37, 0.0),
++    ]
++}
++
+ /// The model for any kind of item. `id` is used for the noodle's colour; `variant` for the
+ /// dildo's size.
+ pub fn item(kind: crate::items::ItemKind, id: u32, variant: Option<DildoVariant>) -> Vec<Part> {
+@@ -1084,7 +1096,7 @@
+             3 => lemonade_can(),
+             _ => stubby(),
+         },
+-        K::Gnome => gnome(),
++        K::WaterBalloon => water_balloon(id),
+         K::Steak | K::Snag => steak(),
+         K::Fish => fish(),
+         K::Noodle => noodle(id),
+@@ -1139,7 +1151,6 @@
+ /// The extra details (step 2c, "Items get a second look").
+ pub fn item_extras(kind: crate::items::ItemKind) -> Vec<Part> {
+     use crate::items::ItemKind as K;
+-    let dk = Surface::matt(0x24160c);
+     match kind {
+         K::Teddy => {
+             let mut v = vec![
+@@ -1156,20 +1167,7 @@
+             }
+             v
+         }
+-        K::Gnome => {
+-            let mut v = vec![
+-                // a belt with a gold buckle
+-                Part::new(cyl(0.16, 0.165, 0.035, 12), Surface::matt(0x3b2a1a)).at(0.0, -0.17, 0.0),
+-                Part::new(Shape::Cuboid { w: 0.05, h: 0.04, d: 0.02 }, Surface::shiny(0xf2c230, 0xffffff, 40.0)).at(0.0, -0.17, 0.16),
+-            ];
+-            for sx in [-1.0f32, 1.0] {
+-                // little eyes and rosy cheeks, and boots peeping out
+-                v.push(Part::new(sphere(0.014, 6, 4), dk).at(sx * 0.035, 0.1, 0.09));
+-                v.push(Part::new(sphere(0.022, 6, 4), Surface::matt(0xe8847a)).at(sx * 0.06, 0.065, 0.075).stretch(1.0, 0.7, 0.5));
+-                v.push(Part::new(sphere(0.06, 8, 6), Surface::matt(0x2a1d14)).at(sx * 0.07, -0.28, 0.06).stretch(1.0, 0.6, 1.4));
+-            }
+-            v
+-        }
++        K::WaterBalloon => Vec::new(),
+         K::Steak | K::Snag => {
+             let mut v = Vec::new();
+             // grill marks across the top and streaks of marbling
+--- a/rust/crates/bbq_core/src/movement.rs
++++ b/rust/crates/bbq_core/src/movement.rs
+@@ -103,6 +103,7 @@
+ /// Things around the character that change how they move.
+ #[derive(Clone, Copy, Debug)]
+ pub struct Modifiers {
++    pub wet: bool,
+     pub stunned: bool,
+     /// Countdown: nobody moves.
+     pub frozen: bool,
+@@ -135,6 +136,7 @@
+             at_smoko: false,
+             sliding: false,
+             in_puddle: false,
++            wet: false,
+             gait: 1.0,
+             dive: false,
+         }
+@@ -263,6 +265,7 @@
+             * f(m.snag_stumble, 0.62)
+             * f(m.carrying, crate::carry::SLOW)
+             * m.gait
++            * f(m.wet, crate::stun::WET_SPEED)
+     }
+ 
+     /// One step of `dt` seconds.
+--- a/rust/crates/bbq_core/src/net.rs
++++ b/rust/crates/bbq_core/src/net.rs
+@@ -13,7 +13,7 @@
+ 
+ /// Bump this whenever a message changes, so old and new copies of the game refuse each other
+ /// politely instead of misreading each other.
+-pub const PROTOCOL: u16 = 9;
++pub const PROTOCOL: u16 = 10;
+ /// The most people in one yard (the browser game's limit).
+ pub const MAX_PLAYERS: usize = 16;
+ /// How often each player reports where they are.
+--- a/rust/crates/bbq_core/src/net_world.rs
++++ b/rust/crates/bbq_core/src/net_world.rs
+@@ -139,7 +139,16 @@
+ }
+ 
+ #[derive(Clone, Debug, PartialEq)]
++pub struct WetSnap {
++    pub id: u32,
++    pub remaining: f32,
++    pub pos: (f32, f32, f32),
++}
++
++#[derive(Clone, Debug, PartialEq)]
+ pub struct WorldSnap {
++    /// Host-only status, including zero for recovery. Position bounds wet remote prediction.
++    pub wet: Vec<WetSnap>,
+     /// Counts up, so a late old snapshot is thrown away.
+     pub seq: u32,
+     /// The host's game clock.
+@@ -159,6 +168,10 @@
+ 
+ impl WorldSnap {
+     pub(crate) fn write(&self, w: &mut Writer) {
++        w.u8(self.wet.len().min(MAX_BOARD) as u8);
++        for s in self.wet.iter().take(MAX_BOARD) {
++            w.u32(s.id); w.f32(s.remaining); w.triple(s.pos);
++        }
+         w.u32(self.seq);
+         w.f32(self.now);
+         let r = &self.round;
+@@ -245,6 +258,15 @@
+     }
+ 
+     pub(crate) fn read(r: &mut Reader) -> Result<WorldSnap, DecodeError> {
++        let count = |r: &mut Reader, max: usize| -> Result<usize, DecodeError> {
++            let n = r.u8()? as usize;
++            if n > max { Err(DecodeError::TooMany) } else { Ok(n) }
++        };
++        let n = count(r, MAX_BOARD)?;
++        let mut wet = Vec::with_capacity(n);
++        for _ in 0..n {
++            wet.push(WetSnap { id: r.u32()?, remaining: r.f32()?.clamp(0.0, crate::stun::WET_DURATION), pos: r.triple()? });
++        }
+         let seq = r.u32()?;
+         let now = r.f32()?;
+         let round = RoundSnap {
+@@ -264,10 +286,6 @@
+                 _ => return Err(DecodeError::BadText),
+             },
+         };
+-        let count = |r: &mut Reader, max: usize| -> Result<usize, DecodeError> {
+-            let n = r.u8()? as usize;
+-            if n > max { Err(DecodeError::TooMany) } else { Ok(n) }
+-        };
+         let n = count(r, MAX_ITEMS)?;
+         let mut items = Vec::with_capacity(n);
+         for _ in 0..n {
+@@ -341,7 +359,7 @@
+         for _ in 0..n {
+             fx.push(FxSnap { kind: r.u8()?, at: r.triple()? });
+         }
+-        Ok(WorldSnap { seq, now, round, items, bots, dazza, board, teams, feed, fx })
++        Ok(WorldSnap { wet, seq, now, round, items, bots, dazza, board, teams, feed, fx })
+     }
+ }
+ 
+@@ -352,6 +370,7 @@
+ 
+     fn sample() -> WorldSnap {
+         WorldSnap {
++            wet: vec![WetSnap { id: 2, remaining: 3.75, pos: (1.0, 0.0, 2.0) }],
+             seq: 42,
+             now: 123.5,
+             round: RoundSnap {
+@@ -441,7 +460,7 @@
+         let mut s = sample();
+         s.round.banner = None;
+         let mut bytes = Msg::World(Box::new(s)).encode();
+-        let at = 1 + 4 + 4 + 3 + 4 + 4 + 8 + 1 + 1; // kind, seq, now, phase/mode/features, time, round/len/spot/stock, smoko, heist, banner flag
++        let at = 1 + 1 + 20 + 4 + 4 + 3 + 4 + 4 + 8 + 1 + 1; // kind, seq, now, phase/mode/features, time, round/len/spot/stock, smoko, heist, banner flag
+         bytes[at] = 200;
+         assert!(Msg::decode(&bytes).is_err());
+         // every cut-off version is refused, never a panic
+--- a/rust/crates/bbq_core/src/stun.rs
++++ b/rust/crates/bbq_core/src/stun.rs
+@@ -4,6 +4,9 @@
+ //! **1 second grace** during which no new stun can start (you can still be shoved).
+ 
+ /// A stun that has just ended gives this long before another can start.
++pub const WET_DURATION: f32 = 4.0;
++pub const WET_SPEED: f32 = 0.8;
++
+ pub const STUN_GRACE: f32 = 1.0;
+ /// A power throw (charge of 0.90 or more) flattens for this long.
+ pub const POWER_DOWN: f32 = 2.0;
+@@ -12,6 +15,8 @@
+ 
+ #[derive(Clone, Debug, Default)]
+ pub struct Body {
++    /// Host-owned wet timer. Repeated valid balloon hits refresh, never stack.
++    pub wet_t: f32,
+     /// Seconds of stun left.
+     pub stun: f32,
+     /// Seconds of grace left after a stun ended.
+@@ -95,6 +100,7 @@
+ 
+     pub fn tick(&mut self, dt: f32) -> TickEvents {
+         let mut ev = TickEvents::default();
++        self.wet_t = (self.wet_t - dt).max(0.0);
+         let before = self.stun;
+         self.stun = (self.stun - dt).max(0.0);
+         if before > 0.0 && self.stun <= 0.0 {

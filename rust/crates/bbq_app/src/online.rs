@@ -885,6 +885,7 @@ fn lobby_logic(
 
 /// The host tells everyone how the yard looks, 15 times a second.
 fn online_world_send(
+    player: Res<Player>,
     time: Res<Time>,
     mut online: ResMut<Online>,
     mut game: ResMut<Game>,
@@ -906,7 +907,8 @@ fn online_world_send(
     *every = 1.0 / crate::online_world::WORLD_HZ;
     *seq = seq.wrapping_add(1);
     let fx = std::mem::take(&mut game.fx_out);
-    let snap = crate::online_world::build_world(&game, &yard.0, *seq, *feed_sent, &fx);
+    let mut snap = crate::online_world::build_world(&game, &yard.0, *seq, *feed_sent, &fx);
+    if let Some(host) = snap.wet.first_mut() { host.pos = (player.mover.x, player.mover.y, player.mover.z); }
     if let Some((_, t)) = game.feed.last() {
         *feed_sent = *t;
     }
@@ -914,11 +916,16 @@ fn online_world_send(
 }
 
 /// A guest copies the host's picture of the yard.
-fn online_world_apply(mut online: ResMut<Online>, mut game: ResMut<Game>, mut yard: ResMut<crate::yard_scene::YardRes>) {
+fn online_world_apply(mut player: ResMut<Player>, mut online: ResMut<Online>, mut game: ResMut<Game>, mut yard: ResMut<crate::yard_scene::YardRes>) {
     let Some(session) = online.session.as_mut().filter(|s| s.role == Role::Guest && s.joined()) else { return };
     let Some(snap) = session.world.take() else { return };
     let (my_id, host) = (session.my_id, session.host_name());
     crate::online_world::apply_world(&mut game, &mut yard.0, &snap, my_id, &host);
+    if let Some(s) = snap.wet.iter().find(|s| s.id == my_id && s.remaining > 0.0) {
+        if (player.mover.x-s.pos.0).hypot(player.mover.z-s.pos.2) > 1.0 {
+            player.mover.x = s.pos.0; player.mover.z = s.pos.2;
+        }
+    }
 }
 
 /// A guest goes where the host goes: into the round when the host starts one, and back to the
@@ -1071,9 +1078,11 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>) {
         return;
     };
     let now = game.now;
+    let mirror = game.mirror;
     let controlled: Vec<_> = game.dummies.iter().filter(|d| crate::smoko_mode::controlled(&game,d.id)).map(|d|d.id).collect();
     for d in game.dummies.iter_mut() {
-        if controlled.contains(&d.id) {continue;}
+        // While stunned, the host simulates physical knockback; client positions cannot cancel it.
+        if controlled.contains(&d.id) || (d.body.wet_t > 0.0 && (mirror || d.body.stun > 0.0)) {continue;}
         let Some(r) = &d.remote else { continue };
         let Some(h) = session.heard.get(&r.net_id) else { continue };
         let s = h.state;
@@ -1082,8 +1091,17 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>) {
         let k = 1.0 - (-18.0 * bbq_core::sim::TICK_DT).exp();
         let far = (target.0 - d.mover.x).hypot(target.2 - d.mover.z) > 4.0;
         let k = if far { 1.0 } else { k };
-        d.mover.x += (target.0 - d.mover.x) * k;
-        d.mover.z += (target.2 - d.mover.z) * k;
+        let (mut dx, mut dz) = ((target.0 - d.mover.x) * k, (target.2 - d.mover.z) * k);
+        if !mirror && d.body.wet_t > 0.0 {
+            let mods = bbq_core::movement::Modifiers { wet: true, stunned: d.body.stun > 0.0, charging: d.bot.winding, ..Default::default() };
+            // Sprint requests remain subject to the host mover's duration/cooldown.
+            if s.vel.0.hypot(s.vel.1) > bbq_core::movement::BASE_SPEED { d.mover.try_boost(&mods); }
+            let step = d.mover.max_speed(&mods) * bbq_core::sim::TICK_DT;
+            let length = dx.hypot(dz);
+            if length > step { dx *= step / length; dz *= step / length; }
+        }
+        d.mover.x += dx;
+        d.mover.z += dz;
         d.mover.y = target.1;
         d.mover.vx = s.vel.0;
         d.mover.vz = s.vel.1;
@@ -1298,6 +1316,7 @@ mod tests {
         use bbq_core::net_world::*;
         let mut p = Pair::new();
         let snap = |seq| WorldSnap {
+            wet: vec![],
             seq,
             now: 1.0,
             round: RoundSnap { phase: 3, mode: 0, features: 0, time_left: 9.0, round_no: 1, match_len: 1, chest_spot: 0, chest_stock: 3, smoko_at: (0.0, 0.0), heist_teams: 0, banner: None },

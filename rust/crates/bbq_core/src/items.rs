@@ -5,7 +5,7 @@
 pub enum ItemKind {
     Teddy,
     Stubby,
-    Gnome,
+    WaterBalloon,
     Dildo,
     Steak,
     Fish,
@@ -93,15 +93,16 @@ static STUBBY: ItemDef = ItemDef {
     smash: true,
     ..BASE
 };
-static GNOME: ItemDef = ItemDef {
+static WATER_BALLOON: ItemDef = ItemDef {
     speed: 19.0,
-    knock: 15.0,
+    knock: 0.0,
     charge: 1.0,
     radius: 0.28,
-    bounce: 0.25,
+    bounce: 0.0,
     grav: 1.15,
+    smash: true,
     weight: 20.0,
-    stun: Some(0.65),
+    stun: Some(0.0),
     ..BASE
 };
 static DILDO: ItemDef = ItemDef {
@@ -151,7 +152,7 @@ impl ItemKind {
         ItemKind::Dildo,
         ItemKind::Steak,
         ItemKind::Fish,
-        ItemKind::Gnome,
+        ItemKind::WaterBalloon,
         ItemKind::Noodle,
         ItemKind::Snag,
     ];
@@ -160,7 +161,7 @@ impl ItemKind {
         match self {
             ItemKind::Teddy => &TEDDY,
             ItemKind::Stubby => &STUBBY,
-            ItemKind::Gnome => &GNOME,
+            ItemKind::WaterBalloon => &WATER_BALLOON,
             ItemKind::Dildo => &DILDO,
             ItemKind::Steak => &STEAK,
             ItemKind::Fish => &FISH,
@@ -551,7 +552,7 @@ mod tests {
         assert!(near(ItemKind::Steak.hit_stun(), 0.455));
         assert!(near(ItemKind::Fish.hit_stun(), 0.455));
         assert!(near(ItemKind::Noodle.hit_stun(), 0.525));
-        assert!(near(ItemKind::Gnome.hit_stun(), 0.65));
+        assert!(near(ItemKind::WaterBalloon.hit_stun(), 0.0));
     }
 
     #[test]
@@ -562,8 +563,8 @@ mod tests {
         assert_eq!(random_type(0.449), ItemKind::Teddy);
         assert_eq!(random_type(0.451), ItemKind::Stubby);
         assert_eq!(random_type(0.799), ItemKind::Stubby);
-        assert_eq!(random_type(0.801), ItemKind::Gnome);
-        assert_eq!(random_type(0.999), ItemKind::Gnome);
+        assert_eq!(random_type(0.801), ItemKind::WaterBalloon);
+        assert_eq!(random_type(0.999), ItemKind::WaterBalloon);
     }
 
     #[test]

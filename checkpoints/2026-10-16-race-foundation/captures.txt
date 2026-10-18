@@ -1,0 +1,9 @@
+Saved baseline
+Saved menu
+Saved racer
+Saved sideline
+Traceback (most recent call last):
+  File "/Users/marcus/Claude/australian-bbq/rust/tools/race_foundation_review.py", line 26, in <module>
+    assert target.exists()
+           ~~~~~~~~~~~~~^^
+AssertionError

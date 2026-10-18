@@ -81,7 +81,7 @@ pub fn gallery_places() -> Vec<(ModelKey, Vec3)> {
     for (i, k) in [
         ItemKind::Teddy,
         ItemKind::Stubby,
-        ItemKind::Gnome,
+        ItemKind::WaterBalloon,
         ItemKind::Steak,
         ItemKind::Fish,
         ItemKind::Noodle,

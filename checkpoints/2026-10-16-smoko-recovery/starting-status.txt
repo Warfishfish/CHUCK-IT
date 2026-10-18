@@ -1,0 +1,20 @@
+ M checkpoints/LATEST.md
+ M rust/crates/bbq_app/src/game.rs
+ M rust/crates/bbq_app/src/hud.rs
+ M rust/crates/bbq_app/src/main.rs
+ M rust/crates/bbq_app/src/menu.rs
+ M rust/crates/bbq_app/src/online_world.rs
+ M rust/crates/bbq_app/src/player.rs
+ M rust/crates/bbq_app/src/results.rs
+ M rust/crates/bbq_app/src/round.rs
+ M rust/crates/bbq_app/src/ui.rs
+ M rust/crates/bbq_app/src/visual_review.rs
+ M rust/crates/bbq_app/src/yard_scene.rs
+ M rust/crates/bbq_core/src/lib.rs
+ M rust/crates/bbq_core/src/movement.rs
+ M rust/crates/bbq_core/src/scoring.rs
+ M rust/crates/bbq_core/src/yard.rs
+?? checkpoints/2026-10-16-race-foundation/
+?? checkpoints/2026-10-16-smoko-recovery/
+?? rust/crates/bbq_app/src/race.rs
+?? rust/tools/race_foundation_review.py

@@ -12,6 +12,17 @@ use std::collections::BTreeMap;
 
 pub const CENTRE: (f32, f32) = (0.0, 10.0);
 pub const RADIUS: f32 = 3.5;
+/// Minimum fresh combat knockdown in the delivery mode.
+pub const KNOCKDOWN_TIME: f32 = 8.0;
+pub fn knockdown_time(mode: GameMode, seconds: f32) -> f32 {
+    if mode == GameMode::Smoko { seconds.max(KNOCKDOWN_TIME) } else { seconds }
+}
+pub fn extend_knockdown(mode: GameMode, body: &mut Body, fresh: bool) {
+    if fresh {
+        body.down_t = knockdown_time(mode, body.down_t);
+        body.stun = body.stun.max(body.down_t);
+    }
+}
 pub const MAX_CARRY: f32 = 8.0;
 pub const THROW_WINDOW: f32 = 4.0;
 pub const PROTECTION: f32 = 5.0;
@@ -393,6 +404,29 @@ mod tests {
         (a, p)
     }
     #[test]
+    fn longer_knockdown_allows_late_pickup_without_repeat_hit_refresh() {
+        let (mut a, mut p) = fixture();
+        let mut g = a.world_mut().resource_mut::<Game>();
+        let b = &mut g.dummies[0].body;
+        *b = Body::default();
+        let hit = b.apply_hit(2.0, Some(2.0));
+        extend_knockdown(GameMode::Smoko, b, hit.knocked_down);
+        b.tick(5.0);
+        let repeat = b.apply_hit(2.0, Some(2.0));
+        extend_knockdown(GameMode::Smoko, b, repeat.knocked_down);
+        assert_eq!(b.down_t, 3.0);
+        input(&mut g, &mut p, PLAYER_ID, true);
+        assert_eq!(g.smoko.carries[&PLAYER_ID].victim, 100);
+        p.mover = Mover::new(0.0, 9.0);
+        step(&mut g, &mut p, &mut Wanted::default());
+        assert_eq!(g.board.score(PLAYER_ID), 100);
+        let mut b = Body::default();
+        b.apply_hit(8.0, Some(knockdown_time(GameMode::Smoko, 3.5)));
+        b.tick(8.0);
+        assert!(!b.is_down());
+        assert_eq!(knockdown_time(GameMode::FreeForAll, 3.5), 3.5);
+    }
+    #[test]
     fn walk_in_is_not_a_delivery_and_hits_do_not_score() {
         let (mut a, mut p) = fixture();
         let mut g = a.world_mut().resource_mut::<Game>();
@@ -408,12 +442,14 @@ mod tests {
     fn carried_delivery_scores_once_respawns_and_protects() {
         let (mut a, mut p) = fixture();
         let mut g = a.world_mut().resource_mut::<Game>();
+        g.dummies[0].body.wet_t = 4.0;
         input(&mut g, &mut p, PLAYER_ID, true);
         assert_eq!(g.smoko.carries[&PLAYER_ID].victim, 100);
         p.mover = Mover::new(0.0, 9.0);
         step(&mut g, &mut p, &mut Wanted::default());
         assert_eq!(g.board.score(PLAYER_ID), 100);
         assert!(g.smoko.carries.is_empty());
+        assert_eq!(g.dummies[0].body.wet_t,0.0);
         assert!(!in_pad(pos(&g, &p, 100).unwrap()));
         for _ in 0..20 {
             step(&mut g, &mut p, &mut Wanted::default());

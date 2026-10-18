@@ -101,6 +101,7 @@ fn mode_code(m: GameMode) -> u8 {
         GameMode::Teams => 1,
         GameMode::Heist => 2,
         GameMode::Smoko => 3,
+        GameMode::Race => 4,
     }
 }
 
@@ -109,6 +110,7 @@ fn mode_of_code(c: u8) -> GameMode {
         1 => GameMode::Teams,
         2 => GameMode::Heist,
         3 => GameMode::Smoko,
+        4 => GameMode::Race,
         _ => GameMode::FreeForAll,
     }
 }
@@ -246,7 +248,9 @@ pub fn build_world(g: &Game, yard: &Yard, seq: u32, feed_after: f32, fx: &[FxEve
         .rev()
         .collect();
     let fx = fx.iter().take(MAX_FX).map(|e| FxSnap { kind: e.kind.index(), at: (e.at.x, e.at.y, e.at.z) }).collect();
-    WorldSnap { seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
+    let mut wet = vec![WetSnap { id: 1, remaining: g.me.body.wet_t, pos: (0.0, 0.0, 0.0) }];
+    wet.extend(g.dummies.iter().map(|d| WetSnap { id: net(d.id), remaining: d.body.wet_t, pos: (d.mover.x, d.mover.y, d.mover.z) }));
+    WorldSnap { wet, seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
 }
 
 /// Make this game look like the host's. `my_net` is our own number; `host_name` replaces
@@ -342,6 +346,20 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
             d.anim.start_swing();
         }
         d.bot.swing_t = b.swing as f32 / 100.0;
+    }
+
+    // Status comes only from the host, including zero on respawn/round reset.
+    g.me.body.wet_t = 0.0;
+    for d in &mut g.dummies { d.body.wet_t = 0.0; }
+    for s in &snap.wet {
+        let id = local(s.id);
+        if id == PLAYER_ID { g.me.body.wet_t = s.remaining; }
+        else if let Some(d) = g.dummies.iter_mut().find(|d| d.id == id) {
+            d.body.wet_t = s.remaining;
+            if s.remaining > 0.0 && d.remote.is_some() {
+                d.net_target = Some((V3::new(s.pos.0, s.pos.1, s.pos.2), (0.0,0.0), g.now));
+            }
+        }
     }
 
     // ---- the items (and who holds what) ----
@@ -508,6 +526,7 @@ pub fn mirror_tick(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
     let now = g.now;
     let k = 1.0 - (-14.0 * dt).exp();
     for d in g.dummies.iter_mut() {
+        d.body.wet_t = (d.body.wet_t - dt).max(0.0);
         let Some((pos, vel, at)) = d.net_target else { continue };
         let age = (now - at).clamp(0.0, 0.2);
         let (tx, tz) = (pos.x + vel.0 * age, pos.z + vel.1 * age);
@@ -526,6 +545,48 @@ pub fn mirror_tick(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
 mod tests {
     use super::*;
     use bevy::prelude::*;
+
+    #[test]
+    fn balloon_host_hit_replicates_and_recovers_without_replaying_timer() {
+        use bbq_core::net::Msg;
+        let mut host=host_with_a_guest();
+        let id;
+        {
+            let mut g=host.world_mut().resource_mut::<Game>();
+            let mut rng=bbq_core::rng::Rng::new(2);
+            id=g.world.spawn(ItemKind::WaterBalloon,8.0,6.0,false,&mut rng);
+            g.world.give(id,PLAYER_ID);
+            g.world.throw(id,PLAYER_ID,V3::new(8.0,1.2,4.0),V3::new(0.0,1.5,-14.0),1.0,true);
+        }
+        for _ in 0..40 {host.world_mut().run_schedule(FixedUpdate);}
+        let g=host.world().resource::<Game>();
+        let remote=REMOTE_ID_BASE+2;
+        assert!(g.dummies.iter().find(|d|d.id==remote).unwrap().body.wet_t>3.0);
+        assert_eq!(g.board.get(PLAYER_ID).unwrap().hits,1);
+        assert!(!g.world.items.contains_key(&id));assert!(g.net_hits.is_empty());
+        let snap=build_world(g,&Yard::default(),1,-1.0,&g.fx_out);
+        let Msg::World(snap)=Msg::decode(&Msg::World(Box::new(snap)).encode()).unwrap() else {panic!()};
+        let mut guest=app();let mut yard=Yard::default();
+        apply_world(&mut guest.world_mut().resource_mut::<Game>(),&mut yard,&snap,2,"Host");
+        assert!(guest.world().resource::<Game>().me.body.wet_t>3.0);
+        // Host timer ticks; a repeat snapshot is a remaining duration, not a fresh four seconds.
+        for _ in 0..260 {host.world_mut().run_schedule(FixedUpdate);}
+        let snap=build_world(host.world().resource::<Game>(),&Yard::default(),2,-1.0,&[]);
+        apply_world(&mut guest.world_mut().resource_mut::<Game>(),&mut yard,&snap,2,"Host");
+        assert_eq!(guest.world().resource::<Game>().me.body.wet_t,0.0);
+        assert_eq!(host.world().resource::<Game>().board.get(PLAYER_ID).unwrap().hits,1);
+    }
+    #[test]
+    fn round_end_clears_all_wet_status() {
+        for mode in [GameMode::FreeForAll,GameMode::Teams,GameMode::Heist,GameMode::Smoko,GameMode::Race] {
+            let mut app=app();let mut g=app.world_mut().resource_mut::<Game>();
+            g.rules.mode=mode;g.me.body.wet_t=4.0;
+            for d in &mut g.dummies {d.body.wet_t=4.0;}
+            crate::round::end_round(&mut g);
+            assert_eq!(g.me.body.wet_t,0.0);
+            assert!(g.dummies.iter().all(|d|d.body.wet_t==0.0));
+        }
+    }
 
     #[test]
     fn ids_go_to_the_network_and_back() {
@@ -1231,7 +1292,10 @@ pub fn apply_hit(g: &mut Game, p: &mut Player, hit: &HitMsg) {
             let mut item = Item::new(0, kind, V3::ZERO);
             item.bottle = spirit.then_some(bbq_core::items::Bottle::Spirit);
             let dir = V3::new(dir.0, dir.1, dir.2);
-            bbq_core::hitting::apply_item_hit(&mut g.me.body, &mut p.mover, &item, dir, *flatten);
+            // Balloons use absolute host snapshot status, not a timer-start message.
+            if kind == ItemKind::WaterBalloon { return; }
+            let res = bbq_core::hitting::apply_item_hit(&mut g.me.body, &mut p.mover, &item, dir, *flatten);
+            crate::smoko_mode::extend_knockdown(g.rules.mode, &mut g.me.body, res.effect.knocked_down);
             p.shake = p.shake.max(0.12 + item.knock() * 0.012);
         }
         HitMsg::Slap { dir, knock, up, stun, dizzy, down } => {
@@ -1248,7 +1312,7 @@ pub fn apply_hit(g: &mut Game, p: &mut Player, hit: &HitMsg) {
                             1 => SlapKind::Cartwheel,
                             _ => SlapKind::Timber,
                         },
-                        secs,
+                        crate::smoko_mode::knockdown_time(g.rules.mode, secs),
                     )
                 }),
                 tumble: false,

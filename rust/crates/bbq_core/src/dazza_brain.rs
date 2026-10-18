@@ -32,7 +32,7 @@ pub const GRUDGE_CHASE: f32 = 2.5;
 pub const KO_TIME: f32 = 8.0;
 /// Angry for this long when someone takes meat.
 pub const ANGRY_TIME: f32 = 3.5;
-/// Gnomes that can pop out of a KO'd Dazza in Cheeky mode, per round.
+/// Water balloons that can pop out of a KO'd Dazza in Cheeky mode, per round.
 pub const BUM_OUTS: u32 = 3;
 
 /// How long a chase lasts at his current anger level. Longer than the browser game's 8 + 2 per
@@ -99,7 +99,7 @@ pub enum SlapResult {
     Ignored,
     /// Steak, fish or noodle: a short stun, then he chases.
     Stunned { secs: f32 },
-    /// Dildo, outcome 1: out cold for 8 s. `bum_out` means a gnome pops out (Cheeky mode).
+    /// Dildo, outcome 1: out cold for 8 s. `bum_out` means a water balloon pops out (Cheeky mode).
     KnockedOut { bum_out: bool },
     /// Dildo, outcome 2: he chases at once, faster.
     Berserk,
@@ -981,7 +981,7 @@ mod tests {
     }
 
     #[test]
-    fn bum_out_gnomes_only_in_cheeky_mode_and_at_most_three_a_round() {
+    fn bum_out_water_balloons_only_in_cheeky_mode_and_at_most_three_a_round() {
         let mut total = 0;
         let mut b = Brain::default();
         for seed in 0..200 {

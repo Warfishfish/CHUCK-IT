@@ -103,6 +103,7 @@ pub struct MoveInput {
 /// Things around the character that change how they move.
 #[derive(Clone, Copy, Debug)]
 pub struct Modifiers {
+    pub wet: bool,
     pub stunned: bool,
     /// Countdown: nobody moves.
     pub frozen: bool,
@@ -135,6 +136,7 @@ impl Default for Modifiers {
             at_smoko: false,
             sliding: false,
             in_puddle: false,
+            wet: false,
             gait: 1.0,
             dive: false,
         }
@@ -263,6 +265,7 @@ impl Mover {
             * f(m.snag_stumble, 0.62)
             * f(m.carrying, crate::carry::SLOW)
             * m.gait
+            * f(m.wet, crate::stun::WET_SPEED)
     }
 
     /// One step of `dt` seconds.
@@ -270,7 +273,7 @@ impl Mover {
         let mut ev = MoveEvents::default();
 
         // pool
-        self.in_pool = in_pool_rect(self.x, self.z) && self.y < 0.1;
+        self.in_pool = !yard.race && in_pool_rect(self.x, self.z) && self.y < 0.1;
         if self.in_pool && !self.was_in_pool {
             ev.splash = true;
         }
@@ -419,13 +422,14 @@ impl Mover {
         }
 
         // yard edge
-        self.x = self.x.clamp(-YARD_HALF_X + 0.45, YARD_HALF_X - 0.45);
-        self.z = self.z.clamp(-YARD_HALF_Z + 0.45, YARD_HALF_Z - 0.45);
+        let (half_x,half_z)=if yard.race {(52.,37.)}else{(YARD_HALF_X,YARD_HALF_Z)};
+        self.x = self.x.clamp(-half_x + 0.45, half_x - 0.45);
+        self.z = self.z.clamp(-half_z + 0.45, half_z - 0.45);
 
         // floor, trampoline and landing
         let floor = yard.floor_at(self.x, self.z, self.y, self.prev_y);
         let (tdx, tdz) = (self.x - TRAMP_X, self.z - TRAMP_Z);
-        if tdx * tdx + tdz * tdz < TRAMP_R * TRAMP_R && self.y <= TRAMP_H + 0.02 && self.vy <= 0.0 {
+        if !yard.race && tdx * tdx + tdz * tdz < TRAMP_R * TRAMP_R && self.y <= TRAMP_H + 0.02 && self.vy <= 0.0 {
             let n = if self.tramp_chain {
                 (self.tramp_n + 1).min(TRAMP_MAX)
             } else {
@@ -725,6 +729,19 @@ mod tests {
         settle(&mut m, &yard);
         walk(&mut m, &yard, (1.0, 0.0), 3.0, &Modifiers::default());
         assert!((m.x - (YARD_HALF_X - 0.45)).abs() < 1e-4);
+    }
+
+    #[test]
+    fn race_arena_has_wider_bounds_and_no_backyard_water_or_trampoline() {
+        let mut yard=Yard::default();yard.race=true;yard.colliders.clear();
+        let mut m=Mover::new(35.0,0.0);settle(&mut m,&yard);
+        assert!(m.x>34.9);
+        walk(&mut m,&yard,(1.,0.),10.,&Modifiers::default());
+        assert!((m.x-51.55).abs()<0.01);
+        let mut water=Mover::new(-20.,10.);settle(&mut water,&yard);
+        assert!(!water.in_pool);assert_eq!(water.sink,0.);
+        let mut tramp=Mover::new(TRAMP_X,TRAMP_Z);settle(&mut tramp,&yard);
+        assert!(!tramp.tramp_chain);assert!(tramp.y.abs()<0.01);
     }
 
     #[test]

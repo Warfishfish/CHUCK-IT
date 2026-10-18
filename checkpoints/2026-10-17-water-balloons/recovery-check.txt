@@ -1,0 +1,5 @@
+Final 27-file manifest verified against current sources.
+Real-repository dry run passed.
+Isolated-copy test: later edit correctly blocked rollback without changes.
+Isolated-copy test: all 27 sources restored exactly to pre-balloon hashes, including removal of newly added wet.rs.
+Real repository was not reverted. Earlier pending work preserved.

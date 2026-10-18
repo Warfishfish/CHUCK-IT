@@ -55,7 +55,7 @@ impl ModelKey {
             None
         };
         let n = match kind {
-            ItemKind::Noodle => id % 4,
+            ItemKind::Noodle | ItemKind::WaterBalloon => id % 4,
             ItemKind::Dildo => bbq_core::looks::DildoSkin::from_id(id).canonical_id(),
             _ => 0,
         };
@@ -374,7 +374,7 @@ pub fn material(s: &Surface, cache: &ModelCache) -> StandardMaterial {
     // flat "Lambert" never is. A roughness of about 0.7 keeps it close to Lambert (see compare.md).
     // the polished look's materials (those with a bump map) each have their own finish
     let finish = s.tex.filter(|t| s.shine == 0.0 && cache.normals.contains_key(t)).map(|t| {
-        if t == Tex::Lawn { (0.9, 0.02) } else { t.finish() }
+        if t == Tex::Lawn { (0.96, 0.015) } else { t.finish() }
     });
     let rough = if let Some((r, _)) = finish {
         r
@@ -391,11 +391,11 @@ pub fn material(s: &Surface, cache: &ModelCache) -> StandardMaterial {
     let afternoon_lawn = POLISHED.load(std::sync::atomic::Ordering::Relaxed)
         && crate::style::current() == crate::style::Style::Pop
         && s.tex == Some(Tex::Lawn);
-    let repeat = if afternoon_lawn { 3.0 } else { 1.0 };
+    let repeat = if afternoon_lawn { 2.3 } else { 1.0 };
     StandardMaterial {
         base_color: if afternoon_lawn {
             let c = hex(s.color).to_linear();
-            Color::linear_rgba(c.red, c.green * 1.02, c.blue * 0.88, s.alpha)
+            Color::linear_rgba(c.red * 0.88, c.green * 1.06, c.blue, s.alpha)
         } else {
             hex(s.color).with_alpha(s.alpha)
         },

@@ -220,6 +220,8 @@ impl Default for Features {
 
 #[derive(Clone, Debug)]
 pub struct Yard {
+    /// Separate enlarged race arena; disables legacy pool/trampoline.
+    pub race: bool,
     pub colliders: Vec<Collider>,
     pub features: Features,
     pub chest_spot: usize,
@@ -268,6 +270,7 @@ impl Yard {
             features,
             chest_spot,
             heist: None,
+            race: false,
         }
     }
 

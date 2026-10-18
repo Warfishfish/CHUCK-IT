@@ -1,0 +1,133 @@
+//! Australian BBQ, Rust version. Phases 2 to 4: the yard, walking, items and throwing, and the blob
+//! characters and Dazza (solo, with three practice blobs to hit; real bots come in Phase 5).
+//!
+//! Click the window to grab the mouse. WASD walk, mouse looks, Space jumps, Shift boosts,
+//! hold and release the left button to throw, right button catches, Q/E/wheel swap items,
+//! `[` and `]` change the field of view, F1-F3 switch the bar, BBQ and chest off and on,
+//! Esc lets go of the mouse. All the rules live in `bbq_core`; this crate only draws and reads input.
+
+// Bevy systems take many parameters by design.
+#![allow(clippy::too_many_arguments, clippy::type_complexity)]
+
+mod bots_app;
+mod characters;
+mod decals;
+mod dirt;
+mod face;
+mod face_meshes;
+mod fx;
+mod game;
+mod gamepad;
+mod grass;
+mod heist_app;
+mod hud;
+mod hud_fx;
+mod items_view;
+mod legs;
+mod life;
+mod lobby;
+mod lighting;
+mod models;
+mod player;
+mod preview;
+mod menu;
+mod net_link;
+mod online;
+mod online_world;
+mod results;
+mod round;
+mod shapes;
+mod silicone;
+mod smoko_mode;
+mod race;
+mod shirt;
+mod shot;
+mod visual_review;
+mod style;
+mod ui;
+mod yard_scene;
+
+use bevy::prelude::*;
+
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let shot = shot::parse(&args);
+    if args.iter().any(|a| menu::TEST_FLAGS.contains(&a.as_str())) {
+        menu::NO_SAVE.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+    style::init(&args);
+    // the polished look has no empty eskies for now (A1.7 brings them back)
+    if lighting::LookMode::from_args(&args) == lighting::LookMode::Polished {
+        bbq_core::yard::set_empty_eskies(false);
+    }
+    // Screenshot mode uses an 800 x 600 window at normal pixel size so pictures can be compared.
+    let window = if shot.is_some() {
+        Window {
+            title: "Australian BBQ (screenshot)".into(),
+            resolution: if args.iter().any(|a| a == "--big") {
+                bevy::window::WindowResolution::new(1280, 800)
+            } else {
+                bevy::window::WindowResolution::new(800, 600)
+            }
+                .with_scale_factor_override(1.0),
+            ..default()
+        }
+    } else {
+        Window {
+            title: "Australian BBQ (Rust, Phase 4)".into(),
+            // in the browser: draw into the page's canvas and fill it
+            canvas: Some("#bbq".into()),
+            fit_canvas_to_parent: true,
+            prevent_default_event_handling: true,
+            ..default()
+        }
+    };
+    let mut app = App::new();
+    app.add_plugins(
+        DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(window),
+                ..default()
+            })
+            // the web server has no `.meta` files next to the assets: do not ask for them
+            .set(AssetPlugin {
+                meta_check: bevy::asset::AssetMetaCheck::Never,
+                ..default()
+            }),
+    )
+    .insert_resource(lighting::LookMode::from_args(&args))
+    .insert_resource(bevy::light::DirectionalLightShadowMap {
+        // crisper, steadier shadows in the polished look
+        size: if lighting::LookMode::from_args(&args) == lighting::LookMode::Polished { 4096 } else { 2048 },
+    })
+    .insert_resource(ClearColor(models::hex(if style::current() != style::Style::Current { 0x88b4f4 } else { 0x9fd8f2 })))
+    .add_plugins(
+        (
+            yard_scene::YardScenePlugin,
+            player::PlayerPlugin,
+            gamepad::GamepadPlugin,
+            game::GamePlugin,
+            items_view::ItemsViewPlugin,
+            characters::CharactersPlugin,
+            hud_fx::HudFxPlugin,
+            hud::HudPlugin,
+            bots_app::BotsPlugin,
+            round::RoundPlugin,
+            ui::FontsPlugin,
+            menu::MenuPlugin,
+            heist_app::HeistViewPlugin,
+            models::ModelsPlugin,
+            bevy::core_pipeline::fullscreen_material::FullscreenMaterialPlugin::<
+                lighting::DisplayRaw,
+            >::default(),
+        ),
+    );
+    app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin, online::OnlinePlugin, face::FacePlugin, lobby::LobbyPlugin, legs::LegsPlugin, shirt::ShirtPlugin));
+    if let Some(cfg) = shot {
+        app.add_plugins(shot::ShotPlugin(cfg));
+        if args.iter().any(|a| a == "--review") {
+            app.add_plugins(visual_review::VisualReviewPlugin);
+        }
+    }
+    app.run();
+}

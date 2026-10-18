@@ -508,9 +508,9 @@ fn torus(r: f32, tube: f32, radial: u32, tubular: u32, arc: f32) -> Shape {
 
 /// The teddy bear.
 pub fn teddy() -> Vec<Part> {
+    let dk = Surface::matt(0x24160c);
     let fur = Surface::matt(0xa86b3c);
     let lt = Surface::matt(0xe2b98a);
-    let dk = Surface::matt(0x24160c);
     let mut v = vec![
         Part::new(sphere(0.17, 14, 10), fur)
             .at(0.0, -0.07, 0.0)
@@ -1071,6 +1071,18 @@ pub fn dildo_scale(v: DildoVariant) -> f32 {
     v.def().scale
 }
 
+/// Opaque latex keeps the small projectile legible; a tied neck distinguishes it from a ball.
+pub fn water_balloon(id: u32) -> Vec<Part> {
+    let color = [0x25b8ed, 0xf878a4, 0xffc935, 0x64d5ba][id as usize % 4];
+    let latex = Surface::shiny(color, 0xffffff, 65.0);
+    vec![
+        Part::new(sphere(0.25, 20, 14), latex).stretch(1.0, 1.12, 1.0),
+        Part::new(cyl(0.025, 0.07, 0.09, 12), latex).at(0.0, 0.28, 0.0),
+        Part::new(sphere(0.04, 10, 6), latex).at(0.0, 0.33, 0.0).stretch(1.2, 0.6, 1.0),
+        Part::new(Shape::Cone { r: 0.045, h: 0.05, seg: 10 }, latex).at(0.0, 0.37, 0.0),
+    ]
+}
+
 /// The model for any kind of item. `id` is used for the noodle's colour; `variant` for the
 /// dildo's size.
 pub fn item(kind: crate::items::ItemKind, id: u32, variant: Option<DildoVariant>) -> Vec<Part> {
@@ -1084,7 +1096,7 @@ pub fn item(kind: crate::items::ItemKind, id: u32, variant: Option<DildoVariant>
             3 => lemonade_can(),
             _ => stubby(),
         },
-        K::Gnome => gnome(),
+        K::WaterBalloon => water_balloon(id),
         K::Steak | K::Snag => steak(),
         K::Fish => fish(),
         K::Noodle => noodle(id),
@@ -1139,7 +1151,6 @@ pub fn mark_hero(parts: Vec<Part>) -> Vec<Part> {
 /// The extra details (step 2c, "Items get a second look").
 pub fn item_extras(kind: crate::items::ItemKind) -> Vec<Part> {
     use crate::items::ItemKind as K;
-    let dk = Surface::matt(0x24160c);
     match kind {
         K::Teddy => {
             let mut v = vec![
@@ -1156,20 +1167,7 @@ pub fn item_extras(kind: crate::items::ItemKind) -> Vec<Part> {
             }
             v
         }
-        K::Gnome => {
-            let mut v = vec![
-                // a belt with a gold buckle
-                Part::new(cyl(0.16, 0.165, 0.035, 12), Surface::matt(0x3b2a1a)).at(0.0, -0.17, 0.0),
-                Part::new(Shape::Cuboid { w: 0.05, h: 0.04, d: 0.02 }, Surface::shiny(0xf2c230, 0xffffff, 40.0)).at(0.0, -0.17, 0.16),
-            ];
-            for sx in [-1.0f32, 1.0] {
-                // little eyes and rosy cheeks, and boots peeping out
-                v.push(Part::new(sphere(0.014, 6, 4), dk).at(sx * 0.035, 0.1, 0.09));
-                v.push(Part::new(sphere(0.022, 6, 4), Surface::matt(0xe8847a)).at(sx * 0.06, 0.065, 0.075).stretch(1.0, 0.7, 0.5));
-                v.push(Part::new(sphere(0.06, 8, 6), Surface::matt(0x2a1d14)).at(sx * 0.07, -0.28, 0.06).stretch(1.0, 0.6, 1.4));
-            }
-            v
-        }
+        K::WaterBalloon => Vec::new(),
         K::Steak | K::Snag => {
             let mut v = Vec::new();
             // grill marks across the top and streaks of marbling

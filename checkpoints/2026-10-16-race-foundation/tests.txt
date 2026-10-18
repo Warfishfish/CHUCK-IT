@@ -1,0 +1,791 @@
+   Compiling bbq_core v0.0.1 (/Users/marcus/Claude/australian-bbq/rust/crates/bbq_core)
+warning: unused imports: `SMOKO_X` and `SMOKO_Z`
+  --> crates/bbq_core/src/bots.rs:19:57
+   |
+19 | use crate::yard::{BAR, Features, MEAT_TABLE, POOL_SINK, SMOKO_X, SMOKO_Z, Yard};
+   |                                                         ^^^^^^^  ^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `bbq_core` (lib) generated 1 warning (run `cargo fix --lib -p bbq_core` to apply 1 suggestion)
+   Compiling bbq_app v0.0.1 (/Users/marcus/Claude/australian-bbq/rust/crates/bbq_app)
+warning: unused import: `crate::shapes::build_mesh`
+  --> crates/bbq_app/src/models.rs:15:5
+   |
+15 | use crate::shapes::build_mesh;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> crates/bbq_app/src/legs.rs:189:13
+    |
+189 |         let mut part = |commands: &mut Commands, (mesh, line): &(Handle<Mesh>, Handle<Mesh>)| -> (Entity, Option<Entity>) {
+    |             ----^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `peers`
+   --> crates/bbq_app/src/online.rs:277:24
+    |
+277 |             In::Snap { peers, .. } => {
+    |                        ^^^^^ help: try ignoring the field: `peers: _`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> crates/bbq_app/src/shapes.rs:571:17
+    |
+571 |             let mut corner = |x: f32, z: f32, b: &mut Buf| {
+    |                 ----^^^^^^
+    |                 |
+    |                 help: remove this `mut`
+
+warning: unused variable: `mid`
+   --> crates/bbq_app/src/yard_scene.rs:516:141
+    |
+516 | ...dz);let yaw=dx.atan2(dz);let mid=((a.0+b.0)*0.5,(a.1+b.1)*0.5);
+    |                                 ^^^ help: if this is intentional, prefix it with an underscore: `_mid`
+
+warning: associated function `on` is never used
+   --> crates/bbq_app/src/lighting.rs:170:12
+    |
+169 | impl DisplayRaw {
+    | --------------- associated function in this implementation
+170 |     pub fn on() -> Self {
+    |            ^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: variant `MoreOpen` is never constructed
+   --> crates/bbq_app/src/menu.rs:333:5
+    |
+308 | pub enum ShowWhen {
+    |          -------- variant in this enum
+...
+333 |     MoreOpen,
+    |     ^^^^^^^^
+    |
+    = note: `ShowWhen` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: struct `PlayLabel` is never constructed
+   --> crates/bbq_app/src/menu.rs:357:8
+    |
+357 | struct PlayLabel;
+    |        ^^^^^^^^^
+
+warning: struct `AmmoNote` is never constructed
+   --> crates/bbq_app/src/menu.rs:359:8
+    |
+359 | struct AmmoNote;
+    |        ^^^^^^^^
+
+warning: variant `Leave` is never constructed
+  --> crates/bbq_app/src/net_link.rs:25:5
+   |
+21 | pub enum Out {
+   |          --- variant in this enum
+...
+25 |     Leave(String),
+   |     ^^^^^
+   |
+   = note: `Out` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: method `active` is never used
+   --> crates/bbq_app/src/online.rs:551:12
+    |
+543 | impl Online {
+    | ----------- method in this implementation
+...
+551 |     pub fn active(&self) -> bool {
+    |            ^^^^^^
+
+warning: field `match_over` is never read
+  --> crates/bbq_app/src/round.rs:92:9
+   |
+89 | pub struct Results {
+   |            ------- field in this struct
+...
+92 |     pub match_over: bool,
+   |         ^^^^^^^^^^
+   |
+   = note: `Results` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: field `rng` is never read
+   --> crates/bbq_app/src/round.rs:107:9
+    |
+ 96 | pub struct RoundCtl {
+    |            -------- field in this struct
+...
+107 |     pub rng: Rng,
+    |         ^^^
+
+warning: variants `More` and `LookStep` are never constructed
+   --> crates/bbq_app/src/ui.rs:189:5
+    |
+186 | pub enum Action {
+    |          ------ variants in this enum
+...
+189 |     More,
+    |     ^^^^
+...
+201 |     LookStep(LookRow, i32),
+    |     ^^^^^^^^
+    |
+    = note: `Action` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: variant `Character` is never constructed
+   --> crates/bbq_app/src/ui.rs:263:5
+    |
+254 | pub enum SegId {
+    |          ----- variant in this enum
+...
+263 |     Character,
+    |     ^^^^^^^^^
+    |
+    = note: `SegId` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: field `base` is never read
+   --> crates/bbq_app/src/ui.rs:438:9
+    |
+437 | pub struct ButtonLook {
+    |            ---------- field in this struct
+438 |     pub base: Color,
+    |         ^^^^
+
+warning: `bbq_app` (bin "bbq_app" test) generated 16 warnings (run `cargo fix --bin "bbq_app" -p bbq_app --tests` to apply 5 suggestions)
+    Finished `test` profile [optimized + debuginfo] target(s) in 3.93s
+     Running unittests src/main.rs (rust/target/debug/deps/bbq_app-0e7bcd1c5d564bef)
+
+running 200 tests
+test dirt::tests::levels_follow_the_slider ... ok
+test face::tests::mouths_fit_on_the_face ... ok
+test face::tests::moods_change_the_mouth_for_everyone ... ok
+test face::tests::each_mouth_looks_different_and_none_is_nothing ... ok
+test face::tests::each_brow_is_different_and_moods_tilt_them ... ok
+test face::tests::each_hair_style_is_different_and_leaves_the_eyes_and_mouth_clear ... ok
+test face::tests::each_hat_is_different_and_leaves_the_eyes_brows_and_mouth_clear ... ok
+test face::tests::blinks_are_brief_staggered_and_reactions_readable ... ok
+test face::tests::the_nose_is_redder_than_the_skin ... ok
+test face::tests::the_smile_turns_up_and_the_smirk_is_lopsided ... ok
+test face_meshes::tests::exported_faces_are_complete_finite_and_within_the_head ... ok
+test game::tests::a_dummy_stacking_it_tells_you_to_go_and_help ... ok
+test game::tests::a_dildo_slap_knocks_flat_and_scores_like_a_hit ... ok
+test game::tests::a_drink_in_your_hand_slows_you_down ... ok
+test game::tests::a_long_dildo_reaches_a_target_a_normal_one_cannot ... ok
+test game::tests::a_hit_on_the_player_knocks_them_and_stuns_them_once ... ok
+test game::tests::a_full_throw_hits_a_dummy_and_scores ... ok
+test game::tests::a_slap_out_of_reach_misses_and_keeps_the_charge ... ok
+test game::tests::a_steak_slap_on_dazza_stuns_him_for_20_points ... ok
+test game::tests::a_steak_slap_stuns_a_dummy_pays_50_and_uses_up_a_charge ... ok
+test game::tests::a_missed_throw_just_lands ... ok
+test game::tests::a_steak_wears_out_after_three_slaps ... ok
+test game::tests::a_bottle_hit_scores_100_more_than_a_teddy ... ok
+test game::tests::a_tap_with_a_pool_noodle_slaps_and_a_hold_throws_it ... ok
+test game::tests::a_thrown_person_flattens_whoever_they_hit_for_100 ... ok
+test game::tests::a_very_drunk_walker_eventually_stacks_it_and_cannot_throw ... ok
+test game::tests::a_stolen_teddy_thrown_over_the_fence_comes_home ... ok
+test game::tests::bare_hands_only_slap_in_cheeky_mode ... ok
+test game::tests::a_stunned_thief_drops_the_teddy_and_cannot_bank ... ok
+test dirt::tests::dirtier_pictures_are_darker_and_the_picture_repeats_seamlessly ... ok
+test game::tests::a_best_of_three_goes_on_until_someone_has_two_round_wins ... ok
+test game::tests::bots_start_fair_and_the_test_fixture_freezes_them ... ok
+test game::tests::bots_run_little_errands_sooner_or_later ... ok
+test game::tests::a_bot_with_a_steak_walks_up_and_stuns_the_player ... ok
+test game::tests::cheeky_mode_makes_glass_bottles_and_family_mode_lemonade ... ok
+test game::tests::dazza_chases_and_spatulas_a_thief ... ok
+test game::tests::dazza_stays_home_when_the_bbq_is_switched_off ... ok
+test game::tests::carrying_an_enemy_teddy_into_your_base_banks_it_for_150 ... ok
+test game::tests::dragging_someone_onto_the_smoko_pad_sends_them_to_the_naughty_corner_by_itself ... ok
+test game::tests::drunk_throwers_earn_a_bonus_on_hits ... ok
+test game::tests::emotes_have_a_two_second_cooldown ... ok
+test game::tests::everyone_starts_a_round_sober_with_empty_hands_and_a_scoreboard_of_zero ... ok
+test game::tests::f_grabs_someone_who_is_down_and_a_tap_puts_them_down ... ok
+test game::tests::dildo_slaps_on_dazza_do_one_of_three_things_and_pay ... ok
+test game::tests::bots_do_not_target_their_own_team ... ok
+test game::tests::a_round_with_no_bots_runs_and_ends ... ok
+test game::tests::bots_hit_the_player_when_they_stand_in_the_open ... ok
+test game::tests::family_mode_drinks_are_soft_drinks_and_nobody_gets_drunk ... ok
+test game::tests::bots_wander_about_and_pick_things_up_and_throw_them ... ok
+test game::tests::g_does_nothing_with_empty_hands_or_when_stunned ... ok
+test game::tests::former_smoko_zones_do_not_seat_or_score_in_current_modes ... ok
+test game::tests::g_throws_away_what_you_hold_and_you_cannot_grab_it_straight_back ... ok
+test game::tests::holding_f_then_letting_go_chucks_them_and_they_fly ... ok
+test game::tests::heist_puts_the_player_in_their_base_with_teddies_in_every_base ... ok
+test game::tests::holding_r_for_1_5_s_next_to_a_fallen_mate_gets_them_up_for_25_points ... ok
+test game::tests::knocking_someone_into_the_pool_soon_after_hitting_them_pays_50 ... ok
+test game::tests::frozen_bots_stand_still_like_practice_dummies ... ok
+test game::tests::menu_background_ignores_legacy_smoko_settings ... ok
+test game::tests::holding_too_long_drops_the_item ... ok
+test game::tests::a_round_counts_down_plays_and_blows_the_whistle ... ok
+test game::tests::letting_go_of_r_stops_the_help ... ok
+test game::tests::no_drinks_when_the_bar_is_switched_off ... ok
+test game::tests::nobody_can_hit_you_while_you_sit_at_smoko ... ok
+test game::tests::play_starts_a_round_with_the_chosen_options_and_menu_goes_back ... ok
+test game::tests::nobody_helps_from_too_far_away ... ok
+test game::tests::pressing_play_after_the_menu_yard_starts_round_one_and_any_bot_count_is_fine ... ok
+test game::tests::bots_never_stack_it_however_drunk ... ok
+test game::tests::r_away_from_the_bar_does_nothing ... ok
+test game::tests::r_at_the_bar_pours_a_drink_that_adds_to_the_meter ... ok
+test game::tests::race_racer_role_fills_two_bots_and_mode_switch_restores_yard ... ok
+test game::tests::r_in_the_smoko_zone_sits_you_down_and_the_drinks_keep_coming ... ok
+test game::tests::slaps_have_a_cooldown ... ok
+test game::tests::setting_someone_down_in_the_smoko_zone_sends_them_to_the_naughty_corner ... ok
+test game::tests::smoko_bots_collect_and_deliver_using_real_movement ... ok
+test game::tests::smoko_throw_lands_in_pad_and_scores_with_real_physics ... ok
+test game::tests::swapping_between_two_items_selects_the_other ... ok
+test game::tests::taking_meat_makes_dazza_angry_and_three_times_makes_him_chase ... ok
+test game::tests::teammates_pass_through_each_other_unless_friendly_fire_is_on ... ok
+test game::tests::teams_are_dealt_and_wear_sashes_and_the_odd_one_out_is_the_wildcard ... ok
+test game::tests::the_bot_count_is_synced_each_round ... ok
+test game::tests::the_chest_gives_a_dildo_in_cheeky_mode_only ... ok
+test game::tests::the_chest_runs_out ... ok
+test game::tests::smoko_runs_out_after_20_seconds ... ok
+test game::tests::the_leader_wears_the_crown ... ok
+test game::tests::the_heist_winner_is_the_team_with_most_banked ... ok
+test game::tests::the_pool_pays_nothing_if_you_hit_them_ages_ago ... ok
+test game::tests::the_results_card_words_a_win_a_loss_and_a_draw ... ok
+test game::tests::the_splash_soaks_people_next_to_the_one_hit_but_not_people_further_off ... ok
+test game::tests::falls_can_be_switched_off ... ok
+test game::tests::the_menu_yard_has_three_bots_and_no_clock_and_they_leave_you_alone ... ok
+test game::tests::thrown_hits_pay_nothing_in_heist_but_still_knock_people_over ... ok
+test game::tests::walking_over_an_enemy_teddy_steals_it ... ok
+test game::tests::walking_over_an_item_picks_it_up ... ok
+test game::tests::with_the_naughty_corner_on_the_zone_is_not_a_safe_break ... ok
+test game::tests::you_can_grab_someone_who_is_only_stunned_but_not_someone_standing_there ... ok
+test game::tests::you_cannot_emote_when_stunned ... ok
+test gamepad::tests::start_pauses_and_the_cards_answer_to_a_and_b ... ok
+test items_view::flop_tests::held_idle_has_no_random_kicks_and_limits_release_outward_energy ... ok
+test items_view::flop_tests::held_running_is_bounded_and_decays_after_stopping ... ok
+test items_view::flop_tests::large_rubber_items_tumble_slower_and_rest_preserves_heading ... ok
+test items_view::flop_tests::silicone_has_a_firm_grip_and_settles_at_multiple_frame_rates ... ok
+test items_view::flop_tests::the_random_numbers_are_even_and_repeatable ... ok
+test legs::tests::a_knee_bends_forwards_and_the_two_halves_reach ... ok
+test legs::tests::a_leg_runs_from_the_ankle_to_the_hip ... ok
+test legs::tests::the_legs_reach_the_body_at_every_lift ... ok
+test lighting::tests::hemisphere_averages_sky_and_ground ... ok
+test lighting::tests::lux_is_proportional_to_the_browser_intensity ... ok
+test lighting::tests::sun_matches_the_browser_numbers ... ok
+test lobby::tests::the_row_is_tidy ... ok
+test models::tests::fins_are_see_through_and_two_sided ... ok
+test models::tests::hex_colours_go_in_as_linear_numbers ... ok
+test models::tests::mip_chains_cover_every_size_down_to_one_pixel ... ok
+test models::tests::mips_average_colours_and_respect_transparency ... ok
+test models::tests::only_looks_that_differ_get_their_own_key ... ok
+test models::tests::shiny_surfaces_are_less_rough_than_matt ... ok
+test net_link::tests::a_dead_address_reports_closed_not_a_hang ... ok
+test net_link::tests::relay_packets_become_events ... ok
+test game::tests::walking_over_your_own_teddy_does_nothing_at_home_but_sends_a_stray_home ... ok
+test net_link::tests::what_people_type_becomes_a_websocket_address ... ok
+test online::tests::a_guest_cannot_make_somebody_else_ready ... ok
+test online::tests::a_guest_goes_where_the_host_goes ... ok
+test online::tests::a_guest_joins_a_host_and_both_see_each_other ... ok
+test online::tests::a_guest_keeps_only_newer_world_pictures_from_the_host ... ok
+test online::tests::a_guest_leaving_is_dropped_and_everyone_is_told ... ok
+test online::tests::a_guest_who_arrives_first_asks_again_when_the_host_turns_up ... ok
+test online::tests::a_host_who_arrives_after_a_mate_still_hosts_and_takes_their_hello ... ok
+test online::tests::character_codes_round_trip ... ok
+test online::tests::everybody_ready_counts_down_and_starts_and_unready_stops_it ... ok
+test online::tests::looks_travel_both_ways ... ok
+test online::tests::positions_only_count_from_the_person_they_belong_to ... ok
+test online::tests::room_codes_are_easy_words_and_allowed ... ok
+test online::tests::rubbish_from_the_network_changes_nothing ... ok
+test online::tests::saying_hello_twice_does_not_make_two_people ... ok
+test online::tests::the_host_says_no_politely ... ok
+test online::tests::when_the_host_leaves_the_yard_ends_for_guests ... ok
+test online_world::tests::a_guest_ends_up_with_the_hosts_yard ... ok
+test game::tests::nothing_scores_after_the_whistle ... ok
+test online_world::tests::a_guest_is_knocked_about_when_the_host_says_so ... ok
+test online_world::tests::a_guest_sees_what_the_host_says_they_hold ... ok
+test online_world::tests::a_guests_slap_hits_the_person_in_front_of_them ... ok
+test online_world::tests::a_guest_walking_over_an_item_picks_it_up_and_can_choose_and_drop ... ok
+test online_world::tests::a_guests_throw_flies_from_the_host_and_counts_for_them ... ok
+test online_world::tests::a_mirrored_game_does_not_run_the_yard_but_keeps_things_moving ... ok
+test online_world::tests::a_persons_puppet_keeps_its_place_through_every_update ... ok
+test online_world::tests::a_slap_on_a_guest_is_told_to_them ... ok
+test online_world::tests::a_guests_throw_is_sent_to_the_host_and_the_item_leaves_their_hand ... ok
+test online_world::tests::a_throw_that_could_not_happen_is_ignored ... ok
+test online_world::tests::ids_go_to_the_network_and_back ... ok
+test online_world::tests::being_hit_online_is_told_to_the_person_hit ... ok
+test online_world::tests::legacy_smoko_snapshot_flags_cannot_restore_the_removed_area ... ok
+test online_world::tests::the_host_sends_only_new_feed_lines ... ok
+test online_world::tests::smoko_network_actions_are_host_validated_and_map_choice_round_trips ... ok
+test online_world::tests::you_in_the_hosts_feed_becomes_the_hosts_name ... ok
+test preview::tests::a_flick_carries_on_and_slows_back_to_the_slow_turn ... ok
+test preview::tests::a_wild_flick_has_a_speed_limit_and_the_angle_stays_tidy ... ok
+test preview::tests::dragging_turns_it_by_hand_and_holding_still_stops_it ... ok
+test preview::tests::on_its_own_it_turns_slowly ... ok
+test race::tests::backwards_crossing_cannot_finish ... ok
+test online_world::tests::the_whistle_opens_the_results_for_guests_too ... ok
+test race::tests::shortcuts_and_teleports_do_not_advance ... ok
+test round::tests::clock_text_counts_down_in_minutes_and_seconds ... ok
+test round::tests::heist_has_no_friendly_fire ... ok
+test round::tests::the_mode_key_goes_round_all_seven_modes ... ok
+test shapes::tests::box_has_six_faces_all_facing_outwards ... ok
+test shapes::tests::capsule_is_as_long_as_asked_and_stays_inside_its_radius ... ok
+test shapes::tests::clockwise_outlines_are_turned_round ... ok
+test shapes::tests::cylinder_and_cone_counts ... ok
+test shapes::tests::cylinder_stands_on_y_with_the_right_height ... ok
+test shapes::tests::disc_faces_plus_z ... ok
+test shapes::tests::ear_clipping_fills_a_dented_outline_exactly ... ok
+test race::tests::ordered_three_laps_finish_once ... ok
+test shapes::tests::ground_leaves_a_hole ... ok
+test shapes::tests::every_shape_in_every_item_builds ... ok
+test shapes::tests::half_cylinder_only_covers_one_side ... ok
+test shapes::tests::quad_faces_plus_z_and_is_counter_clockwise ... ok
+test shapes::tests::icosahedron_counts_and_flat_normals ... ok
+test shapes::tests::ring_is_an_annulus_facing_plus_z ... ok
+test shapes::tests::sphere_has_the_three_js_vertex_and_triangle_counts ... ok
+test shapes::tests::torus_lies_in_the_xy_plane_and_arcs_round_from_plus_x ... ok
+test shapes::tests::the_patchy_lawn_covers_the_yard_except_the_pool_and_every_corner_has_a_colour ... ok
+test shirt::tests::make_family_signs ... ignored
+test shirt::tests::the_ink_stands_out_from_the_singlet ... ok
+test shot::tests::camera_flag_reads_six_numbers ... ok
+test shot::tests::gallery_uses_its_own_camera ... ok
+test shot::tests::no_shot_flag_means_a_normal_game ... ok
+test shot::tests::the_line_up_has_eighteen_things_in_a_row ... ok
+test shirt::tests::a_name_draws_wider_than_tall_and_has_ink ... ok
+test smoko_mode::tests::bot_can_deliver_the_human_and_gets_the_points ... ok
+test smoko_mode::tests::carried_delivery_scores_once_respawns_and_protects ... ok
+test smoko_mode::tests::disconnected_owner_cannot_score_and_victim_is_released ... ok
+test smoko_mode::tests::interrupted_carrier_recovery_and_round_end_drop_without_scoring ... ok
+test smoko_mode::tests::thrown_delivery_has_one_owner_and_expired_or_recovered_throws_do_not_pay ... ok
+test smoko_mode::tests::walk_in_is_not_a_delivery_and_hits_do_not_score ... ok
+test silicone::tests::all_silicone_skins_have_normalized_weights_finite_geometry_and_bounded_cost ... ok
+test game::tests::race_bot_fill_finishes_three_laps_and_has_no_combat_points ... ok
+test game::tests::the_team_with_more_points_wins_a_teams_round ... ok
+test game::tests::nobody_gets_stuck_for_long_in_a_real_game ... ok
+test game::tests::falling_over_is_less_than_certain_but_happens_to_a_maggot_who_keeps_walking ... ok
+test game::tests::heist_bots_play_for_a_while_and_nobody_gets_stuck ... ok
+test net_link::tests::two_links_talk_through_the_real_relay ... ok
+
+test result: ok. 199 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.33s
+
+     Running unittests src/lib.rs (rust/target/debug/deps/bbq_core-7f567e2d58069361)
+
+running 414 tests
+test appearance::tests::legs_lift_the_blob_and_skinny_ones_are_thinner_and_longer ... ok
+test appearance::tests::each_feature_has_none_and_three_kinds ... ok
+test appearance::tests::the_arrows_go_round_and_round ... ok
+test appearance::tests::the_look_fits_in_14_bytes_and_junk_is_made_safe ... ok
+test appearance::tests::saving_and_loading_gives_the_same_look ... ok
+test appearance::tests::bad_or_old_settings_fall_back_quietly ... ok
+test appearance::tests::random_looks_stay_inside_the_choices_and_vary ... ok
+test bots::tests::a_free_bot_helps_a_fallen_teammate_in_team_modes_only ... ok
+test bots::tests::a_bar_errand_walks_to_the_bar_and_has_a_drink ... ok
+test bots::tests::a_dildo_bot_swings_at_air_when_the_target_is_already_down ... ok
+test bots::tests::a_bot_with_a_teddy_walks_into_range_winds_up_and_throws_at_its_target ... ok
+test bots::tests::a_melee_bot_walks_up_and_swings_every_point_nine_seconds ... ok
+test bots::tests::a_smoko_errand_is_dropped_if_somebody_else_takes_the_chair ... ok
+test bots::tests::a_smoko_errand_sits_stays_5_to_9_seconds_and_gets_up ... ok
+test bots::tests::a_stunned_bot_does_nothing_and_then_hesitates ... ok
+test bots::tests::ballistic_lands_on_the_target ... ok
+test bots::tests::ballistic_takes_the_flatter_arc ... ok
+test bots::tests::difficulty_table_matches_the_spec ... ok
+test bots::tests::errands_time_out ... ok
+test bots::tests::current_map_bots_never_choose_a_smoko_errand ... ok
+test bots::tests::heist_bots_do_not_run_errands_and_follow_their_objective_goal ... ok
+test bots::tests::it_does_not_throw_through_the_shed ... ok
+test bots::tests::it_ignores_its_own_throws_and_things_flying_away ... ok
+test bots::tests::it_leads_a_moving_target ... ok
+test bots::tests::it_leaves_items_another_bot_has_claimed_and_ones_on_a_box_cost_more ... ok
+test bots::tests::it_will_not_help_someone_far_away_or_someone_not_down ... ok
+test bots::tests::errands_are_picked_from_what_is_on_offer ... ok
+test bots::tests::meat_and_chest_errands ... ok
+test bots::tests::nobody_does_anything_during_the_countdown ... ok
+test bots::tests::tall_things_block_the_view_but_low_ones_do_not ... ok
+test bots::tests::drunk_bots_aim_worse ... ok
+test bots::tests::throws_at_someone_in_the_pool_aim_lower ... ok
+test bots::tests::targets_skip_teammates_and_people_at_smoko_and_like_the_leader ... ok
+test bots::tests::walls_block_and_the_edge_blocks ... ok
+test bots::tests::naughty_corner_mode_and_a_full_pad_rule_out_smoko ... ok
+test carry::tests::about_a_dozen_wriggles_free_you ... ok
+test bots::tests::with_nothing_in_hand_it_goes_for_the_nearest_item ... ok
+test carry::tests::a_stunned_grabber_forces_a_drop ... ok
+test bots::tests::an_incoming_item_makes_it_catch_dodge_or_hop ... ok
+test carry::tests::bots_wriggle_by_themselves_faster ... ok
+test carry::tests::cannonball_window_and_reach ... ok
+test carry::tests::grab_blockers ... ok
+test carry::tests::mashing_faster_than_80ms_is_ignored ... ok
+test carry::tests::no_wriggling_means_dropped_after_the_longest_drag ... ok
+test carry::tests::one_wriggle_short_is_not_quite_enough_straight_away ... ok
+test carry::tests::only_someone_down_or_stunned_can_be_grabbed ... ok
+test carry::tests::put_down_versus_throw ... ok
+test carry::tests::throw_velocity_is_10_5_along_facing_and_8_5_up ... ok
+test character::tests::default_is_the_gumdrop_marcus_picked ... ok
+test character::tests::every_character_has_its_own_model_and_name ... ok
+test character::tests::measures_make_sense_for_every_model ... ok
+test character::tests::next_cycles_through_all_four_and_back ... ok
+test character::tests::the_four_shapes_are_clearly_different ... ok
+test chest::tests::a_new_round_restocks_and_moves_it ... ok
+test chest::tests::starts_with_two_and_refills_to_three_then_stops ... ok
+test chest::tests::taking_needs_to_be_close_with_a_free_hand_and_stock ... ok
+test dazza::tests::a_swing_takes_0_35_s_and_sweeps_the_arm_forward ... ok
+test dazza::tests::all_six_states_are_listed ... ok
+test dazza::tests::angry_at_the_grill_he_stands_still_but_walking_home_he_bobs ... ok
+test dazza::tests::chasing_he_leans_forward_and_bobs ... ok
+test dazza::tests::cooking_he_flips_the_snags_with_a_slow_arm ... ok
+test dazza::tests::knocked_out_he_falls_flat_in_0_3_s ... ok
+test dazza::tests::speech_bubbles_last_2_8_seconds ... ok
+test dazza::tests::stunned_he_just_stands_there ... ok
+test dazza_brain::tests::a_chase_runs_at_the_right_speed_and_stops_1_2_m_away ... ok
+test dazza_brain::tests::a_ko_lasts_8_s_then_he_wakes_and_goes_home ... ok
+test dazza_brain::tests::anger_level_is_capped_at_8_and_scales_the_chase_and_stun ... ok
+test dazza_brain::tests::berserk_head_start_means_no_swing_for_1_2_s ... ok
+test dazza_brain::tests::berserk_and_anger_make_him_faster ... ok
+test dazza_brain::tests::bum_out_gnomes_only_in_cheeky_mode_and_at_most_three_a_round ... ok
+test dazza_brain::tests::cheeky_mode_adds_rude_lines ... ok
+test dazza_brain::tests::dildo_slaps_give_ko_berserk_or_flip_about_equally ... ok
+test dazza_brain::tests::grabbing_steaks_in_a_row_does_not_restart_his_speech_bubble_each_time ... ok
+test dazza_brain::tests::going_home_he_walks_round_the_open_side_and_goes_back_to_cooking ... ok
+test chest::tests::sizes_follow_the_46_28_18_4_12_10_9_3_weights ... ok
+test dazza_brain::tests::he_chases_for_a_long_time_and_goes_home_after_three_whacks ... ok
+test dazza_brain::tests::grudges_fade_so_slow_thieves_only_annoy_him ... ok
+test dazza_brain::tests::he_cooks_and_chats_every_25_to_35_s_after_the_first_at_14 ... ok
+test dazza_brain::tests::he_gives_up_when_the_time_runs_out_or_you_leave ... ok
+test dazza_brain::tests::he_gives_up_when_you_sit_down_for_smoko ... ok
+test bots::tests::harder_bots_aim_better ... ok
+test dazza_brain::tests::he_misses_if_you_step_away_before_it_lands ... ok
+test dazza_brain::tests::he_never_swings_at_someone_already_down_or_on_smoko ... ok
+test dazza_brain::tests::he_never_snaps_round_in_one_frame_even_when_his_goal_flips ... ok
+test dazza_brain::tests::he_swings_when_close_and_the_spatula_lands_a_moment_later ... ok
+test dazza_brain::tests::home_route_goes_round_the_right_side_from_the_front ... ok
+test dazza_brain::tests::reset_sends_him_home_and_forgets_everything ... ok
+test dazza_brain::tests::steak_slap_stuns_him_then_he_chases ... ok
+test dazza_brain::tests::stunned_and_ko_dazza_cannot_be_slapped_again ... ok
+test dazza_brain::tests::taking_meat_once_makes_him_angry_and_three_times_quickly_makes_him_chase ... ok
+test dazza_brain::tests::he_stays_out_of_the_furniture_and_inside_the_fence ... ok
+test drinks::tests::drinks ... ok
+test drinks::tests::drunk_amt_is_a_smoothstep_from_15_to_85 ... ok
+test drinks::tests::drunk_bonus_thresholds_and_drunk_mode ... ok
+test drinks::tests::falls_need_to_be_drunk_enough ... ok
+test drinks::tests::tiers ... ok
+test drunk_state::tests::a_drink_takes_its_time_then_adds_to_the_meter ... ok
+test drunk_state::tests::bar_spot_picks_the_drink_by_where_you_stand ... ok
+test drunk_state::tests::a_stun_spills_the_drink ... ok
+test drunk_state::tests::being_helped_up_is_instant_and_gives_25_s ... ok
+test drunk_state::tests::camera_drops_when_fallen_or_flat ... ok
+test drunk_state::tests::camera_drops_while_down_and_rises_after ... ok
+test drunk_state::tests::cannot_drink_when_stunned_at_smoko_or_between_rounds ... ok
+test drinks::tests::drunk_mode_falls_roughly_4_percent_per_2_seconds ... ok
+test drunk_state::tests::drunk_camera_is_still_when_sober_and_sways_when_drunk ... ok
+test drunk_state::tests::drunk_mode_holds_everyone_at_78_or_more ... ok
+test drunk_state::tests::flat_amount_eases_in_and_out ... ok
+test drunk_state::tests::gait_only_wobbles_in_drunk_mode ... ok
+test drunk_state::tests::family_mode_drinks_never_make_anyone_drunk_or_fall ... ok
+test drunk_state::tests::helping_takes_1_5_s_of_holding_and_then_waits_1_s ... ok
+test drinks::tests::gait_stays_inside_its_limits_and_is_slower_than_sober_on_average ... ok
+test drunk_state::tests::letting_go_or_walking_away_restarts_the_help ... ok
+test drunk_state::tests::meter_stops_at_100 ... ok
+test drunk_state::tests::stacking_it_puts_you_down_then_gives_25_seconds_of_peace ... ok
+test drunk_state::tests::who_can_help_whom ... ok
+test drunk_state::tests::you_sober_up_slowly_but_not_at_smoko_or_while_drinking ... ok
+test emotes::tests::cheeky_mode_adds_the_rude_lines ... ok
+test drunk_state::tests::standing_still_in_drunk_mode_is_safe ... ok
+test emotes::tests::a_picked_line_is_always_one_of_the_list ... ok
+test emotes::tests::durations_match_the_spec ... ok
+test emotes::tests::pool_and_tramp_bonus_rules ... ok
+test emotes::tests::two_second_cooldown_and_no_emoting_when_stunned_or_down ... ok
+test flight::tests::a_fast_item_takes_more_substeps ... ok
+test flight::tests::a_fast_stubby_smashes_on_the_ground_and_leaves_a_puddle ... ok
+test flight::tests::a_hard_throw_into_a_wall_bounces_back_and_slows ... ok
+test flight::tests::a_stubby_dropped_from_the_sky_lands_whole ... ok
+test flight::tests::a_stubby_in_the_pool_is_removed_without_a_puddle ... ok
+test flight::tests::a_stubby_that_lands_gently_does_not_smash ... ok
+test flight::tests::a_teddy_bounces_on_the_trampoline_a_few_times_and_settles_on_the_mat ... ok
+test flight::tests::a_teddy_falls_lands_and_comes_to_rest ... ok
+test flight::tests::a_teddy_in_the_pool_floats_at_the_surface ... ok
+test flight::tests::landing_on_a_high_box_shoves_the_item_off ... ok
+test flight::tests::landing_makes_it_harmless ... ok
+test flight::tests::other_things_keep_the_trampolines_original_kick ... ok
+test flight::tests::rest_heights_match_the_spec ... ok
+test flight::tests::over_the_fence_is_an_over_event ... ok
+test flight::tests::puddles_grow_fade_and_go ... ok
+test flight::tests::rubber_and_foam_impacts_lose_energy_and_foam_bounces_less ... ok
+test flight::tests::slide_speed_is_capped_at_11 ... ok
+test flight::tests::slow_walkers_and_seated_people_do_not_slide ... ok
+test flight::tests::soft_item_free_flight_still_matches_gravity_and_hit_checks ... ok
+test flight::tests::soft_items_still_float_and_walls_remove_energy ... ok
+test flight::tests::soft_items_settle_at_multiple_frame_rates_without_contact_chatter ... ok
+test flight::tests::spin_rate_caps_and_gnome_is_slower ... ok
+test flight::tests::stepping_into_a_puddle_at_speed_starts_a_slide ... ok
+test flight::tests::the_fence_bounces_a_low_item_back ... ok
+test flight::tests::the_hit_check_can_stop_the_flight ... ok
+test flight::tests::the_trampoline_kicks_an_item_back_up ... ok
+test gamepad::tests::a_full_stick_is_full_speed_and_never_more ... ok
+test gamepad::tests::a_resting_stick_does_nothing ... ok
+test gamepad::tests::the_look_stick_turns_the_right_way_at_the_right_rate ... ok
+test gamepad::tests::walking_speeds_up_smoothly_with_the_tilt ... ok
+test hands::tests::a_tap_on_the_noodle_slaps_but_a_hold_throws_it ... ok
+test hands::tests::cant_wind_up_when_busy ... ok
+test hands::tests::charge_fills_at_one_over_item_charge_time ... ok
+test hands::tests::holding_at_full_charge_for_1_5_s_drops_it ... ok
+test hands::tests::melee_only_items_swing_at_once ... ok
+test hands::tests::pickup_rules ... ok
+test hands::tests::power_throw_needs_90_percent ... ok
+test hands::tests::releasing_throws_with_the_charge ... ok
+test hands::tests::throw_velocity_scales_with_charge_and_adds_a_bit_of_your_own_motion ... ok
+test hands::tests::two_slots_swap_and_select ... ok
+test hands::tests::you_cant_grab_back_what_you_were_forced_to_drop_for_2_5_s ... ok
+test heist::tests::a_bot_inside_its_own_base_leaves_by_the_door_when_raiding ... ok
+test heist::tests::a_guard_goes_for_an_intruder_near_home_and_otherwise_walks_its_patrol ... ok
+test heist::tests::a_lone_bot_raids_and_full_hands_means_nothing_to_do ... ok
+test heist::tests::a_thief_heads_home_through_the_doorway ... ok
+test heist::tests::banking_rules ... ok
+test heist::tests::going_in_means_the_doorway_first ... ok
+test heist::tests::every_base_has_three_walls_and_a_doorway ... ok
+test heist::tests::it_chases_someone_running_off_with_its_teddy ... ok
+test drunk_state::tests::falls_need_the_right_conditions ... ok
+test heist::tests::it_touches_its_own_teddy_when_dropped_away_from_home ... ok
+test heist::tests::layouts_have_one_base_per_team ... ok
+test heist::tests::leaving_a_base_means_the_doorway_too ... ok
+test heist::tests::spawns_and_teddy_spots_are_inside_the_base ... ok
+test heist::tests::teddy_counts ... ok
+test heist::tests::the_arena_fills_the_corners_but_leaves_the_oval_clear ... ok
+test heist::tests::the_doorway_is_just_outside_the_open_side ... ok
+test heist::tests::the_heist_smoko_is_clear_of_every_base_and_beside_the_pool ... ok
+test heist::tests::there_is_a_crate_cross_in_the_middle ... ok
+test heist::tests::touching_teddies ... ok
+test heist::tests::winner_is_most_banked_and_ties_are_draws ... ok
+test heist::tests::with_a_mate_the_first_bot_guards_and_the_other_raids ... ok
+test hitting::tests::a_hit_shoves_and_stuns_but_stuns_never_stack ... ok
+test hitting::tests::a_plain_hit_knocks_along_the_flight_direction ... ok
+test hitting::tests::a_power_throw_flattens_unless_protected ... ok
+test hitting::tests::catch_window_is_032_with_a_09_cooldown ... ok
+test hitting::tests::catching_needs_the_window_not_stunned_and_facing_the_item ... ok
+test hitting::tests::flatten_knocks_down_for_two_seconds ... ok
+test hitting::tests::heist_thrown_hits_score_nothing ... ok
+test hitting::tests::items_bounce_off_after_a_hit_and_stubbies_smash ... ok
+test drunk_state::tests::sober_people_never_fall_and_very_drunk_people_do ... ok
+test hitting::tests::scoring_a_hit_uses_the_throw_charge_and_distance ... ok
+test hitting::tests::smoko_and_teammates_are_passed_through ... ok
+test hitting::tests::touching_needs_to_be_close_and_at_body_height ... ok
+test hitting::tests::you_cant_hit_yourself_or_someone_already_passed_through ... ok
+test items::tests::bottles_play_like_the_can_and_spirits_hit_harder ... ok
+test items::tests::dildo_variant_knockdown_times ... ok
+test items::tests::dildo_variant_weights ... ok
+test items::tests::hit_stun_lengths_match_the_spec ... ok
+test items::tests::spawn_counts ... ok
+test items::tests::splash_and_neon_lucky ... ok
+test items::tests::spawn_weights_add_to_100_and_only_three_items_spawn ... ok
+test items::tests::the_new_types_have_their_abilities ... ok
+test items::tests::the_bottles_setting_changes_how_many_turn_up ... ok
+test items::tests::uses ... ok
+test itemworld::tests::a_catch_puts_it_in_the_catchers_hands ... ok
+test itemworld::tests::a_power_throw_is_flagged_only_when_allowed ... ok
+test itemworld::tests::a_hit_registers_only_once_per_throw ... ok
+test itemworld::tests::a_stubby_that_hits_someone_smashes_and_leaves_a_puddle ... ok
+test bots::tests::a_bot_beside_the_shed_still_gets_away ... ok
+test itemworld::tests::a_thrown_item_hits_a_person_and_reports_it ... ok
+test itemworld::tests::clearing_removes_items_and_puddles ... ok
+test itemworld::tests::only_the_holder_can_throw_and_drop_blocks_a_regrab ... ok
+test itemworld::tests::start_of_round_places_8_plus_one_and_a_half_per_player_plus_two_noodles ... ok
+test looks::tests::dildo_colours_match_the_variants ... ok
+test itemworld::tests::the_thrower_is_never_hit_by_their_own_throw ... ok
+test looks::tests::dildo_sizes_scale_the_whole_model ... ok
+test looks::tests::every_item_has_a_model ... ok
+test looks::tests::every_dildo_gets_a_skin_at_random_but_always_the_same_one ... ok
+test looks::tests::fish_is_drawn_three_times_bigger ... ok
+test looks::tests::each_skin_is_a_different_dildo_on_the_same_body ... ok
+test looks::tests::grouped_parts_are_flattened_correctly ... ok
+test looks::tests::noodle_colours_cycle_with_the_id ... ok
+test looks::tests::only_the_fish_and_the_can_use_pictures ... ok
+test looks::tests::part_counts_match_the_browser_models ... ok
+test looks::tests::shade_scales_each_channel ... ok
+test looks::tests::the_dildo_is_about_a_metre_tall_with_its_head_on ... ok
+test looks::tests::the_tiny_skin_details_get_no_outline_but_the_body_does ... ok
+test looks_yard::tests::chests_stand_at_the_rules_spots ... ok
+test itemworld::tests::noodles_are_topped_up_every_four_seconds ... ok
+test itemworld::tests::dropped_items_land_and_can_then_be_picked_up ... ok
+test looks::tests::the_polished_items_only_add_to_the_browser_models ... ok
+test looks_yard::tests::rods_run_from_one_end_to_the_other ... ok
+test looks_yard::tests::lawn_has_the_pool_cut_out ... ok
+test looks_yard::tests::team_colours_and_the_teddy_flag ... ok
+test looks_yard::tests::smoko_has_a_pole_an_umbrella_an_esky_and_two_signs ... ok
+test looks_yard::tests::the_chest_lid_is_a_half_cylinder_and_the_toys_cycle_through_the_sizes ... ok
+test looks_yard::tests::the_clothesline_has_four_arms_sixteen_cords_and_four_sheets ... ok
+test looks_yard::tests::the_bbq_has_steaks_snags_fish_and_a_sign ... ok
+test looks_yard::tests::the_bar_stands_where_the_rules_put_it ... ok
+test looks_yard::tests::the_fence_goes_round_the_yard ... ok
+test looks_yard::tests::same_seed_same_trees ... ok
+test looks_yard::tests::the_heist_look_has_walls_pads_beams_and_flags_for_every_team ... ok
+test looks_yard::tests::the_house_is_behind_the_back_fence ... ok
+test looks_yard::tests::the_pool_has_water_a_floor_and_four_walls ... ok
+test looks_yard::tests::trees_stay_outside_the_fence_and_out_of_the_houses_way ... ok
+test matchflow::tests::a_single_round_match_is_over_after_one_round ... ok
+test looks_yard::tests::the_yard_has_all_its_parts ... ok
+test matchflow::tests::a_match_also_ends_when_the_rounds_run_out ... ok
+test matchflow::tests::ffa_winner_and_ties ... ok
+test matchflow::tests::best_of_three_ends_at_two_wins ... ok
+test matchflow::tests::heist_winner_is_the_team_with_most_banked ... ok
+test matchflow::tests::starting_after_a_finished_match_starts_a_new_one ... ok
+test matchflow::tests::team_winner_sums_each_side ... ok
+test matchflow::tests::the_wildcard_can_beat_both_teams ... ok
+test melee::tests::a_long_dildo_reaches_further_and_a_quick_one_swings_sooner ... ok
+test melee::tests::apply_pushes_and_stuns_but_stuns_never_stack ... ok
+test melee::tests::dildo_slap_knocks_flat_unless_already_down ... ok
+test melee::tests::direction_is_flat_and_safe_when_on_top ... ok
+test melee::tests::dildo_slap_numbers_follow_the_pose ... ok
+test melee::tests::ignores_people_behind_you_or_out_of_reach ... ok
+test melee::tests::dildo_outcomes_are_roughly_even_and_crits_are_15_percent ... ok
+test melee::tests::in_front_works_for_dazza ... ok
+test melee::tests::ignores_the_height_gap_down_people_smoko_and_teammates ... ok
+test melee::tests::picks_the_nearest_person_in_front ... ok
+test melee::tests::silly_slap_is_a_quick_shove ... ok
+test melee::tests::standing_on_top_of_someone_still_counts ... ok
+test melee::tests::steak_and_fish_stun_for_2_s_and_the_noodle_for_1_2 ... ok
+test melee::tests::swing_clock_is_faster_when_armed ... ok
+test melee::tests::variant_changes_the_time_down ... ok
+test movement::tests::bob_and_eye_height ... ok
+test melee::tests::fish_smell_odds ... ok
+test movement::tests::boost_is_blocked_when_stunned_carried_smoko_or_frozen ... ok
+test movement::tests::characters_push_each_other_apart ... ok
+test movement::tests::boost_lasts_1_6_then_5_s_cooldown ... ok
+test movement::tests::coyote_time_allows_a_jump_just_after_leaving_the_ground ... ok
+test melee::tests::each_type_has_its_own_odds ... ok
+test movement::tests::fov_widens_when_boosting_and_eases ... ok
+test movement::tests::breath_runs_out_forces_you_up_and_comes_back_at_the_surface ... ok
+test movement::tests::grip_is_loose_on_a_slide ... ok
+test movement::tests::hard_landing_shakes_the_camera ... ok
+test movement::tests::jump_buffer_catches_an_early_press ... ok
+test movement::tests::jump_goes_up_and_lands ... ok
+test movement::tests::looking_clamps_pitch ... ok
+test movement::tests::looking_down_dives_deeper_and_looking_up_comes_up ... ok
+test movement::tests::modifiers_multiply_the_speed ... ok
+test movement::tests::no_jumping_when_stunned ... ok
+test movement::tests::nobody_dives_on_dry_land_and_a_puppet_shows_what_it_is_told ... ok
+test movement::tests::pool_halves_speed_sinks_and_lowers_the_jump ... ok
+test movement::tests::race_arena_has_wider_bounds_and_no_backyard_water_or_trampoline ... ok
+test movement::tests::shift_on_land_still_boosts_but_not_in_the_pool ... ok
+test movement::tests::shift_in_the_pool_dives_and_you_sink_deeper_than_treading_water ... ok
+test movement::tests::sober_steering_is_unchanged_and_drunk_steering_rotates ... ok
+test movement::tests::stunned_or_frozen_you_cannot_walk ... ok
+test movement::tests::swimming_glides_and_you_swim_where_you_look ... ok
+test movement::tests::the_pole_cannot_be_stood_on ... ok
+test movement::tests::touching_the_grass_resets_the_trampoline_chain ... ok
+test drunk_state::tests::drunk_mode_falls_about_4_percent_of_every_2_s_of_walking ... ok
+test movement::tests::walking_reaches_about_6_2 ... ok
+test movement::tests::trampoline_bounces_get_higher_up_to_the_cap ... ok
+test movement::tests::wish_is_relative_to_where_you_look ... ok
+test movement::tests::walls_push_you_out_and_kill_the_velocity_into_them ... ok
+test movement::tests::yard_edge_stops_you ... ok
+test movement::tests::you_can_jump_onto_a_low_box_and_stand_on_it ... ok
+test net::tests::a_state_message_is_small ... ok
+test net::tests::charge_is_kept_to_a_part_in_255 ... ok
+test net::tests::every_message_survives_the_trip ... ok
+test net::tests::long_names_are_cut_not_refused ... ok
+test net::tests::names_are_cleaned_up ... ok
+test net::tests::nan_and_infinity_never_get_in ... ok
+test net::tests::the_roster_keeps_looks_and_who_is_ready ... ok
+test net::tests::the_roster_hands_out_ids_and_says_no_politely ... ok
+test net_act::tests::a_throw_has_to_be_possible ... ok
+test net_act::tests::requests_and_hits_survive_the_trip ... ok
+test net_act::tests::rubbish_requests_are_refused_or_clamped ... ok
+test net_world::tests::a_typical_snapshot_is_small ... ok
+test net_world::tests::long_lines_are_cut_and_odd_characters_dropped ... ok
+test net_world::tests::a_world_snapshot_survives_the_trip ... ok
+test net_world::tests::a_busy_snapshot_still_fits_in_one_relay_message ... ok
+test pose::tests::a_diver_lies_along_the_water_about_their_middle_and_strokes ... ok
+test pose::tests::a_dragged_character_lies_on_their_back_behind_the_grabber ... ok
+test pose::tests::a_hit_makes_them_lean_then_spring_back ... ok
+test pose::tests::a_sober_character_stands_straight_and_a_drunk_one_sways ... ok
+test pose::tests::a_swing_plays_for_054_seconds_then_stops ... ok
+test pose::tests::an_emote_ends_when_its_time_is_up_or_you_are_hit ... ok
+test pose::tests::angle_difference_wraps ... ok
+test pose::tests::being_seated_lowers_the_body_and_shows_the_can_unless_naughty ... ok
+test pose::tests::cartwheel_is_in_the_air_mid_flip_and_flat_at_the_end ... ok
+test pose::tests::emote_lengths ... ok
+test pose::tests::every_slap_gets_back_up_by_the_end ... ok
+test pose::tests::knocked_flat_eases_in_and_out ... ok
+test pose::tests::sent_flying_ends_flat_on_the_back ... ok
+test pose::tests::slap_cameras_end_lying_down ... ok
+test pose::tests::slap_animation_runs_and_clears ... ok
+test pose::tests::stacking_it_falls_in_over_0_3_s_and_rises_over_0_45_s ... ok
+test net_world::tests::too_many_things_are_refused ... ok
+test pose::tests::stars_show_while_stunned_or_dizzy ... ok
+test pose::tests::swing_goes_up_then_forward_then_home ... ok
+test pose::tests::the_carrier_leans_forward_with_hands_back ... ok
+test pose::tests::timber_wobbles_then_topples_sideways ... ok
+test pose::tests::walk_phase_advances_at_speed_times_2_4 ... ok
+test pose::tests::walking_bobs_up_and_down_only_when_moving ... ok
+test pose::tests::winding_up_raises_the_hand ... ok
+test rng::tests::same_seed_same_numbers ... ok
+test scoring::tests::a_catch_resets_the_throwers_streak ... ok
+test rng::tests::stays_in_range ... ok
+test scoring::tests::dazza_slap_points_still_pay_in_heist_but_the_stun_does_not ... ok
+test scoring::tests::a_plain_hit_is_100_and_costs_the_victim_50 ... ok
+test scoring::tests::dildo_slap_scoring ... ok
+test scoring::tests::friendly_fire_pays_the_thrower_nothing_but_still_costs_the_victim ... ok
+test scoring::tests::heist_only_banking_scores ... ok
+test scoring::tests::leader_bounty_drunk_bonus_bum_out_and_long_shot_all_add ... ok
+test scoring::tests::leader_needs_a_clear_lead_above_zero ... ok
+test scoring::tests::long_shot_scales_with_distance_and_charge ... ok
+test scoring::tests::nothing_scores_outside_play ... ok
+test scoring::tests::streak_multiplier ... ok
+test scoring::tests::streaks_build_and_reset_when_hit ... ok
+test scoring::tests::stun_slap_pays_and_does_not_penalise ... ok
+test scoring::tests::team_totals_skip_the_wildcard ... ok
+test scoring::tests::top_banker_per_team ... ok
+test sim::tests::clock_does_not_spiral_after_a_stall ... ok
+test sim::tests::clock_ignores_negative_time ... ok
+test sim::tests::clock_runs_sixty_steps_a_second ... ok
+test sim::tests::drunk_mode_holds_everyone_at_78 ... ok
+test sim::tests::headless_round_runs_countdown_play_whistle_results ... ok
+test sim::tests::same_inputs_same_result ... ok
+test sim::tests::smoko_nets_plus_2_4_per_second ... ok
+test sim::tests::sobering_rate_is_1_6_per_second ... ok
+test sim::tests::stun_gets_grace_after_it_ends ... ok
+test smoko::tests::a_thrown_person_must_land_in_the_corner_in_time ... ok
+test smoko::tests::being_stunned_or_the_round_ending_gets_you_up ... ok
+test smoko::tests::chairs_between_2_and_16 ... ok
+test smoko::tests::ring_and_zone_grow_with_the_crowd ... ok
+test smoko::tests::seats_sit_on_the_ring_and_face_the_middle ... ok
+test smoko::tests::smoko_sips_at_4_per_second_and_lasts_20_s ... ok
+test smoko::tests::standing_up_moves_you_out_a_bit ... ok
+test smoko::tests::the_naughty_corner_rules ... ok
+test smoko::tests::the_zone_is_on_the_ground_around_the_pad ... ok
+test smoko::tests::you_get_the_nearest_free_chair ... ok
+test stun::tests::a_hit_stuns ... ok
+test stun::tests::a_knockdown_works_even_on_a_stunned_standing_player ... ok
+test stun::tests::helping_up_ends_a_fall_at_once ... ok
+test stun::tests::no_double_knockdown ... ok
+test stun::tests::one_second_grace_after_a_stun_ends ... ok
+test stun::tests::power_throw_only_flattens_when_not_protected ... ok
+test stun::tests::stacking_it_lasts_and_then_ends ... ok
+test stun::tests::stuns_never_stack ... ok
+test teams::tests::an_odd_player_becomes_the_wildcard ... ok
+test teams::tests::click_to_move ... ok
+test teams::tests::even_numbers_split_red_and_blue ... ok
+test teams::tests::heist_teams_spread_evenly ... ok
+test teams::tests::heist_wipes_teams_that_are_not_in_play ... ok
+test teams::tests::leavers_are_removed_and_joiners_go_to_the_smaller_team ... ok
+test teams::tests::teammates_exclude_the_wildcard_and_yourself ... ok
+test teams::tests::the_wildcard_goes_back_on_a_team_when_the_numbers_even_out ... ok
+test vec::quat_tests::euler_matches_axis_angle_for_one_axis ... ok
+test itemworld::tests::the_spawner_tops_up_to_the_target_and_stops ... ok
+test vec::quat_tests::multiplying_applies_the_right_hand_side_first ... ok
+test vec::quat_tests::quarter_turn_about_y_sends_z_to_x ... ok
+test vec::tests::basic_maths ... ok
+test yard::tests::bar_box_matches_centre_and_size ... ok
+test net::tests::rubbish_never_panics_and_is_refused ... ok
+test yard::tests::current_maps_ignore_legacy_smoko_flags ... ok
+test yard::tests::eskies_use_rotated_bounds ... ok
+test yard::tests::every_featured_box_goes_when_its_feature_goes ... ok
+test yard::tests::floor_is_the_box_top_when_high_enough ... ok
+test yard::tests::full_yard_has_all_the_boxes ... ok
+test yard::tests::pool_rect ... ok
+test yard::tests::switching_features_off_removes_their_colliders ... ok
+test yard::tests::twelve_spawns_all_inside_the_yard ... ok
+test bots::tests::an_idle_bot_wanders_without_getting_stuck_or_twitching ... ok
+test net_world::tests::rubbish_never_panics ... ok
+
+test result: ok. 414 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+   Doc-tests bbq_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
