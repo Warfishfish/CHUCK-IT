@@ -323,7 +323,7 @@ impl Plugin for GamePlugin {
 }
 
 fn eye_of(p: &Player) -> V3 {
-    V3::new(p.mover.x, p.mover.y + EYE_HEIGHT - p.mover.sink, p.mover.z)
+    V3::new(p.mover.x, p.mover.y + p.mover.eye_lift + EYE_HEIGHT - p.mover.sink, p.mover.z)
 }
 
 /// Where the camera looks (unit vector).
@@ -355,7 +355,12 @@ pub fn step_game(
     mut player: ResMut<Player>,
     mut wanted: ResMut<Wanted>,
     yard: Res<YardRes>,
+    cast: Option<Res<crate::characters::Cast>>,
 ) {
+    for (i,d) in g.dummies.iter_mut().enumerate() {
+        let c=d.remote.as_ref().map(|r|r.character).or_else(||cast.as_ref().map(|c|c.character_of(i))).unwrap_or(bbq_core::character::Character::Classic);
+        d.mover.height=crate::style::measure(c).head_top+d.look.legs.lift();
+    }
     let dt = TICK_DT;
     g.now += dt;
     let now = g.now;
@@ -871,7 +876,7 @@ pub fn step_game(
     }
 
     // dummies that wandered off (knocked) are put back after a bit once they've settled
-    for d in g.dummies.iter_mut().filter(|_| !g.options.bots_on && !crate::visual_review::is_water_review()) {
+    for d in g.dummies.iter_mut().filter(|_| !g.options.bots_on && !crate::visual_review::is_scripted_walk_review()) {
         if !d.body.is_down() && d.body.stun <= 0.0 && d.mover.grounded && d.mover.speed() < 0.3 {
             let (hx, hz) = d.home;
             let dist = ((d.mover.x - hx).powi(2) + (d.mover.z - hz).powi(2)).sqrt();

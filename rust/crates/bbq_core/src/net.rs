@@ -13,7 +13,7 @@
 
 /// Bump this whenever a message changes, so old and new copies of the game refuse each other
 /// politely instead of misreading each other.
-pub const PROTOCOL: u16 = 11;
+pub const PROTOCOL: u16 = 12;
 /// The most people in one yard (the browser game's limit).
 pub const MAX_PLAYERS: usize = 16;
 /// How often each player reports where they are.
@@ -581,7 +581,7 @@ mod tests {
     fn every_message_survives_the_trip() {
         for m in [
             Msg::Hello { protocol: PROTOCOL, name: "Shazza".into(), character: 2, look: Default::default(), belly: 77 },
-            Msg::Look { character: 1, look: crate::appearance::Appearance { mouth: crate::appearance::Mouth::Grin, ..Default::default() }, belly: 3 },
+            Msg::Look { character: 1, look: crate::appearance::Appearance { mouth: crate::appearance::Mouth::Grin, legs:crate::appearance::Legs::from_percent(87), ..Default::default() }, belly: 3 },
             Msg::Ready(true),
             Msg::Ready(false),
             Msg::Welcome { id: 4, members: members() },

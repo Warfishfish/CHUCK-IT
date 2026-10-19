@@ -1,0 +1,14 @@
+HEIGHT_REVIEW frame=210 x=-27.095 y=0.883 grounded=false
+HEIGHT_REVIEW frame=240 x=-26.266 y=2.258 grounded=false
+HEIGHT_REVIEW frame=270 x=-26.148 y=2.300 grounded=true
+HEIGHT_REVIEW frame=300 x=-26.148 y=2.300 grounded=true
+HEIGHT_REVIEW frame=330 x=-26.148 y=2.300 grounded=true
+HEIGHT_REVIEW frame=360 x=-26.148 y=2.300 grounded=true
+HEIGHT_REVIEW frame=390 x=-26.148 y=2.300 grounded=true
+HEIGHT_REVIEW frame=420 x=-26.148 y=2.300 grounded=true
+HEIGHT_REVIEW frame=450 x=-26.148 y=2.300 grounded=true
+HEIGHT_REVIEW frame=480 x=-26.148 y=2.300 grounded=true
+HEIGHT_REVIEW frame=510 x=-26.148 y=2.300 grounded=true
+HEIGHT_REVIEW frame=540 x=-26.148 y=2.300 grounded=true
+2026-10-19T17:37:44.709567Z  WARN bevy_render::view::window::screenshot: Duplicate render target for screenshot, skipping entity 7650v0: Window(NormalizedWindowRef(65v0))
+2026-10-19T17:37:47.441748Z  WARN bevy_winit::state: Skipped event Destroyed for unknown winit Window Id WindowId(45851067008)

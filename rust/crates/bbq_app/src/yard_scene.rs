@@ -31,7 +31,7 @@ struct RaceMap;
 
 const LOOK_SEED: u64 = 0xBB0;
 
-/// The clothesline's turning head (it turns 0.12 radians a second).
+/// Fixed clothesline frame; shared geometry keeps multiplayer clearance exact.
 #[derive(Component)]
 struct HoistHead;
 /// A cloud drifting along +x at 1.2 m/s, wrapping round at 110.
@@ -155,7 +155,7 @@ fn build_yard(
     commands.entity(e).insert(HoistHead);
     commands.entity(yard_root).add_child(e);
     if *mode == crate::lighting::LookMode::Polished {
-        // the Hills Hoist leans: its head sits on the tilted pole's top
+        // Frame transform shares the authoritative clearance geometry.
         let top = looks_yard::hoist_lean().1;
         commands.entity(e).insert(Transform::from_xyz(top.x, top.y, top.z));
     }
@@ -279,7 +279,7 @@ fn build_yard(
     commands.spawn((sky, sky_at));
 }
 
-/// The clothesline turns, the pool water slides and the clouds drift.
+/// The pool water slides and clouds drift; the clothesline stays aligned with collision.
 fn animate_yard(
     mode: Res<crate::lighting::LookMode>,
     time: Res<Time>,
@@ -294,14 +294,14 @@ fn animate_yard(
     let t = time.elapsed_secs();
     for mut tf in &mut head {
         if *mode == crate::lighting::LookMode::Polished {
-            // spin on the leaning pole
+            // Fixed frame: no visual-only rotation past its colliders.
             let q = looks_yard::hoist_lean().0;
             let lean = Quat::from_xyzw(q.x, q.y, q.z, q.w);
             let (_, spin, _) = tf.rotation.to_euler(EulerRot::YXZ);
             let _ = spin;
-            tf.rotation = lean * Quat::from_rotation_y(t * 0.12);
+            tf.rotation = lean;
         } else {
-            tf.rotate_y(dt * 0.12);
+            tf.rotation = Quat::IDENTITY;
         }
     }
     for mut tf in &mut clouds {

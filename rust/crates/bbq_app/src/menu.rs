@@ -536,7 +536,7 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                     });
                 pv.spawn(text("Hold the left button and drag to spin", 12.0, false, MUTED));
                 pv.spawn(text(
-                    "Change your blob on the Customise tab. Only the look changes: every blob has the same speed and hit size.",
+                    "Leg length changes clothesline clearance. Speed, jump strength, hit size and scoring stay the same.",
                     12.5,
                     false,
                     MUTED,
@@ -712,14 +712,14 @@ fn paint_lobby(
 
 /// The Customise tab: a row of arrows for each feature of your blob.
 fn look_panel(c: &mut ChildSpawnerCommands) {
-    use bbq_core::appearance::{Brows, Choice, Hair, Hat, Legs, Mouth, Palette, Shorts};
+    use bbq_core::appearance::{Brows, Choice, Hair, Hat, Mouth, Palette, Shorts};
     c.spawn((column(10.0), ShowWhen::Panel(Tab::Look))).with_children(|p| {
         // the body: its shape, its legs and its belly
         p.spawn(legend("Body"));
         let shapes: Vec<&str> = Character::ALL.iter().map(|c| c.name()).collect();
         style_buttons(p, LookRow::Shape, "Shape", &shapes);
-        let legs: Vec<&str> = Legs::ALL.iter().map(|x| x.name()).collect();
-        style_buttons(p, LookRow::Legs, "Legs", &legs);
+        slider(p, SliderId::LegLength, "Leg length", 0.0, 100.0);
+        style_buttons(p, LookRow::Legs, "", &["Reset leg length"]);
         let shorts: Vec<&str> = Shorts::ALL.iter().map(|x| x.name()).collect();
         style_buttons(p, LookRow::Shorts, "Shorts", &shorts);
         slider(p, SliderId::Belly, "Beer belly", 0.0, 2.0);
@@ -1137,6 +1137,8 @@ fn spawn_pause(mut commands: Commands) {
 }
 
 fn apply_loaded_settings(mut settings: ResMut<Settings>, mut player: ResMut<Player>, mut cast: ResMut<Cast>) {
+    let args:Vec<String>=std::env::args().collect();
+    if let Some(n)=args.iter().position(|a|a=="--leg-length").and_then(|i|args.get(i+1)).and_then(|s|s.parse::<u8>().ok()) {settings.look.legs=bbq_core::appearance::Legs::from_percent(n);}
     player.fov_base = settings.fov;
     player.fov = settings.fov;
     cast.mine = settings.character;
@@ -1357,7 +1359,7 @@ fn widget_clicks(
                 let l = &mut settings.look;
                 match row {
                     LookRow::Shape => {}
-                    LookRow::Legs => l.legs = Legs::from_index(*v),
+                    LookRow::Legs => l.legs = Legs::from_percent(Legs::DEFAULT_PERCENT),
                     LookRow::Shorts => l.shorts = Shorts::from_index(*v),
                     LookRow::Hat => l.hat = Hat::from_index(*v),
                     LookRow::HatColour => l.hat_colour = *v,
@@ -1412,6 +1414,10 @@ fn slider_drag(
         let Some(n) = rel.normalized else { continue };
         let t = (n.x + 0.5).clamp(0.0, 1.0);
         match s.id {
+            SliderId::LegLength => {
+                let v=bbq_core::appearance::Legs::from_percent((t*100.0).round() as u8);
+                if v!=settings.look.legs {settings.look.legs=v;settings.save();}
+            }
             SliderId::Fov => {
                 let v = (s.min + (s.max - s.min) * t).round();
                 if v != settings.fov {
@@ -1690,6 +1696,7 @@ fn paint_widgets(
     };
     for (id, mut t) in &mut texts.p1() {
         t.0 = match id.0 {
+            SliderId::LegLength => format!("{}% · +{:.0} cm", settings.look.legs.percent(),settings.look.legs.lift()*100.0),
             SliderId::Fov => format!("{:.0}", settings.fov),
             SliderId::Belly => belly_word(settings.belly).to_string(),
             SliderId::Dirt => match settings.look.dirt {
@@ -1704,6 +1711,7 @@ fn paint_widgets(
     }
     for (id, mut n) in &mut handles {
         let frac = match id.0 {
+            SliderId::LegLength => settings.look.legs.percent() as f32 / 100.0,
             SliderId::Fov => (settings.fov - 60.0) / 45.0,
             SliderId::Belly => settings.belly / 2.0,
             SliderId::Dirt => settings.look.dirt as f32 / 100.0,

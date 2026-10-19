@@ -201,7 +201,7 @@ pub struct Cast {
 
 impl Cast {
     /// The character shown on practice blob `i`: blob 0 wears your pick, the others the next ones.
-    fn character_of(&self, i: usize) -> Character {
+    pub fn character_of(&self, i: usize) -> Character {
         if let Some(Some(c)) = self.overrides.get(i) {
             return *c;
         }

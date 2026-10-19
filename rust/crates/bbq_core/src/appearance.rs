@@ -112,26 +112,37 @@ pub enum Legs {
     Stumpy,
     /// Thin stick legs.
     Skinny,
+    /// Continuous length percentage; legacy presets remain readable.
+    Length(u8),
 }
 
 impl Choice for Legs {
+    fn index(self) -> u8 { match self {Self::None=>0,Self::Stumpy=>1,Self::Skinny=>2,Self::Length(n)=>3+n.min(100)} }
+    fn from_index(i:u8)->Self {match i {0=>Self::None,1=>Self::Stumpy,2=>Self::Skinny,3..=103=>Self::from_percent(i-3),_=>Self::None}}
     const ALL: &'static [Legs] = &[Legs::None, Legs::Stumpy, Legs::Skinny];
     fn name(self) -> &'static str {
         match self {
             Legs::None => "None",
             Legs::Stumpy => "Stumpy",
             Legs::Skinny => "Skinny",
+            Legs::Length(_) => "Custom",
         }
     }
 }
 
 impl Legs {
+    pub const MAX_LIFT: f32 = 0.60;
+    pub const DEFAULT_PERCENT: u8 = 0;
+    pub fn percent(self) -> u8 { match self { Self::None=>0, Self::Stumpy=>33, Self::Skinny=>50, Self::Length(n)=>n.min(100) } }
+    pub fn from_percent(n: u8) -> Self { match n.min(100) {0=>Self::None,33=>Self::Stumpy,50=>Self::Skinny,n=>Self::Length(n)} }
+
     /// How far the legs lift the body, head and hands (m). The feet stay on the ground.
     pub fn lift(self) -> f32 {
         match self {
             Legs::None => 0.0,
             Legs::Stumpy => 0.2,
             Legs::Skinny => 0.30,
+            Legs::Length(n) => n.min(100) as f32 / 100.0 * Self::MAX_LIFT,
         }
     }
 
@@ -140,7 +151,7 @@ impl Legs {
         match self {
             Legs::None => (0.0, 0.0),
             Legs::Stumpy => (0.105, 0.09),
-            Legs::Skinny => (0.055, 0.035),
+            Legs::Skinny | Legs::Length(_) => (0.055, 0.035),
         }
     }
 }
@@ -371,7 +382,7 @@ impl Appearance {
     /// `key=value` lines for `settings.txt`.
     pub fn to_lines(&self) -> String {
         format!(
-            "mouth={}\nbrows={}\nhair={}\nbody_colour={}\nsinglet_colour={}\nthong_colour={}\nhair_colour={}\nbrow_colour={}\nlegs={}\nshorts={}\nshorts_colour={}\nhat={}\nhat_colour={}\ndirt={}\n",
+            "mouth={}\nbrows={}\nhair={}\nbody_colour={}\nsinglet_colour={}\nthong_colour={}\nhair_colour={}\nbrow_colour={}\nlegs={}\nshorts={}\nshorts_colour={}\nhat={}\nhat_colour={}\ndirt={}\nleg_length={}\n",
             self.mouth.name(),
             self.brows.name(),
             self.hair.name(),
@@ -385,7 +396,8 @@ impl Appearance {
             self.shorts_colour,
             self.hat.name(),
             self.hat_colour,
-            self.dirt
+            self.dirt,
+            self.legs.percent()
         )
     }
 
@@ -402,6 +414,7 @@ impl Appearance {
             "thong_colour" => self.thong = num(value).unwrap_or(self.thong),
             "hair_colour" => self.hair_colour = num(value).unwrap_or(self.hair_colour),
             "brow_colour" => self.brow_colour = num(value).unwrap_or(self.brow_colour),
+            "leg_length" => { if let Some(n)=num(value) {self.legs=Legs::from_percent(n);} },
             "legs" => self.legs = Legs::from_name(value).unwrap_or(self.legs),
             "shorts" => self.shorts = Shorts::from_name(value).unwrap_or(self.shorts),
             "shorts_colour" => self.shorts_colour = num(value).unwrap_or(self.shorts_colour),
@@ -477,6 +490,21 @@ mod tests {
             hat_colour: 3,
             dirt: 72,
         }
+    }
+
+    #[test]
+    fn continuous_leg_lengths_save_and_replicate_and_old_presets_migrate() {
+        for n in 0..=100 {
+            let a=Appearance{legs:Legs::from_percent(n),..Default::default()};
+            assert_eq!(Appearance::from_bytes(a.to_bytes()),a);
+            let mut saved=Appearance::default();
+            for line in a.to_lines().lines() {let (k,v)=line.split_once('=').unwrap();saved.read_line(k,v);}
+            assert_eq!(saved,a);assert!(a.legs.lift()<=Legs::MAX_LIFT);
+        }
+        let mut a=Appearance::default();a.read_line("legs","Stumpy");assert_eq!(a.legs.percent(),33);
+        a.read_line("legs","Skinny");assert_eq!(a.legs.percent(),50);
+        a.read_line("leg_length","255");assert_eq!(a.legs.percent(),100);
+        a.read_line("leg_length","nan");assert_eq!(a.legs.percent(),100);
     }
 
     #[test]

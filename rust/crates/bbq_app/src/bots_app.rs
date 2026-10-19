@@ -224,7 +224,7 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &Yard) {
     }
     if !g.options.bots_on {
         for d in &mut g.dummies {
-            if !crate::visual_review::is_water_review() { d.bot.wish = (0.0, 0.0); }
+            if !crate::visual_review::is_scripted_walk_review() { d.bot.wish = (0.0, 0.0); }
             d.bot.winding = false;
             d.bot.wind_progress = 0.0;
         }

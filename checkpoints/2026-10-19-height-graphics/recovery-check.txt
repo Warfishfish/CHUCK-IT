@@ -1,0 +1,4 @@
+20 October 2026: Rollback check passed. Add --apply to restore the exact pre-height-update Rust source state.
+Real repository dry-run only; no source restored.
+Isolated copy refused later edits before writing anything.
+Isolated clean apply restored all 15 source files to baseline hashes.

@@ -820,11 +820,7 @@ fn cloud(rng: &mut Rng) -> (V3, Vec<Part>) {
 pub const HOIST_LEAN: (f32, f32) = (0.06, 0.04);
 
 /// The lean as a turn, and where the top of the pole ends up (the head sits there).
-pub fn hoist_lean() -> (Quat, V3) {
-    let q = Quat::from_euler_xyz(HOIST_LEAN.0, 0.0, HOIST_LEAN.1);
-    let top = V3::new(0.0, 0.0, HOIST_AT.z) + q.rotate(V3::new(0.0, HOIST_AT.y, 0.0));
-    (q, top)
-}
+pub fn hoist_lean() -> (Quat, V3) { (Quat::IDENTITY, HOIST_AT) }
 
 fn clothesline(polished: bool) -> (Vec<Part>, Vec<Part>) {
     // rusty in the polished look
@@ -833,22 +829,11 @@ fn clothesline(polished: bool) -> (Vec<Part>, Vec<Part>) {
     let lean = if polished { hoist_lean().0 } else { Quat::IDENTITY };
     let pole = place(pole, V3::new(0.0, 0.0, HOIST_AT.z), lean, 1.0);
     let mut head = Vec::new();
-    let mut angles = Vec::new();
-    for k in 0..4 {
-        let a = k as f32 * HALF_PI + PI / 4.0;
-        angles.push(a);
-        let arm = cyl(0.025, 0.025, 2.7, 6, grey, 1.3, 0.12, 0.0).turn(0.0, 0.0, -HALF_PI + 0.09);
-        head.push(arm.inside(V3::ZERO, turn_y(a), 1.0));
-    }
-    let line = matt(0xeef0ee).unlit().no_shadow();
-    for r in [0.8f32, 1.4, 2.0, 2.55] {
-        let pts: Vec<V3> = angles
-            .iter()
-            .map(|a| V3::new(a.cos() * r, 0.12 + r * 0.09, -a.sin() * r))
-            .collect();
-        for i in 0..pts.len() {
-            head.push(rod(pts[i], pts[(i + 1) % pts.len()], 0.012, line));
-        }
+    for (i,beam) in crate::yard::clothesline_beams().iter().enumerate() {
+        let surface=if i<4 {grey}else{matt(0xeef0ee).unlit().no_shadow()};
+        let mut part=rod(beam.a-HOIST_AT,beam.b-HOIST_AT,beam.radius,surface);
+        if i<4 {if let Shape::Cylinder{ref mut seg,..}=part.shape {*seg=6;}}
+        head.push(part);
     }
     for (k, c) in [0xf25c54, 0x4cc9f0, 0xffd23f, 0xffffff]
         .into_iter()
@@ -1125,11 +1110,23 @@ fn props(polished: bool) -> Vec<Part> {
         v.push(cuboid(0.72, 1.0, 0.76, matt(if polished { 0x2f9a4c } else { 0x2e6b3a }), x, 0.5, 19.5));
         v.push(cuboid(0.76, 0.07, 0.82, matt(c), x, 1.04, 19.5));
     }
-    // crates
-    let crate_m = matt(0xc89a60);
-    v.push(cuboid(1.15, 1.15, 1.15, crate_m, -26.1, 0.58, -13.5));
-    v.push(cuboid(1.15, 1.15, 1.15, crate_m, -24.9, 0.58, -13.5));
-    v.push(cuboid(1.15, 1.15, 1.15, crate_m, -25.5, 1.73, -13.5));
+    // Shared box geometry: warm timber, inset panels and light landing edges.
+    for (x,y,z) in crate::yard::CRATE_CENTRES {
+        let size=crate::yard::CRATE_SIZE;
+        v.push(cuboid(size,size,size,matt(0xc89a60).textured(Tex::Wood),x,y,z));
+        if polished {
+            let trim=matt(0xe0b67d);let seam=matt(0x997044);
+            for side in [-1.0,1.0] {
+                v.push(cuboid(size,0.055,0.045,trim,x,y+size*0.5-0.025,z+side*(size*0.5+0.003)));
+                v.push(cuboid(0.045,0.055,size,trim,x+side*(size*0.5+0.003),y+size*0.5-0.025,z));
+                for band in [-0.32,0.32] {v.push(cuboid(0.045,size,0.018,seam,x+band,y,z+side*(size*0.5+0.004)));}
+            }
+        }
+    }
+    if polished {
+        // Subtle contact at the upper box's feet; the exposed ledges stay bright.
+        v.push(ground_patch(-25.5,-13.5,0.64,0.60,0.0,0x32261a,0.25,1.156));
+    }
     // hedge
     v.push(cuboid(
         1.2,

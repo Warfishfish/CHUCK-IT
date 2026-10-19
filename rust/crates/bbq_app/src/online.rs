@@ -924,8 +924,8 @@ fn online_world_apply(mut player: ResMut<Player>, mut online: ResMut<Online>, mu
     let Some(snap) = session.world.take() else { return };
     let (my_id, host) = (session.my_id, session.host_name());
     crate::online_world::apply_world(&mut game, &mut yard.0, &snap, my_id, &host);
-    if let Some(s) = snap.wet.iter().find(|s| s.id == my_id && (s.remaining > 0.0 || game.rules.mode==bbq_core::GameMode::Race)) {
-        if (player.mover.x-s.pos.0).hypot(player.mover.z-s.pos.2) > 1.0 {
+    if let Some(s) = snap.wet.iter().find(|s| s.id == my_id) {
+        if (player.mover.x-s.pos.0).hypot(player.mover.z-s.pos.2) > 0.6 {
             player.mover.x = s.pos.0; player.mover.z = s.pos.2;
         }
     }
@@ -1076,7 +1076,7 @@ fn online_hits(mut online: ResMut<Online>, mut game: ResMut<Game>, mut player: R
 
 /// Move each puppet to where its person says they are (a little ahead, by their speed, and
 /// smoothed so 20 reports a second look like 60 frames).
-fn online_puppets(online: Res<Online>, mut game: ResMut<Game>) {
+fn online_puppets(online: Res<Online>, mut game: ResMut<Game>, yard: Res<crate::yard_scene::YardRes>) {
     let Some(session) = online.session.as_ref().filter(|s| !s.ended) else {
         return;
     };
@@ -1097,7 +1097,7 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>) {
         let far = (target.0 - d.mover.x).hypot(target.2 - d.mover.z) > 4.0;
         let k = if far { 1.0 } else { k };
         let (mut dx, mut dz) = ((target.0 - d.mover.x) * k, (target.2 - d.mover.z) * k);
-        if !mirror && (d.body.wet_t > 0.0 || race) {
+        if !mirror {
             let mods = bbq_core::movement::Modifiers { wet: d.body.wet_t>0.0, frozen: race && !playing, stunned: d.body.stun > 0.0, charging: d.bot.winding, ..Default::default() };
             // Sprint requests remain subject to the host mover's duration/cooldown.
             if s.vel.0.hypot(s.vel.1) > bbq_core::movement::BASE_SPEED { d.mover.try_boost(&mods); }
@@ -1105,12 +1105,17 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>) {
             let length = dx.hypot(dz);
             if length > step { dx *= step / length; dz *= step / length; }
         }
+        d.mover.prev_y=d.mover.y;
         d.mover.x += dx;
         d.mover.z += dz;
         d.mover.y = if race {target.1.clamp(0.0,2.0)}else{target.1};
         d.mover.vx = s.vel.0;
         d.mover.vz = s.vel.1;
         d.mover.grounded = s.grounded;
+        if !mirror {
+            d.mover.height=crate::style::measure(r.character).head_top+r.look.legs.lift();
+            d.mover.resolve_obstacles(&yard.0);
+        }
         // the game's `yaw` looks along (-sin, -cos); a puppet's `face` looks along (sin, cos)
         d.face = (-s.yaw.sin()).atan2(-s.yaw.cos());
         d.bot.winding = s.charge > 0.0;

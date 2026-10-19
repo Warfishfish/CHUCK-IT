@@ -145,15 +145,36 @@ fn motion_mode() -> Option<&'static str> {
     MODE.get_or_init(|| {
         let a: Vec<String> = std::env::args().collect();
         if !a.iter().any(|v|v=="--shot") || !a.iter().any(|v|v=="--review") { return None; }
-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon"].contains(&v.as_str())).cloned()
+        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height"].contains(&v.as_str())).cloned()
     }).as_deref()
 }
 
-pub fn is_water_review() -> bool { motion_mode() == Some("water-balloon") }
+pub fn is_water_review() -> bool { motion_mode()==Some("water-balloon") }
+pub fn is_scripted_walk_review() -> bool { matches!(motion_mode(),Some("water-balloon"|"height")) }
 
 fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut wanted: ResMut<crate::player::Wanted>, mut frame: Local<u32>) {
     let Some(mode) = motion_mode() else { return };
     if mode=="race" {return;}
+    if mode=="height" {
+        *frame+=1;game.options.bots_on=false;
+        if *frame==120 {
+            game.dummies.truncate(1);
+            if let Some(d)=game.dummies.first_mut() {
+                d.mover=bbq_core::movement::Mover::new(-27.1,-13.5);
+                d.body=Default::default();d.look.legs=bbq_core::appearance::Legs::from_percent(100);
+                d.bot.slots.clear();
+            }
+        }
+        if let Some(d)=game.dummies.first_mut() {
+            if *frame>=200 {
+                if *frame==200 || (d.mover.grounded && (d.mover.y-1.15).abs()<0.02) {d.mover.try_jump(false);}
+                d.bot.wish=if d.mover.y>=2.29 && d.mover.grounded {(0.0,0.0)}else{(1.0,0.0)};
+                if d.mover.y>=2.29 && d.mover.grounded {d.mover.vx=0.0;}
+                if *frame%30==0 {println!("HEIGHT_REVIEW frame={} x={:.3} y={:.3} grounded={}",*frame,d.mover.x,d.mover.y,d.mover.grounded);}
+            } else {d.bot.wish=(0.0,0.0);}
+        }
+        return;
+    }
     if mode=="water-balloon" {
         use bbq_core::{movement::Mover, vec::V3, items::ItemKind};
         *frame+=1;

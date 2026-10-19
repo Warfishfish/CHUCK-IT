@@ -1,0 +1,793 @@
+diff --git a/rust/crates/bbq_app/src/bots_app.rs b/rust/crates/bbq_app/src/bots_app.rs
+index 4a6eae3..441e2b4 100644
+--- a/rust/crates/bbq_app/src/bots_app.rs
++++ b/rust/crates/bbq_app/src/bots_app.rs
+@@ -224,7 +224,7 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &Yard) {
+     }
+     if !g.options.bots_on {
+         for d in &mut g.dummies {
+-            if !crate::visual_review::is_water_review() { d.bot.wish = (0.0, 0.0); }
++            if !crate::visual_review::is_scripted_walk_review() { d.bot.wish = (0.0, 0.0); }
+             d.bot.winding = false;
+             d.bot.wind_progress = 0.0;
+         }
+diff --git a/rust/crates/bbq_app/src/characters.rs b/rust/crates/bbq_app/src/characters.rs
+index 94881c9..eb40655 100644
+--- a/rust/crates/bbq_app/src/characters.rs
++++ b/rust/crates/bbq_app/src/characters.rs
+@@ -201,7 +201,7 @@ pub struct Cast {
+ 
+ impl Cast {
+     /// The character shown on practice blob `i`: blob 0 wears your pick, the others the next ones.
+-    fn character_of(&self, i: usize) -> Character {
++    pub fn character_of(&self, i: usize) -> Character {
+         if let Some(Some(c)) = self.overrides.get(i) {
+             return *c;
+         }
+diff --git a/rust/crates/bbq_app/src/game.rs b/rust/crates/bbq_app/src/game.rs
+index a631cba..92f5eca 100644
+--- a/rust/crates/bbq_app/src/game.rs
++++ b/rust/crates/bbq_app/src/game.rs
+@@ -323,7 +323,7 @@ impl Plugin for GamePlugin {
+ }
+ 
+ fn eye_of(p: &Player) -> V3 {
+-    V3::new(p.mover.x, p.mover.y + EYE_HEIGHT - p.mover.sink, p.mover.z)
++    V3::new(p.mover.x, p.mover.y + p.mover.eye_lift + EYE_HEIGHT - p.mover.sink, p.mover.z)
+ }
+ 
+ /// Where the camera looks (unit vector).
+@@ -355,7 +355,12 @@ pub fn step_game(
+     mut player: ResMut<Player>,
+     mut wanted: ResMut<Wanted>,
+     yard: Res<YardRes>,
++    cast: Option<Res<crate::characters::Cast>>,
+ ) {
++    for (i,d) in g.dummies.iter_mut().enumerate() {
++        let c=d.remote.as_ref().map(|r|r.character).or_else(||cast.as_ref().map(|c|c.character_of(i))).unwrap_or(bbq_core::character::Character::Classic);
++        d.mover.height=crate::style::measure(c).head_top+d.look.legs.lift();
++    }
+     let dt = TICK_DT;
+     g.now += dt;
+     let now = g.now;
+@@ -871,7 +876,7 @@ pub fn step_game(
+     }
+ 
+     // dummies that wandered off (knocked) are put back after a bit once they've settled
+-    for d in g.dummies.iter_mut().filter(|_| !g.options.bots_on && !crate::visual_review::is_water_review()) {
++    for d in g.dummies.iter_mut().filter(|_| !g.options.bots_on && !crate::visual_review::is_scripted_walk_review()) {
+         if !d.body.is_down() && d.body.stun <= 0.0 && d.mover.grounded && d.mover.speed() < 0.3 {
+             let (hx, hz) = d.home;
+             let dist = ((d.mover.x - hx).powi(2) + (d.mover.z - hz).powi(2)).sqrt();
+diff --git a/rust/crates/bbq_app/src/legs.rs b/rust/crates/bbq_app/src/legs.rs
+index 0e950cc..68421b8 100644
+--- a/rust/crates/bbq_app/src/legs.rs
++++ b/rust/crates/bbq_app/src/legs.rs
+@@ -289,7 +289,7 @@ fn pose_legs(
+         if kind != Legs::None && rig.shown != kind {
+             let _ = (&rig.shin_lines, &rig.knee_lines);
+             // Skinny legs are a thigh (the leg part), a shin and a knee
+-            let (tube, line) = if kind == Legs::Skinny { kit.thigh.clone() } else { kit.meshes(kind).clone() };
++            let (tube, line) = kit.thigh.clone();
+             for k in 0..2 {
+                 if let Ok((_, _, mut m, _)) = legs.get_mut(rig.legs[k]) {
+                     m.0 = tube.clone();
+@@ -306,7 +306,7 @@ fn pose_legs(
+             .ok()
+             .and_then(|c| c.iter().find_map(|e| hand_mats.get(e).ok()))
+             .map(|m| m.0.clone());
+-        let knees = kind == Legs::Skinny;
++        let knees = kind != Legs::None;
+         for k in 0..2 {
+             let side = if k == 0 { -1.0 } else { 1.0 };
+             let ankle = feet.get(rig.feet[k]).map(|f| f.translation + ANKLE).ok();
+diff --git a/rust/crates/bbq_app/src/menu.rs b/rust/crates/bbq_app/src/menu.rs
+index 62c251b..6e10cbc 100644
+--- a/rust/crates/bbq_app/src/menu.rs
++++ b/rust/crates/bbq_app/src/menu.rs
+@@ -536,7 +536,7 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
+                     });
+                 pv.spawn(text("Hold the left button and drag to spin", 12.0, false, MUTED));
+                 pv.spawn(text(
+-                    "Change your blob on the Customise tab. Only the look changes: every blob has the same speed and hit size.",
++                    "Leg length changes clothesline clearance. Speed, jump strength, hit size and scoring stay the same.",
+                     12.5,
+                     false,
+                     MUTED,
+@@ -712,14 +712,14 @@ fn paint_lobby(
+ 
+ /// The Customise tab: a row of arrows for each feature of your blob.
+ fn look_panel(c: &mut ChildSpawnerCommands) {
+-    use bbq_core::appearance::{Brows, Choice, Hair, Hat, Legs, Mouth, Palette, Shorts};
++    use bbq_core::appearance::{Brows, Choice, Hair, Hat, Mouth, Palette, Shorts};
+     c.spawn((column(10.0), ShowWhen::Panel(Tab::Look))).with_children(|p| {
+         // the body: its shape, its legs and its belly
+         p.spawn(legend("Body"));
+         let shapes: Vec<&str> = Character::ALL.iter().map(|c| c.name()).collect();
+         style_buttons(p, LookRow::Shape, "Shape", &shapes);
+-        let legs: Vec<&str> = Legs::ALL.iter().map(|x| x.name()).collect();
+-        style_buttons(p, LookRow::Legs, "Legs", &legs);
++        slider(p, SliderId::LegLength, "Leg length", 0.0, 100.0);
++        style_buttons(p, LookRow::Legs, "", &["Reset leg length"]);
+         let shorts: Vec<&str> = Shorts::ALL.iter().map(|x| x.name()).collect();
+         style_buttons(p, LookRow::Shorts, "Shorts", &shorts);
+         slider(p, SliderId::Belly, "Beer belly", 0.0, 2.0);
+@@ -1137,6 +1137,8 @@ fn spawn_pause(mut commands: Commands) {
+ }
+ 
+ fn apply_loaded_settings(mut settings: ResMut<Settings>, mut player: ResMut<Player>, mut cast: ResMut<Cast>) {
++    let args:Vec<String>=std::env::args().collect();
++    if let Some(n)=args.iter().position(|a|a=="--leg-length").and_then(|i|args.get(i+1)).and_then(|s|s.parse::<u8>().ok()) {settings.look.legs=bbq_core::appearance::Legs::from_percent(n);}
+     player.fov_base = settings.fov;
+     player.fov = settings.fov;
+     cast.mine = settings.character;
+@@ -1357,7 +1359,7 @@ fn widget_clicks(
+                 let l = &mut settings.look;
+                 match row {
+                     LookRow::Shape => {}
+-                    LookRow::Legs => l.legs = Legs::from_index(*v),
++                    LookRow::Legs => l.legs = Legs::from_percent(Legs::DEFAULT_PERCENT),
+                     LookRow::Shorts => l.shorts = Shorts::from_index(*v),
+                     LookRow::Hat => l.hat = Hat::from_index(*v),
+                     LookRow::HatColour => l.hat_colour = *v,
+@@ -1412,6 +1414,10 @@ fn slider_drag(
+         let Some(n) = rel.normalized else { continue };
+         let t = (n.x + 0.5).clamp(0.0, 1.0);
+         match s.id {
++            SliderId::LegLength => {
++                let v=bbq_core::appearance::Legs::from_percent((t*100.0).round() as u8);
++                if v!=settings.look.legs {settings.look.legs=v;settings.save();}
++            }
+             SliderId::Fov => {
+                 let v = (s.min + (s.max - s.min) * t).round();
+                 if v != settings.fov {
+@@ -1690,6 +1696,7 @@ fn paint_widgets(
+     };
+     for (id, mut t) in &mut texts.p1() {
+         t.0 = match id.0 {
++            SliderId::LegLength => format!("{}% · +{:.0} cm", settings.look.legs.percent(),settings.look.legs.lift()*100.0),
+             SliderId::Fov => format!("{:.0}", settings.fov),
+             SliderId::Belly => belly_word(settings.belly).to_string(),
+             SliderId::Dirt => match settings.look.dirt {
+@@ -1704,6 +1711,7 @@ fn paint_widgets(
+     }
+     for (id, mut n) in &mut handles {
+         let frac = match id.0 {
++            SliderId::LegLength => settings.look.legs.percent() as f32 / 100.0,
+             SliderId::Fov => (settings.fov - 60.0) / 45.0,
+             SliderId::Belly => settings.belly / 2.0,
+             SliderId::Dirt => settings.look.dirt as f32 / 100.0,
+diff --git a/rust/crates/bbq_app/src/online.rs b/rust/crates/bbq_app/src/online.rs
+index 98191fc..03f978f 100644
+--- a/rust/crates/bbq_app/src/online.rs
++++ b/rust/crates/bbq_app/src/online.rs
+@@ -924,8 +924,8 @@ fn online_world_apply(mut player: ResMut<Player>, mut online: ResMut<Online>, mu
+     let Some(snap) = session.world.take() else { return };
+     let (my_id, host) = (session.my_id, session.host_name());
+     crate::online_world::apply_world(&mut game, &mut yard.0, &snap, my_id, &host);
+-    if let Some(s) = snap.wet.iter().find(|s| s.id == my_id && (s.remaining > 0.0 || game.rules.mode==bbq_core::GameMode::Race)) {
+-        if (player.mover.x-s.pos.0).hypot(player.mover.z-s.pos.2) > 1.0 {
++    if let Some(s) = snap.wet.iter().find(|s| s.id == my_id) {
++        if (player.mover.x-s.pos.0).hypot(player.mover.z-s.pos.2) > 0.6 {
+             player.mover.x = s.pos.0; player.mover.z = s.pos.2;
+         }
+     }
+@@ -1076,7 +1076,7 @@ fn online_hits(mut online: ResMut<Online>, mut game: ResMut<Game>, mut player: R
+ 
+ /// Move each puppet to where its person says they are (a little ahead, by their speed, and
+ /// smoothed so 20 reports a second look like 60 frames).
+-fn online_puppets(online: Res<Online>, mut game: ResMut<Game>) {
++fn online_puppets(online: Res<Online>, mut game: ResMut<Game>, yard: Res<crate::yard_scene::YardRes>) {
+     let Some(session) = online.session.as_ref().filter(|s| !s.ended) else {
+         return;
+     };
+@@ -1097,7 +1097,7 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>) {
+         let far = (target.0 - d.mover.x).hypot(target.2 - d.mover.z) > 4.0;
+         let k = if far { 1.0 } else { k };
+         let (mut dx, mut dz) = ((target.0 - d.mover.x) * k, (target.2 - d.mover.z) * k);
+-        if !mirror && (d.body.wet_t > 0.0 || race) {
++        if !mirror {
+             let mods = bbq_core::movement::Modifiers { wet: d.body.wet_t>0.0, frozen: race && !playing, stunned: d.body.stun > 0.0, charging: d.bot.winding, ..Default::default() };
+             // Sprint requests remain subject to the host mover's duration/cooldown.
+             if s.vel.0.hypot(s.vel.1) > bbq_core::movement::BASE_SPEED { d.mover.try_boost(&mods); }
+@@ -1105,12 +1105,17 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>) {
+             let length = dx.hypot(dz);
+             if length > step { dx *= step / length; dz *= step / length; }
+         }
++        d.mover.prev_y=d.mover.y;
+         d.mover.x += dx;
+         d.mover.z += dz;
+         d.mover.y = if race {target.1.clamp(0.0,2.0)}else{target.1};
+         d.mover.vx = s.vel.0;
+         d.mover.vz = s.vel.1;
+         d.mover.grounded = s.grounded;
++        if !mirror {
++            d.mover.height=crate::style::measure(r.character).head_top+r.look.legs.lift();
++            d.mover.resolve_obstacles(&yard.0);
++        }
+         // the game's `yaw` looks along (-sin, -cos); a puppet's `face` looks along (sin, cos)
+         d.face = (-s.yaw.sin()).atan2(-s.yaw.cos());
+         d.bot.winding = s.charge > 0.0;
+diff --git a/rust/crates/bbq_app/src/player.rs b/rust/crates/bbq_app/src/player.rs
+index da1178a..6d7fec3 100644
+--- a/rust/crates/bbq_app/src/player.rs
++++ b/rust/crates/bbq_app/src/player.rs
+@@ -252,8 +252,10 @@ fn step_player(
+     wanted: Res<Wanted>,
+     yard: Res<YardRes>,
+     mut game: ResMut<crate::game::Game>,
++    settings: Option<Res<crate::menu::Settings>>,
+ ) {
+     let p = &mut *player;
++    if let Some(s)=settings {p.mover.eye_lift=s.look.legs.lift();p.mover.height=crate::style::measure(s.character).head_top+p.mover.eye_lift;}
+     let g = &mut *game;
+     p.prev = Vec3::new(p.mover.x, p.mover.y, p.mover.z);
+     if crate::smoko_mode::player_locked(g) { return; }
+@@ -344,7 +346,7 @@ pub fn update_camera(
+         bbq_core::drunk_state::flat_amount(me.body.down_t, bbq_core::items::DOWN_TIME),
+         p.pitch,
+     );
+-    let eye = movement::eye_y(pos.y, p.mover.sink, bob) + sy * 0.3 + fx.dy;
++    let eye = movement::eye_y(pos.y, p.mover.sink, bob) + p.mover.eye_lift + sy * 0.3 + fx.dy;
+ 
+     let (tf, proj) = &mut *cam;
+     tf.translation = Vec3::new(pos.x + sx * 0.3, eye, pos.z);
+diff --git a/rust/crates/bbq_app/src/ui.rs b/rust/crates/bbq_app/src/ui.rs
+index c9e8f22..6004170 100644
+--- a/rust/crates/bbq_app/src/ui.rs
++++ b/rust/crates/bbq_app/src/ui.rs
+@@ -283,6 +283,7 @@ pub enum CheckId {
+ /// Which setting a slider changes.
+ #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+ pub enum SliderId {
++    LegLength,
+     Fov,
+     Belly,
+     /// How dirty the singlet and shorts are.
+diff --git a/rust/crates/bbq_app/src/visual_review.rs b/rust/crates/bbq_app/src/visual_review.rs
+index e3c7baf..73c040c 100644
+--- a/rust/crates/bbq_app/src/visual_review.rs
++++ b/rust/crates/bbq_app/src/visual_review.rs
+@@ -145,15 +145,36 @@ fn motion_mode() -> Option<&'static str> {
+     MODE.get_or_init(|| {
+         let a: Vec<String> = std::env::args().collect();
+         if !a.iter().any(|v|v=="--shot") || !a.iter().any(|v|v=="--review") { return None; }
+-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon"].contains(&v.as_str())).cloned()
++        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height"].contains(&v.as_str())).cloned()
+     }).as_deref()
+ }
+ 
+-pub fn is_water_review() -> bool { motion_mode() == Some("water-balloon") }
++pub fn is_water_review() -> bool { motion_mode()==Some("water-balloon") }
++pub fn is_scripted_walk_review() -> bool { matches!(motion_mode(),Some("water-balloon"|"height")) }
+ 
+ fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut wanted: ResMut<crate::player::Wanted>, mut frame: Local<u32>) {
+     let Some(mode) = motion_mode() else { return };
+     if mode=="race" {return;}
++    if mode=="height" {
++        *frame+=1;game.options.bots_on=false;
++        if *frame==120 {
++            game.dummies.truncate(1);
++            if let Some(d)=game.dummies.first_mut() {
++                d.mover=bbq_core::movement::Mover::new(-27.1,-13.5);
++                d.body=Default::default();d.look.legs=bbq_core::appearance::Legs::from_percent(100);
++                d.bot.slots.clear();
++            }
++        }
++        if let Some(d)=game.dummies.first_mut() {
++            if *frame>=200 {
++                if *frame==200 || (d.mover.grounded && (d.mover.y-1.15).abs()<0.02) {d.mover.try_jump(false);}
++                d.bot.wish=if d.mover.y>=2.29 && d.mover.grounded {(0.0,0.0)}else{(1.0,0.0)};
++                if d.mover.y>=2.29 && d.mover.grounded {d.mover.vx=0.0;}
++                if *frame%30==0 {println!("HEIGHT_REVIEW frame={} x={:.3} y={:.3} grounded={}",*frame,d.mover.x,d.mover.y,d.mover.grounded);}
++            } else {d.bot.wish=(0.0,0.0);}
++        }
++        return;
++    }
+     if mode=="water-balloon" {
+         use bbq_core::{movement::Mover, vec::V3, items::ItemKind};
+         *frame+=1;
+diff --git a/rust/crates/bbq_app/src/yard_scene.rs b/rust/crates/bbq_app/src/yard_scene.rs
+index 34bcaa3..9af61c9 100644
+--- a/rust/crates/bbq_app/src/yard_scene.rs
++++ b/rust/crates/bbq_app/src/yard_scene.rs
+@@ -31,7 +31,7 @@ struct RaceMap;
+ 
+ const LOOK_SEED: u64 = 0xBB0;
+ 
+-/// The clothesline's turning head (it turns 0.12 radians a second).
++/// Fixed clothesline frame; shared geometry keeps multiplayer clearance exact.
+ #[derive(Component)]
+ struct HoistHead;
+ /// A cloud drifting along +x at 1.2 m/s, wrapping round at 110.
+@@ -155,7 +155,7 @@ fn build_yard(
+     commands.entity(e).insert(HoistHead);
+     commands.entity(yard_root).add_child(e);
+     if *mode == crate::lighting::LookMode::Polished {
+-        // the Hills Hoist leans: its head sits on the tilted pole's top
++        // Frame transform shares the authoritative clearance geometry.
+         let top = looks_yard::hoist_lean().1;
+         commands.entity(e).insert(Transform::from_xyz(top.x, top.y, top.z));
+     }
+@@ -279,7 +279,7 @@ fn build_yard(
+     commands.spawn((sky, sky_at));
+ }
+ 
+-/// The clothesline turns, the pool water slides and the clouds drift.
++/// The pool water slides and clouds drift; the clothesline stays aligned with collision.
+ fn animate_yard(
+     mode: Res<crate::lighting::LookMode>,
+     time: Res<Time>,
+@@ -294,14 +294,14 @@ fn animate_yard(
+     let t = time.elapsed_secs();
+     for mut tf in &mut head {
+         if *mode == crate::lighting::LookMode::Polished {
+-            // spin on the leaning pole
++            // Fixed frame: no visual-only rotation past its colliders.
+             let q = looks_yard::hoist_lean().0;
+             let lean = Quat::from_xyzw(q.x, q.y, q.z, q.w);
+             let (_, spin, _) = tf.rotation.to_euler(EulerRot::YXZ);
+             let _ = spin;
+-            tf.rotation = lean * Quat::from_rotation_y(t * 0.12);
++            tf.rotation = lean;
+         } else {
+-            tf.rotate_y(dt * 0.12);
++            tf.rotation = Quat::IDENTITY;
+         }
+     }
+     for mut tf in &mut clouds {
+diff --git a/rust/crates/bbq_core/src/appearance.rs b/rust/crates/bbq_core/src/appearance.rs
+index a36a201..1af584c 100644
+--- a/rust/crates/bbq_core/src/appearance.rs
++++ b/rust/crates/bbq_core/src/appearance.rs
+@@ -112,26 +112,37 @@ pub enum Legs {
+     Stumpy,
+     /// Thin stick legs.
+     Skinny,
++    /// Continuous length percentage; legacy presets remain readable.
++    Length(u8),
+ }
+ 
+ impl Choice for Legs {
++    fn index(self) -> u8 { match self {Self::None=>0,Self::Stumpy=>1,Self::Skinny=>2,Self::Length(n)=>3+n.min(100)} }
++    fn from_index(i:u8)->Self {match i {0=>Self::None,1=>Self::Stumpy,2=>Self::Skinny,3..=103=>Self::from_percent(i-3),_=>Self::None}}
+     const ALL: &'static [Legs] = &[Legs::None, Legs::Stumpy, Legs::Skinny];
+     fn name(self) -> &'static str {
+         match self {
+             Legs::None => "None",
+             Legs::Stumpy => "Stumpy",
+             Legs::Skinny => "Skinny",
++            Legs::Length(_) => "Custom",
+         }
+     }
+ }
+ 
+ impl Legs {
++    pub const MAX_LIFT: f32 = 0.60;
++    pub const DEFAULT_PERCENT: u8 = 0;
++    pub fn percent(self) -> u8 { match self { Self::None=>0, Self::Stumpy=>33, Self::Skinny=>50, Self::Length(n)=>n.min(100) } }
++    pub fn from_percent(n: u8) -> Self { match n.min(100) {0=>Self::None,33=>Self::Stumpy,50=>Self::Skinny,n=>Self::Length(n)} }
++
+     /// How far the legs lift the body, head and hands (m). The feet stay on the ground.
+     pub fn lift(self) -> f32 {
+         match self {
+             Legs::None => 0.0,
+             Legs::Stumpy => 0.2,
+             Legs::Skinny => 0.30,
++            Legs::Length(n) => n.min(100) as f32 / 100.0 * Self::MAX_LIFT,
+         }
+     }
+ 
+@@ -140,7 +151,7 @@ impl Legs {
+         match self {
+             Legs::None => (0.0, 0.0),
+             Legs::Stumpy => (0.105, 0.09),
+-            Legs::Skinny => (0.055, 0.035),
++            Legs::Skinny | Legs::Length(_) => (0.055, 0.035),
+         }
+     }
+ }
+@@ -371,7 +382,7 @@ impl Appearance {
+     /// `key=value` lines for `settings.txt`.
+     pub fn to_lines(&self) -> String {
+         format!(
+-            "mouth={}\nbrows={}\nhair={}\nbody_colour={}\nsinglet_colour={}\nthong_colour={}\nhair_colour={}\nbrow_colour={}\nlegs={}\nshorts={}\nshorts_colour={}\nhat={}\nhat_colour={}\ndirt={}\n",
++            "mouth={}\nbrows={}\nhair={}\nbody_colour={}\nsinglet_colour={}\nthong_colour={}\nhair_colour={}\nbrow_colour={}\nlegs={}\nshorts={}\nshorts_colour={}\nhat={}\nhat_colour={}\ndirt={}\nleg_length={}\n",
+             self.mouth.name(),
+             self.brows.name(),
+             self.hair.name(),
+@@ -385,7 +396,8 @@ impl Appearance {
+             self.shorts_colour,
+             self.hat.name(),
+             self.hat_colour,
+-            self.dirt
++            self.dirt,
++            self.legs.percent()
+         )
+     }
+ 
+@@ -402,6 +414,7 @@ impl Appearance {
+             "thong_colour" => self.thong = num(value).unwrap_or(self.thong),
+             "hair_colour" => self.hair_colour = num(value).unwrap_or(self.hair_colour),
+             "brow_colour" => self.brow_colour = num(value).unwrap_or(self.brow_colour),
++            "leg_length" => { if let Some(n)=num(value) {self.legs=Legs::from_percent(n);} },
+             "legs" => self.legs = Legs::from_name(value).unwrap_or(self.legs),
+             "shorts" => self.shorts = Shorts::from_name(value).unwrap_or(self.shorts),
+             "shorts_colour" => self.shorts_colour = num(value).unwrap_or(self.shorts_colour),
+@@ -479,6 +492,21 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn continuous_leg_lengths_save_and_replicate_and_old_presets_migrate() {
++        for n in 0..=100 {
++            let a=Appearance{legs:Legs::from_percent(n),..Default::default()};
++            assert_eq!(Appearance::from_bytes(a.to_bytes()),a);
++            let mut saved=Appearance::default();
++            for line in a.to_lines().lines() {let (k,v)=line.split_once('=').unwrap();saved.read_line(k,v);}
++            assert_eq!(saved,a);assert!(a.legs.lift()<=Legs::MAX_LIFT);
++        }
++        let mut a=Appearance::default();a.read_line("legs","Stumpy");assert_eq!(a.legs.percent(),33);
++        a.read_line("legs","Skinny");assert_eq!(a.legs.percent(),50);
++        a.read_line("leg_length","255");assert_eq!(a.legs.percent(),100);
++        a.read_line("leg_length","nan");assert_eq!(a.legs.percent(),100);
++    }
++
+     #[test]
+     fn each_feature_has_none_and_three_kinds() {
+         assert_eq!(Mouth::ALL.len(), 4);
+diff --git a/rust/crates/bbq_core/src/looks_yard.rs b/rust/crates/bbq_core/src/looks_yard.rs
+index 3e2fa9c..f59f49b 100644
+--- a/rust/crates/bbq_core/src/looks_yard.rs
++++ b/rust/crates/bbq_core/src/looks_yard.rs
+@@ -820,11 +820,7 @@ fn cloud(rng: &mut Rng) -> (V3, Vec<Part>) {
+ pub const HOIST_LEAN: (f32, f32) = (0.06, 0.04);
+ 
+ /// The lean as a turn, and where the top of the pole ends up (the head sits there).
+-pub fn hoist_lean() -> (Quat, V3) {
+-    let q = Quat::from_euler_xyz(HOIST_LEAN.0, 0.0, HOIST_LEAN.1);
+-    let top = V3::new(0.0, 0.0, HOIST_AT.z) + q.rotate(V3::new(0.0, HOIST_AT.y, 0.0));
+-    (q, top)
+-}
++pub fn hoist_lean() -> (Quat, V3) { (Quat::IDENTITY, HOIST_AT) }
+ 
+ fn clothesline(polished: bool) -> (Vec<Part>, Vec<Part>) {
+     // rusty in the polished look
+@@ -833,22 +829,11 @@ fn clothesline(polished: bool) -> (Vec<Part>, Vec<Part>) {
+     let lean = if polished { hoist_lean().0 } else { Quat::IDENTITY };
+     let pole = place(pole, V3::new(0.0, 0.0, HOIST_AT.z), lean, 1.0);
+     let mut head = Vec::new();
+-    let mut angles = Vec::new();
+-    for k in 0..4 {
+-        let a = k as f32 * HALF_PI + PI / 4.0;
+-        angles.push(a);
+-        let arm = cyl(0.025, 0.025, 2.7, 6, grey, 1.3, 0.12, 0.0).turn(0.0, 0.0, -HALF_PI + 0.09);
+-        head.push(arm.inside(V3::ZERO, turn_y(a), 1.0));
+-    }
+-    let line = matt(0xeef0ee).unlit().no_shadow();
+-    for r in [0.8f32, 1.4, 2.0, 2.55] {
+-        let pts: Vec<V3> = angles
+-            .iter()
+-            .map(|a| V3::new(a.cos() * r, 0.12 + r * 0.09, -a.sin() * r))
+-            .collect();
+-        for i in 0..pts.len() {
+-            head.push(rod(pts[i], pts[(i + 1) % pts.len()], 0.012, line));
+-        }
++    for (i,beam) in crate::yard::clothesline_beams().iter().enumerate() {
++        let surface=if i<4 {grey}else{matt(0xeef0ee).unlit().no_shadow()};
++        let mut part=rod(beam.a-HOIST_AT,beam.b-HOIST_AT,beam.radius,surface);
++        if i<4 {if let Shape::Cylinder{ref mut seg,..}=part.shape {*seg=6;}}
++        head.push(part);
+     }
+     for (k, c) in [0xf25c54, 0x4cc9f0, 0xffd23f, 0xffffff]
+         .into_iter()
+@@ -1125,11 +1110,23 @@ fn props(polished: bool) -> Vec<Part> {
+         v.push(cuboid(0.72, 1.0, 0.76, matt(if polished { 0x2f9a4c } else { 0x2e6b3a }), x, 0.5, 19.5));
+         v.push(cuboid(0.76, 0.07, 0.82, matt(c), x, 1.04, 19.5));
+     }
+-    // crates
+-    let crate_m = matt(0xc89a60);
+-    v.push(cuboid(1.15, 1.15, 1.15, crate_m, -26.1, 0.58, -13.5));
+-    v.push(cuboid(1.15, 1.15, 1.15, crate_m, -24.9, 0.58, -13.5));
+-    v.push(cuboid(1.15, 1.15, 1.15, crate_m, -25.5, 1.73, -13.5));
++    // Shared box geometry: warm timber, inset panels and light landing edges.
++    for (x,y,z) in crate::yard::CRATE_CENTRES {
++        let size=crate::yard::CRATE_SIZE;
++        v.push(cuboid(size,size,size,matt(0xc89a60).textured(Tex::Wood),x,y,z));
++        if polished {
++            let trim=matt(0xe0b67d);let seam=matt(0x997044);
++            for side in [-1.0,1.0] {
++                v.push(cuboid(size,0.055,0.045,trim,x,y+size*0.5-0.025,z+side*(size*0.5+0.003)));
++                v.push(cuboid(0.045,0.055,size,trim,x+side*(size*0.5+0.003),y+size*0.5-0.025,z));
++                for band in [-0.32,0.32] {v.push(cuboid(0.045,size,0.018,seam,x+band,y,z+side*(size*0.5+0.004)));}
++            }
++        }
++    }
++    if polished {
++        // Subtle contact at the upper box's feet; the exposed ledges stay bright.
++        v.push(ground_patch(-25.5,-13.5,0.64,0.60,0.0,0x32261a,0.25,1.156));
++    }
+     // hedge
+     v.push(cuboid(
+         1.2,
+diff --git a/rust/crates/bbq_core/src/movement.rs b/rust/crates/bbq_core/src/movement.rs
+index 0fe029f..38b28b9 100644
+--- a/rust/crates/bbq_core/src/movement.rs
++++ b/rust/crates/bbq_core/src/movement.rs
+@@ -15,6 +15,8 @@ pub const CHAR_GRAVITY: f32 = 24.0;
+ pub const CHAR_RADIUS: f32 = 0.42;
+ pub const BASE_SPEED: f32 = 6.2;
+ pub const JUMP_V: f32 = 7.5;
++/// Small ledge allowance; avoids rejecting reachable crate tops at the jump apex.
++pub const LEDGE_CLEARANCE:f32=0.15;
+ pub const POOL_JUMP_V: f32 = 5.5;
+ /// Swimming (Marcus, 8 Oct 2026): in the pool you tread water at the top, and hold Shift to dive.
+ /// Diving goes underwater and you swim where you look: look down to go deeper, up to come up.
+@@ -159,6 +161,9 @@ pub struct MoveEvents {
+ 
+ #[derive(Clone, Copy, Debug)]
+ pub struct Mover {
++    /// Ground-to-head clearance derived from the approved appearance.
++    pub height:f32,
++    pub eye_lift:f32,
+     pub x: f32,
+     pub y: f32,
+     pub z: f32,
+@@ -192,6 +197,8 @@ pub struct Mover {
+ impl Mover {
+     pub fn new(x: f32, z: f32) -> Self {
+         Self {
++            height:1.95,
++            eye_lift:0.0,
+             x,
+             y: 0.0,
+             z,
+@@ -217,6 +224,75 @@ impl Mover {
+         }
+     }
+ 
++    /// Shared collision resolution for local movement and host-validated remote movement.
++    pub fn resolve_obstacles(&mut self, yard:&Yard) {
++        // push out of boxes (unless we're above them: then we land on top)
++        let r = CHAR_RADIUS;
++        for c in &yard.colliders {
++            let skip = if c.no_top {
++                self.y >= c.h + 1.5
++            } else {
++                self.y >= c.h - LEDGE_CLEARANCE || self.prev_y >= c.h - 0.05
++            };
++            if skip {
++                continue;
++            }
++            let cx = self.x.clamp(c.x0, c.x1);
++            let cz = self.z.clamp(c.z0, c.z1);
++            let (dx, dz) = (self.x - cx, self.z - cz);
++            let d2 = dx * dx + dz * dz;
++            if d2 >= r * r {
++                continue;
++            }
++            if d2 > 1e-6 {
++                let d = d2.sqrt();
++                let (nx, nz) = (dx / d, dz / d);
++                self.x += nx * (r - d);
++                self.z += nz * (r - d);
++                let vn = self.vx * nx + self.vz * nz;
++                if vn < 0.0 {
++                    self.vx -= vn * nx;
++                    self.vz -= vn * nz;
++                }
++            } else {
++                // centre is inside the box: leave by the shortest way
++                let (l, rt, b, f) = (self.x - c.x0, c.x1 - self.x, self.z - c.z0, c.z1 - self.z);
++                let mn = l.min(rt).min(b).min(f);
++                if mn == l {
++                    self.x = c.x0 - r;
++                } else if mn == rt {
++                    self.x = c.x1 + r;
++                } else if mn == b {
++                    self.z = c.z0 - r;
++                } else {
++                    self.z = c.z1 + r;
++                }
++            }
++        }
++
++        if !yard.race { self.resolve_overhead(crate::yard::clothesline_beams()); }
++    }
++
++    pub fn resolve_overhead(&mut self, beams:&[crate::yard::Beam]) {
++        let height=self.height.clamp(1.0,3.0);
++        for beam in beams {
++            let dx=beam.b.x-beam.a.x;let dz=beam.b.z-beam.a.z;
++            let len2=dx*dx+dz*dz;
++            let t=(((self.x-beam.a.x)*dx+(self.z-beam.a.z)*dz)/len2.max(0.0001)).clamp(0.0,1.0);
++            let (x,z,y)=(beam.a.x+dx*t,beam.a.z+dz*t,beam.a.y+(beam.b.y-beam.a.y)*t);
++            let radius=CHAR_RADIUS+beam.radius;
++            let (ox,oz)=(self.x-x,self.z-z);let distance=ox.hypot(oz);
++            if distance>=radius || self.y>=y+beam.radius || self.y+height<=y-beam.radius {continue;}
++            if self.prev_y+height<=y-beam.radius+0.02 && self.vy>0.0 {
++                self.y=(y-beam.radius-height).max(0.0);self.vy=0.0;
++                continue;
++            }
++            let (nx,nz)=if distance>0.0001 {(ox/distance,oz/distance)}else{let l=len2.sqrt();(-dz/l,dx/l)};
++            self.x+=nx*(radius-distance+0.001);self.z+=nz*(radius-distance+0.001);
++            let v=self.vx*nx+self.vz*nz;if v<0.0 {self.vx-=v*nx;self.vz-=v*nz;}
++        }
++    }
++
+     /// Someone else's dive (a puppet online): set it straight from what they said.
+     pub fn force_dive(&mut self, dive: f32) {
+         self.dive = dive.clamp(0.0, 1.0);
+@@ -377,49 +453,7 @@ impl Mover {
+         self.y += self.vy * dt;
+         self.z += self.vz * dt;
+ 
+-        // push out of boxes (unless we're above them: then we land on top)
+-        let r = CHAR_RADIUS;
+-        for c in &yard.colliders {
+-            let skip = if c.no_top {
+-                self.y >= c.h + 1.5
+-            } else {
+-                self.y >= c.h - 0.05 || self.prev_y >= c.h - 0.05
+-            };
+-            if skip {
+-                continue;
+-            }
+-            let cx = self.x.clamp(c.x0, c.x1);
+-            let cz = self.z.clamp(c.z0, c.z1);
+-            let (dx, dz) = (self.x - cx, self.z - cz);
+-            let d2 = dx * dx + dz * dz;
+-            if d2 >= r * r {
+-                continue;
+-            }
+-            if d2 > 1e-6 {
+-                let d = d2.sqrt();
+-                let (nx, nz) = (dx / d, dz / d);
+-                self.x += nx * (r - d);
+-                self.z += nz * (r - d);
+-                let vn = self.vx * nx + self.vz * nz;
+-                if vn < 0.0 {
+-                    self.vx -= vn * nx;
+-                    self.vz -= vn * nz;
+-                }
+-            } else {
+-                // centre is inside the box: leave by the shortest way
+-                let (l, rt, b, f) = (self.x - c.x0, c.x1 - self.x, self.z - c.z0, c.z1 - self.z);
+-                let mn = l.min(rt).min(b).min(f);
+-                if mn == l {
+-                    self.x = c.x0 - r;
+-                } else if mn == rt {
+-                    self.x = c.x1 + r;
+-                } else if mn == b {
+-                    self.z = c.z0 - r;
+-                } else {
+-                    self.z = c.z1 + r;
+-                }
+-            }
+-        }
++        self.resolve_obstacles(yard);
+ 
+         // yard edge
+         let (half_x,half_z)=if yard.race {(52.,37.)}else{(YARD_HALF_X,YARD_HALF_Z)};
+@@ -545,6 +579,40 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn all_three_crates_are_reachable_with_the_existing_jump() {
++        let yard=Yard::default();
++        for (x,y,dir,top) in [(-27.1,0.0,1.0,1.15),(-23.9,0.0,-1.0,1.15),(-26.5,1.15,1.0,2.30)] {
++            let mut m=Mover::new(x,-13.5);m.y=y;m.prev_y=y;m.try_jump(false);
++            let mut landed=false;
++            for _ in 0..100 {
++                m.step(DT,MoveInput{wish:(dir,0.0),..Default::default()},&Modifiers::default(),&yard);
++                if m.grounded && (m.y-top).abs()<0.02 {landed=true;break;}
++            }
++            assert!(landed,"cannot reach {top}: x={} y={}",m.x,m.y);
++            m.vx=0.0; m.vz=0.0;
++            for _ in 0..60 {m.step(DT,MoveInput::default(),&Modifiers::default(),&yard);}
++            assert!((m.y-top).abs()<0.02 && m.grounded,"unstable landing");
++        }
++    }
++    #[test]
++    fn clothesline_clearance_matches_height_and_does_not_block_empty_space() {
++        let beams=crate::yard::clothesline_beams();let b=beams[0];
++        let at=(b.a+b.b)*0.5;
++        let mut short=Mover::new(at.x,at.z);short.height=1.95;short.resolve_overhead(beams);
++        assert_eq!((short.x,short.z),(at.x,at.z));
++        let mut tall=short.clone();tall.height=2.70;tall.resolve_overhead(beams);
++        assert!((tall.x-at.x).hypot(tall.z-at.z)>0.1);
++        let mut outside=Mover::new(5.0,3.0);outside.height=2.70;outside.resolve_overhead(beams);
++        assert_eq!((outside.x,outside.z),(5.0,3.0));
++    }
++    #[test]
++    fn jumping_into_an_overhead_bar_stops_upward_motion() {
++        let beam=crate::yard::Beam{a:crate::vec::V3::new(-1.0,2.3,0.0),b:crate::vec::V3::new(1.0,2.3,0.0),radius:0.025};
++        let mut m=Mover::new(0.0,0.0);m.height=1.95;m.prev_y=0.2;m.y=0.4;m.vy=4.0;
++        m.resolve_overhead(&[beam]);assert_eq!(m.vy,0.0);assert!(m.y+m.height<=2.2751);
++    }
++
+     #[test]
+     fn wish_is_relative_to_where_you_look() {
+         let (x, z) = wish_dir(0.0, 0.0, 1.0);
+diff --git a/rust/crates/bbq_core/src/net.rs b/rust/crates/bbq_core/src/net.rs
+index cc158ab..2130274 100644
+--- a/rust/crates/bbq_core/src/net.rs
++++ b/rust/crates/bbq_core/src/net.rs
+@@ -13,7 +13,7 @@
+ 
+ /// Bump this whenever a message changes, so old and new copies of the game refuse each other
+ /// politely instead of misreading each other.
+-pub const PROTOCOL: u16 = 11;
++pub const PROTOCOL: u16 = 12;
+ /// The most people in one yard (the browser game's limit).
+ pub const MAX_PLAYERS: usize = 16;
+ /// How often each player reports where they are.
+@@ -581,7 +581,7 @@ mod tests {
+     fn every_message_survives_the_trip() {
+         for m in [
+             Msg::Hello { protocol: PROTOCOL, name: "Shazza".into(), character: 2, look: Default::default(), belly: 77 },
+-            Msg::Look { character: 1, look: crate::appearance::Appearance { mouth: crate::appearance::Mouth::Grin, ..Default::default() }, belly: 3 },
++            Msg::Look { character: 1, look: crate::appearance::Appearance { mouth: crate::appearance::Mouth::Grin, legs:crate::appearance::Legs::from_percent(87), ..Default::default() }, belly: 3 },
+             Msg::Ready(true),
+             Msg::Ready(false),
+             Msg::Welcome { id: 4, members: members() },
+diff --git a/rust/crates/bbq_core/src/yard.rs b/rust/crates/bbq_core/src/yard.rs
+index e3246bd..766aba4 100644
+--- a/rust/crates/bbq_core/src/yard.rs
++++ b/rust/crates/bbq_core/src/yard.rs
+@@ -51,6 +51,25 @@ impl Kind {
+     }
+ }
+ 
++/// Shared with the renderer: two lower boxes and one upper box.
++pub const CRATE_SIZE:f32=1.15;
++pub const CRATE_CENTRES:[(f32,f32,f32);3]=[(-26.1,0.575,-13.5),(-24.9,0.575,-13.5),(-25.5,1.725,-13.5)];
++#[derive(Clone,Copy,Debug)]
++pub struct Beam {pub a:crate::vec::V3,pub b:crate::vec::V3,pub radius:f32}
++/// Fixed frame shared with clothesline rendering. Fabric remains non-solid.
++pub fn clothesline_beams()-> &'static [Beam] {
++    static BEAMS:std::sync::OnceLock<Vec<Beam>>=std::sync::OnceLock::new();
++    BEAMS.get_or_init(|| {
++    use crate::vec::V3;
++    let mut beams=Vec::with_capacity(20);
++    let angles:Vec<f32>=(0..4).map(|k| k as f32*std::f32::consts::FRAC_PI_2+std::f32::consts::FRAC_PI_4).collect();
++    let point=|r:f32,a:f32| V3::new(a.cos()*r,2.32+r*0.09,3.0-a.sin()*r);
++    for &a in &angles {beams.push(Beam{a:point(0.0,a),b:point(2.65,a),radius:0.025});}
++    for r in [0.8,1.4,2.0,2.55] {for k in 0..4 {beams.push(Beam{a:point(r,angles[k]),b:point(r,angles[(k+1)%4]),radius:0.012});}}
++    beams
++    }).as_slice()
++}
++
+ /// A box on the ground.
+ #[derive(Clone, Copy, Debug, PartialEq)]
+ pub struct Collider {
+@@ -251,7 +270,9 @@ impl Yard {
+             c.push(Collider::centred(x, z, w, d, h).of(Kind::MeatTable));
+         }
+         c.push(Collider::centred(31.5, 19.5, 1.7, 0.85, 1.1).of(Kind::Bins)); // wheelie bins
+-        c.push(Collider::centred(-25.5, -13.5, 2.4, 1.2, 2.3).of(Kind::Crates)); // crates
++        for (x,y,z) in CRATE_CENTRES {
++            c.push(Collider::centred(x,z,CRATE_SIZE,CRATE_SIZE,y+CRATE_SIZE*0.5).of(Kind::Crates));
++        }
+         c.push(Collider::centred(-31.6, -3.0, 1.2, 9.0, 1.3).of(Kind::Hedge)); // hedge
+         c.push(Collider::centred(12.0, 2.0, 1.2, 1.2, 1.0).of(Kind::Tyres)); // tyres
+         c.push(Collider::centred(13.2, 2.4, 1.2, 1.2, 0.68).of(Kind::Tyres));
+@@ -353,7 +374,7 @@ mod tests {
+     fn full_yard_has_all_the_boxes() {
+         // pole, shed, 4 eskies, table, grill, meat table, bins, crates, hedge, 2 tyres,
+         // woodpile, wall, planter, bar, chest
+-        assert_eq!(Yard::default().colliders.len(), 19);
++        assert_eq!(Yard::default().colliders.len(), 21);
+     }
+ 
+     #[test]
+@@ -364,7 +385,7 @@ mod tests {
+             chest: false,
+             smoko: false,
+         };
+-        assert_eq!(Yard::new(off, 0).colliders.len(), 19 - 4);
++        assert_eq!(Yard::new(off, 0).colliders.len(), 21 - 4);
+     }
+ 
+     #[test]

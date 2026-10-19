@@ -51,6 +51,25 @@ impl Kind {
     }
 }
 
+/// Shared with the renderer: two lower boxes and one upper box.
+pub const CRATE_SIZE:f32=1.15;
+pub const CRATE_CENTRES:[(f32,f32,f32);3]=[(-26.1,0.575,-13.5),(-24.9,0.575,-13.5),(-25.5,1.725,-13.5)];
+#[derive(Clone,Copy,Debug)]
+pub struct Beam {pub a:crate::vec::V3,pub b:crate::vec::V3,pub radius:f32}
+/// Fixed frame shared with clothesline rendering. Fabric remains non-solid.
+pub fn clothesline_beams()-> &'static [Beam] {
+    static BEAMS:std::sync::OnceLock<Vec<Beam>>=std::sync::OnceLock::new();
+    BEAMS.get_or_init(|| {
+    use crate::vec::V3;
+    let mut beams=Vec::with_capacity(20);
+    let angles:Vec<f32>=(0..4).map(|k| k as f32*std::f32::consts::FRAC_PI_2+std::f32::consts::FRAC_PI_4).collect();
+    let point=|r:f32,a:f32| V3::new(a.cos()*r,2.32+r*0.09,3.0-a.sin()*r);
+    for &a in &angles {beams.push(Beam{a:point(0.0,a),b:point(2.65,a),radius:0.025});}
+    for r in [0.8,1.4,2.0,2.55] {for k in 0..4 {beams.push(Beam{a:point(r,angles[k]),b:point(r,angles[(k+1)%4]),radius:0.012});}}
+    beams
+    }).as_slice()
+}
+
 /// A box on the ground.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Collider {
@@ -251,7 +270,9 @@ impl Yard {
             c.push(Collider::centred(x, z, w, d, h).of(Kind::MeatTable));
         }
         c.push(Collider::centred(31.5, 19.5, 1.7, 0.85, 1.1).of(Kind::Bins)); // wheelie bins
-        c.push(Collider::centred(-25.5, -13.5, 2.4, 1.2, 2.3).of(Kind::Crates)); // crates
+        for (x,y,z) in CRATE_CENTRES {
+            c.push(Collider::centred(x,z,CRATE_SIZE,CRATE_SIZE,y+CRATE_SIZE*0.5).of(Kind::Crates));
+        }
         c.push(Collider::centred(-31.6, -3.0, 1.2, 9.0, 1.3).of(Kind::Hedge)); // hedge
         c.push(Collider::centred(12.0, 2.0, 1.2, 1.2, 1.0).of(Kind::Tyres)); // tyres
         c.push(Collider::centred(13.2, 2.4, 1.2, 1.2, 0.68).of(Kind::Tyres));
@@ -353,7 +374,7 @@ mod tests {
     fn full_yard_has_all_the_boxes() {
         // pole, shed, 4 eskies, table, grill, meat table, bins, crates, hedge, 2 tyres,
         // woodpile, wall, planter, bar, chest
-        assert_eq!(Yard::default().colliders.len(), 19);
+        assert_eq!(Yard::default().colliders.len(), 21);
     }
 
     #[test]
@@ -364,7 +385,7 @@ mod tests {
             chest: false,
             smoko: false,
         };
-        assert_eq!(Yard::new(off, 0).colliders.len(), 19 - 4);
+        assert_eq!(Yard::new(off, 0).colliders.len(), 21 - 4);
     }
 
     #[test]

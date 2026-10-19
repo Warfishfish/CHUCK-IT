@@ -1,0 +1,5 @@
+REVIEW samples=600 mean_ms=7.367 median_ms=6.697 p95_ms=13.949 mean_fps=135.75 frames_over_16_67ms=0
+meshes=2934 materials=745 mesh_entities=6232 image_cpu_bytes=35752344
+Fixed 60 Hz simulation; 300 warmup frames; 600 wall-clock intervals; 1280x800 with --big; AutoNoVsync; not GPU timestamp measurements.
+
+2026-10-19T10:31:00.991642Z  WARN bevy_winit::state: Skipped event Destroyed for unknown winit Window Id WindowId(48300737152)

@@ -15,6 +15,8 @@ pub const CHAR_GRAVITY: f32 = 24.0;
 pub const CHAR_RADIUS: f32 = 0.42;
 pub const BASE_SPEED: f32 = 6.2;
 pub const JUMP_V: f32 = 7.5;
+/// Small ledge allowance; avoids rejecting reachable crate tops at the jump apex.
+pub const LEDGE_CLEARANCE:f32=0.15;
 pub const POOL_JUMP_V: f32 = 5.5;
 /// Swimming (Marcus, 8 Oct 2026): in the pool you tread water at the top, and hold Shift to dive.
 /// Diving goes underwater and you swim where you look: look down to go deeper, up to come up.
@@ -159,6 +161,9 @@ pub struct MoveEvents {
 
 #[derive(Clone, Copy, Debug)]
 pub struct Mover {
+    /// Ground-to-head clearance derived from the approved appearance.
+    pub height:f32,
+    pub eye_lift:f32,
     pub x: f32,
     pub y: f32,
     pub z: f32,
@@ -192,6 +197,8 @@ pub struct Mover {
 impl Mover {
     pub fn new(x: f32, z: f32) -> Self {
         Self {
+            height:1.95,
+            eye_lift:0.0,
             x,
             y: 0.0,
             z,
@@ -214,6 +221,75 @@ impl Mover {
             breath: 1.0,
             swim_t: 0.0,
             told: false,
+        }
+    }
+
+    /// Shared collision resolution for local movement and host-validated remote movement.
+    pub fn resolve_obstacles(&mut self, yard:&Yard) {
+        // push out of boxes (unless we're above them: then we land on top)
+        let r = CHAR_RADIUS;
+        for c in &yard.colliders {
+            let skip = if c.no_top {
+                self.y >= c.h + 1.5
+            } else {
+                self.y >= c.h - LEDGE_CLEARANCE || self.prev_y >= c.h - 0.05
+            };
+            if skip {
+                continue;
+            }
+            let cx = self.x.clamp(c.x0, c.x1);
+            let cz = self.z.clamp(c.z0, c.z1);
+            let (dx, dz) = (self.x - cx, self.z - cz);
+            let d2 = dx * dx + dz * dz;
+            if d2 >= r * r {
+                continue;
+            }
+            if d2 > 1e-6 {
+                let d = d2.sqrt();
+                let (nx, nz) = (dx / d, dz / d);
+                self.x += nx * (r - d);
+                self.z += nz * (r - d);
+                let vn = self.vx * nx + self.vz * nz;
+                if vn < 0.0 {
+                    self.vx -= vn * nx;
+                    self.vz -= vn * nz;
+                }
+            } else {
+                // centre is inside the box: leave by the shortest way
+                let (l, rt, b, f) = (self.x - c.x0, c.x1 - self.x, self.z - c.z0, c.z1 - self.z);
+                let mn = l.min(rt).min(b).min(f);
+                if mn == l {
+                    self.x = c.x0 - r;
+                } else if mn == rt {
+                    self.x = c.x1 + r;
+                } else if mn == b {
+                    self.z = c.z0 - r;
+                } else {
+                    self.z = c.z1 + r;
+                }
+            }
+        }
+
+        if !yard.race { self.resolve_overhead(crate::yard::clothesline_beams()); }
+    }
+
+    pub fn resolve_overhead(&mut self, beams:&[crate::yard::Beam]) {
+        let height=self.height.clamp(1.0,3.0);
+        for beam in beams {
+            let dx=beam.b.x-beam.a.x;let dz=beam.b.z-beam.a.z;
+            let len2=dx*dx+dz*dz;
+            let t=(((self.x-beam.a.x)*dx+(self.z-beam.a.z)*dz)/len2.max(0.0001)).clamp(0.0,1.0);
+            let (x,z,y)=(beam.a.x+dx*t,beam.a.z+dz*t,beam.a.y+(beam.b.y-beam.a.y)*t);
+            let radius=CHAR_RADIUS+beam.radius;
+            let (ox,oz)=(self.x-x,self.z-z);let distance=ox.hypot(oz);
+            if distance>=radius || self.y>=y+beam.radius || self.y+height<=y-beam.radius {continue;}
+            if self.prev_y+height<=y-beam.radius+0.02 && self.vy>0.0 {
+                self.y=(y-beam.radius-height).max(0.0);self.vy=0.0;
+                continue;
+            }
+            let (nx,nz)=if distance>0.0001 {(ox/distance,oz/distance)}else{let l=len2.sqrt();(-dz/l,dx/l)};
+            self.x+=nx*(radius-distance+0.001);self.z+=nz*(radius-distance+0.001);
+            let v=self.vx*nx+self.vz*nz;if v<0.0 {self.vx-=v*nx;self.vz-=v*nz;}
         }
     }
 
@@ -377,49 +453,7 @@ impl Mover {
         self.y += self.vy * dt;
         self.z += self.vz * dt;
 
-        // push out of boxes (unless we're above them: then we land on top)
-        let r = CHAR_RADIUS;
-        for c in &yard.colliders {
-            let skip = if c.no_top {
-                self.y >= c.h + 1.5
-            } else {
-                self.y >= c.h - 0.05 || self.prev_y >= c.h - 0.05
-            };
-            if skip {
-                continue;
-            }
-            let cx = self.x.clamp(c.x0, c.x1);
-            let cz = self.z.clamp(c.z0, c.z1);
-            let (dx, dz) = (self.x - cx, self.z - cz);
-            let d2 = dx * dx + dz * dz;
-            if d2 >= r * r {
-                continue;
-            }
-            if d2 > 1e-6 {
-                let d = d2.sqrt();
-                let (nx, nz) = (dx / d, dz / d);
-                self.x += nx * (r - d);
-                self.z += nz * (r - d);
-                let vn = self.vx * nx + self.vz * nz;
-                if vn < 0.0 {
-                    self.vx -= vn * nx;
-                    self.vz -= vn * nz;
-                }
-            } else {
-                // centre is inside the box: leave by the shortest way
-                let (l, rt, b, f) = (self.x - c.x0, c.x1 - self.x, self.z - c.z0, c.z1 - self.z);
-                let mn = l.min(rt).min(b).min(f);
-                if mn == l {
-                    self.x = c.x0 - r;
-                } else if mn == rt {
-                    self.x = c.x1 + r;
-                } else if mn == b {
-                    self.z = c.z0 - r;
-                } else {
-                    self.z = c.z1 + r;
-                }
-            }
-        }
+        self.resolve_obstacles(yard);
 
         // yard edge
         let (half_x,half_z)=if yard.race {(52.,37.)}else{(YARD_HALF_X,YARD_HALF_Z)};
@@ -543,6 +577,40 @@ mod tests {
         for _ in 0..(secs / DT) as usize {
             m.step(DT, MoveInput { wish, ..Default::default() }, mods, yard);
         }
+    }
+
+    #[test]
+    fn all_three_crates_are_reachable_with_the_existing_jump() {
+        let yard=Yard::default();
+        for (x,y,dir,top) in [(-27.1,0.0,1.0,1.15),(-23.9,0.0,-1.0,1.15),(-26.5,1.15,1.0,2.30)] {
+            let mut m=Mover::new(x,-13.5);m.y=y;m.prev_y=y;m.try_jump(false);
+            let mut landed=false;
+            for _ in 0..100 {
+                m.step(DT,MoveInput{wish:(dir,0.0),..Default::default()},&Modifiers::default(),&yard);
+                if m.grounded && (m.y-top).abs()<0.02 {landed=true;break;}
+            }
+            assert!(landed,"cannot reach {top}: x={} y={}",m.x,m.y);
+            m.vx=0.0; m.vz=0.0;
+            for _ in 0..60 {m.step(DT,MoveInput::default(),&Modifiers::default(),&yard);}
+            assert!((m.y-top).abs()<0.02 && m.grounded,"unstable landing");
+        }
+    }
+    #[test]
+    fn clothesline_clearance_matches_height_and_does_not_block_empty_space() {
+        let beams=crate::yard::clothesline_beams();let b=beams[0];
+        let at=(b.a+b.b)*0.5;
+        let mut short=Mover::new(at.x,at.z);short.height=1.95;short.resolve_overhead(beams);
+        assert_eq!((short.x,short.z),(at.x,at.z));
+        let mut tall=short.clone();tall.height=2.70;tall.resolve_overhead(beams);
+        assert!((tall.x-at.x).hypot(tall.z-at.z)>0.1);
+        let mut outside=Mover::new(5.0,3.0);outside.height=2.70;outside.resolve_overhead(beams);
+        assert_eq!((outside.x,outside.z),(5.0,3.0));
+    }
+    #[test]
+    fn jumping_into_an_overhead_bar_stops_upward_motion() {
+        let beam=crate::yard::Beam{a:crate::vec::V3::new(-1.0,2.3,0.0),b:crate::vec::V3::new(1.0,2.3,0.0),radius:0.025};
+        let mut m=Mover::new(0.0,0.0);m.height=1.95;m.prev_y=0.2;m.y=0.4;m.vy=4.0;
+        m.resolve_overhead(&[beam]);assert_eq!(m.vy,0.0);assert!(m.y+m.height<=2.2751);
     }
 
     #[test]

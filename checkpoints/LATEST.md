@@ -1,3 +1,9 @@
+# Publication approval — 20 October 2026
+
+User approved committing and pushing the height slider, clothesline clearance, stacked-box collision and graphics update. All 15 source files match the reviewed state: 633 tests and release build passed, with actual captures and local multiplayer verification. Historical review notes below retain their original status. Full backup and guarded rollback remain available.
+
+[Height slider, clearance and graphics — complete, awaiting review](2026-10-19-height-graphics/CHECKPOINT.md). [Actual graphics comparison, previews and climbing clip](2026-10-19-height-graphics/review.html). Verified 20 October 2026: 633 tests, release build, all-mode smoke captures and local host/guest appearance replication passed. Full pre-edit backup and guarded rollback available. Nothing committed or pushed.
+
 # Publication approval — 19 October 2026
 
 User approved committing and pushing Race completion, stronger balloon splashes and animation polish. Final verification: 629 tests passed and optimized release build passed. Earlier entries below retain milestone-time review and recovery notes. Full pre-animation backup remains outside the repository.

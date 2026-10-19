@@ -252,8 +252,10 @@ fn step_player(
     wanted: Res<Wanted>,
     yard: Res<YardRes>,
     mut game: ResMut<crate::game::Game>,
+    settings: Option<Res<crate::menu::Settings>>,
 ) {
     let p = &mut *player;
+    if let Some(s)=settings {p.mover.eye_lift=s.look.legs.lift();p.mover.height=crate::style::measure(s.character).head_top+p.mover.eye_lift;}
     let g = &mut *game;
     p.prev = Vec3::new(p.mover.x, p.mover.y, p.mover.z);
     if crate::smoko_mode::player_locked(g) { return; }
@@ -344,7 +346,7 @@ pub fn update_camera(
         bbq_core::drunk_state::flat_amount(me.body.down_t, bbq_core::items::DOWN_TIME),
         p.pitch,
     );
-    let eye = movement::eye_y(pos.y, p.mover.sink, bob) + sy * 0.3 + fx.dy;
+    let eye = movement::eye_y(pos.y, p.mover.sink, bob) + p.mover.eye_lift + sy * 0.3 + fx.dy;
 
     let (tf, proj) = &mut *cam;
     tf.translation = Vec3::new(pos.x + sx * 0.3, eye, pos.z);

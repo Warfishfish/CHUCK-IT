@@ -283,6 +283,7 @@ pub enum CheckId {
 /// Which setting a slider changes.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SliderId {
+    LegLength,
     Fov,
     Belly,
     /// How dirty the singlet and shorts are.

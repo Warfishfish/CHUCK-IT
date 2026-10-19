@@ -1,0 +1,62 @@
+{
+  "rust/crates/bbq_app/src/bots_app.rs": {
+    "before": "b80b5b36f1bd96a4f7dcbe5573f45a67f55409a610a1978d4659c146bb70a388",
+    "after": "aca84d7c81b1bbae755fe89b540254e51b9235a17e22f2df163ca2fe21ca4fef"
+  },
+  "rust/crates/bbq_app/src/characters.rs": {
+    "before": "d5b89f413acc6a5e957cb1827eaa69d16e565cee96bed0dc2b9c69e3b54f6088",
+    "after": "5b8498e6ec713c9434e91e72f09abd5332e551972825d4ca9837cafa737c4be9"
+  },
+  "rust/crates/bbq_app/src/game.rs": {
+    "before": "e452d250b32e38181f4356f65263f10dabdbf7284b04ebb06b0e2d6f8b9e89a9",
+    "after": "9eeaf1e8d2d74887d890c8fc96cb78623b93d3d6984d92e38709ff5a090ea63e"
+  },
+  "rust/crates/bbq_app/src/legs.rs": {
+    "before": "c6eaecb6df58420106b22440b0da991e00f450502bd3b2f559ba0b2f57f302da",
+    "after": "0b228bff8d6cd4d72490a9d2ccb7e64ba490cd8bda5aeca91da7eb51d5058907"
+  },
+  "rust/crates/bbq_app/src/menu.rs": {
+    "before": "aab8ba2430e65840a8d1dd63af2b041106ba45284fbc96265c8e77ce69f8f142",
+    "after": "0533956dcf68e09bd23921244a9e0a121854dca728693c8a3079546d152db48b"
+  },
+  "rust/crates/bbq_app/src/online.rs": {
+    "before": "2f49f2272782314d9a135420502b47c314d11a15fe226ca6d8624484850626b9",
+    "after": "910aeaaf65d38c8cbe2cb5fd18a025bd93cdc3e1cdba4059f2ba5987a5750ae2"
+  },
+  "rust/crates/bbq_app/src/player.rs": {
+    "before": "3a934195e900c01652daf2369ff9365eea3be09de6927e80be4b5c134a334c6f",
+    "after": "3f5c001ba06c374ebbeee8a011f040aafe1a289a38e97b3c0545ce89fae41f74"
+  },
+  "rust/crates/bbq_app/src/ui.rs": {
+    "before": "7dd3de7b252061eb1ecf5d96b7dd66257d8a95eb1da36240339af5db72d0c618",
+    "after": "13ddcd5b190a0842913d06e842a713843135c485e666e8199b807518fa60e400"
+  },
+  "rust/crates/bbq_app/src/visual_review.rs": {
+    "before": "53954aac24f6e70df9353a9a03444f9e773f9a57ca6df3efb94d8754c3e92a89",
+    "after": "87ae604b7f478d719c948b163cc053c1e4fdce12618fdcd9dc0b97a508fa2382"
+  },
+  "rust/crates/bbq_app/src/yard_scene.rs": {
+    "before": "168d4427ac2854971141f5394263ff3ff92157ae6f670c994fb6d6d37f9cd161",
+    "after": "12755e6865513f1c1b6eced57e57615c8fbc13687be319a1ff549c4b8245182f"
+  },
+  "rust/crates/bbq_core/src/appearance.rs": {
+    "before": "39e4e6efe12183ad1f071aa58340c0a241992dd141ef83908d63f34628267b38",
+    "after": "65ac936cc2acc2b149b144999c5daac6f62b55af1df78d8f602fe70e32ec549f"
+  },
+  "rust/crates/bbq_core/src/looks_yard.rs": {
+    "before": "d14419b303a751f9eaaca9b1c421bfdbb467f0f049a9d3a3ea851e4f0b42e142",
+    "after": "d4919ae0949738ac4de9f572b9274bd993926df49cd6a0e6ab3d09b6b3dd4b84"
+  },
+  "rust/crates/bbq_core/src/movement.rs": {
+    "before": "f8f9a0827f62ab6d8d8164b867d74e70829466db700706ef9a390bebc424b42c",
+    "after": "62eeaf311e4214542c9bb1b7a06bc2f65a22f80f5b00de3fd557341589e14f4e"
+  },
+  "rust/crates/bbq_core/src/net.rs": {
+    "before": "70a4cf2681e8039155a54ffd409ede11fc84f8aa592b2d94746e796593b1163f",
+    "after": "a75567caf4f476ce058265b7c7d409e646b1e2d5298e2aca1a59f3cba6315de6"
+  },
+  "rust/crates/bbq_core/src/yard.rs": {
+    "before": "f83071dddd6f2d234ab17c0bc891016da8e5954571250c1b365067477be9a4ee",
+    "after": "580e00e340c58807120bdee6ebcb529c33953c3ee665687184da9013ff0aa3bd"
+  }
+}

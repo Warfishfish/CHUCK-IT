@@ -289,7 +289,7 @@ fn pose_legs(
         if kind != Legs::None && rig.shown != kind {
             let _ = (&rig.shin_lines, &rig.knee_lines);
             // Skinny legs are a thigh (the leg part), a shin and a knee
-            let (tube, line) = if kind == Legs::Skinny { kit.thigh.clone() } else { kit.meshes(kind).clone() };
+            let (tube, line) = kit.thigh.clone();
             for k in 0..2 {
                 if let Ok((_, _, mut m, _)) = legs.get_mut(rig.legs[k]) {
                     m.0 = tube.clone();
@@ -306,7 +306,7 @@ fn pose_legs(
             .ok()
             .and_then(|c| c.iter().find_map(|e| hand_mats.get(e).ok()))
             .map(|m| m.0.clone());
-        let knees = kind == Legs::Skinny;
+        let knees = kind != Legs::None;
         for k in 0..2 {
             let side = if k == 0 { -1.0 } else { 1.0 };
             let ankle = feet.get(rig.feet[k]).map(|f| f.translation + ANKLE).ok();
