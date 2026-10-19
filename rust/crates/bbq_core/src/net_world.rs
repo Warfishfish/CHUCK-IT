@@ -146,7 +146,13 @@ pub struct WetSnap {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct RaceSnap {
+    pub id:u32, pub thrower:bool, pub passed:u8, pub finish:f32,
+    pub score:u32, pub streak:u32, pub hits:u32, pub disconnected:bool,
+}
+#[derive(Clone, Debug, PartialEq)]
 pub struct WorldSnap {
+    pub race: Vec<RaceSnap>,
     /// Host-only status, including zero for recovery. Position bounds wet remote prediction.
     pub wet: Vec<WetSnap>,
     /// Counts up, so a late old snapshot is thrown away.
@@ -172,6 +178,8 @@ impl WorldSnap {
         for s in self.wet.iter().take(MAX_BOARD) {
             w.u32(s.id); w.f32(s.remaining); w.triple(s.pos);
         }
+        w.u8(self.race.len().min(MAX_BOARD) as u8);
+        for s in self.race.iter().take(MAX_BOARD) {w.u32(s.id);w.u8(s.thrower as u8);w.u8(s.passed);w.f32(s.finish);w.u32(s.score);w.u32(s.streak);w.u32(s.hits);w.u8(s.disconnected as u8);}
         w.u32(self.seq);
         w.f32(self.now);
         let r = &self.round;
@@ -267,6 +275,8 @@ impl WorldSnap {
         for _ in 0..n {
             wet.push(WetSnap { id: r.u32()?, remaining: r.f32()?.clamp(0.0, crate::stun::WET_DURATION), pos: r.triple()? });
         }
+        let n=count(r,MAX_BOARD)?;let mut race=Vec::with_capacity(n);
+        for _ in 0..n {race.push(RaceSnap{id:r.u32()?,thrower:r.u8()?!=0,passed:r.u8()?.min(24),finish:r.f32()?,score:r.u32()?,streak:r.u32()?,hits:r.u32()?,disconnected:r.u8()?!=0});}
         let seq = r.u32()?;
         let now = r.f32()?;
         let round = RoundSnap {
@@ -359,7 +369,7 @@ impl WorldSnap {
         for _ in 0..n {
             fx.push(FxSnap { kind: r.u8()?, at: r.triple()? });
         }
-        Ok(WorldSnap { wet, seq, now, round, items, bots, dazza, board, teams, feed, fx })
+        Ok(WorldSnap { race, wet, seq, now, round, items, bots, dazza, board, teams, feed, fx })
     }
 }
 
@@ -370,6 +380,7 @@ mod tests {
 
     fn sample() -> WorldSnap {
         WorldSnap {
+            race:vec![],
             wet: vec![WetSnap { id: 2, remaining: 3.75, pos: (1.0, 0.0, 2.0) }],
             seq: 42,
             now: 123.5,
@@ -460,7 +471,7 @@ mod tests {
         let mut s = sample();
         s.round.banner = None;
         let mut bytes = Msg::World(Box::new(s)).encode();
-        let at = 1 + 1 + 20 + 4 + 4 + 3 + 4 + 4 + 8 + 1 + 1; // kind, seq, now, phase/mode/features, time, round/len/spot/stock, smoko, heist, banner flag
+        let at = 1 + 1 + 20 + 1 + 4 + 4 + 3 + 4 + 4 + 8 + 1 + 1; // kind, seq, now, phase/mode/features, time, round/len/spot/stock, smoko, heist, banner flag
         bytes[at] = 200;
         assert!(Msg::decode(&bytes).is_err());
         // every cut-off version is refused, never a panic

@@ -250,7 +250,12 @@ pub fn build_world(g: &Game, yard: &Yard, seq: u32, feed_after: f32, fx: &[FxEve
     let fx = fx.iter().take(MAX_FX).map(|e| FxSnap { kind: e.kind.index(), at: (e.at.x, e.at.y, e.at.z) }).collect();
     let mut wet = vec![WetSnap { id: 1, remaining: g.me.body.wet_t, pos: (0.0, 0.0, 0.0) }];
     wet.extend(g.dummies.iter().map(|d| WetSnap { id: net(d.id), remaining: d.body.wet_t, pos: (d.mover.x, d.mover.y, d.mover.z) }));
-    WorldSnap { wet, seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
+    let mut race=Vec::new();
+    if g.rules.mode==GameMode::Race {
+        for (id,r) in &g.race.racers {race.push(RaceSnap{id:net(*id),thrower:false,passed:r.passed as u8,finish:r.finish.unwrap_or(-1.),score:0,streak:0,hits:0,disconnected:r.disconnected});}
+        for (id,t) in &g.race.throwers {race.push(RaceSnap{id:net(*id),thrower:true,passed:0,finish:-1.,score:t.score,streak:t.streak,hits:t.hits,disconnected:t.disconnected});}
+    }
+    WorldSnap { race, wet, seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
 }
 
 /// Make this game look like the host's. `my_net` is our own number; `host_name` replaces
@@ -289,12 +294,22 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
     };
     let spot = r.chest_spot as usize;
     let heist = (r.heist_teams > 0).then_some(r.heist_teams as usize);
-    if yard.features != features || yard.chest_spot != spot || yard.heist != heist {
+    if yard.race != (g.rules.mode==GameMode::Race) || yard.features != features || yard.chest_spot != spot || yard.heist != heist {
         *yard = match heist {
             Some(n) if g.rules.mode == GameMode::Heist => Yard::heist(features, spot, n),
             _ if g.rules.mode == GameMode::Smoko => Yard::smoko(features, spot),
             _ => Yard::new(features, spot),
         };
+    }
+    if g.rules.mode==GameMode::Race {yard.race=true;yard.colliders.clear();} else {yard.race=false;}
+    g.race.racers.clear();g.race.throwers.clear();
+    if g.rules.mode==GameMode::Race {
+        g.race.elapsed=(crate::race::LIMIT-r.time_left).max(0.);
+        for row in &snap.race {
+            let id=local(row.id);
+            if row.thrower {g.race.throwers.insert(id,crate::race::Thrower{score:row.score,streak:row.streak,hits:row.hits,disconnected:row.disconnected,..Default::default()});}
+            else {let pos=snap.wet.iter().find(|w|w.id==row.id).map_or((0.,-24.),|w|(w.pos.0,w.pos.2));let mut progress=crate::race::Progress::new(pos);progress.passed=row.passed as usize;progress.finish=(row.finish>=0.).then_some(row.finish);progress.disconnected=row.disconnected;g.race.racers.insert(id,progress);}
+        }
     }
     // the whistle went: work out the results here, from the host's scores, so the results card
     // opens for guests too
@@ -356,7 +371,7 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
         if id == PLAYER_ID { g.me.body.wet_t = s.remaining; }
         else if let Some(d) = g.dummies.iter_mut().find(|d| d.id == id) {
             d.body.wet_t = s.remaining;
-            if s.remaining > 0.0 && d.remote.is_some() {
+            if (s.remaining > 0.0 || g.rules.mode==GameMode::Race) && d.remote.is_some() {
                 d.net_target = Some((V3::new(s.pos.0, s.pos.1, s.pos.2), (0.0,0.0), g.now));
             }
         }
@@ -513,7 +528,7 @@ pub fn mirror_tick(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
     }
     let now = g.now;
     g.pending_gone.retain(|(_, until)| *until > now);
-    guest_hands(g, p, wanted, dt);
+    if g.rules.mode==GameMode::Race {crate::race::guest_input(g,p,wanted,dt);}else{guest_hands(g, p, wanted, dt);}
     *wanted = Wanted { wish: wanted.wish, ..Default::default() };
     // things in the air keep flying until the host says where they really are
     for it in g.world.items.values_mut() {
@@ -874,6 +889,27 @@ mod tests {
         app.world_mut().insert_resource(player);
     }
 
+    #[test]
+    fn race_preferences_authority_and_progress_round_trip() {
+        let mut host=host_with_a_guest();let guest_id=REMOTE_ID_BASE+2;
+        host.world_mut().resource_mut::<Game>().round.timed=false;
+        act(&mut host,GuestAct::RaceRole{thrower:true});
+        assert_eq!(host.world().resource::<Game>().race.choices[&guest_id],crate::race::Role::Thrower);
+        host.world_mut().resource_scope(|w,mut g:Mut<Game>|{w.resource_scope(|w,mut p:Mut<Player>|{
+            g.round.setup.mode=GameMode::Race;let mut y=w.resource_mut::<crate::yard_scene::YardRes>();crate::round::start_round(&mut g,&mut p,&mut y);
+        });});
+        {let mut g=host.world_mut().resource_mut::<Game>();g.rules.phase=Phase::Play;g.race.throwers.get_mut(&guest_id).unwrap().score=500;g.race.throwers.get_mut(&guest_id).unwrap().streak=3;}
+        act(&mut host,GuestAct::RaceRole{thrower:false});assert_eq!(host.world().resource::<Game>().race.choices[&guest_id],crate::race::Role::Thrower,"cannot swap role mid-round");
+        let item=give_guest(&mut host,ItemKind::WaterBalloon,None);
+        let at={let g=host.world().resource::<Game>();let d=g.dummies.iter().find(|d|d.id==guest_id).unwrap();(d.mover.x,1.2,d.mover.z)};
+        act(&mut host,GuestAct::Throw{item,from:at,vel:(70.,0.,0.),charge:1.});assert_eq!(host.world().resource::<Game>().world.items[&item].state,ItemState::Held,"reject impossible speed");
+        act(&mut host,GuestAct::Throw{item,from:at,vel:(0.,5.,15.),charge:1.});assert_eq!(host.world().resource::<Game>().race.throwers[&guest_id].attempts.len(),1);
+        act(&mut host,GuestAct::Throw{item,from:at,vel:(0.,5.,15.),charge:1.});assert_eq!(host.world().resource::<Game>().race.throwers[&guest_id].attempts.len(),1,"duplicate launch ignored");
+        let snap=build_world(host.world().resource::<Game>(),&host.world().resource::<crate::yard_scene::YardRes>().0,1,0.,&[]);
+        let bytes=bbq_core::net::Msg::World(Box::new(snap)).encode();let bbq_core::net::Msg::World(snap)=bbq_core::net::Msg::decode(&bytes).unwrap()else{panic!()};
+        let mut guest=app();guest.world_mut().resource_scope(|w,mut g:Mut<Game>|{let mut y=w.resource_mut::<crate::yard_scene::YardRes>();apply_world(&mut g,&mut y.0,&snap,2,"Host");});
+        let g=guest.world().resource::<Game>();assert_eq!(g.race.racers.len(),3);assert_eq!(g.race.throwers[&PLAYER_ID].score,500);assert_eq!(g.race.throwers[&PLAYER_ID].next(),125);assert_eq!(g.race.throwers[&PLAYER_ID].level(),2);assert!(guest.world().resource::<crate::yard_scene::YardRes>().0.race);
+    }
     #[test]
     fn a_guests_throw_flies_from_the_host_and_counts_for_them() {
         let mut app = host_with_a_guest();
@@ -1296,7 +1332,7 @@ pub fn apply_hit(g: &mut Game, p: &mut Player, hit: &HitMsg) {
             if kind == ItemKind::WaterBalloon { return; }
             let res = bbq_core::hitting::apply_item_hit(&mut g.me.body, &mut p.mover, &item, dir, *flatten);
             crate::smoko_mode::extend_knockdown(g.rules.mode, &mut g.me.body, res.effect.knocked_down);
-            p.shake = p.shake.max(0.12 + item.knock() * 0.012);
+            p.shake = p.shake.max(bbq_core::feel::shake(item.knock()));
         }
         HitMsg::Slap { dir, knock, up, stun, dizzy, down } => {
             let dir = V3::new(dir.0, dir.1, dir.2);
@@ -1366,11 +1402,17 @@ pub fn apply_guest_act(g: &mut Game, p: &mut Player, net_id: u32, act: &GuestAct
         println!("NET-HOST guest {net_id} asked: {act:?}");
     }
     let id = g.dummies[i].id;
+    if let GuestAct::RaceRole{thrower}=act {
+        if !g.round.timed || g.rules.phase==Phase::Results {g.race.choices.insert(id,if *thrower{crate::race::Role::Thrower}else{crate::race::Role::Racer});}
+        return;
+    }
+    if g.rules.mode==GameMode::Race {crate::race::guest_act(g,i,act);return;}
     let now = g.now;
     let in_play = g.rules.in_play();
     let can_act = in_play && !g.smoko.carries.contains_key(&id) && g.dummies[i].body.stun <= 0.0 && !g.dummies[i].body.is_down() && g.dummies[i].seat.is_none();
     let holds = |g: &Game, item: u32| g.dummies[i].bot.slots.ids().contains(&item);
     match act {
+        GuestAct::RaceRole {..} => {},
         GuestAct::Carry { pressed } => crate::smoko_mode::input(g,p,id,*pressed),
         GuestAct::Select { item } => {
             let slots = &mut g.dummies[i].bot.slots;
@@ -1408,6 +1450,7 @@ pub fn apply_guest_act(g: &mut Game, p: &mut Player, net_id: u32, act: &GuestAct
             if g.world.throw(*item, id, start, V3::new(vel.0, vel.1, vel.2), *charge, true) {
                 g.dummies[i].bot.slots.remove(*item);
                 g.board.count_throw(id);
+                g.dummies[i].anim.feel.weight=g.world.items.get(item).map_or(0.5, |it| bbq_core::feel::weight(it.kind));
                 g.dummies[i].anim.start_swing();
                 g.dummies[i].bot.swing_t = melee::SWING_TIME;
             }

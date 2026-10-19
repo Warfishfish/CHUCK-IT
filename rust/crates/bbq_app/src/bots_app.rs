@@ -449,6 +449,7 @@ fn throw_item(g: &mut Game, i: usize, t: bots::Throw) {
     if g.world.throw(t.item, id, t.from, t.vel, t.charge, false) {
         g.dummies[i].bot.slots.remove(t.item);
         g.board.count_throw(id);
+        g.dummies[i].anim.feel.weight=g.world.items.get(&t.item).map_or(0.5, |it| bbq_core::feel::weight(it.kind));
         g.dummies[i].anim.start_swing();
         g.dummies[i].bot.swing_t = melee::SWING_TIME;
     }
@@ -751,7 +752,7 @@ pub fn hit_player(
     start: V3,
 ) {
     g.fx(
-        if kind == ItemKind::WaterBalloon { crate::fx::FxKind::Splash } else if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
+        if kind == ItemKind::WaterBalloon { crate::fx::FxKind::BalloonBurst } else if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
         V3::new(p.mover.x, 1.0, p.mover.z),
     );
     let mut item = Item::new(0, kind, V3::ZERO);
@@ -760,7 +761,7 @@ pub fn hit_player(
                 crate::smoko_mode::extend_knockdown(g.rules.mode, &mut g.me.body, res.effect.knocked_down);
     g.me.drunk.cancel_drink();
     g.wind.cancel();
-    p.shake = p.shake.max(0.12 + item.knock() * 0.012);
+    p.shake = p.shake.max(bbq_core::feel::shake(item.knock()));
     let leader = g.board.leader() == Some(PLAYER_ID);
     let bonus = thrower.map_or(0, |t| drunk_bonus_of(g, t));
     let same_team = thrower.is_some_and(|t| teammate(g, t, PLAYER_ID));
@@ -792,8 +793,10 @@ pub fn hit_player(
     if flatten && res.effect.knocked_down {
         msg += " KNOCKED OVER!";
     }
+    let popup_text=msg.clone();
     g.say(msg);
-    g.popup(if kind == ItemKind::WaterBalloon { "SPLASH! Wet: 80% speed".to_string() } else { format!("{who} got you!") }, true);
+    g.popup(if kind == ItemKind::WaterBalloon { "SPLASH! Wet: 80% speed".to_string() } else { format!("{popup_text} — {who} got you!") }, true);
+    if let Some(pop)=g.popups.last_mut() {pop.impact=Some(item.knock());}
 }
 
 /// Items that thrown or knocked about by bots are told apart from yours.

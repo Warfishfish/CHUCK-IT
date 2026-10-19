@@ -77,6 +77,8 @@ struct BreathBar;
 #[derive(Component)]
 struct BoostLabel;
 #[derive(Component)]
+struct ControlChip(&'static str);
+#[derive(Component)]
 struct BreathFill;
 #[derive(Component)]
 struct Feed;
@@ -447,6 +449,7 @@ fn spawn_hud(mut commands: Commands) {
                 cd_chip(c, "Shift", "Boost", Some(Cd::Boost));
                 cd_chip(c, "Right click", "Catch", Some(Cd::Catch));
                 cd_chip(c, "Q", "Change weapon", None);
+                cd_chip(c, "Left click", "Hold / release", None);
             });
             // item slots, bottom right
             root.spawn(Node {
@@ -540,7 +543,7 @@ fn banner_copy(size: f32, c: Color, dx: f32, dy: f32) -> impl Bundle {
     )
 }
 
-fn cd_chip(p: &mut ChildSpawnerCommands, key: &str, label: &str, fill: Option<Cd>) {
+fn cd_chip(p: &mut ChildSpawnerCommands, key: &'static str, label: &str, fill: Option<Cd>) {
     p.spawn((
         Node {
             padding: UiRect::axes(px(12.0), px(8.0)),
@@ -551,6 +554,7 @@ fn cd_chip(p: &mut ChildSpawnerCommands, key: &str, label: &str, fill: Option<Cd
             ..default()
         },
         BackgroundColor(HUD),
+        ControlChip(key),
     ))
     .with_children(|c| {
         c.spawn(kbd(key));
@@ -596,7 +600,7 @@ fn update_board(
 ) {
     let g = &*game;
     if g.rules.mode==GameMode::Race {
-        let lines=crate::race::lines(g);let sig=format!("race:{lines:?}");if *last==sig{return;}*last=sig;
+        let lines=crate::race::all_lines(g);let sig=format!("race:{lines:?}");if *last==sig{return;}*last=sig;
         commands.entity(*board).despawn_children();commands.entity(*board).with_children(|b|{b.spawn(text("RACE • 3 LAPS",14.0,true,SUN));for line in lines{b.spawn(text(line,13.0,false,WHITE));}});return;
     }
 
@@ -790,7 +794,10 @@ fn update_drunk(
     }
 }
 
-fn update_boost_label(player: Res<Player>, mut q: Query<&mut Text, With<BoostLabel>>) {
+fn update_boost_label(player: Res<Player>, game: Res<Game>, mut chips: Query<(&ControlChip,&mut Node)>, mut q: Query<&mut Text, With<BoostLabel>>) {
+    let race=game.rules.mode==GameMode::Race;let thrower=game.race.throwers.contains_key(&PLAYER_ID);
+    for (chip,mut node) in &mut chips {let hide=match chip.0 {"Right click"=>race,"Q"=>race&&!thrower,"Left click"=>!race||!thrower,_=>false};node.display=if hide{Display::None}else{Display::Flex};}
+
     let want = if player.mover.in_pool { "Dive" } else { "Boost" };
     for mut t in &mut q {
         if t.0 != want {

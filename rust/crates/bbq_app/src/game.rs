@@ -158,6 +158,7 @@ pub struct Options {
 pub struct Popup {
     pub text: String,
     pub big: bool,
+    pub impact: Option<f32>,
     pub t: f32,
 }
 
@@ -217,6 +218,7 @@ impl Game {
         self.popups.push(Popup {
             text: text.into(),
             big,
+            impact: None,
             t: 0.0,
         });
         if self.popups.len() > 4 {
@@ -749,7 +751,7 @@ pub fn step_game(
                 };
                 let (vx, vz) = (g.dummies[di].mover.x, g.dummies[di].mover.z);
                 g.fx(
-                    if kind == ItemKind::WaterBalloon { crate::fx::FxKind::Splash } else if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
+                    if kind == ItemKind::WaterBalloon { crate::fx::FxKind::BalloonBurst } else if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
                     V3::new(vx, 1.2, vz),
                 );
                 let leader = g.board.leader() == Some(victim);
@@ -806,6 +808,8 @@ pub fn step_game(
                     msg += " (already stunned, no new stun)";
                 }
                 if thrower == Some(PLAYER_ID) {
+                    g.popup(msg.clone(), false);
+                    if let Some(pop)=g.popups.last_mut() {pop.impact=Some(item.knock());}
                     g.say(msg);
                 } else {
                     let who =
@@ -853,7 +857,7 @@ pub fn step_game(
                 g.say("Over the fence!");
             }
             WorldEvent::Flight { ev: bbq_core::flight::FlightEvent::WaterBurst { pos }, .. } => {
-                g.fx(crate::fx::FxKind::Splash, pos);
+                g.fx(crate::fx::FxKind::BalloonBurst, pos);
             }
             // a glass bottle that lands hard shatters where it lands (the VP can just goes flat)
             WorldEvent::Flight {
@@ -3117,7 +3121,7 @@ mod tests {
         assert_eq!(app.world().resource::<Game>().slots.len(), 1, "G is ignored while you are stunned");
     }
     #[test]
-    fn race_bot_fill_finishes_three_laps_and_has_no_combat_points() {
+    fn race_bot_fill_finishes_three_laps_and_scores_separate_throwing_game() {
         let mut app=app();let mut cfg=setup(GameMode::Race,0);cfg.race_role=crate::race::Role::Thrower;
         start_with(&mut app,cfg);
         assert_eq!(app.world().resource::<Game>().race.racers.len(),3);
@@ -3126,12 +3130,44 @@ mod tests {
         assert_eq!(g.rules.phase,Phase::Results);
         assert!(g.race.racers.values().all(|r|r.finish.is_some()),"{:?}",g.race.racers);
         assert!(g.board.iter().all(|(_,s)|s.score==0));
+        assert!(g.race.throwers.values().any(|t|t.score>0),"thrower bots must land hits");
         assert!(g.round.results.as_ref().unwrap().winner.is_some());
+    }
+    #[test]
+    fn race_actual_balloon_hit_scores_once_with_bounded_slowdown_and_expiry() {
+        let mut app=app();let mut cfg=setup(GameMode::Race,0);cfg.race_role=crate::race::Role::Thrower;start_with(&mut app,cfg);
+        app.world_mut().resource_mut::<Game>().options.bots_on=false;
+        ticks(&mut app,200);
+        let victim=*app.world().resource::<Game>().race.racers.keys().next().unwrap();
+        for expected in [50,125] {
+            {
+                let mut g=app.world_mut().resource_mut::<Game>();
+                let d=g.dummies.iter().find(|d|d.id==victim).unwrap();let at=V3::new(d.mover.x,1.1,d.mover.z-1.5);
+                let mut rng=Rng::new(4);let item=g.world.spawn(ItemKind::WaterBalloon,at.x,at.z,false,&mut rng);g.world.give(item,PLAYER_ID);g.slots.clear();g.slots.add(item);
+                g.race.throwers.get_mut(&PLAYER_ID).unwrap().ready_at=0.;
+                assert!(crate::race::launch(&mut g,PLAYER_ID,item,at,V3::new(0.,0.,15.),1.));
+            }
+            ticks(&mut app,15);let g=app.world().resource::<Game>();
+            assert_eq!(g.race.throwers[&PLAYER_ID].score,expected);
+            let d=g.dummies.iter().find(|d|d.id==victim).unwrap();assert!(d.body.wet_t>3.0);assert_eq!(d.body.stun,0.);assert!(!d.body.is_down());
+        }
+        ticks(&mut app,240);let g=app.world().resource::<Game>();assert_eq!(g.race.throwers[&PLAYER_ID].score,125);assert_eq!(g.dummies.iter().find(|d|d.id==victim).unwrap().body.wet_t,0.);
+    }
+    #[test]
+    fn race_airborne_miss_waits_until_resolution_and_supply_is_bounded() {
+        let mut app=app();let mut cfg=setup(GameMode::Race,0);cfg.race_role=crate::race::Role::Thrower;start_with(&mut app,cfg);
+        app.world_mut().resource_mut::<Game>().options.bots_on=false;ticks(&mut app,200);
+        {
+            let mut g=app.world_mut().resource_mut::<Game>();let item=g.slots.selected().unwrap();g.race.throwers.get_mut(&PLAYER_ID).unwrap().streak=3;
+            assert!(crate::race::launch(&mut g,PLAYER_ID,item,V3::new(0.,1.2,-30.),V3::new(0.,18.,0.),1.));
+        }
+        ticks(&mut app,20);assert_eq!(app.world().resource::<Game>().race.throwers[&PLAYER_ID].streak,3);
+        ticks(&mut app,400);let g=app.world().resource::<Game>();assert_eq!(g.race.throwers[&PLAYER_ID].streak,0);assert_eq!(g.slots.len(),1);assert!(g.race.throwers[&PLAYER_ID].attempts.is_empty());assert!(g.world.items.len()<=g.race.throwers.len());
     }
     #[test]
     fn race_racer_role_fills_two_bots_and_mode_switch_restores_yard() {
         let mut app=app();start_with(&mut app,setup(GameMode::Race,0));
-        assert_eq!(app.world().resource::<Game>().dummies.len(),2);
+        assert_eq!(app.world().resource::<Game>().dummies.len(),4);
         assert!(app.world().resource::<Game>().race.racers.contains_key(&PLAYER_ID));
         assert!(app.world().resource::<YardRes>().0.colliders.is_empty());
         start_with(&mut app,setup(GameMode::Smoko,1));

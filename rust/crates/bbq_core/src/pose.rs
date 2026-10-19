@@ -250,6 +250,7 @@ pub struct Inputs {
     pub drunk: f32,
     pub charging: bool,
     pub charge: f32,
+    pub item_weight: f32,
     pub down_t: f32,
     pub stun: f32,
     /// Stacked it (fallen over from drink).
@@ -294,6 +295,7 @@ pub struct Pose {
     pub body_z: f32,
     /// Squash and stretch: (x and z, y).
     pub body_scale: (f32, f32),
+    pub depth_scale: f32,
     /// Right hand (the throwing hand) and left hand, relative to the body.
     pub hand_r: V3,
     pub hand_l: V3,
@@ -326,6 +328,7 @@ impl Default for Pose {
             body_y: 0.0,
             body_z: 0.0,
             body_scale: (1.0, 1.0),
+            depth_scale: 1.0,
             hand_r: V3::new(-0.47, 0.88, 0.05),
             hand_l: V3::new(0.47, 0.88, 0.05),
             item_pitch: 0.0,
@@ -348,6 +351,8 @@ pub struct SlapAnim {
 /// Per-character animation state.
 #[derive(Clone, Debug)]
 pub struct Animator {
+    pub feel: crate::feel::Feel,
+    cached_pose: Option<Pose>,
     pub tilt: f32,
     tilt_v: f32,
     tilt_axis: V3,
@@ -369,6 +374,8 @@ pub struct Animator {
 impl Animator {
     pub fn new(phase: f32) -> Self {
         Self {
+            feel: Default::default(),
+            cached_pose: None,
             tilt: 0.0,
             tilt_v: 0.0,
             tilt_axis: V3::new(1.0, 0.0, 0.0),
@@ -387,6 +394,7 @@ impl Animator {
 
     /// A hit shoves them: they lean away and spin. `spin_sign` is +1 or -1 (random).
     pub fn tumble(&mut self, dir: V3, knock: f32, spin_sign: f32) {
+        self.feel.hit(dir, knock);
         self.tilt_axis = V3::new(dir.z, 0.0, -dir.x);
         self.tilt_v += knock * 0.95;
         self.spin_v += spin_sign * knock * 0.45;
@@ -398,6 +406,7 @@ impl Animator {
 
     pub fn start_swing(&mut self) {
         self.swing = Some(0.0);
+        self.feel.release();
     }
 
     pub fn start_emote(&mut self, e: Emote) {
@@ -411,6 +420,11 @@ impl Animator {
 
     /// Advance by `dt` and work out the pose.
     pub fn tick(&mut self, dt: f32, i: &Inputs) -> Pose {
+        if self.feel.frozen() && let Some(p) = self.cached_pose {
+            let mut ignored=p;
+            self.feel.tick(dt, false, i.item_weight, false, &mut ignored);
+            return p;
+        }
         let mut p = Pose::default();
         let sp = i.vel.horiz_len();
         // springs and timers
@@ -652,6 +666,9 @@ impl Animator {
         }
 
         p.stars = i.stun > 0.15 || self.dizzy > 0.0;
+        self.feel.tick(dt, i.charging, i.item_weight,
+            !slap_on && i.down_t <= 0.0 && !i.seated && i.dragged_by.is_none() && !i.fallen, &mut p);
+        self.cached_pose=Some(p);
         p
     }
 }

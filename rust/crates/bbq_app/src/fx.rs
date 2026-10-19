@@ -30,11 +30,13 @@ pub enum FxKind {
     ShatterSpirit,
     /// Family mode's lemonade can bursts: a fizz of pale bubbles.
     Fizz,
+    /// Broad radial water burst plus a short translucent mist.
+    BalloonBurst,
 }
 
 impl FxKind {
     // (new kinds go on the end: the position is the number sent online)
-    pub const ALL: [FxKind; 8] = [
+    pub const ALL: [FxKind; 9] = [
         FxKind::Hit,
         FxKind::Smash,
         FxKind::Whack,
@@ -43,6 +45,7 @@ impl FxKind {
         FxKind::Shatter,
         FxKind::ShatterSpirit,
         FxKind::Fizz,
+        FxKind::BalloonBurst,
     ];
 
     /// What a bottle (or the VP can) does when it breaks.
@@ -88,6 +91,8 @@ struct Effects {
     puff: Handle<EffectAsset>,
     foam: Handle<EffectAsset>,
     splash: Handle<EffectAsset>,
+    balloon: Handle<EffectAsset>,
+    mist: Handle<EffectAsset>,
     dust: Handle<EffectAsset>,
     shards: Handle<EffectAsset>,
     clear_shards: Handle<EffectAsset>,
@@ -265,6 +270,18 @@ fn make_effects(mut commands: Commands, mut effects: ResMut<Assets<EffectAsset>>
         size: (0.18, 0.06),
         colours: [c(0.85, 0.97, 1.0, 0.95), c(0.5, 0.82, 0.98, 0.8), c(0.4, 0.75, 0.95, 0.0)],
     }));
+    let balloon = effects.add(burst_asset(&Burst {
+        name: "balloon water crown", count: 140.0, radius: 0.22,
+        speed: (2.8, 6.0), up: 2.0, life: (0.45, 0.95),
+        gravity: -10.0, drag: 1.1, size: (0.25, 0.045),
+        colours: [c(0.8, 0.96, 1.0, 1.0), c(0.2, 0.72, 1.0, 0.85), c(0.15, 0.6, 0.95, 0.0)],
+    }));
+    let mist = effects.add(burst_asset(&Burst {
+        name: "balloon impact mist", count: 18.0, radius: 0.25,
+        speed: (0.8, 2.3), up: 0.45, life: (0.18, 0.42),
+        gravity: -0.8, drag: 3.0, size: (0.4, 0.85),
+        colours: [c(0.8, 0.96, 1.0, 0.48), c(0.4, 0.82, 1.0, 0.2), c(0.3, 0.7, 0.95, 0.0)],
+    }));
     let dust = effects.add(burst_asset(&Burst {
         name: "dust",
         count: 12.0,
@@ -333,6 +350,8 @@ fn make_effects(mut commands: Commands, mut effects: ResMut<Assets<EffectAsset>>
         puff,
         foam,
         splash,
+        balloon,
+        mist,
         dust,
         shards,
         clear_shards,
@@ -365,6 +384,7 @@ fn spawn_events(
             FxKind::Whack => (vec![&fx.stars], 1.0),
             FxKind::Smash => (vec![&fx.foam, &fx.puff], 1.4),
             FxKind::Splash => (vec![&fx.splash], 1.8),
+            FxKind::BalloonBurst => (vec![&fx.balloon, &fx.mist], 1.2),
             FxKind::Dust => (vec![&fx.dust], 1.6),
             FxKind::Shatter => (vec![&fx.shards, &fx.foam, &fx.puff], 1.4),
             FxKind::ShatterSpirit => (vec![&fx.clear_shards, &fx.rum, &fx.puff], 1.4),

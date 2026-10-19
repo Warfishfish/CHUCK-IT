@@ -1,3 +1,11 @@
+# Publication approval — 19 October 2026
+
+User approved committing and pushing Race completion, stronger balloon splashes and animation polish. Final verification: 629 tests passed and optimized release build passed. Earlier entries below retain milestone-time review and recovery notes. Full pre-animation backup remains outside the repository.
+
+[Animation polish — complete, awaiting review](2026-10-19-animation-polish/CHECKPOINT.md). [Actual animation preview](2026-10-19-animation-polish/review.html). Full project backup made first; 629 tests and release passed. Gameplay rules and assets preserved. No commit/push.
+
+[Race completion and stronger balloon splash — complete, awaiting review](2026-10-18-race-completion/CHECKPOINT.md). [Actual captures and clips](2026-10-18-race-completion/review.html). 626 tests and release build passed; local host/guest verified. Guarded rollback available. Starting from published commit 39fad79; no new commit/push.
+
 # Publication approval — 18 October 2026
 
 User approved committing and pushing the integrated pending update: Race foundation, Smoko recovery timing, lighting/grass and water balloons. Earlier entries below record milestone-time status.

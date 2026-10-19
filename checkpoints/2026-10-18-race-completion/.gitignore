@@ -1,0 +1,3 @@
+# Compressed clips and selected stills are retained; raw frame sequences stay local.
+after/race-motion-[0-9][0-9][0-9].png
+motion/water-[0-9][0-9][0-9].png

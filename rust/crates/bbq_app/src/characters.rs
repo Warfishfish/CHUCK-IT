@@ -1152,6 +1152,21 @@ fn test_pose(mut game: ResMut<Game>, mut frame: Local<u32>, mut want: Local<Opti
     });
     let Some(pose) = want.as_deref() else { return };
     *frame += 1;
+    // Opt-in visual fixture; never active in normal gameplay.
+    if pose == "polish" {
+        game.options.bots_on=false;
+        for (k,d) in game.dummies.iter_mut().take(3).enumerate() {
+            d.mover.x=(k as f32-1.0)*2.8;d.mover.z=0.0;d.mover.y=0.0;
+            d.mover.vx=0.0;d.mover.vz=0.0;d.face=0.0;
+            let f=(*frame).saturating_sub(330)%120;
+            d.bot.winding=k<2 && (0..12).contains(&f) && *frame>=330;
+            d.bot.wind_progress=if d.bot.winding {f as f32/12.0}else{0.0};
+            d.anim.feel.weight=if k==0 {0.0}else{1.0};
+            if *frame>=330 && f==12 && k<2 {d.anim.start_swing();}
+            if *frame>=330 && f==12 && k==2 {d.anim.feel.hit(V3::new(1.0,0.0,0.0),8.0);}
+        }
+        return;
+    }
     // sitting is held for as long as the test runs (the smoko code would let them up again)
     if pose == "sit" && *frame >= 300 {
         for d in game.dummies.iter_mut() {
@@ -1208,24 +1223,33 @@ fn compute_poses(
     mut game: ResMut<Game>,
     player: Res<Player>,
     mut poses: ResMut<Poses>,
+    mut previous: Local<std::collections::HashMap<u32,(f32,f32)>>,
 ) {
     let dt = time.delta_secs();
     let t = game.now;
     let (px, pz) = (player.mover.x, player.mover.z);
     poses.0.clear();
     let bots_on = game.options.bots_on;
-    for d in game.dummies.iter_mut() {
+    let mirror=game.mirror;
+    previous.retain(|id,_| game.dummies.iter().any(|d|d.id==*id));
+    let weights: Vec<_> = game.dummies.iter().map(|d| d.bot.slots.selected().and_then(|id| game.world.items.get(&id)).map(|it| bbq_core::feel::weight(it.kind))).collect();
+    for (index, d) in game.dummies.iter_mut().enumerate() {
         // bots look where their brains point them; frozen practice blobs just watch you
         let face = if bots_on {
             d.face
         } else {
             (px - d.mover.x).atan2(pz - d.mover.z)
         };
+        let old=previous.insert(d.id,(d.body.stun,d.body.wet_t));
+        if mirror && old.is_some_and(|(stun,wet)| d.body.stun>stun+0.1 || d.body.wet_t>wet+0.2) {
+            d.anim.feel.hit(V3::new(d.face.sin(),0.0,d.face.cos()),if d.body.wet_t>0.0 {3.0}else{8.0});
+        }
         let inputs = Inputs {
             t,
             face,
             charging: d.bot.winding,
             charge: d.bot.wind_progress,
+            item_weight: weights[index].unwrap_or(d.anim.feel.weight),
             vel: V3::new(d.mover.vx, d.mover.vy, d.mover.vz),
             grounded: d.mover.grounded,
             drunk: d.drunk,
@@ -1251,6 +1275,7 @@ fn apply_roots(
         let (Some(d), Some(p)) = (game.dummies.get(b.0), poses.0.get(b.0)) else {
             continue;
         };
+        if d.anim.feel.frozen() { continue; }
         tf.translation = Vec3::new(
             d.mover.x + p.offset.0,
             d.mover.y - d.mover.sink,
@@ -1267,7 +1292,7 @@ fn apply_bodies(poses: Res<Poses>, mut q: Query<(&Blob, &mut Transform), With<Bl
         };
         tf.rotation = to_bevy(p.body_rot);
         tf.translation = Vec3::new(0.0, p.body_y, p.body_z);
-        tf.scale = Vec3::new(p.body_scale.0, p.body_scale.1, p.body_scale.0);
+        tf.scale = Vec3::new(p.body_scale.0, p.body_scale.1, p.body_scale.0 * p.depth_scale);
     }
 }
 

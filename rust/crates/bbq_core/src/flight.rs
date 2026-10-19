@@ -247,16 +247,16 @@ fn surface_bounce(it: &Item) -> f32 {
     it.kind.def().bounce / scale
 }
 
-fn on_surface(it: &mut Item, h: f32, on: Option<&Collider>, events: &mut Vec<FlightEvent>, dt: f32) -> Fate {
+fn on_surface(it: &mut Item, h: f32, on: Option<&Collider>, events: &mut Vec<FlightEvent>, dt: f32, race: bool) -> Fate {
     let d = it.kind.def();
     let sp = it.vel.len();
-    if it.pos.x.abs() > YARD_HALF_X || it.pos.z.abs() > YARD_HALF_Z {
+    if it.pos.x.abs() > if race {52.0}else{YARD_HALF_X} || it.pos.z.abs() > if race{37.0}else{YARD_HALF_Z} {
         events.push(FlightEvent::Over {
             thrower: it.thrower,
         });
         return Fate::Removed;
     }
-    if h == 0.0 && in_pool_rect(it.pos.x, it.pos.z) {
+    if !race && h == 0.0 && in_pool_rect(it.pos.x, it.pos.z) {
         if sp > 2.0 {
             events.push(FlightEvent::Splash {
                 x: it.pos.x,
@@ -340,7 +340,7 @@ fn collide_world_with_dt(it: &mut Item, yard: &Yard, rng: &mut Rng, events: &mut
     let r = it.radius();
     // trampoline
     let (tx, tz) = (it.pos.x - TRAMP_X, it.pos.z - TRAMP_Z);
-    if tx * tx + tz * tz < TRAMP_R * TRAMP_R
+    if !yard.race && tx * tx + tz * tz < TRAMP_R * TRAMP_R
         && it.pos.y < TRAMP_H + r
         && it.pos.y > TRAMP_H - 0.2
         && it.vel.y < 0.0
@@ -373,13 +373,13 @@ fn collide_world_with_dt(it: &mut Item, yard: &Yard, rng: &mut Rng, events: &mut
         return Fate::Alive;
     }
     // the ground (or the pool's water)
-    let floor_y = r + if in_pool_rect(it.pos.x, it.pos.z) {
+    let floor_y = r + if !yard.race && in_pool_rect(it.pos.x, it.pos.z) {
         WATER_Y - 0.05
     } else {
         0.0
     };
     if it.pos.y < floor_y {
-        if on_surface(it, 0.0, None, events, dt) == Fate::Removed {
+        if on_surface(it, 0.0, None, events, dt, yard.race) == Fate::Removed {
             return Fate::Removed;
         }
         if it.state != ItemState::Flying {
@@ -400,7 +400,7 @@ fn collide_world_with_dt(it: &mut Item, yard: &Yard, rng: &mut Rng, events: &mut
         let py = (c.h + r) - it.pos.y;
         if py <= px && py <= pz && it.vel.y <= 0.0 {
             it.pos.y = c.h + r;
-            if on_surface(it, c.h, Some(c), events, dt) == Fate::Removed {
+            if on_surface(it, c.h, Some(c), events, dt, yard.race) == Fate::Removed {
                 return Fate::Removed;
             }
             if it.state != ItemState::Flying {
@@ -427,14 +427,14 @@ fn collide_world_with_dt(it: &mut Item, yard: &Yard, rng: &mut Rng, events: &mut
         }
     }
     // the fence bounces things back (below 1.8 m)
-    if it.pos.x.abs() > YARD_HALF_X - r && it.pos.x.abs() < YARD_HALF_X + 0.5 && it.pos.y < 1.8 + r
+    if !yard.race && it.pos.x.abs() > YARD_HALF_X - r && it.pos.x.abs() < YARD_HALF_X + 0.5 && it.pos.y < 1.8 + r
     {
         it.pos.x = it.pos.x.signum() * (YARD_HALF_X - r);
         if hit_wall(it, Axis::X, events) == Fate::Removed {
             return Fate::Removed;
         }
     }
-    if it.pos.z.abs() > YARD_HALF_Z - r && it.pos.z.abs() < YARD_HALF_Z + 0.5 && it.pos.y < 1.8 + r
+    if !yard.race && it.pos.z.abs() > YARD_HALF_Z - r && it.pos.z.abs() < YARD_HALF_Z + 0.5 && it.pos.y < 1.8 + r
     {
         it.pos.z = it.pos.z.signum() * (YARD_HALF_Z - r);
         if hit_wall(it, Axis::Z, events) == Fate::Removed {
@@ -632,7 +632,7 @@ mod tests {
         for kind in [ItemKind::Dildo,ItemKind::Noodle] {
             let mut it=thrown(kind,V3::new(0.0,0.1,10.0),V3::new(4.0,-10.0,2.0));
             let before=it.vel.len_sq();
-            on_surface(&mut it,0.0,None,&mut vec![],DT);
+            on_surface(&mut it,0.0,None,&mut vec![],DT,false);
             assert!(it.vel.len_sq()<before);
             assert!(!it.live);
             heights.push(it.vel.y);
@@ -688,7 +688,7 @@ mod tests {
     fn soft_items_still_float_and_walls_remove_energy() {
         for kind in [ItemKind::Dildo,ItemKind::Noodle] {
             let mut it=thrown(kind,V3::new(crate::yard::POOL_X0+1.0,0.0,crate::yard::POOL_Z0+1.0),V3::new(2.0,-8.0,0.0));
-            let mut events=vec![];on_surface(&mut it,0.0,None,&mut events,DT);
+            let mut events=vec![];on_surface(&mut it,0.0,None,&mut events,DT,false);
             assert_eq!(it.state,ItemState::Ground);assert!((it.pos.y-(WATER_Y+0.04)).abs()<1e-5);
             assert!(events.iter().any(|e|matches!(e,FlightEvent::Splash{..})));
             let mut it=thrown(kind,V3::ZERO,V3::new(8.0,-2.0,3.0));let energy=it.vel.len_sq();

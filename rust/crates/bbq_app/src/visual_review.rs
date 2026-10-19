@@ -41,6 +41,7 @@ fn capture(
     meshes: Res<Assets<Mesh>>,
     materials: Res<Assets<StandardMaterial>>,
     images: Res<Assets<Image>>,
+    atlases: Res<bevy::text::FontAtlasSet>,
     drawn: Query<(), With<Mesh3d>>,
     game: Res<crate::game::Game>,
 ) {
@@ -108,6 +109,13 @@ fn capture(
             image_bytes,
         );
         println!("REVIEW {report}");
+        if std::env::args().any(|a|a=="--image-costs") {
+            println!("FONT_ATLASES count={} bytes={}",atlases.len(),atlases.total_bytes(&images));
+            for k in atlases.keys().take(25) {println!("FONT_KEY {k:?}");}
+            let mut sizes=std::collections::BTreeMap::new();
+            for (_,im) in images.iter(){let n=im.data.as_ref().map_or(0,Vec::len);*sizes.entry((n,format!("{:?} {:?}",im.texture_descriptor.size,im.texture_descriptor.label))).or_insert(0usize)+=1;}
+            for ((bytes,desc),count) in sizes {println!("IMAGE_COST count={count} bytes_each={bytes} {desc}");}
+        }
         let path = std::path::Path::new(&cfg.out).with_extension("metrics.txt");
         if let Err(error) = std::fs::write(path, report) {
             error!("Could not save review metrics: {error}");

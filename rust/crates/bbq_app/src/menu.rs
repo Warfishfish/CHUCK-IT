@@ -911,7 +911,7 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
         ));
         p.spawn((column(6.0), ShowWhen::RaceNote)).with_children(|r| {
             seg(r,SegId::RaceRole,"Your role",&[("Racer",0),("Sideline Thrower",1)]);
-            r.spawn(text("BACKYARD OVAL • 3 racers, 3 laps, about 190m per lap. Follow numbered gates. Bots fill racer places. Sideline role previews the race; throwing arrives next milestone. Solo preview only.",13.0,false,MUTED));
+            r.spawn(text("BACKYARD OVAL • 3 racers, 3 laps, 190m per lap. Race and dodge, or throw from the terrace. Hits: +50, +75, +100…; misses reset the streak. 225: refill 1.4s → 1s; 500: recovery 0.55s → 0.35s; 900: teddy + second slot (Q). Separate winners. Online: choose your role before the host starts; three racer seats, extra players throw.",13.0,false,MUTED));
         });
         p.spawn((column(6.0), ShowWhen::HeistTeams))
             .with_children(|h| {
@@ -1713,7 +1713,7 @@ fn paint_widgets(
     let label = match settings.mode {
         GameMode::Heist => "Play Teddy Heist",
         GameMode::Smoko => "Play Smoko",
-        GameMode::Race => "Race preview",
+        GameMode::Race => "Race & throw",
         GameMode::Teams => "Play Teams",
         GameMode::FreeForAll => "Play",
     };
@@ -1816,7 +1816,6 @@ pub fn attract(settings: &Settings, g: &mut Game, p: &mut Player, yard: &mut Yar
 }
 
 fn run_requests(
-    lobby: Res<crate::online::Lobby>,
     mut ui: ResMut<MenuUi>,
     mut screen: ResMut<Screen>,
     mut settings: ResMut<Settings>,
@@ -1869,7 +1868,6 @@ fn run_requests(
         }
         // a guest does not start rounds: the host does
         Request::Play | Request::Again if game.mirror => {}
-        Request::Play | Request::Again if settings.mode==GameMode::Race && lobby.in_yard => {game.say("Race is a solo preview until online race syncing is ready.");}
         Request::Play => {
             begin(&settings, &mut game, &mut player, &mut yard, &mut cast);
             *screen = Screen::Playing;

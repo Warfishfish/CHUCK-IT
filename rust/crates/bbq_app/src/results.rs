@@ -86,7 +86,7 @@ fn standings(g: &Game) -> String {
 }
 
 pub fn build(g: &Game, _settings: &Settings) -> ResultsText {
-    if g.rules.mode==GameMode::Race {let winner=g.round.results.as_ref().and_then(|r|r.winner);return ResultsText {race_lines:Some(crate::race::lines(g)),title:format!("{} wins the race",key_name(g,winner)),line:"Three laps • Finish time decides. Unfinished racers rank by checkpoints, then distance to the next gate.".into(),match_line:None,again_label:"Race again".into(),heist:false,rows:vec![]};}
+    if g.rules.mode==GameMode::Race {let winner=g.round.results.as_ref().and_then(|r|r.winner);return ResultsText {race_lines:Some(crate::race::all_lines(g)),title:format!("{} wins the race",key_name(g,winner)),line:format!("{} • Unfinished racers rank by gates, then distance.",crate::race::thrower_winner(g)),match_line:None,again_label:"Race again".into(),heist:false,rows:vec![]};}
     let mut rows: Vec<Row> = g
         .board
         .iter()

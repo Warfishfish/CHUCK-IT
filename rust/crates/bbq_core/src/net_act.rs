@@ -28,6 +28,8 @@ pub enum GuestAct {
     Catch,
     /// F edge; the host chooses/validates the victim and measures throw hold time.
     Carry { pressed: bool },
+    /// Preference for the next race; accepted only between rounds.
+    RaceRole { thrower: bool },
 }
 
 /// What the host tells a guest that happened to them.
@@ -73,6 +75,7 @@ impl GuestAct {
                 w.u32(*item);
             }
             GuestAct::Catch => w.u8(5),
+            GuestAct::RaceRole {thrower} => {w.u8(7);w.u8(*thrower as u8);},
             GuestAct::Carry { pressed } => { w.u8(6); w.u8(*pressed as u8); },
         }
     }
@@ -84,6 +87,7 @@ impl GuestAct {
             3 => GuestAct::Drop { item: r.u32()? },
             4 => GuestAct::Select { item: r.u32()? },
             5 => GuestAct::Catch,
+            7 => GuestAct::RaceRole {thrower:r.u8()? != 0},
             6 => GuestAct::Carry { pressed: r.u8()? != 0 },
             k => return Err(DecodeError::UnknownKind(k)),
         })

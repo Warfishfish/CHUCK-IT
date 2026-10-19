@@ -1,0 +1,3 @@
+Real repository: dry-run passed. No source restored.
+Isolated copy: later edit refused before any mutation.
+Isolated copy: clean apply restored all 16 source files to starting SHA-256 hashes.

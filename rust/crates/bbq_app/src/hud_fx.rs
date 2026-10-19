@@ -50,10 +50,7 @@ fn spawn_hud_fx(mut commands: Commands) {
     // big pop-up text, a bit above the middle
     commands.spawn((
         Text::new(""),
-        TextFont {
-            font_size: FontSize::Px(34.0),
-            ..default()
-        },
+        crate::ui::body_font(34.0, false),
         TextColor(Color::srgba(1.0, 0.95, 0.4, 0.0)),
         TextLayout::justify(Justify::Center),
         Node {
@@ -68,9 +65,9 @@ fn spawn_hud_fx(mut commands: Commands) {
 
 fn update_popup(
     game: Res<Game>,
-    mut q: Query<(&mut Text, &mut TextColor, &mut TextFont), With<PopupText>>,
+    mut q: Query<(&mut Text, &mut TextColor, &mut TextFont, &mut Node), With<PopupText>>,
 ) {
-    let Ok((mut text, mut col, mut font)) = q.single_mut() else {
+    let Ok((mut text, mut col, mut font, mut node)) = q.single_mut() else {
         return;
     };
     let Some(p) = game.popups.last() else {
@@ -80,7 +77,8 @@ fn update_popup(
     if text.0 != p.text {
         text.0 = p.text.clone();
     }
-    font.font_size = FontSize::Px(if p.big { 44.0 } else { 26.0 });
+    font.font_size = FontSize::Px(p.impact.map(bbq_core::feel::popup_size).unwrap_or(if p.big { 44.0 } else { 26.0 }));
+    node.top=Val::Percent(34.0-if p.impact.is_some() {bbq_core::feel::POPUP_RISE*(p.t/1.6).min(1.0)}else{0.0});
     // fade in fast, hold, fade out over the last half second
     let a = (p.t / 0.1)
         .min(1.0)

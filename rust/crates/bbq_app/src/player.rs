@@ -144,10 +144,7 @@ fn setup_camera_and_hud(mut commands: Commands, look: Res<crate::lighting::LookM
     }
     commands.spawn((
         Text::new(""),
-        TextFont {
-            font_size: FontSize::Px(16.0),
-            ..default()
-        },
+        crate::ui::body_font(16.0, false),
         TextColor(Color::WHITE),
         Node {
             position_type: PositionType::Absolute,
@@ -301,15 +298,28 @@ fn step_player(
     );
 }
 
+#[derive(Default)]
+pub struct VisualHitStop { previous: (f32,f32,f32), remaining: f32 }
+
 pub fn update_camera(
     time: Res<Time>,
     fixed: Res<Time<Fixed>>,
     mut player: ResMut<Player>,
     game: Res<crate::game::Game>,
     mut cam: Single<(&mut Transform, &mut Projection), With<EyeCamera>>,
+    mut stop: Local<VisualHitStop>,
 ) {
     let dt = time.delta_secs();
     let p = &mut *player;
+    let status=(game.me.body.stun,game.me.body.wet_t,game.me.body.down_t);
+    if status.0>stop.previous.0+0.1 || status.1>stop.previous.1+0.2 || status.2>stop.previous.2+0.1 {
+        stop.remaining=bbq_core::feel::HIT_STOP;
+    }
+    stop.previous=status;
+    if stop.remaining>0.0 {
+        stop.remaining=(stop.remaining-dt).max(0.0);
+        return; // Presentation only: simulation, aiming and networking continue.
+    }
 
     // Smooth between the last two fixed steps.
     let now = Vec3::new(p.mover.x, p.mover.y, p.mover.z);
@@ -363,8 +373,11 @@ fn update_hud(
     game: Res<crate::game::Game>,
     cast: Res<crate::characters::Cast>,
     time: Res<Time>,
-    mut text: Single<&mut Text, With<HudText>>,
+    mut text: Single<(&mut Text, &Visibility), With<HudText>>,
 ) {
+    // Hidden diagnostics still trigger text shaping. In particular fallback glyphs in
+    // changing race feeds otherwise allocate a new atlas every frame.
+    if *text.1 == Visibility::Hidden { return; }
     let m = &player.mover;
     let boost = if m.boost_t > 0.0 {
         format!("BOOST {:.1}s", m.boost_t)
@@ -420,7 +433,7 @@ fn update_hud(
     } else {
         String::new()
     };
-    text.0 = format!(
+    text.0.0 = format!(
         "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw (tap = slap), RMB catch, Q change weapon (E/wheel also swap), R bar/meat/chest/help up, F grab someone who's down (tap put down, hold chuck), T taunt, H dance, B laugh, G drop what you're holding\n\
          F1-F3 features, F5 falls, F6 Drunk mode, F7 Cheeky mode ({}), F9 character ({}), F10 bots ({}), F11 bot level ({:?}) | viewer: J/K/L slapped, N stacked it, M emote, Y drunk, C crown, V sash, X stink, P +30 drunk\n\
          SCORE {} | hits {} | taken {} | catches {} | streak {} | holding: {holding}{charge}\n\

@@ -30,6 +30,7 @@ pub mod net;
 pub mod net_act;
 pub mod net_world;
 pub mod pose;
+pub mod feel;
 pub mod rng;
 pub mod scoring;
 pub mod sim;

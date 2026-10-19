@@ -251,7 +251,7 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
 
     // a clean yard and the right number of bots
     g.world.clear();
-    sync_bot_count(g, if setup.mode==GameMode::Race {if setup.race_role==crate::race::Role::Racer{2}else{3}} else {setup.bots});
+    sync_bot_count(g, if setup.mode==GameMode::Race {crate::race::bot_count(g,setup.race_role)} else {setup.bots});
     assign_teams(g, false);
     g.board = Scoreboard::new();
     for id in everyone(g) {

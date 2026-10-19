@@ -1,0 +1,4 @@
+Real project: dry-run only, passed.
+Isolated copy: later edit blocked without any writes.
+Isolated copy: all nine modified files restored to baseline hashes and new feel.rs removed.
+Pending Race completion and splash work preserved.

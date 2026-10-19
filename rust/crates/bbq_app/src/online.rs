@@ -746,6 +746,9 @@ fn online_send(time: Res<Time>, mut online: ResMut<Online>, player: Res<Player>,
         dive: (m.dive.clamp(0.0, 1.0) * 255.0).round() as u8,
     };
     link.send(&session.room, None, Msg::State(state).encode());
+    if session.role==Role::Guest && (!game.round.timed || game.rules.phase==bbq_core::scoring::Phase::Results) {
+        if let Some(host)=session.host_peer() {link.send(&session.room,Some(host),Msg::Act(GuestAct::RaceRole{thrower:settings.race_role==crate::race::Role::Thrower}).encode());}
+    }
 }
 
 fn item_code(k: bbq_core::items::ItemKind) -> u8 {
@@ -921,7 +924,7 @@ fn online_world_apply(mut player: ResMut<Player>, mut online: ResMut<Online>, mu
     let Some(snap) = session.world.take() else { return };
     let (my_id, host) = (session.my_id, session.host_name());
     crate::online_world::apply_world(&mut game, &mut yard.0, &snap, my_id, &host);
-    if let Some(s) = snap.wet.iter().find(|s| s.id == my_id && s.remaining > 0.0) {
+    if let Some(s) = snap.wet.iter().find(|s| s.id == my_id && (s.remaining > 0.0 || game.rules.mode==bbq_core::GameMode::Race)) {
         if (player.mover.x-s.pos.0).hypot(player.mover.z-s.pos.2) > 1.0 {
             player.mover.x = s.pos.0; player.mover.z = s.pos.2;
         }
@@ -1079,10 +1082,12 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>) {
     };
     let now = game.now;
     let mirror = game.mirror;
+    let race=game.rules.mode==bbq_core::GameMode::Race;
+    let playing=game.rules.in_play();
     let controlled: Vec<_> = game.dummies.iter().filter(|d| crate::smoko_mode::controlled(&game,d.id)).map(|d|d.id).collect();
     for d in game.dummies.iter_mut() {
         // While stunned, the host simulates physical knockback; client positions cannot cancel it.
-        if controlled.contains(&d.id) || (d.body.wet_t > 0.0 && (mirror || d.body.stun > 0.0)) {continue;}
+        if (race && mirror) || controlled.contains(&d.id) || (d.body.wet_t > 0.0 && (mirror || d.body.stun > 0.0)) {continue;}
         let Some(r) = &d.remote else { continue };
         let Some(h) = session.heard.get(&r.net_id) else { continue };
         let s = h.state;
@@ -1092,8 +1097,8 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>) {
         let far = (target.0 - d.mover.x).hypot(target.2 - d.mover.z) > 4.0;
         let k = if far { 1.0 } else { k };
         let (mut dx, mut dz) = ((target.0 - d.mover.x) * k, (target.2 - d.mover.z) * k);
-        if !mirror && d.body.wet_t > 0.0 {
-            let mods = bbq_core::movement::Modifiers { wet: true, stunned: d.body.stun > 0.0, charging: d.bot.winding, ..Default::default() };
+        if !mirror && (d.body.wet_t > 0.0 || race) {
+            let mods = bbq_core::movement::Modifiers { wet: d.body.wet_t>0.0, frozen: race && !playing, stunned: d.body.stun > 0.0, charging: d.bot.winding, ..Default::default() };
             // Sprint requests remain subject to the host mover's duration/cooldown.
             if s.vel.0.hypot(s.vel.1) > bbq_core::movement::BASE_SPEED { d.mover.try_boost(&mods); }
             let step = d.mover.max_speed(&mods) * bbq_core::sim::TICK_DT;
@@ -1102,7 +1107,7 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>) {
         }
         d.mover.x += dx;
         d.mover.z += dz;
-        d.mover.y = target.1;
+        d.mover.y = if race {target.1.clamp(0.0,2.0)}else{target.1};
         d.mover.vx = s.vel.0;
         d.mover.vz = s.vel.1;
         d.mover.grounded = s.grounded;
@@ -1316,6 +1321,7 @@ mod tests {
         use bbq_core::net_world::*;
         let mut p = Pair::new();
         let snap = |seq| WorldSnap {
+            race:vec![],
             wet: vec![],
             seq,
             now: 1.0,

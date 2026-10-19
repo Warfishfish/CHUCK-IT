@@ -1,0 +1,42 @@
+{
+  "rust/crates/bbq_core/src/lib.rs": {
+    "before": "f57f616f56373fcb1e80d27cde8438520aa0855e57096365434170dfba5d80c7",
+    "after": "335887720f156e0e803f88a2807eb5d66766f3ab1bfb6d2d4bc968f4cbc6c45b"
+  },
+  "rust/crates/bbq_core/src/feel.rs": {
+    "before": null,
+    "after": "3583599c2a4261655ac4a25605cfb516e08bcf3f6c5c5f64075e2c334c550c90"
+  },
+  "rust/crates/bbq_core/src/pose.rs": {
+    "before": "14a24f0fd240eb258dcac7e143f7c4cee8ffca05409e6cb5c976bc4ed80c9ff5",
+    "after": "f08f77cabeeed3435bd04c7e5ee2d4f24e103fa6610896f6b84070f2e5bfdd5b"
+  },
+  "rust/crates/bbq_app/src/bots_app.rs": {
+    "before": "834cabbb618d2bddb4f71d62b7339979b910253ce156595aacde5702358164cb",
+    "after": "b80b5b36f1bd96a4f7dcbe5573f45a67f55409a610a1978d4659c146bb70a388"
+  },
+  "rust/crates/bbq_app/src/race.rs": {
+    "before": "e4a261d3bd8157a248ccb459bb8c6f41ad2d7d621298c04cdfb5e21486607fff",
+    "after": "f4fb99ea1362e98df1f054cefd1530c7666e1b6cf96aca360e689ef05580c554"
+  },
+  "rust/crates/bbq_app/src/game.rs": {
+    "before": "6285b5d2d6e0d0e3facadc4f6dbd43cb8c891e18daf205acd57fe4ccb2fe212e",
+    "after": "e452d250b32e38181f4356f65263f10dabdbf7284b04ebb06b0e2d6f8b9e89a9"
+  },
+  "rust/crates/bbq_app/src/hud_fx.rs": {
+    "before": "3869ae294268e6d79856066ebb351cc2689cb84eb60be7ca2b27a847d96db5ea",
+    "after": "67fc1560cd6ab3070425ffeff474642c42562cc32accff32babc38202bbf31b2"
+  },
+  "rust/crates/bbq_app/src/characters.rs": {
+    "before": "6bcfe700b43eb8b1946a6bf7c37df058d6985a6172b6b36652f338eba5d788a4",
+    "after": "d5b89f413acc6a5e957cb1827eaa69d16e565cee96bed0dc2b9c69e3b54f6088"
+  },
+  "rust/crates/bbq_app/src/online_world.rs": {
+    "before": "3bcafd009466174b03645711685594d43f59f25e87e9de01a486ca50c694b5eb",
+    "after": "3ed25203dce1da5742e913d732176809db31728f6286848978b3d5d8131ededa"
+  },
+  "rust/crates/bbq_app/src/player.rs": {
+    "before": "bd2c230b846e3a97b95b10ccd14b46790a319b3e4a2b62751e61ab8dc3e10482",
+    "after": "3a934195e900c01652daf2369ff9365eea3be09de6927e80be4b5c134a334c6f"
+  }
+}

@@ -1,0 +1,452 @@
+--- a/rust/crates/bbq_core/src/lib.rs
++++ b/rust/crates/bbq_core/src/lib.rs
+@@ -30,6 +30,7 @@
+ pub mod net_act;
+ pub mod net_world;
+ pub mod pose;
++pub mod feel;
+ pub mod rng;
+ pub mod scoring;
+ pub mod sim;
+--- a/rust/crates/bbq_core/src/feel.rs
++++ b/rust/crates/bbq_core/src/feel.rs
+@@ -0,0 +1,111 @@
++//! Presentation only. Never changes velocities, collisions, charge time or scoring.
++use crate::{items::ItemKind, pose::Pose, vec::{Quat, V3}};
++
++// Animation tuning: seconds, metres and radians. Weight is an artistic 0..1 value.
++pub const WINDUP_LIGHT: f32 = 0.10;
++pub const WINDUP_HEAVY: f32 = 0.20;
++pub const WIND_SQUASH: f32 = 0.16;
++pub const RELEASE_STRETCH: f32 = 0.23;
++pub const THROW_SETTLE: f32 = 0.65;
++pub const HIT_STOP: f32 = 0.070;
++pub const HIT_SQUASH: f32 = 0.22;
++pub const HIT_SHOVE: f32 = 0.09;
++pub const HIT_SETTLE: f32 = 0.65;
++pub const WOBBLE_CYCLES: f32 = 2.5;
++pub const SHAKE_MIN: f32 = 0.035;
++pub const SHAKE_MAX: f32 = 0.10;
++pub const POPUP_MIN: f32 = 26.0;
++pub const POPUP_MAX: f32 = 38.0;
++pub const POPUP_RISE: f32 = 4.0; // screen percentage over popup life
++
++pub fn weight(kind: ItemKind) -> f32 {
++    match kind {
++        ItemKind::Noodle => 0.0,
++        ItemKind::Teddy | ItemKind::Snag => 0.2,
++        ItemKind::WaterBalloon | ItemKind::Steak => 0.45,
++        ItemKind::Fish => 0.65,
++        ItemKind::Stubby => 0.8,
++        ItemKind::Dildo => 1.0,
++    }
++}
++// Existing knock strength is the game's impact-strength proxy; no damage rules added.
++pub fn strength(knock: f32) -> f32 { (knock / 10.0).clamp(0.25, 1.0) }
++pub fn shake(knock: f32) -> f32 { SHAKE_MIN + (SHAKE_MAX-SHAKE_MIN)*strength(knock) }
++pub fn popup_size(knock: f32) -> f32 { POPUP_MIN+(POPUP_MAX-POPUP_MIN)*strength(knock) }
++
++#[derive(Clone, Debug, Default)]
++pub struct Feel {
++    wind: f32,
++    pub weight: f32,
++    release: Option<f32>,
++    impact: Option<(f32, f32, V3)>,
++}
++impl Feel {
++    pub fn release(&mut self) { self.release=Some(0.0); self.wind=0.0; }
++    pub fn hit(&mut self, dir: V3, knock: f32) {
++        self.impact=Some((0.0,strength(knock),dir.normalised()));
++        self.release=None;
++    }
++    pub fn frozen(&self) -> bool { self.impact.is_some_and(|(t,_,_)| t < HIT_STOP) }
++    pub fn tick(&mut self, dt: f32, charging: bool, weight: f32, enabled: bool, p: &mut Pose) {
++        let dt=dt.clamp(0.0,0.1);
++        if charging {self.weight=weight.clamp(0.0,1.0); self.wind+=dt;} else {self.wind=0.0;}
++        let w=self.weight;
++        if enabled {
++            if charging && self.release.is_none() {
++                let u=(self.wind/(WINDUP_LIGHT+(WINDUP_HEAVY-WINDUP_LIGHT)*w)).min(1.0);
++                let s=WIND_SQUASH*(0.65+0.7*w)*u*u*(3.0-2.0*u);
++                p.body_scale=(1.0+s*0.5,1.0-s);
++                p.body_rot=p.body_rot.mul(Quat::from_euler_xyz(-s*1.3,0.0,0.0));
++            }
++            if let Some(t)=self.release {
++                let u=t/THROW_SETTLE;
++                let s=RELEASE_STRETCH*(0.65+0.7*w)*(-5.0*u).exp()*(u*std::f32::consts::TAU*WOBBLE_CYCLES).cos();
++                p.body_scale=(1.0-s*0.4,1.0+s);
++                p.body_rot=p.body_rot.mul(Quat::from_euler_xyz(s,0.0,0.0));
++                p.body_z+=s*0.15;
++            }
++        }
++        if let Some(t)=&mut self.release { *t+=dt;if *t>=THROW_SETTLE {self.release=None;} }
++        if let Some((t,power,dir))=self.impact {
++            let u=((t-HIT_STOP).max(0.0)/HIT_SETTLE).min(1.0);
++            let pulse=(-5.0*u).exp()*(u*std::f32::consts::TAU*WOBBLE_CYCLES).cos();
++            let s=HIT_SQUASH*power*pulse;
++            let local_x=dir.x*p.yaw.cos()-dir.z*p.yaw.sin();
++            let local_z=dir.x*p.yaw.sin()+dir.z*p.yaw.cos();
++            if enabled {
++                p.body_scale.0*=1.0-s*local_x.abs();
++                p.depth_scale*=(1.0-s*local_z.abs())/(1.0-s*local_x.abs());
++                p.body_scale.1*=1.0+s*0.45;
++                p.body_rot=p.body_rot.mul(Quat::from_euler_xyz(s*local_z,0.0,-s*local_x));
++            }
++            let shove=HIT_SHOVE*power*(1.0-u).powi(2);
++            p.offset.0+=dir.x*shove; p.offset.1+=dir.z*shove;
++            self.impact=if t+dt>=HIT_STOP+HIT_SETTLE {None}else{Some((t+dt,power,dir))};
++        }
++    }
++}
++
++#[cfg(test)] mod tests {
++    use super::*;
++    #[test] fn heavy_winds_slower_and_releases_bigger() {
++        let mut light=Feel::default();let mut heavy=Feel::default();
++        let mut a=Pose::default();let mut b=Pose::default();
++        light.tick(0.1,true,0.0,true,&mut a);heavy.tick(0.1,true,1.0,true,&mut b);
++        assert!(a.body_scale.1 < 1.0 && b.body_scale.1 < 1.0);
++        light.release();heavy.release();a=Pose::default();b=Pose::default();
++        light.tick(0.016,false,0.0,true,&mut a);heavy.tick(0.016,false,0.0,true,&mut b);
++        assert!(b.body_scale.1>a.body_scale.1);
++    }
++    #[test] fn directional_impact_freezes_briefly_then_settles() {
++        let mut f=Feel::default();f.hit(V3::new(1.0,0.0,0.0),8.0);
++        assert!(f.frozen());let mut p=Pose::default();f.tick(0.016,false,0.0,true,&mut p);
++        assert!(p.body_scale.0<1.0 && p.offset.0>0.0);
++        for _ in 0..60 {p=Pose::default();f.tick(0.016,false,0.0,true,&mut p);}
++        assert!(!f.frozen());assert_eq!(p.body_scale,(1.0,1.0));assert_eq!(p.offset,(0.0,0.0));
++    }
++    #[test] fn impact_feedback_is_bounded_and_scales() {
++        assert!(shake(3.0)<shake(10.0));assert!((shake(1000.0)-SHAKE_MAX).abs()<1e-6);
++        assert!(popup_size(3.0)<popup_size(10.0));
++    }
++}
+--- a/rust/crates/bbq_core/src/pose.rs
++++ b/rust/crates/bbq_core/src/pose.rs
+@@ -250,6 +250,7 @@
+     pub drunk: f32,
+     pub charging: bool,
+     pub charge: f32,
++    pub item_weight: f32,
+     pub down_t: f32,
+     pub stun: f32,
+     /// Stacked it (fallen over from drink).
+@@ -294,6 +295,7 @@
+     pub body_z: f32,
+     /// Squash and stretch: (x and z, y).
+     pub body_scale: (f32, f32),
++    pub depth_scale: f32,
+     /// Right hand (the throwing hand) and left hand, relative to the body.
+     pub hand_r: V3,
+     pub hand_l: V3,
+@@ -326,6 +328,7 @@
+             body_y: 0.0,
+             body_z: 0.0,
+             body_scale: (1.0, 1.0),
++            depth_scale: 1.0,
+             hand_r: V3::new(-0.47, 0.88, 0.05),
+             hand_l: V3::new(0.47, 0.88, 0.05),
+             item_pitch: 0.0,
+@@ -348,6 +351,8 @@
+ /// Per-character animation state.
+ #[derive(Clone, Debug)]
+ pub struct Animator {
++    pub feel: crate::feel::Feel,
++    cached_pose: Option<Pose>,
+     pub tilt: f32,
+     tilt_v: f32,
+     tilt_axis: V3,
+@@ -369,6 +374,8 @@
+ impl Animator {
+     pub fn new(phase: f32) -> Self {
+         Self {
++            feel: Default::default(),
++            cached_pose: None,
+             tilt: 0.0,
+             tilt_v: 0.0,
+             tilt_axis: V3::new(1.0, 0.0, 0.0),
+@@ -387,6 +394,7 @@
+ 
+     /// A hit shoves them: they lean away and spin. `spin_sign` is +1 or -1 (random).
+     pub fn tumble(&mut self, dir: V3, knock: f32, spin_sign: f32) {
++        self.feel.hit(dir, knock);
+         self.tilt_axis = V3::new(dir.z, 0.0, -dir.x);
+         self.tilt_v += knock * 0.95;
+         self.spin_v += spin_sign * knock * 0.45;
+@@ -398,6 +406,7 @@
+ 
+     pub fn start_swing(&mut self) {
+         self.swing = Some(0.0);
++        self.feel.release();
+     }
+ 
+     pub fn start_emote(&mut self, e: Emote) {
+@@ -411,6 +420,11 @@
+ 
+     /// Advance by `dt` and work out the pose.
+     pub fn tick(&mut self, dt: f32, i: &Inputs) -> Pose {
++        if self.feel.frozen() && let Some(p) = self.cached_pose {
++            let mut ignored=p;
++            self.feel.tick(dt, false, i.item_weight, false, &mut ignored);
++            return p;
++        }
+         let mut p = Pose::default();
+         let sp = i.vel.horiz_len();
+         // springs and timers
+@@ -652,6 +666,9 @@
+         }
+ 
+         p.stars = i.stun > 0.15 || self.dizzy > 0.0;
++        self.feel.tick(dt, i.charging, i.item_weight,
++            !slap_on && i.down_t <= 0.0 && !i.seated && i.dragged_by.is_none() && !i.fallen, &mut p);
++        self.cached_pose=Some(p);
+         p
+     }
+ }
+--- a/rust/crates/bbq_app/src/bots_app.rs
++++ b/rust/crates/bbq_app/src/bots_app.rs
+@@ -449,6 +449,7 @@
+     if g.world.throw(t.item, id, t.from, t.vel, t.charge, false) {
+         g.dummies[i].bot.slots.remove(t.item);
+         g.board.count_throw(id);
++        g.dummies[i].anim.feel.weight=g.world.items.get(&t.item).map_or(0.5, |it| bbq_core::feel::weight(it.kind));
+         g.dummies[i].anim.start_swing();
+         g.dummies[i].bot.swing_t = melee::SWING_TIME;
+     }
+@@ -760,7 +761,7 @@
+                 crate::smoko_mode::extend_knockdown(g.rules.mode, &mut g.me.body, res.effect.knocked_down);
+     g.me.drunk.cancel_drink();
+     g.wind.cancel();
+-    p.shake = p.shake.max(0.12 + item.knock() * 0.012);
++    p.shake = p.shake.max(bbq_core::feel::shake(item.knock()));
+     let leader = g.board.leader() == Some(PLAYER_ID);
+     let bonus = thrower.map_or(0, |t| drunk_bonus_of(g, t));
+     let same_team = thrower.is_some_and(|t| teammate(g, t, PLAYER_ID));
+@@ -792,8 +793,10 @@
+     if flatten && res.effect.knocked_down {
+         msg += " KNOCKED OVER!";
+     }
++    let popup_text=msg.clone();
+     g.say(msg);
+-    g.popup(if kind == ItemKind::WaterBalloon { "SPLASH! Wet: 80% speed".to_string() } else { format!("{who} got you!") }, true);
++    g.popup(if kind == ItemKind::WaterBalloon { "SPLASH! Wet: 80% speed".to_string() } else { format!("{popup_text} — {who} got you!") }, true);
++    if let Some(pop)=g.popups.last_mut() {pop.impact=Some(item.knock());}
+ }
+ 
+ /// Items that thrown or knocked about by bots are told apart from yours.
+--- a/rust/crates/bbq_app/src/race.rs
++++ b/rust/crates/bbq_app/src/race.rs
+@@ -511,6 +511,7 @@
+         g.slots.remove(item);
+     } else if let Some(d) = g.dummies.iter_mut().find(|d| d.id == id) {
+         d.bot.slots.remove(item);
++        d.anim.feel.weight=g.world.items.get(&item).map_or(0.5, |it| bbq_core::feel::weight(it.kind));
+         d.anim.start_swing();
+     }
+     true
+@@ -685,6 +686,7 @@
+                 victim,
+                 thrower,
+                 kind,
++                dir,
+                 ..
+             } => {
+                 let valid = g
+@@ -721,6 +723,7 @@
+                         }
+                         V3::new(p.mover.x, 1.2, p.mover.z)
+                     } else if let Some(d) = g.dummies.iter_mut().find(|d| d.id == victim) {
++                        d.anim.feel.hit(dir, kind.def().knock);
+                         if slow {
+                             d.body.wet_t = duration;
+                         }
+--- a/rust/crates/bbq_app/src/game.rs
++++ b/rust/crates/bbq_app/src/game.rs
+@@ -158,6 +158,7 @@
+ pub struct Popup {
+     pub text: String,
+     pub big: bool,
++    pub impact: Option<f32>,
+     pub t: f32,
+ }
+ 
+@@ -217,6 +218,7 @@
+         self.popups.push(Popup {
+             text: text.into(),
+             big,
++            impact: None,
+             t: 0.0,
+         });
+         if self.popups.len() > 4 {
+@@ -806,6 +808,8 @@
+                     msg += " (already stunned, no new stun)";
+                 }
+                 if thrower == Some(PLAYER_ID) {
++                    g.popup(msg.clone(), false);
++                    if let Some(pop)=g.popups.last_mut() {pop.impact=Some(item.knock());}
+                     g.say(msg);
+                 } else {
+                     let who =
+--- a/rust/crates/bbq_app/src/hud_fx.rs
++++ b/rust/crates/bbq_app/src/hud_fx.rs
+@@ -50,10 +50,7 @@
+     // big pop-up text, a bit above the middle
+     commands.spawn((
+         Text::new(""),
+-        TextFont {
+-            font_size: FontSize::Px(34.0),
+-            ..default()
+-        },
++        crate::ui::body_font(34.0, false),
+         TextColor(Color::srgba(1.0, 0.95, 0.4, 0.0)),
+         TextLayout::justify(Justify::Center),
+         Node {
+@@ -68,9 +65,9 @@
+ 
+ fn update_popup(
+     game: Res<Game>,
+-    mut q: Query<(&mut Text, &mut TextColor, &mut TextFont), With<PopupText>>,
++    mut q: Query<(&mut Text, &mut TextColor, &mut TextFont, &mut Node), With<PopupText>>,
+ ) {
+-    let Ok((mut text, mut col, mut font)) = q.single_mut() else {
++    let Ok((mut text, mut col, mut font, mut node)) = q.single_mut() else {
+         return;
+     };
+     let Some(p) = game.popups.last() else {
+@@ -80,7 +77,8 @@
+     if text.0 != p.text {
+         text.0 = p.text.clone();
+     }
+-    font.font_size = FontSize::Px(if p.big { 44.0 } else { 26.0 });
++    font.font_size = FontSize::Px(p.impact.map(bbq_core::feel::popup_size).unwrap_or(if p.big { 44.0 } else { 26.0 }));
++    node.top=Val::Percent(34.0-if p.impact.is_some() {bbq_core::feel::POPUP_RISE*(p.t/1.6).min(1.0)}else{0.0});
+     // fade in fast, hold, fade out over the last half second
+     let a = (p.t / 0.1)
+         .min(1.0)
+--- a/rust/crates/bbq_app/src/characters.rs
++++ b/rust/crates/bbq_app/src/characters.rs
+@@ -1152,6 +1152,21 @@
+     });
+     let Some(pose) = want.as_deref() else { return };
+     *frame += 1;
++    // Opt-in visual fixture; never active in normal gameplay.
++    if pose == "polish" {
++        game.options.bots_on=false;
++        for (k,d) in game.dummies.iter_mut().take(3).enumerate() {
++            d.mover.x=(k as f32-1.0)*2.8;d.mover.z=0.0;d.mover.y=0.0;
++            d.mover.vx=0.0;d.mover.vz=0.0;d.face=0.0;
++            let f=(*frame).saturating_sub(330)%120;
++            d.bot.winding=k<2 && (0..12).contains(&f) && *frame>=330;
++            d.bot.wind_progress=if d.bot.winding {f as f32/12.0}else{0.0};
++            d.anim.feel.weight=if k==0 {0.0}else{1.0};
++            if *frame>=330 && f==12 && k<2 {d.anim.start_swing();}
++            if *frame>=330 && f==12 && k==2 {d.anim.feel.hit(V3::new(1.0,0.0,0.0),8.0);}
++        }
++        return;
++    }
+     // sitting is held for as long as the test runs (the smoko code would let them up again)
+     if pose == "sit" && *frame >= 300 {
+         for d in game.dummies.iter_mut() {
+@@ -1208,24 +1223,33 @@
+     mut game: ResMut<Game>,
+     player: Res<Player>,
+     mut poses: ResMut<Poses>,
++    mut previous: Local<std::collections::HashMap<u32,(f32,f32)>>,
+ ) {
+     let dt = time.delta_secs();
+     let t = game.now;
+     let (px, pz) = (player.mover.x, player.mover.z);
+     poses.0.clear();
+     let bots_on = game.options.bots_on;
+-    for d in game.dummies.iter_mut() {
++    let mirror=game.mirror;
++    previous.retain(|id,_| game.dummies.iter().any(|d|d.id==*id));
++    let weights: Vec<_> = game.dummies.iter().map(|d| d.bot.slots.selected().and_then(|id| game.world.items.get(&id)).map(|it| bbq_core::feel::weight(it.kind))).collect();
++    for (index, d) in game.dummies.iter_mut().enumerate() {
+         // bots look where their brains point them; frozen practice blobs just watch you
+         let face = if bots_on {
+             d.face
+         } else {
+             (px - d.mover.x).atan2(pz - d.mover.z)
+         };
++        let old=previous.insert(d.id,(d.body.stun,d.body.wet_t));
++        if mirror && old.is_some_and(|(stun,wet)| d.body.stun>stun+0.1 || d.body.wet_t>wet+0.2) {
++            d.anim.feel.hit(V3::new(d.face.sin(),0.0,d.face.cos()),if d.body.wet_t>0.0 {3.0}else{8.0});
++        }
+         let inputs = Inputs {
+             t,
+             face,
+             charging: d.bot.winding,
+             charge: d.bot.wind_progress,
++            item_weight: weights[index].unwrap_or(d.anim.feel.weight),
+             vel: V3::new(d.mover.vx, d.mover.vy, d.mover.vz),
+             grounded: d.mover.grounded,
+             drunk: d.drunk,
+@@ -1251,6 +1275,7 @@
+         let (Some(d), Some(p)) = (game.dummies.get(b.0), poses.0.get(b.0)) else {
+             continue;
+         };
++        if d.anim.feel.frozen() { continue; }
+         tf.translation = Vec3::new(
+             d.mover.x + p.offset.0,
+             d.mover.y - d.mover.sink,
+@@ -1267,7 +1292,7 @@
+         };
+         tf.rotation = to_bevy(p.body_rot);
+         tf.translation = Vec3::new(0.0, p.body_y, p.body_z);
+-        tf.scale = Vec3::new(p.body_scale.0, p.body_scale.1, p.body_scale.0);
++        tf.scale = Vec3::new(p.body_scale.0, p.body_scale.1, p.body_scale.0 * p.depth_scale);
+     }
+ }
+ 
+--- a/rust/crates/bbq_app/src/online_world.rs
++++ b/rust/crates/bbq_app/src/online_world.rs
+@@ -1332,7 +1332,7 @@
+             if kind == ItemKind::WaterBalloon { return; }
+             let res = bbq_core::hitting::apply_item_hit(&mut g.me.body, &mut p.mover, &item, dir, *flatten);
+             crate::smoko_mode::extend_knockdown(g.rules.mode, &mut g.me.body, res.effect.knocked_down);
+-            p.shake = p.shake.max(0.12 + item.knock() * 0.012);
++            p.shake = p.shake.max(bbq_core::feel::shake(item.knock()));
+         }
+         HitMsg::Slap { dir, knock, up, stun, dizzy, down } => {
+             let dir = V3::new(dir.0, dir.1, dir.2);
+@@ -1450,6 +1450,7 @@
+             if g.world.throw(*item, id, start, V3::new(vel.0, vel.1, vel.2), *charge, true) {
+                 g.dummies[i].bot.slots.remove(*item);
+                 g.board.count_throw(id);
++                g.dummies[i].anim.feel.weight=g.world.items.get(item).map_or(0.5, |it| bbq_core::feel::weight(it.kind));
+                 g.dummies[i].anim.start_swing();
+                 g.dummies[i].bot.swing_t = melee::SWING_TIME;
+             }
+--- a/rust/crates/bbq_app/src/player.rs
++++ b/rust/crates/bbq_app/src/player.rs
+@@ -298,15 +298,28 @@
+     );
+ }
+ 
++#[derive(Default)]
++pub struct VisualHitStop { previous: (f32,f32,f32), remaining: f32 }
++
+ pub fn update_camera(
+     time: Res<Time>,
+     fixed: Res<Time<Fixed>>,
+     mut player: ResMut<Player>,
+     game: Res<crate::game::Game>,
+     mut cam: Single<(&mut Transform, &mut Projection), With<EyeCamera>>,
++    mut stop: Local<VisualHitStop>,
+ ) {
+     let dt = time.delta_secs();
+     let p = &mut *player;
++    let status=(game.me.body.stun,game.me.body.wet_t,game.me.body.down_t);
++    if status.0>stop.previous.0+0.1 || status.1>stop.previous.1+0.2 || status.2>stop.previous.2+0.1 {
++        stop.remaining=bbq_core::feel::HIT_STOP;
++    }
++    stop.previous=status;
++    if stop.remaining>0.0 {
++        stop.remaining=(stop.remaining-dt).max(0.0);
++        return; // Presentation only: simulation, aiming and networking continue.
++    }
+ 
+     // Smooth between the last two fixed steps.
+     let now = Vec3::new(p.mover.x, p.mover.y, p.mover.z);

@@ -1,0 +1,1619 @@
+diff --git a/rust/crates/bbq_app/src/bots_app.rs b/rust/crates/bbq_app/src/bots_app.rs
+index 02c85ee..4631a9f 100644
+--- a/rust/crates/bbq_app/src/bots_app.rs
++++ b/rust/crates/bbq_app/src/bots_app.rs
+@@ -751,7 +751,7 @@ pub fn hit_player(
+     start: V3,
+ ) {
+     g.fx(
+-        if kind == ItemKind::WaterBalloon { crate::fx::FxKind::Splash } else if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
++        if kind == ItemKind::WaterBalloon { crate::fx::FxKind::BalloonBurst } else if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
+         V3::new(p.mover.x, 1.0, p.mover.z),
+     );
+     let mut item = Item::new(0, kind, V3::ZERO);
+diff --git a/rust/crates/bbq_app/src/fx.rs b/rust/crates/bbq_app/src/fx.rs
+index 103e474..4710eb0 100644
+--- a/rust/crates/bbq_app/src/fx.rs
++++ b/rust/crates/bbq_app/src/fx.rs
+@@ -30,11 +30,13 @@ pub enum FxKind {
+     ShatterSpirit,
+     /// Family mode's lemonade can bursts: a fizz of pale bubbles.
+     Fizz,
++    /// Broad radial water burst plus a short translucent mist.
++    BalloonBurst,
+ }
+ 
+ impl FxKind {
+     // (new kinds go on the end: the position is the number sent online)
+-    pub const ALL: [FxKind; 8] = [
++    pub const ALL: [FxKind; 9] = [
+         FxKind::Hit,
+         FxKind::Smash,
+         FxKind::Whack,
+@@ -43,6 +45,7 @@ impl FxKind {
+         FxKind::Shatter,
+         FxKind::ShatterSpirit,
+         FxKind::Fizz,
++        FxKind::BalloonBurst,
+     ];
+ 
+     /// What a bottle (or the VP can) does when it breaks.
+@@ -88,6 +91,8 @@ struct Effects {
+     puff: Handle<EffectAsset>,
+     foam: Handle<EffectAsset>,
+     splash: Handle<EffectAsset>,
++    balloon: Handle<EffectAsset>,
++    mist: Handle<EffectAsset>,
+     dust: Handle<EffectAsset>,
+     shards: Handle<EffectAsset>,
+     clear_shards: Handle<EffectAsset>,
+@@ -265,6 +270,18 @@ fn make_effects(mut commands: Commands, mut effects: ResMut<Assets<EffectAsset>>
+         size: (0.18, 0.06),
+         colours: [c(0.85, 0.97, 1.0, 0.95), c(0.5, 0.82, 0.98, 0.8), c(0.4, 0.75, 0.95, 0.0)],
+     }));
++    let balloon = effects.add(burst_asset(&Burst {
++        name: "balloon water crown", count: 140.0, radius: 0.22,
++        speed: (2.8, 6.0), up: 2.0, life: (0.45, 0.95),
++        gravity: -10.0, drag: 1.1, size: (0.25, 0.045),
++        colours: [c(0.8, 0.96, 1.0, 1.0), c(0.2, 0.72, 1.0, 0.85), c(0.15, 0.6, 0.95, 0.0)],
++    }));
++    let mist = effects.add(burst_asset(&Burst {
++        name: "balloon impact mist", count: 18.0, radius: 0.25,
++        speed: (0.8, 2.3), up: 0.45, life: (0.18, 0.42),
++        gravity: -0.8, drag: 3.0, size: (0.4, 0.85),
++        colours: [c(0.8, 0.96, 1.0, 0.48), c(0.4, 0.82, 1.0, 0.2), c(0.3, 0.7, 0.95, 0.0)],
++    }));
+     let dust = effects.add(burst_asset(&Burst {
+         name: "dust",
+         count: 12.0,
+@@ -333,6 +350,8 @@ fn make_effects(mut commands: Commands, mut effects: ResMut<Assets<EffectAsset>>
+         puff,
+         foam,
+         splash,
++        balloon,
++        mist,
+         dust,
+         shards,
+         clear_shards,
+@@ -365,6 +384,7 @@ fn spawn_events(
+             FxKind::Whack => (vec![&fx.stars], 1.0),
+             FxKind::Smash => (vec![&fx.foam, &fx.puff], 1.4),
+             FxKind::Splash => (vec![&fx.splash], 1.8),
++            FxKind::BalloonBurst => (vec![&fx.balloon, &fx.mist], 1.2),
+             FxKind::Dust => (vec![&fx.dust], 1.6),
+             FxKind::Shatter => (vec![&fx.shards, &fx.foam, &fx.puff], 1.4),
+             FxKind::ShatterSpirit => (vec![&fx.clear_shards, &fx.rum, &fx.puff], 1.4),
+diff --git a/rust/crates/bbq_app/src/game.rs b/rust/crates/bbq_app/src/game.rs
+index 783c62c..e4defcc 100644
+--- a/rust/crates/bbq_app/src/game.rs
++++ b/rust/crates/bbq_app/src/game.rs
+@@ -749,7 +749,7 @@ pub fn step_game(
+                 };
+                 let (vx, vz) = (g.dummies[di].mover.x, g.dummies[di].mover.z);
+                 g.fx(
+-                    if kind == ItemKind::WaterBalloon { crate::fx::FxKind::Splash } else if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
++                    if kind == ItemKind::WaterBalloon { crate::fx::FxKind::BalloonBurst } else if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
+                     V3::new(vx, 1.2, vz),
+                 );
+                 let leader = g.board.leader() == Some(victim);
+@@ -853,7 +853,7 @@ pub fn step_game(
+                 g.say("Over the fence!");
+             }
+             WorldEvent::Flight { ev: bbq_core::flight::FlightEvent::WaterBurst { pos }, .. } => {
+-                g.fx(crate::fx::FxKind::Splash, pos);
++                g.fx(crate::fx::FxKind::BalloonBurst, pos);
+             }
+             // a glass bottle that lands hard shatters where it lands (the VP can just goes flat)
+             WorldEvent::Flight {
+@@ -3117,7 +3117,7 @@ mod tests {
+         assert_eq!(app.world().resource::<Game>().slots.len(), 1, "G is ignored while you are stunned");
+     }
+     #[test]
+-    fn race_bot_fill_finishes_three_laps_and_has_no_combat_points() {
++    fn race_bot_fill_finishes_three_laps_and_scores_separate_throwing_game() {
+         let mut app=app();let mut cfg=setup(GameMode::Race,0);cfg.race_role=crate::race::Role::Thrower;
+         start_with(&mut app,cfg);
+         assert_eq!(app.world().resource::<Game>().race.racers.len(),3);
+@@ -3126,12 +3126,44 @@ mod tests {
+         assert_eq!(g.rules.phase,Phase::Results);
+         assert!(g.race.racers.values().all(|r|r.finish.is_some()),"{:?}",g.race.racers);
+         assert!(g.board.iter().all(|(_,s)|s.score==0));
++        assert!(g.race.throwers.values().any(|t|t.score>0),"thrower bots must land hits");
+         assert!(g.round.results.as_ref().unwrap().winner.is_some());
+     }
+     #[test]
++    fn race_actual_balloon_hit_scores_once_with_bounded_slowdown_and_expiry() {
++        let mut app=app();let mut cfg=setup(GameMode::Race,0);cfg.race_role=crate::race::Role::Thrower;start_with(&mut app,cfg);
++        app.world_mut().resource_mut::<Game>().options.bots_on=false;
++        ticks(&mut app,200);
++        let victim=*app.world().resource::<Game>().race.racers.keys().next().unwrap();
++        for expected in [50,125] {
++            {
++                let mut g=app.world_mut().resource_mut::<Game>();
++                let d=g.dummies.iter().find(|d|d.id==victim).unwrap();let at=V3::new(d.mover.x,1.1,d.mover.z-1.5);
++                let mut rng=Rng::new(4);let item=g.world.spawn(ItemKind::WaterBalloon,at.x,at.z,false,&mut rng);g.world.give(item,PLAYER_ID);g.slots.clear();g.slots.add(item);
++                g.race.throwers.get_mut(&PLAYER_ID).unwrap().ready_at=0.;
++                assert!(crate::race::launch(&mut g,PLAYER_ID,item,at,V3::new(0.,0.,15.),1.));
++            }
++            ticks(&mut app,15);let g=app.world().resource::<Game>();
++            assert_eq!(g.race.throwers[&PLAYER_ID].score,expected);
++            let d=g.dummies.iter().find(|d|d.id==victim).unwrap();assert!(d.body.wet_t>3.0);assert_eq!(d.body.stun,0.);assert!(!d.body.is_down());
++        }
++        ticks(&mut app,240);let g=app.world().resource::<Game>();assert_eq!(g.race.throwers[&PLAYER_ID].score,125);assert_eq!(g.dummies.iter().find(|d|d.id==victim).unwrap().body.wet_t,0.);
++    }
++    #[test]
++    fn race_airborne_miss_waits_until_resolution_and_supply_is_bounded() {
++        let mut app=app();let mut cfg=setup(GameMode::Race,0);cfg.race_role=crate::race::Role::Thrower;start_with(&mut app,cfg);
++        app.world_mut().resource_mut::<Game>().options.bots_on=false;ticks(&mut app,200);
++        {
++            let mut g=app.world_mut().resource_mut::<Game>();let item=g.slots.selected().unwrap();g.race.throwers.get_mut(&PLAYER_ID).unwrap().streak=3;
++            assert!(crate::race::launch(&mut g,PLAYER_ID,item,V3::new(0.,1.2,-30.),V3::new(0.,18.,0.),1.));
++        }
++        ticks(&mut app,20);assert_eq!(app.world().resource::<Game>().race.throwers[&PLAYER_ID].streak,3);
++        ticks(&mut app,400);let g=app.world().resource::<Game>();assert_eq!(g.race.throwers[&PLAYER_ID].streak,0);assert_eq!(g.slots.len(),1);assert!(g.race.throwers[&PLAYER_ID].attempts.is_empty());assert!(g.world.items.len()<=g.race.throwers.len());
++    }
++    #[test]
+     fn race_racer_role_fills_two_bots_and_mode_switch_restores_yard() {
+         let mut app=app();start_with(&mut app,setup(GameMode::Race,0));
+-        assert_eq!(app.world().resource::<Game>().dummies.len(),2);
++        assert_eq!(app.world().resource::<Game>().dummies.len(),4);
+         assert!(app.world().resource::<Game>().race.racers.contains_key(&PLAYER_ID));
+         assert!(app.world().resource::<YardRes>().0.colliders.is_empty());
+         start_with(&mut app,setup(GameMode::Smoko,1));
+diff --git a/rust/crates/bbq_app/src/hud.rs b/rust/crates/bbq_app/src/hud.rs
+index 9479c07..c4fd5e9 100644
+--- a/rust/crates/bbq_app/src/hud.rs
++++ b/rust/crates/bbq_app/src/hud.rs
+@@ -77,6 +77,8 @@ struct BreathBar;
+ #[derive(Component)]
+ struct BoostLabel;
+ #[derive(Component)]
++struct ControlChip(&'static str);
++#[derive(Component)]
+ struct BreathFill;
+ #[derive(Component)]
+ struct Feed;
+@@ -447,6 +449,7 @@ fn spawn_hud(mut commands: Commands) {
+                 cd_chip(c, "Shift", "Boost", Some(Cd::Boost));
+                 cd_chip(c, "Right click", "Catch", Some(Cd::Catch));
+                 cd_chip(c, "Q", "Change weapon", None);
++                cd_chip(c, "Left click", "Hold / release", None);
+             });
+             // item slots, bottom right
+             root.spawn(Node {
+@@ -540,7 +543,7 @@ fn banner_copy(size: f32, c: Color, dx: f32, dy: f32) -> impl Bundle {
+     )
+ }
+ 
+-fn cd_chip(p: &mut ChildSpawnerCommands, key: &str, label: &str, fill: Option<Cd>) {
++fn cd_chip(p: &mut ChildSpawnerCommands, key: &'static str, label: &str, fill: Option<Cd>) {
+     p.spawn((
+         Node {
+             padding: UiRect::axes(px(12.0), px(8.0)),
+@@ -551,6 +554,7 @@ fn cd_chip(p: &mut ChildSpawnerCommands, key: &str, label: &str, fill: Option<Cd
+             ..default()
+         },
+         BackgroundColor(HUD),
++        ControlChip(key),
+     ))
+     .with_children(|c| {
+         c.spawn(kbd(key));
+@@ -596,7 +600,7 @@ fn update_board(
+ ) {
+     let g = &*game;
+     if g.rules.mode==GameMode::Race {
+-        let lines=crate::race::lines(g);let sig=format!("race:{lines:?}");if *last==sig{return;}*last=sig;
++        let lines=crate::race::all_lines(g);let sig=format!("race:{lines:?}");if *last==sig{return;}*last=sig;
+         commands.entity(*board).despawn_children();commands.entity(*board).with_children(|b|{b.spawn(text("RACE • 3 LAPS",14.0,true,SUN));for line in lines{b.spawn(text(line,13.0,false,WHITE));}});return;
+     }
+ 
+@@ -790,7 +794,10 @@ fn update_drunk(
+     }
+ }
+ 
+-fn update_boost_label(player: Res<Player>, mut q: Query<&mut Text, With<BoostLabel>>) {
++fn update_boost_label(player: Res<Player>, game: Res<Game>, mut chips: Query<(&ControlChip,&mut Node)>, mut q: Query<&mut Text, With<BoostLabel>>) {
++    let race=game.rules.mode==GameMode::Race;let thrower=game.race.throwers.contains_key(&PLAYER_ID);
++    for (chip,mut node) in &mut chips {let hide=match chip.0 {"Right click"=>race,"Q"=>race&&!thrower,"Left click"=>!race||!thrower,_=>false};node.display=if hide{Display::None}else{Display::Flex};}
++
+     let want = if player.mover.in_pool { "Dive" } else { "Boost" };
+     for mut t in &mut q {
+         if t.0 != want {
+diff --git a/rust/crates/bbq_app/src/menu.rs b/rust/crates/bbq_app/src/menu.rs
+index 360c41a..62c251b 100644
+--- a/rust/crates/bbq_app/src/menu.rs
++++ b/rust/crates/bbq_app/src/menu.rs
+@@ -911,7 +911,7 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
+         ));
+         p.spawn((column(6.0), ShowWhen::RaceNote)).with_children(|r| {
+             seg(r,SegId::RaceRole,"Your role",&[("Racer",0),("Sideline Thrower",1)]);
+-            r.spawn(text("BACKYARD OVAL • 3 racers, 3 laps, about 190m per lap. Follow numbered gates. Bots fill racer places. Sideline role previews the race; throwing arrives next milestone. Solo preview only.",13.0,false,MUTED));
++            r.spawn(text("BACKYARD OVAL • 3 racers, 3 laps, 190m per lap. Race and dodge, or throw from the terrace. Hits: +50, +75, +100…; misses reset the streak. 225: refill 1.4s → 1s; 500: recovery 0.55s → 0.35s; 900: teddy + second slot (Q). Separate winners. Online: choose your role before the host starts; three racer seats, extra players throw.",13.0,false,MUTED));
+         });
+         p.spawn((column(6.0), ShowWhen::HeistTeams))
+             .with_children(|h| {
+@@ -1713,7 +1713,7 @@ fn paint_widgets(
+     let label = match settings.mode {
+         GameMode::Heist => "Play Teddy Heist",
+         GameMode::Smoko => "Play Smoko",
+-        GameMode::Race => "Race preview",
++        GameMode::Race => "Race & throw",
+         GameMode::Teams => "Play Teams",
+         GameMode::FreeForAll => "Play",
+     };
+@@ -1816,7 +1816,6 @@ pub fn attract(settings: &Settings, g: &mut Game, p: &mut Player, yard: &mut Yar
+ }
+ 
+ fn run_requests(
+-    lobby: Res<crate::online::Lobby>,
+     mut ui: ResMut<MenuUi>,
+     mut screen: ResMut<Screen>,
+     mut settings: ResMut<Settings>,
+@@ -1869,7 +1868,6 @@ fn run_requests(
+         }
+         // a guest does not start rounds: the host does
+         Request::Play | Request::Again if game.mirror => {}
+-        Request::Play | Request::Again if settings.mode==GameMode::Race && lobby.in_yard => {game.say("Race is a solo preview until online race syncing is ready.");}
+         Request::Play => {
+             begin(&settings, &mut game, &mut player, &mut yard, &mut cast);
+             *screen = Screen::Playing;
+diff --git a/rust/crates/bbq_app/src/online.rs b/rust/crates/bbq_app/src/online.rs
+index f79be58..98191fc 100644
+--- a/rust/crates/bbq_app/src/online.rs
++++ b/rust/crates/bbq_app/src/online.rs
+@@ -746,6 +746,9 @@ fn online_send(time: Res<Time>, mut online: ResMut<Online>, player: Res<Player>,
+         dive: (m.dive.clamp(0.0, 1.0) * 255.0).round() as u8,
+     };
+     link.send(&session.room, None, Msg::State(state).encode());
++    if session.role==Role::Guest && (!game.round.timed || game.rules.phase==bbq_core::scoring::Phase::Results) {
++        if let Some(host)=session.host_peer() {link.send(&session.room,Some(host),Msg::Act(GuestAct::RaceRole{thrower:settings.race_role==crate::race::Role::Thrower}).encode());}
++    }
+ }
+ 
+ fn item_code(k: bbq_core::items::ItemKind) -> u8 {
+@@ -921,7 +924,7 @@ fn online_world_apply(mut player: ResMut<Player>, mut online: ResMut<Online>, mu
+     let Some(snap) = session.world.take() else { return };
+     let (my_id, host) = (session.my_id, session.host_name());
+     crate::online_world::apply_world(&mut game, &mut yard.0, &snap, my_id, &host);
+-    if let Some(s) = snap.wet.iter().find(|s| s.id == my_id && s.remaining > 0.0) {
++    if let Some(s) = snap.wet.iter().find(|s| s.id == my_id && (s.remaining > 0.0 || game.rules.mode==bbq_core::GameMode::Race)) {
+         if (player.mover.x-s.pos.0).hypot(player.mover.z-s.pos.2) > 1.0 {
+             player.mover.x = s.pos.0; player.mover.z = s.pos.2;
+         }
+@@ -1079,10 +1082,12 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>) {
+     };
+     let now = game.now;
+     let mirror = game.mirror;
++    let race=game.rules.mode==bbq_core::GameMode::Race;
++    let playing=game.rules.in_play();
+     let controlled: Vec<_> = game.dummies.iter().filter(|d| crate::smoko_mode::controlled(&game,d.id)).map(|d|d.id).collect();
+     for d in game.dummies.iter_mut() {
+         // While stunned, the host simulates physical knockback; client positions cannot cancel it.
+-        if controlled.contains(&d.id) || (d.body.wet_t > 0.0 && (mirror || d.body.stun > 0.0)) {continue;}
++        if (race && mirror) || controlled.contains(&d.id) || (d.body.wet_t > 0.0 && (mirror || d.body.stun > 0.0)) {continue;}
+         let Some(r) = &d.remote else { continue };
+         let Some(h) = session.heard.get(&r.net_id) else { continue };
+         let s = h.state;
+@@ -1092,8 +1097,8 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>) {
+         let far = (target.0 - d.mover.x).hypot(target.2 - d.mover.z) > 4.0;
+         let k = if far { 1.0 } else { k };
+         let (mut dx, mut dz) = ((target.0 - d.mover.x) * k, (target.2 - d.mover.z) * k);
+-        if !mirror && d.body.wet_t > 0.0 {
+-            let mods = bbq_core::movement::Modifiers { wet: true, stunned: d.body.stun > 0.0, charging: d.bot.winding, ..Default::default() };
++        if !mirror && (d.body.wet_t > 0.0 || race) {
++            let mods = bbq_core::movement::Modifiers { wet: d.body.wet_t>0.0, frozen: race && !playing, stunned: d.body.stun > 0.0, charging: d.bot.winding, ..Default::default() };
+             // Sprint requests remain subject to the host mover's duration/cooldown.
+             if s.vel.0.hypot(s.vel.1) > bbq_core::movement::BASE_SPEED { d.mover.try_boost(&mods); }
+             let step = d.mover.max_speed(&mods) * bbq_core::sim::TICK_DT;
+@@ -1102,7 +1107,7 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>) {
+         }
+         d.mover.x += dx;
+         d.mover.z += dz;
+-        d.mover.y = target.1;
++        d.mover.y = if race {target.1.clamp(0.0,2.0)}else{target.1};
+         d.mover.vx = s.vel.0;
+         d.mover.vz = s.vel.1;
+         d.mover.grounded = s.grounded;
+@@ -1316,6 +1321,7 @@ mod tests {
+         use bbq_core::net_world::*;
+         let mut p = Pair::new();
+         let snap = |seq| WorldSnap {
++            race:vec![],
+             wet: vec![],
+             seq,
+             now: 1.0,
+diff --git a/rust/crates/bbq_app/src/online_world.rs b/rust/crates/bbq_app/src/online_world.rs
+index 35eafe5..3458ff2 100644
+--- a/rust/crates/bbq_app/src/online_world.rs
++++ b/rust/crates/bbq_app/src/online_world.rs
+@@ -250,7 +250,12 @@ pub fn build_world(g: &Game, yard: &Yard, seq: u32, feed_after: f32, fx: &[FxEve
+     let fx = fx.iter().take(MAX_FX).map(|e| FxSnap { kind: e.kind.index(), at: (e.at.x, e.at.y, e.at.z) }).collect();
+     let mut wet = vec![WetSnap { id: 1, remaining: g.me.body.wet_t, pos: (0.0, 0.0, 0.0) }];
+     wet.extend(g.dummies.iter().map(|d| WetSnap { id: net(d.id), remaining: d.body.wet_t, pos: (d.mover.x, d.mover.y, d.mover.z) }));
+-    WorldSnap { wet, seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
++    let mut race=Vec::new();
++    if g.rules.mode==GameMode::Race {
++        for (id,r) in &g.race.racers {race.push(RaceSnap{id:net(*id),thrower:false,passed:r.passed as u8,finish:r.finish.unwrap_or(-1.),score:0,streak:0,hits:0,disconnected:r.disconnected});}
++        for (id,t) in &g.race.throwers {race.push(RaceSnap{id:net(*id),thrower:true,passed:0,finish:-1.,score:t.score,streak:t.streak,hits:t.hits,disconnected:t.disconnected});}
++    }
++    WorldSnap { race, wet, seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
+ }
+ 
+ /// Make this game look like the host's. `my_net` is our own number; `host_name` replaces
+@@ -289,13 +294,23 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
+     };
+     let spot = r.chest_spot as usize;
+     let heist = (r.heist_teams > 0).then_some(r.heist_teams as usize);
+-    if yard.features != features || yard.chest_spot != spot || yard.heist != heist {
++    if yard.race != (g.rules.mode==GameMode::Race) || yard.features != features || yard.chest_spot != spot || yard.heist != heist {
+         *yard = match heist {
+             Some(n) if g.rules.mode == GameMode::Heist => Yard::heist(features, spot, n),
+             _ if g.rules.mode == GameMode::Smoko => Yard::smoko(features, spot),
+             _ => Yard::new(features, spot),
+         };
+     }
++    if g.rules.mode==GameMode::Race {yard.race=true;yard.colliders.clear();} else {yard.race=false;}
++    g.race.racers.clear();g.race.throwers.clear();
++    if g.rules.mode==GameMode::Race {
++        g.race.elapsed=(crate::race::LIMIT-r.time_left).max(0.);
++        for row in &snap.race {
++            let id=local(row.id);
++            if row.thrower {g.race.throwers.insert(id,crate::race::Thrower{score:row.score,streak:row.streak,hits:row.hits,disconnected:row.disconnected,..Default::default()});}
++            else {let pos=snap.wet.iter().find(|w|w.id==row.id).map_or((0.,-24.),|w|(w.pos.0,w.pos.2));let mut progress=crate::race::Progress::new(pos);progress.passed=row.passed as usize;progress.finish=(row.finish>=0.).then_some(row.finish);progress.disconnected=row.disconnected;g.race.racers.insert(id,progress);}
++        }
++    }
+     // the whistle went: work out the results here, from the host's scores, so the results card
+     // opens for guests too
+     if !was_over && g.rules.phase == Phase::Results && g.round.timed {
+@@ -356,7 +371,7 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
+         if id == PLAYER_ID { g.me.body.wet_t = s.remaining; }
+         else if let Some(d) = g.dummies.iter_mut().find(|d| d.id == id) {
+             d.body.wet_t = s.remaining;
+-            if s.remaining > 0.0 && d.remote.is_some() {
++            if (s.remaining > 0.0 || g.rules.mode==GameMode::Race) && d.remote.is_some() {
+                 d.net_target = Some((V3::new(s.pos.0, s.pos.1, s.pos.2), (0.0,0.0), g.now));
+             }
+         }
+@@ -513,7 +528,7 @@ pub fn mirror_tick(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
+     }
+     let now = g.now;
+     g.pending_gone.retain(|(_, until)| *until > now);
+-    guest_hands(g, p, wanted, dt);
++    if g.rules.mode==GameMode::Race {crate::race::guest_input(g,p,wanted,dt);}else{guest_hands(g, p, wanted, dt);}
+     *wanted = Wanted { wish: wanted.wish, ..Default::default() };
+     // things in the air keep flying until the host says where they really are
+     for it in g.world.items.values_mut() {
+@@ -874,6 +889,27 @@ mod tests {
+         app.world_mut().insert_resource(player);
+     }
+ 
++    #[test]
++    fn race_preferences_authority_and_progress_round_trip() {
++        let mut host=host_with_a_guest();let guest_id=REMOTE_ID_BASE+2;
++        host.world_mut().resource_mut::<Game>().round.timed=false;
++        act(&mut host,GuestAct::RaceRole{thrower:true});
++        assert_eq!(host.world().resource::<Game>().race.choices[&guest_id],crate::race::Role::Thrower);
++        host.world_mut().resource_scope(|w,mut g:Mut<Game>|{w.resource_scope(|w,mut p:Mut<Player>|{
++            g.round.setup.mode=GameMode::Race;let mut y=w.resource_mut::<crate::yard_scene::YardRes>();crate::round::start_round(&mut g,&mut p,&mut y);
++        });});
++        {let mut g=host.world_mut().resource_mut::<Game>();g.rules.phase=Phase::Play;g.race.throwers.get_mut(&guest_id).unwrap().score=500;g.race.throwers.get_mut(&guest_id).unwrap().streak=3;}
++        act(&mut host,GuestAct::RaceRole{thrower:false});assert_eq!(host.world().resource::<Game>().race.choices[&guest_id],crate::race::Role::Thrower,"cannot swap role mid-round");
++        let item=give_guest(&mut host,ItemKind::WaterBalloon,None);
++        let at={let g=host.world().resource::<Game>();let d=g.dummies.iter().find(|d|d.id==guest_id).unwrap();(d.mover.x,1.2,d.mover.z)};
++        act(&mut host,GuestAct::Throw{item,from:at,vel:(70.,0.,0.),charge:1.});assert_eq!(host.world().resource::<Game>().world.items[&item].state,ItemState::Held,"reject impossible speed");
++        act(&mut host,GuestAct::Throw{item,from:at,vel:(0.,5.,15.),charge:1.});assert_eq!(host.world().resource::<Game>().race.throwers[&guest_id].attempts.len(),1);
++        act(&mut host,GuestAct::Throw{item,from:at,vel:(0.,5.,15.),charge:1.});assert_eq!(host.world().resource::<Game>().race.throwers[&guest_id].attempts.len(),1,"duplicate launch ignored");
++        let snap=build_world(host.world().resource::<Game>(),&host.world().resource::<crate::yard_scene::YardRes>().0,1,0.,&[]);
++        let bytes=bbq_core::net::Msg::World(Box::new(snap)).encode();let bbq_core::net::Msg::World(snap)=bbq_core::net::Msg::decode(&bytes).unwrap()else{panic!()};
++        let mut guest=app();guest.world_mut().resource_scope(|w,mut g:Mut<Game>|{let mut y=w.resource_mut::<crate::yard_scene::YardRes>();apply_world(&mut g,&mut y.0,&snap,2,"Host");});
++        let g=guest.world().resource::<Game>();assert_eq!(g.race.racers.len(),3);assert_eq!(g.race.throwers[&PLAYER_ID].score,500);assert_eq!(g.race.throwers[&PLAYER_ID].next(),125);assert_eq!(g.race.throwers[&PLAYER_ID].level(),2);assert!(guest.world().resource::<crate::yard_scene::YardRes>().0.race);
++    }
+     #[test]
+     fn a_guests_throw_flies_from_the_host_and_counts_for_them() {
+         let mut app = host_with_a_guest();
+@@ -1366,11 +1402,17 @@ pub fn apply_guest_act(g: &mut Game, p: &mut Player, net_id: u32, act: &GuestAct
+         println!("NET-HOST guest {net_id} asked: {act:?}");
+     }
+     let id = g.dummies[i].id;
++    if let GuestAct::RaceRole{thrower}=act {
++        if !g.round.timed || g.rules.phase==Phase::Results {g.race.choices.insert(id,if *thrower{crate::race::Role::Thrower}else{crate::race::Role::Racer});}
++        return;
++    }
++    if g.rules.mode==GameMode::Race {crate::race::guest_act(g,i,act);return;}
+     let now = g.now;
+     let in_play = g.rules.in_play();
+     let can_act = in_play && !g.smoko.carries.contains_key(&id) && g.dummies[i].body.stun <= 0.0 && !g.dummies[i].body.is_down() && g.dummies[i].seat.is_none();
+     let holds = |g: &Game, item: u32| g.dummies[i].bot.slots.ids().contains(&item);
+     match act {
++        GuestAct::RaceRole {..} => {},
+         GuestAct::Carry { pressed } => crate::smoko_mode::input(g,p,id,*pressed),
+         GuestAct::Select { item } => {
+             let slots = &mut g.dummies[i].bot.slots;
+diff --git a/rust/crates/bbq_app/src/player.rs b/rust/crates/bbq_app/src/player.rs
+index 125a33e..da92d9e 100644
+--- a/rust/crates/bbq_app/src/player.rs
++++ b/rust/crates/bbq_app/src/player.rs
+@@ -144,10 +144,7 @@ fn setup_camera_and_hud(mut commands: Commands, look: Res<crate::lighting::LookM
+     }
+     commands.spawn((
+         Text::new(""),
+-        TextFont {
+-            font_size: FontSize::Px(16.0),
+-            ..default()
+-        },
++        crate::ui::body_font(16.0, false),
+         TextColor(Color::WHITE),
+         Node {
+             position_type: PositionType::Absolute,
+@@ -363,8 +360,11 @@ fn update_hud(
+     game: Res<crate::game::Game>,
+     cast: Res<crate::characters::Cast>,
+     time: Res<Time>,
+-    mut text: Single<&mut Text, With<HudText>>,
++    mut text: Single<(&mut Text, &Visibility), With<HudText>>,
+ ) {
++    // Hidden diagnostics still trigger text shaping. In particular fallback glyphs in
++    // changing race feeds otherwise allocate a new atlas every frame.
++    if *text.1 == Visibility::Hidden { return; }
+     let m = &player.mover;
+     let boost = if m.boost_t > 0.0 {
+         format!("BOOST {:.1}s", m.boost_t)
+@@ -420,7 +420,7 @@ fn update_hud(
+     } else {
+         String::new()
+     };
+-    text.0 = format!(
++    text.0.0 = format!(
+         "Click to grab mouse (Esc lets go) | WASD walk, Space jump, Shift boost, hold+release LMB throw (tap = slap), RMB catch, Q change weapon (E/wheel also swap), R bar/meat/chest/help up, F grab someone who's down (tap put down, hold chuck), T taunt, H dance, B laugh, G drop what you're holding\n\
+          F1-F3 features, F5 falls, F6 Drunk mode, F7 Cheeky mode ({}), F9 character ({}), F10 bots ({}), F11 bot level ({:?}) | viewer: J/K/L slapped, N stacked it, M emote, Y drunk, C crown, V sash, X stink, P +30 drunk\n\
+          SCORE {} | hits {} | taken {} | catches {} | streak {} | holding: {holding}{charge}\n\
+diff --git a/rust/crates/bbq_app/src/race.rs b/rust/crates/bbq_app/src/race.rs
+index 709c7c7..2fec0bf 100644
+--- a/rust/crates/bbq_app/src/race.rs
++++ b/rust/crates/bbq_app/src/race.rs
+@@ -1,4 +1,4 @@
+-//! Race foundation. Solo host-owned progress; throwing and online race sync are later milestones.
++//! Host-owned race and sideline game. Throws resolve in launch order, never collision order.
+ use crate::{
+     game::Game,
+     player::{PLAYER_ID, Player, Wanted},
+@@ -6,16 +6,91 @@ use crate::{
+ };
+ use bbq_core::movement::{Modifiers, MoveInput, Mover};
+ use bbq_core::{GameMode, PlayerId};
+-use std::collections::BTreeMap;
++use bbq_core::{
++    hands,
++    hitting::{Context, Target},
++    items::ItemKind,
++    itemworld::WorldEvent,
++    vec::V3,
++};
++use std::collections::{BTreeMap, VecDeque};
++pub const REPLENISH: f32 = 1.4;
++pub const MAX_AIRBORNE: usize = 3;
++pub const THROW_TIMEOUT: f32 = 6.0;
++pub const UNLOCKS: [u32; 3] = [225, 500, 900];
++#[derive(Clone, Debug)]
++pub struct Attempt {
++    pub item: u32,
++    pub at: f32,
++    pub hit: Option<bool>,
++}
++#[derive(Clone, Debug, Default)]
++pub struct Thrower {
++    pub score: u32,
++    pub streak: u32,
++    pub hits: u32,
++    pub ready_at: f32,
++    pub refill_at: f32,
++    pub attempts: VecDeque<Attempt>,
++    pub disconnected: bool,
++}
++impl Thrower {
++    pub fn level(&self) -> usize {
++        UNLOCKS.iter().filter(|v| self.score >= **v).count()
++    }
++    pub fn next(&self) -> u32 {
++        50u32.saturating_add(self.streak.saturating_mul(25))
++    }
++    pub fn resolve(&mut self) -> u32 {
++        let mut gain = 0;
++        while let Some(hit) = self.attempts.front().and_then(|a| a.hit) {
++            self.attempts.pop_front();
++            if hit {
++                let reward = self.next();
++                self.score = self.score.saturating_add(reward);
++                gain += reward;
++                self.streak += 1;
++                self.hits += 1;
++            } else {
++                self.streak = 0;
++            }
++        }
++        gain
++    }
++}
++pub fn bot_count(g: &Game, role: Role) -> usize {
++    let people = usize::from(role == Role::Racer)
++        + g.remotes
++            .iter()
++            .filter(|r| {
++                g.race
++                    .choices
++                    .get(&r.local_id())
++                    .copied()
++                    .unwrap_or(Role::Racer)
++                    == Role::Racer
++            })
++            .count();
++    3usize.saturating_sub(people.min(3)) + 2
++}
++
+ pub const LAPS: usize = 3;
+ pub const LIMIT: f32 = 300.0;
+ pub const COURSE_SCALE: f32 = 3.0;
+ // Oval checkpoint centres; the driving surface follows the smooth ellipse between them.
+ pub const TRACK: [(f32, f32); 8] = [
+- (0.,-24.),(25.455843,-16.970562),(36.,0.),(25.455843,16.970562),
+- (0.,24.),(-25.455843,16.970562),(-36.,0.),(-25.455843,-16.970562)
++    (0., -24.),
++    (25.455843, -16.970562),
++    (36., 0.),
++    (25.455843, 16.970562),
++    (0., 24.),
++    (-25.455843, 16.970562),
++    (-36., 0.),
++    (-25.455843, -16.970562),
+ ];
+-pub fn oval(t:f32)->(f32,f32) {(12.0*COURSE_SCALE*t.sin(),-8.0*COURSE_SCALE*t.cos())}
++pub fn oval(t: f32) -> (f32, f32) {
++    (12.0 * COURSE_SCALE * t.sin(), -8.0 * COURSE_SCALE * t.cos())
++}
+ pub const WIDTH: f32 = 4.8;
+ #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+ pub enum Role {
+@@ -29,11 +104,14 @@ pub struct Progress {
+     pub finish: Option<f32>,
+     pub previous: (f32, f32),
+     pub disconnected: bool,
++    pub protected_until: f32,
+ }
+ #[derive(Default)]
+ pub struct State {
+     pub racers: BTreeMap<PlayerId, Progress>,
+     pub elapsed: f32,
++    pub throwers: BTreeMap<PlayerId, Thrower>,
++    pub choices: BTreeMap<PlayerId, Role>,
+ }
+ fn distance(a: (f32, f32), b: (f32, f32)) -> f32 {
+     (a.0 - b.0).hypot(a.1 - b.1)
+@@ -45,8 +123,14 @@ fn segment(p: (f32, f32), a: (f32, f32), b: (f32, f32)) -> f32 {
+ }
+ pub fn track_distance(p: (f32, f32)) -> f32 {
+     (0..64)
+-        .map(|i|segment(p,oval(i as f32*std::f32::consts::TAU/64.),oval((i+1) as f32*std::f32::consts::TAU/64.)))
+-        .fold(f32::INFINITY,f32::min)
++        .map(|i| {
++            segment(
++                p,
++                oval(i as f32 * std::f32::consts::TAU / 64.),
++                oval((i + 1) as f32 * std::f32::consts::TAU / 64.),
++            )
++        })
++        .fold(f32::INFINITY, f32::min)
+ }
+ impl Progress {
+     pub fn new(at: (f32, f32)) -> Self {
+@@ -55,6 +139,7 @@ impl Progress {
+             finish: None,
+             previous: at,
+             disconnected: false,
++            protected_until: 0.0,
+         }
+     }
+     pub fn target(&self) -> (f32, f32) {
+@@ -80,12 +165,16 @@ impl Progress {
+     }
+ }
+ pub fn start(g: &mut Game, p: &mut Player, y: &mut YardRes) {
+-    g.race = State::default();
++    let choices = std::mem::take(&mut g.race.choices);
++    g.race = State {
++        choices,
++        ..Default::default()
++    };
+     if g.rules.mode != GameMode::Race {
+         return;
+     }
+     y.0.colliders.clear();
+-    y.0.race=true;
++    y.0.race = true;
+     y.0.features = bbq_core::yard::Features {
+         bar: false,
+         bbq: false,
+@@ -96,18 +185,28 @@ pub fn start(g: &mut Game, p: &mut Player, y: &mut YardRes) {
+     g.slots.clear();
+     g.round.setup.round_len = LIMIT;
+     let racer = g.round.setup.race_role == Role::Racer;
+-    g.round.setup.bots=if racer {2}else{3};
+     let mut ids = Vec::new();
+     if racer {
+         ids.push(PLAYER_ID);
+     }
+-    ids.extend(
+-        g.dummies
+-            .iter()
+-            .filter(|d| d.remote.is_none())
+-            .map(|d| d.id)
+-            .take(if racer { 2 } else { 3 }),
+-    );
++    for d in &g.dummies {
++        if d.remote.is_some()
++            && ids.len() < 3
++            && g.race.choices.get(&d.id).copied().unwrap_or(Role::Racer) == Role::Racer
++        {
++            ids.push(d.id);
++        }
++    }
++    for d in &g.dummies {
++        if d.remote.is_none() && ids.len() < 3 {
++            ids.push(d.id);
++        }
++    }
++    let mut throwers = vec![PLAYER_ID];
++    throwers.extend(g.dummies.iter().map(|d| d.id));
++    for id in throwers.into_iter().filter(|id| !ids.contains(id)) {
++        g.race.throwers.insert(id, Thrower::default());
++    }
+     for (i, id) in ids.iter().copied().enumerate() {
+         let at = (-0.5 - i as f32 * 0.8, -24.0 + (i as f32 - 1.0) * 0.7);
+         g.race.racers.insert(id, Progress::new(at));
+@@ -120,10 +219,24 @@ pub fn start(g: &mut Game, p: &mut Player, y: &mut YardRes) {
+             d.face = std::f32::consts::FRAC_PI_2;
+         }
+     }
+-    if !racer {
+-        p.mover = Mover::new(0., -30.);
+-        p.yaw = std::f32::consts::PI;
+-        p.pitch = -0.1;
++    for (i, id) in g
++        .race
++        .throwers
++        .keys()
++        .copied()
++        .collect::<Vec<_>>()
++        .into_iter()
++        .enumerate()
++    {
++        let at = terrace(-0.7 + (i % 5) as f32 * 0.35);
++        if id == PLAYER_ID {
++            p.mover = Mover::new(at.0, at.1);
++            p.yaw = std::f32::consts::PI;
++            p.pitch = 0.05;
++        } else if let Some(d) = g.dummies.iter_mut().find(|d| d.id == id) {
++            d.mover = Mover::new(at.0, at.1);
++            d.home = at;
++        }
+     }
+     p.prev = bevy::prelude::Vec3::new(p.mover.x, 0., p.mover.z);
+ }
+@@ -176,15 +289,35 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted, y: &YardRes) {
+         let Some(r) = g.race.racers.get(&d.id) else {
+             continue;
+         };
++        if d.remote.is_some() {
++            if d.mover.boost_t > 0. {
++                d.mover.boost_t = (d.mover.boost_t - dt).max(0.);
++                if d.mover.boost_t == 0. {
++                    d.mover.boost_cd = bbq_core::movement::BOOST_CD;
++                }
++            } else {
++                d.mover.boost_cd = (d.mover.boost_cd - dt).max(0.);
++            }
++            continue;
++        }
+         let at = (d.mover.x, d.mover.z);
+         // Follow the oval with a short look-ahead, never a chord across the infield.
+-        let sector=(r.passed%8) as f32*std::f32::consts::TAU/8.;
+-        let mut angle=(at.0/36.).atan2(-at.1/24.).rem_euclid(std::f32::consts::TAU);
+-        if angle>sector+std::f32::consts::PI {angle-=std::f32::consts::TAU;}
+-        let aim=(angle+0.10).min(sector+std::f32::consts::TAU/8.);
+-        let centre=oval(aim);let tangent=(36.*aim.cos(),24.*aim.sin());let len=tangent.0.hypot(tangent.1);
+-        let lane=(d.id%3) as f32-1.;
+-        let target=(centre.0+tangent.1/len*lane*0.75,centre.1-tangent.0/len*lane*0.75);
++        let sector = (r.passed % 8) as f32 * std::f32::consts::TAU / 8.;
++        let mut angle = (at.0 / 36.)
++            .atan2(-at.1 / 24.)
++            .rem_euclid(std::f32::consts::TAU);
++        if angle > sector + std::f32::consts::PI {
++            angle -= std::f32::consts::TAU;
++        }
++        let aim = (angle + 0.10).min(sector + std::f32::consts::TAU / 8.);
++        let centre = oval(aim);
++        let tangent = (36. * aim.cos(), 24. * aim.sin());
++        let len = tangent.0.hypot(tangent.1);
++        let lane = (d.id % 3) as f32 - 1.;
++        let target = (
++            centre.0 + tangent.1 / len * lane * 0.75,
++            centre.1 - tangent.0 / len * lane * 0.75,
++        );
+         let v = (target.0 - at.0, target.1 - at.1);
+         let len = v.0.hypot(v.1).max(0.001);
+         let running = g.rules.in_play() && r.finish.is_none() && g.options.bots_on;
+@@ -202,17 +335,14 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted, y: &YardRes) {
+             },
+             &Modifiers {
+                 frozen: !running,
++                wet: d.body.wet_t > 0.0,
+                 ..Default::default()
+             },
+             &y.0,
+         );
+     }
+-    if !g.race.racers.contains_key(&PLAYER_ID) {
+-        let x=p.mover.x/42.;let z=-p.mover.z/28.;
+-        let angle=x.atan2(z).clamp(-0.85,0.85);
+-        let radius=x.hypot(z).clamp(1.0,1.12);
+-        p.mover.x=42.*radius*angle.sin();p.mover.z=-28.*radius*angle.cos();
+-    }
++    constrain_throwers(g, p);
++    combat(g, p, w, y);
+     if g.rules.in_play() {
+         for (id, r) in &mut g.race.racers {
+             let m = if *id == PLAYER_ID {
+@@ -227,6 +357,7 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted, y: &YardRes) {
+                 let at = TRACK[r.passed % 8];
+                 *m = Mover::new(at.0, at.1);
+                 r.previous = at;
++                r.protected_until = g.race.elapsed + 2.0;
+             }
+         }
+         if g.race
+@@ -237,33 +368,463 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted, y: &YardRes) {
+             crate::round::end_round(g);
+         }
+     }
+-    g.prompt = if let Some(r) = g.race.racers.get(&PLAYER_ID) {
+-        if let Some(t) = r.finish {
+-            format!("FINISHED in {t:.2}s • Waiting for the other racers")
++    g.prompt = prompt(g);
++    *w = Wanted {
++        wish: w.wish,
++        dive: w.dive,
++        ..Default::default()
++    };
++}
++pub fn terrace(angle: f32) -> (f32, f32) {
++    (42. * angle.sin(), -28. * angle.cos())
++}
++fn constrain_throwers(g: &mut Game, p: &mut Player) {
++    for id in g.race.throwers.keys() {
++        let m = if *id == PLAYER_ID {
++            &mut p.mover
++        } else if let Some(d) = g.dummies.iter_mut().find(|d| d.id == *id) {
++            &mut d.mover
+         } else {
++            continue;
++        };
++        let x = m.x / 42.;
++        let z = -m.z / 28.;
++        let a = x.atan2(z).clamp(-0.85, 0.85);
++        let r = x.hypot(z).clamp(1., 1.12);
++        m.x = 42. * r * a.sin();
++        m.z = -28. * r * a.cos();
++    }
++}
++pub fn prompt(g: &Game) -> String {
++    if let Some(t) = g.race.throwers.get(&PLAYER_ID) {
++        let upgrade = match t.level() {
++            0 => "225: faster refill",
++            1 => "500: quicker recovery",
++            2 => "900: teddy unlocked",
++            _ => "All upgrades unlocked • Q: change weapon",
++        };
++        format!(
++            "THROWER • {} pts • Streak {} • Next +{} • {} • Hold/release LMB",
++            t.score,
++            t.streak,
++            t.next(),
++            upgrade
++        )
++    } else if let Some(r) = g.race.racers.get(&PLAYER_ID) {
++        r.finish.map_or_else(
++            || {
++                format!(
++                    "RACER • Lap {}/{} • Gate {} → • Dodge sideline throws!",
++                    (r.passed / 8 + 1).min(LAPS),
++                    LAPS,
++                    r.passed % 8 + 1
++                )
++            },
++            |t| format!("FINISHED in {t:.2}s • Waiting for the other racers"),
++        )
++    } else {
++        "Race in progress • Join the next round".into()
++    }
++}
++pub fn thrower_lines(g: &Game) -> Vec<String> {
++    let mut ids: Vec<_> = g.race.throwers.iter().collect();
++    ids.sort_by_key(|(id, t)| (t.disconnected, std::cmp::Reverse(t.score), **id));
++    ids.into_iter()
++        .enumerate()
++        .map(|(i, (id, t))| {
+             format!(
+-                "RACER • Lap {}/{} • Follow gate {} → • Stay inside the white edges",
+-                (r.passed / 8 + 1).min(LAPS),
+-                LAPS,
+-                r.passed % 8 + 1
++                "{}. {} — {} pts • streak {}{}",
++                i + 1,
++                crate::round::name_of(g, *id),
++                t.score,
++                t.streak,
++                if t.disconnected { " • left" } else { "" }
+             )
+-        }
+-    } else {
+-        "SIDELINE THROWER • Race preview • Throwing and streaks arrive in milestone 2".into()
++        })
++        .collect()
++}
++pub fn all_lines(g: &Game) -> Vec<String> {
++    let mut l = lines(g);
++    l.push("SIDELINE THROWERS".into());
++    l.extend(thrower_lines(g));
++    l
++}
++pub fn thrower_winner(g: &Game) -> String {
++    let best = g
++        .race
++        .throwers
++        .values()
++        .filter(|t| !t.disconnected)
++        .map(|t| t.score)
++        .max()
++        .unwrap_or(0);
++    if best == 0 {
++        return "No throwing winner".into();
++    }
++    let names: Vec<_> = g
++        .race
++        .throwers
++        .iter()
++        .filter(|(_, t)| !t.disconnected && t.score == best)
++        .map(|(id, _)| crate::round::name_of(g, *id))
++        .collect();
++    format!(
++        "Sideline winner{}: {} ({best} pts)",
++        if names.len() > 1 { "s" } else { "" },
++        names.join(" / ")
++    )
++}
++pub fn launch(g: &mut Game, id: PlayerId, item: u32, start: V3, vel: V3, charge: f32) -> bool {
++    if !g.rules.in_play() {
++        return false;
++    }
++    let Some(t) = g.race.throwers.get(&id) else {
++        return false;
++    };
++    if t.disconnected || g.now < t.ready_at || t.attempts.len() >= MAX_AIRBORNE {
++        return false;
++    }
++    let Some(it) = g.world.items.get(&item) else {
++        return false;
+     };
+-    // Consume action edges: no combat or legacy errands in the race foundation.
+-    w.throw_down = false;
+-    w.throw_up = false;
+-    w.grab_pressed = false;
+-    w.grab_released = false;
+-    w.interact_pressed = false;
+-    w.jump_pressed = false;
+-    w.emote = None;
++    if !matches!(it.kind, ItemKind::WaterBalloon | ItemKind::Teddy)
++        || vel.len() > it.kind.def().speed + 3.0
++        || !vel.len().is_finite()
++    {
++        return false;
++    }
++    if it.kind == ItemKind::Teddy && t.level() < 3 {
++        return false;
++    }
++    if !g.world.throw(item, id, start, vel, charge, false) {
++        return false;
++    }
++    let t = g.race.throwers.get_mut(&id).unwrap();
++    t.ready_at = g.now + if t.level() >= 2 { 0.35 } else { 0.55 };
++    t.refill_at = g.now + if t.level() >= 1 { 1.0 } else { REPLENISH };
++    t.attempts.push_back(Attempt {
++        item,
++        at: g.now,
++        hit: None,
++    });
++    if id == PLAYER_ID {
++        g.slots.remove(item);
++    } else if let Some(d) = g.dummies.iter_mut().find(|d| d.id == id) {
++        d.bot.slots.remove(item);
++        d.anim.start_swing();
++    }
++    true
++}
++fn combat(g: &mut Game, p: &mut Player, w: &mut Wanted, y: &YardRes) {
++    let dt = bbq_core::sim::TICK_DT;
++    g.me.body.tick(dt);
++    for d in &mut g.dummies {
++        d.body.tick(dt);
++    }
++    for pop in &mut g.popups {
++        pop.t += dt;
++    }
++    g.popups.retain(|p| p.t < 1.6);
++    if !g.rules.in_play() {
++        g.wind.cancel();
++        return;
++    }
++    let ids: Vec<_> = g.race.throwers.keys().copied().collect();
++    for id in ids {
++        let level = g.race.throwers[&id].level();
++        let (held, at) = if id == PLAYER_ID {
++            (g.slots.len(), (p.mover.x, p.mover.z))
++        } else if let Some(d) = g.dummies.iter().find(|d| d.id == id) {
++            (d.bot.slots.len(), (d.mover.x, d.mover.z))
++        } else {
++            g.race.throwers.get_mut(&id).unwrap().disconnected = true;
++            continue;
++        };
++        // Refill is tied to last launch, and supplies never exceed two held items.
++        let t = &g.race.throwers[&id];
++        if held < if level >= 3 { 2 } else { 1 } && g.now >= t.refill_at {
++            let kind = if level >= 3 && held == 1 {
++                ItemKind::Teddy
++            } else {
++                ItemKind::WaterBalloon
++            };
++            let item = g.world.spawn(kind, at.0, at.1, false, &mut g.rng);
++            g.world.give(item, id);
++            if id == PLAYER_ID {
++                g.slots.add(item);
++            } else if let Some(d) = g.dummies.iter_mut().find(|d| d.id == id) {
++                d.bot.slots.add(item);
++            }
++        }
++    }
++    if g.race.throwers.contains_key(&PLAYER_ID) {
++        if w.swap != 0 {
++            g.slots.swap(w.swap);
++            g.wind.cancel();
++        }
++        if let Some(n) = w.slot {
++            g.slots.select_slot(n);
++            g.wind.cancel();
++        }
++        let kind = g
++            .slots
++            .selected()
++            .and_then(|id| g.world.items.get(&id))
++            .map(|it| it.kind);
++        if w.throw_down {
++            g.wind.press(
++                g.now,
++                kind,
++                &hands::Situation {
++                    can_act: true,
++                    ..Default::default()
++                },
++            );
++        }
++        if g.wind.tick(dt, kind) {
++            g.say("Charge released — hold again to throw");
++        }
++        if w.throw_up && g.wind.charging {
++            let charge = g.wind.charge;
++            g.wind.cancel();
++            if let (Some(item), Some(kind)) = (g.slots.selected(), kind) {
++                let vel = hands::throw_velocity(
++                    crate::game::aim_dir(p.yaw, p.pitch),
++                    kind.def().speed,
++                    charge,
++                    V3::new(p.mover.vx, 0., p.mover.vz),
++                );
++                launch(g, PLAYER_ID, item, crate::game::hand_pos(p), vel, charge);
++            }
++        }
++    }
++    // Bots use the same supply, cooldown, projectiles and ordered scoring as humans.
++    let bots: Vec<_> = g
++        .dummies
++        .iter()
++        .filter(|d| d.remote.is_none() && g.race.throwers.contains_key(&d.id))
++        .map(|d| (d.id, d.mover.x, d.mover.z, d.bot.slots.selected()))
++        .collect();
++    if g.options.bots_on {
++        for (id, x, z, item) in bots {
++            let Some(item) = item else { continue };
++            let mut targets = Vec::new();
++            for (rid, r) in &g.race.racers {
++                if r.finish.is_some() || r.disconnected {
++                    continue;
++                }
++                let m = if *rid == PLAYER_ID {
++                    &p.mover
++                } else if let Some(d) = g.dummies.iter().find(|d| d.id == *rid) {
++                    &d.mover
++                } else {
++                    continue;
++                };
++                let dist = (m.x - x).hypot(m.z - z);
++                if dist < 18. {
++                    targets.push((dist, m.x, m.z, m.vx, m.vz));
++                }
++            }
++            targets.sort_by(|a, b| a.0.total_cmp(&b.0));
++            if let Some((dist, tx, tz, vx, vz)) = targets.first().copied() {
++                let t = (dist / 15.).clamp(0.3, 1.0);
++                let spread = g.rng.range(-0.55, 0.55);
++                let speed = g.world.items[&item].kind.def().speed;
++                let vel = V3::new(
++                    (tx + vx * t - x + spread) / t,
++                    0.5 * bbq_core::flight::ITEM_GRAV * g.world.items[&item].kind.def().grav * t,
++                    (tz + vz * t - z) / t,
++                );
++                if vel.len() <= speed + 3. {
++                    launch(g, id, item, V3::new(x, 1.2, z), vel, 1.0);
++                }
++            }
++        }
++    }
++    let targets: Vec<_> = g
++        .race
++        .racers
++        .iter()
++        .filter(|(_, r)| r.finish.is_none() && !r.disconnected)
++        .filter_map(|(id, _)| {
++            let m = if *id == PLAYER_ID {
++                &p.mover
++            } else {
++                &g.dummies.iter().find(|d| d.id == *id)?.mover
++            };
++            Some(Target {
++                id: *id,
++                pos: V3::new(m.x, m.y, m.z),
++                sink: 0.,
++                at_smoko: false,
++                catching: false,
++                stunned: false,
++                facing: V3::ZERO,
++                flattenable: false,
++            })
++        })
++        .collect();
++    let teams = g.teams.clone();
++    let events = g.world.step(
++        dt,
++        &y.0,
++        &mut g.rng,
++        &targets,
++        &Context {
++            friendly_fire: true,
++            teams: &teams,
++        },
++        0,
++        false,
++        &|_, _| true,
++    );
++    for ev in events {
++        match ev {
++            WorldEvent::Hit {
++                item,
++                victim,
++                thrower,
++                kind,
++                ..
++            } => {
++                let valid = g
++                    .race
++                    .racers
++                    .get(&victim)
++                    .is_some_and(|r| r.finish.is_none() && !r.disconnected);
++                let mut credited = false;
++                if let Some(t) = thrower.and_then(|id| g.race.throwers.get_mut(&id))
++                    && let Some(a) = t
++                        .attempts
++                        .iter_mut()
++                        .find(|a| a.item == item && a.hit.is_none())
++                {
++                    a.hit = Some(valid);
++                    credited = valid;
++                }
++                g.world.remove(item);
++                if credited {
++                    let r = g.race.racers.get_mut(&victim).unwrap();
++                    let slow = g.race.elapsed >= r.protected_until;
++                    if slow {
++                        r.protected_until = g.race.elapsed + 5.5;
++                    }
++                    let duration = if kind == ItemKind::WaterBalloon {
++                        4.0
++                    } else {
++                        0.8
++                    };
++                    let at = if victim == PLAYER_ID {
++                        if slow {
++                            g.me.body.wet_t = duration;
++                            p.shake = p.shake.max(0.06);
++                        }
++                        V3::new(p.mover.x, 1.2, p.mover.z)
++                    } else if let Some(d) = g.dummies.iter_mut().find(|d| d.id == victim) {
++                        if slow {
++                            d.body.wet_t = duration;
++                        }
++                        V3::new(d.mover.x, 1.2, d.mover.z)
++                    } else {
++                        continue;
++                    };
++                    g.fx(
++                        if kind == ItemKind::WaterBalloon {
++                            crate::fx::FxKind::BalloonBurst
++                        } else {
++                            crate::fx::FxKind::Hit
++                        },
++                        at,
++                    );
++                }
++            }
++            WorldEvent::Flight {
++                ev: bbq_core::flight::FlightEvent::WaterBurst { pos },
++                ..
++            } => g.fx(crate::fx::FxKind::BalloonBurst, pos),
++            _ => {}
++        }
++    }
++    let mut remove = Vec::new();
++    let mut gains = Vec::new();
++    for (id, t) in &mut g.race.throwers {
++        for a in &mut t.attempts {
++            if a.hit.is_none()
++                && (g.now - a.at >= THROW_TIMEOUT
++                    || g.world.items.get(&a.item).is_none_or(|it| !it.live))
++            {
++                a.hit = Some(false);
++                remove.push(a.item);
++            }
++        }
++        let level = t.level();
++        let gain = t.resolve();
++        if gain > 0 {
++            gains.push((*id, gain, t.level() > level));
++        }
++    }
++    for id in remove {
++        g.world.remove(id);
++    }
++    for (id, gain, unlocked) in gains {
++        let name = crate::round::name_of(g, id);
++        g.say(format!("{name} +{gain} • sideline hit streak"));
++        if unlocked {
++            g.say(format!("{name}: upgrade unlocked!"));
++        }
++        if id == PLAYER_ID {
++            g.popup(
++                if unlocked {
++                    format!("+{gain} • UPGRADE UNLOCKED!")
++                } else {
++                    format!("SPLASH! +{gain}")
++                },
++                false,
++            );
++        }
++    }
+ }
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+     #[test]
++    fn overlapping_throws_resolve_in_launch_order_and_reset_after_miss() {
++        let mut t = Thrower::default();
++        for item in 1..=3 {
++            t.attempts.push_back(Attempt {
++                item,
++                at: 0.,
++                hit: None,
++            });
++        }
++        t.attempts[2].hit = Some(true);
++        assert_eq!(t.resolve(), 0);
++        t.attempts[0].hit = Some(true);
++        assert_eq!(t.resolve(), 50);
++        t.attempts[0].hit = Some(true);
++        assert_eq!(t.resolve(), 175);
++        assert_eq!((t.score, t.streak, t.next()), (225, 3, 125));
++        assert_eq!(t.level(), 1);
++        t.attempts.push_back(Attempt {
++            item: 4,
++            at: 0.,
++            hit: Some(false),
++        });
++        assert_eq!(t.resolve(), 0);
++        assert_eq!(t.next(), 50);
++        assert_eq!(t.score, 225);
++        assert_eq!(t.resolve(), 0, "resolved attempts cannot pay twice");
++    }
++    #[test]
++    fn upgrades_are_threshold_based_and_scores_stay_banked() {
++        let mut t = Thrower::default();
++        for (score, level) in [(224, 0), (225, 1), (499, 1), (500, 2), (899, 2), (900, 3)] {
++            t.score = score;
++            assert_eq!(t.level(), level);
++        }
++    }
++    #[test]
+     fn shortcuts_and_teleports_do_not_advance() {
+         let mut r = Progress::new(TRACK[0]);
+         assert!(r.update(TRACK[1], 1.));
+@@ -275,7 +836,10 @@ mod tests {
+     fn ordered_three_laps_finish_once() {
+         let mut r = Progress::new(TRACK[0]);
+         let mut time = 0.;
+-        for i in 1..=2400 {time+=0.01;assert!(!r.update(oval(i as f32*std::f32::consts::TAU/800.),time));}
++        for i in 1..=2400 {
++            time += 0.01;
++            assert!(!r.update(oval(i as f32 * std::f32::consts::TAU / 800.), time));
++        }
+         assert_eq!(r.passed, 24);
+         let finish = r.finish;
+         assert!(!r.update(TRACK[0], 999.));
+@@ -290,3 +854,102 @@ mod tests {
+         assert!(r.finish.is_none());
+     }
+ }
++
++/// Guests request throws; only the host consumes supplies and scores collisions.
++pub fn guest_input(g: &mut Game, p: &mut Player, w: &mut Wanted, dt: f32) {
++    g.prompt = prompt(g);
++    constrain_throwers(g, p);
++    if !g.race.throwers.contains_key(&PLAYER_ID) {
++        g.wind.cancel();
++        return;
++    }
++    let before = g.slots.selected();
++    if w.swap != 0 {
++        g.slots.swap(w.swap);
++        g.wind.cancel();
++    }
++    if let Some(n) = w.slot {
++        g.slots.select_slot(n);
++        g.wind.cancel();
++    }
++    if before != g.slots.selected()
++        && let Some(item) = g.slots.selected()
++    {
++        g.net_acts
++            .push(bbq_core::net_act::GuestAct::Select { item });
++    }
++    let kind = g
++        .slots
++        .selected()
++        .and_then(|id| g.world.items.get(&id))
++        .map(|it| it.kind);
++    if w.throw_down {
++        g.wind.press(
++            g.now,
++            kind,
++            &hands::Situation {
++                can_act: g.rules.in_play(),
++                ..Default::default()
++            },
++        );
++    }
++    g.wind.tick(dt, kind);
++    if w.throw_up && g.wind.charging {
++        let charge = g.wind.charge;
++        g.wind.cancel();
++        if let (Some(item), Some(kind)) = (g.slots.selected(), kind) {
++            let from = crate::game::hand_pos(p);
++            let vel = hands::throw_velocity(
++                crate::game::aim_dir(p.yaw, p.pitch),
++                kind.def().speed,
++                charge,
++                V3::new(p.mover.vx, 0., p.mover.vz),
++            );
++            g.net_acts.push(bbq_core::net_act::GuestAct::Throw {
++                item,
++                from: (from.x, from.y, from.z),
++                vel: (vel.x, vel.y, vel.z),
++                charge,
++            });
++            g.pending_gone.push((item, g.now + 0.4));
++            g.slots.remove(item);
++        }
++    }
++}
++pub fn guest_act(g: &mut Game, i: usize, act: &bbq_core::net_act::GuestAct) {
++    use bbq_core::net_act::GuestAct;
++    let d = &g.dummies[i];
++    let id = d.id;
++    if !g.race.throwers.contains_key(&id) {
++        return;
++    }
++    match act {
++        GuestAct::Select { item } => {
++            if let Some(n) = d.bot.slots.ids().iter().position(|x| x == item) {
++                g.dummies[i].bot.slots.select_slot(n);
++            }
++        }
++        GuestAct::Throw {
++            item,
++            from,
++            vel,
++            charge,
++        } => {
++            if !d.bot.slots.ids().contains(item)
++                || (from.0 - d.mover.x).hypot(from.2 - d.mover.z) > 1.5
++                || !(0.5..=2.5).contains(&from.1)
++            {
++                return;
++            }
++            launch(
++                g,
++                id,
++                *item,
++                V3::new(from.0, from.1, from.2),
++                V3::new(vel.0, vel.1, vel.2),
++                *charge,
++            );
++        }
++        _ => {}
++    }
++}
+diff --git a/rust/crates/bbq_app/src/results.rs b/rust/crates/bbq_app/src/results.rs
+index 332d2ee..0b64d4a 100644
+--- a/rust/crates/bbq_app/src/results.rs
++++ b/rust/crates/bbq_app/src/results.rs
+@@ -86,7 +86,7 @@ fn standings(g: &Game) -> String {
+ }
+ 
+ pub fn build(g: &Game, _settings: &Settings) -> ResultsText {
+-    if g.rules.mode==GameMode::Race {let winner=g.round.results.as_ref().and_then(|r|r.winner);return ResultsText {race_lines:Some(crate::race::lines(g)),title:format!("{} wins the race",key_name(g,winner)),line:"Three laps • Finish time decides. Unfinished racers rank by checkpoints, then distance to the next gate.".into(),match_line:None,again_label:"Race again".into(),heist:false,rows:vec![]};}
++    if g.rules.mode==GameMode::Race {let winner=g.round.results.as_ref().and_then(|r|r.winner);return ResultsText {race_lines:Some(crate::race::all_lines(g)),title:format!("{} wins the race",key_name(g,winner)),line:format!("{} • Unfinished racers rank by gates, then distance.",crate::race::thrower_winner(g)),match_line:None,again_label:"Race again".into(),heist:false,rows:vec![]};}
+     let mut rows: Vec<Row> = g
+         .board
+         .iter()
+diff --git a/rust/crates/bbq_app/src/round.rs b/rust/crates/bbq_app/src/round.rs
+index e40159a..4e90a7b 100644
+--- a/rust/crates/bbq_app/src/round.rs
++++ b/rust/crates/bbq_app/src/round.rs
+@@ -251,7 +251,7 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
+ 
+     // a clean yard and the right number of bots
+     g.world.clear();
+-    sync_bot_count(g, if setup.mode==GameMode::Race {if setup.race_role==crate::race::Role::Racer{2}else{3}} else {setup.bots});
++    sync_bot_count(g, if setup.mode==GameMode::Race {crate::race::bot_count(g,setup.race_role)} else {setup.bots});
+     assign_teams(g, false);
+     g.board = Scoreboard::new();
+     for id in everyone(g) {
+diff --git a/rust/crates/bbq_app/src/visual_review.rs b/rust/crates/bbq_app/src/visual_review.rs
+index 6b9e7d4..e3c7baf 100644
+--- a/rust/crates/bbq_app/src/visual_review.rs
++++ b/rust/crates/bbq_app/src/visual_review.rs
+@@ -41,6 +41,7 @@ fn capture(
+     meshes: Res<Assets<Mesh>>,
+     materials: Res<Assets<StandardMaterial>>,
+     images: Res<Assets<Image>>,
++    atlases: Res<bevy::text::FontAtlasSet>,
+     drawn: Query<(), With<Mesh3d>>,
+     game: Res<crate::game::Game>,
+ ) {
+@@ -108,6 +109,13 @@ fn capture(
+             image_bytes,
+         );
+         println!("REVIEW {report}");
++        if std::env::args().any(|a|a=="--image-costs") {
++            println!("FONT_ATLASES count={} bytes={}",atlases.len(),atlases.total_bytes(&images));
++            for k in atlases.keys().take(25) {println!("FONT_KEY {k:?}");}
++            let mut sizes=std::collections::BTreeMap::new();
++            for (_,im) in images.iter(){let n=im.data.as_ref().map_or(0,Vec::len);*sizes.entry((n,format!("{:?} {:?}",im.texture_descriptor.size,im.texture_descriptor.label))).or_insert(0usize)+=1;}
++            for ((bytes,desc),count) in sizes {println!("IMAGE_COST count={count} bytes_each={bytes} {desc}");}
++        }
+         let path = std::path::Path::new(&cfg.out).with_extension("metrics.txt");
+         if let Err(error) = std::fs::write(path, report) {
+             error!("Could not save review metrics: {error}");
+diff --git a/rust/crates/bbq_core/src/flight.rs b/rust/crates/bbq_core/src/flight.rs
+index b5c9a02..7e60a2a 100644
+--- a/rust/crates/bbq_core/src/flight.rs
++++ b/rust/crates/bbq_core/src/flight.rs
+@@ -247,16 +247,16 @@ fn surface_bounce(it: &Item) -> f32 {
+     it.kind.def().bounce / scale
+ }
+ 
+-fn on_surface(it: &mut Item, h: f32, on: Option<&Collider>, events: &mut Vec<FlightEvent>, dt: f32) -> Fate {
++fn on_surface(it: &mut Item, h: f32, on: Option<&Collider>, events: &mut Vec<FlightEvent>, dt: f32, race: bool) -> Fate {
+     let d = it.kind.def();
+     let sp = it.vel.len();
+-    if it.pos.x.abs() > YARD_HALF_X || it.pos.z.abs() > YARD_HALF_Z {
++    if it.pos.x.abs() > if race {52.0}else{YARD_HALF_X} || it.pos.z.abs() > if race{37.0}else{YARD_HALF_Z} {
+         events.push(FlightEvent::Over {
+             thrower: it.thrower,
+         });
+         return Fate::Removed;
+     }
+-    if h == 0.0 && in_pool_rect(it.pos.x, it.pos.z) {
++    if !race && h == 0.0 && in_pool_rect(it.pos.x, it.pos.z) {
+         if sp > 2.0 {
+             events.push(FlightEvent::Splash {
+                 x: it.pos.x,
+@@ -340,7 +340,7 @@ fn collide_world_with_dt(it: &mut Item, yard: &Yard, rng: &mut Rng, events: &mut
+     let r = it.radius();
+     // trampoline
+     let (tx, tz) = (it.pos.x - TRAMP_X, it.pos.z - TRAMP_Z);
+-    if tx * tx + tz * tz < TRAMP_R * TRAMP_R
++    if !yard.race && tx * tx + tz * tz < TRAMP_R * TRAMP_R
+         && it.pos.y < TRAMP_H + r
+         && it.pos.y > TRAMP_H - 0.2
+         && it.vel.y < 0.0
+@@ -373,13 +373,13 @@ fn collide_world_with_dt(it: &mut Item, yard: &Yard, rng: &mut Rng, events: &mut
+         return Fate::Alive;
+     }
+     // the ground (or the pool's water)
+-    let floor_y = r + if in_pool_rect(it.pos.x, it.pos.z) {
++    let floor_y = r + if !yard.race && in_pool_rect(it.pos.x, it.pos.z) {
+         WATER_Y - 0.05
+     } else {
+         0.0
+     };
+     if it.pos.y < floor_y {
+-        if on_surface(it, 0.0, None, events, dt) == Fate::Removed {
++        if on_surface(it, 0.0, None, events, dt, yard.race) == Fate::Removed {
+             return Fate::Removed;
+         }
+         if it.state != ItemState::Flying {
+@@ -400,7 +400,7 @@ fn collide_world_with_dt(it: &mut Item, yard: &Yard, rng: &mut Rng, events: &mut
+         let py = (c.h + r) - it.pos.y;
+         if py <= px && py <= pz && it.vel.y <= 0.0 {
+             it.pos.y = c.h + r;
+-            if on_surface(it, c.h, Some(c), events, dt) == Fate::Removed {
++            if on_surface(it, c.h, Some(c), events, dt, yard.race) == Fate::Removed {
+                 return Fate::Removed;
+             }
+             if it.state != ItemState::Flying {
+@@ -427,14 +427,14 @@ fn collide_world_with_dt(it: &mut Item, yard: &Yard, rng: &mut Rng, events: &mut
+         }
+     }
+     // the fence bounces things back (below 1.8 m)
+-    if it.pos.x.abs() > YARD_HALF_X - r && it.pos.x.abs() < YARD_HALF_X + 0.5 && it.pos.y < 1.8 + r
++    if !yard.race && it.pos.x.abs() > YARD_HALF_X - r && it.pos.x.abs() < YARD_HALF_X + 0.5 && it.pos.y < 1.8 + r
+     {
+         it.pos.x = it.pos.x.signum() * (YARD_HALF_X - r);
+         if hit_wall(it, Axis::X, events) == Fate::Removed {
+             return Fate::Removed;
+         }
+     }
+-    if it.pos.z.abs() > YARD_HALF_Z - r && it.pos.z.abs() < YARD_HALF_Z + 0.5 && it.pos.y < 1.8 + r
++    if !yard.race && it.pos.z.abs() > YARD_HALF_Z - r && it.pos.z.abs() < YARD_HALF_Z + 0.5 && it.pos.y < 1.8 + r
+     {
+         it.pos.z = it.pos.z.signum() * (YARD_HALF_Z - r);
+         if hit_wall(it, Axis::Z, events) == Fate::Removed {
+@@ -632,7 +632,7 @@ mod tests {
+         for kind in [ItemKind::Dildo,ItemKind::Noodle] {
+             let mut it=thrown(kind,V3::new(0.0,0.1,10.0),V3::new(4.0,-10.0,2.0));
+             let before=it.vel.len_sq();
+-            on_surface(&mut it,0.0,None,&mut vec![],DT);
++            on_surface(&mut it,0.0,None,&mut vec![],DT,false);
+             assert!(it.vel.len_sq()<before);
+             assert!(!it.live);
+             heights.push(it.vel.y);
+@@ -688,7 +688,7 @@ mod tests {
+     fn soft_items_still_float_and_walls_remove_energy() {
+         for kind in [ItemKind::Dildo,ItemKind::Noodle] {
+             let mut it=thrown(kind,V3::new(crate::yard::POOL_X0+1.0,0.0,crate::yard::POOL_Z0+1.0),V3::new(2.0,-8.0,0.0));
+-            let mut events=vec![];on_surface(&mut it,0.0,None,&mut events,DT);
++            let mut events=vec![];on_surface(&mut it,0.0,None,&mut events,DT,false);
+             assert_eq!(it.state,ItemState::Ground);assert!((it.pos.y-(WATER_Y+0.04)).abs()<1e-5);
+             assert!(events.iter().any(|e|matches!(e,FlightEvent::Splash{..})));
+             let mut it=thrown(kind,V3::ZERO,V3::new(8.0,-2.0,3.0));let energy=it.vel.len_sq();
+diff --git a/rust/crates/bbq_core/src/net.rs b/rust/crates/bbq_core/src/net.rs
+index dd750a0..cc158ab 100644
+--- a/rust/crates/bbq_core/src/net.rs
++++ b/rust/crates/bbq_core/src/net.rs
+@@ -13,7 +13,7 @@
+ 
+ /// Bump this whenever a message changes, so old and new copies of the game refuse each other
+ /// politely instead of misreading each other.
+-pub const PROTOCOL: u16 = 10;
++pub const PROTOCOL: u16 = 11;
+ /// The most people in one yard (the browser game's limit).
+ pub const MAX_PLAYERS: usize = 16;
+ /// How often each player reports where they are.
+diff --git a/rust/crates/bbq_core/src/net_act.rs b/rust/crates/bbq_core/src/net_act.rs
+index 6874be4..33da5ea 100644
+--- a/rust/crates/bbq_core/src/net_act.rs
++++ b/rust/crates/bbq_core/src/net_act.rs
+@@ -28,6 +28,8 @@ pub enum GuestAct {
+     Catch,
+     /// F edge; the host chooses/validates the victim and measures throw hold time.
+     Carry { pressed: bool },
++    /// Preference for the next race; accepted only between rounds.
++    RaceRole { thrower: bool },
+ }
+ 
+ /// What the host tells a guest that happened to them.
+@@ -73,6 +75,7 @@ impl GuestAct {
+                 w.u32(*item);
+             }
+             GuestAct::Catch => w.u8(5),
++            GuestAct::RaceRole {thrower} => {w.u8(7);w.u8(*thrower as u8);},
+             GuestAct::Carry { pressed } => { w.u8(6); w.u8(*pressed as u8); },
+         }
+     }
+@@ -84,6 +87,7 @@ impl GuestAct {
+             3 => GuestAct::Drop { item: r.u32()? },
+             4 => GuestAct::Select { item: r.u32()? },
+             5 => GuestAct::Catch,
++            7 => GuestAct::RaceRole {thrower:r.u8()? != 0},
+             6 => GuestAct::Carry { pressed: r.u8()? != 0 },
+             k => return Err(DecodeError::UnknownKind(k)),
+         })
+diff --git a/rust/crates/bbq_core/src/net_world.rs b/rust/crates/bbq_core/src/net_world.rs
+index 7d026ae..8691cf6 100644
+--- a/rust/crates/bbq_core/src/net_world.rs
++++ b/rust/crates/bbq_core/src/net_world.rs
+@@ -145,8 +145,14 @@ pub struct WetSnap {
+     pub pos: (f32, f32, f32),
+ }
+ 
++#[derive(Clone, Debug, PartialEq)]
++pub struct RaceSnap {
++    pub id:u32, pub thrower:bool, pub passed:u8, pub finish:f32,
++    pub score:u32, pub streak:u32, pub hits:u32, pub disconnected:bool,
++}
+ #[derive(Clone, Debug, PartialEq)]
+ pub struct WorldSnap {
++    pub race: Vec<RaceSnap>,
+     /// Host-only status, including zero for recovery. Position bounds wet remote prediction.
+     pub wet: Vec<WetSnap>,
+     /// Counts up, so a late old snapshot is thrown away.
+@@ -172,6 +178,8 @@ impl WorldSnap {
+         for s in self.wet.iter().take(MAX_BOARD) {
+             w.u32(s.id); w.f32(s.remaining); w.triple(s.pos);
+         }
++        w.u8(self.race.len().min(MAX_BOARD) as u8);
++        for s in self.race.iter().take(MAX_BOARD) {w.u32(s.id);w.u8(s.thrower as u8);w.u8(s.passed);w.f32(s.finish);w.u32(s.score);w.u32(s.streak);w.u32(s.hits);w.u8(s.disconnected as u8);}
+         w.u32(self.seq);
+         w.f32(self.now);
+         let r = &self.round;
+@@ -267,6 +275,8 @@ impl WorldSnap {
+         for _ in 0..n {
+             wet.push(WetSnap { id: r.u32()?, remaining: r.f32()?.clamp(0.0, crate::stun::WET_DURATION), pos: r.triple()? });
+         }
++        let n=count(r,MAX_BOARD)?;let mut race=Vec::with_capacity(n);
++        for _ in 0..n {race.push(RaceSnap{id:r.u32()?,thrower:r.u8()?!=0,passed:r.u8()?.min(24),finish:r.f32()?,score:r.u32()?,streak:r.u32()?,hits:r.u32()?,disconnected:r.u8()?!=0});}
+         let seq = r.u32()?;
+         let now = r.f32()?;
+         let round = RoundSnap {
+@@ -359,7 +369,7 @@ impl WorldSnap {
+         for _ in 0..n {
+             fx.push(FxSnap { kind: r.u8()?, at: r.triple()? });
+         }
+-        Ok(WorldSnap { wet, seq, now, round, items, bots, dazza, board, teams, feed, fx })
++        Ok(WorldSnap { race, wet, seq, now, round, items, bots, dazza, board, teams, feed, fx })
+     }
+ }
+ 
+@@ -370,6 +380,7 @@ mod tests {
+ 
+     fn sample() -> WorldSnap {
+         WorldSnap {
++            race:vec![],
+             wet: vec![WetSnap { id: 2, remaining: 3.75, pos: (1.0, 0.0, 2.0) }],
+             seq: 42,
+             now: 123.5,
+@@ -460,7 +471,7 @@ mod tests {
+         let mut s = sample();
+         s.round.banner = None;
+         let mut bytes = Msg::World(Box::new(s)).encode();
+-        let at = 1 + 1 + 20 + 4 + 4 + 3 + 4 + 4 + 8 + 1 + 1; // kind, seq, now, phase/mode/features, time, round/len/spot/stock, smoko, heist, banner flag
++        let at = 1 + 1 + 20 + 1 + 4 + 4 + 3 + 4 + 4 + 8 + 1 + 1; // kind, seq, now, phase/mode/features, time, round/len/spot/stock, smoko, heist, banner flag
+         bytes[at] = 200;
+         assert!(Msg::decode(&bytes).is_err());
+         // every cut-off version is refused, never a panic
