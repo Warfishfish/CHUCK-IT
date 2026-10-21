@@ -330,6 +330,9 @@ pub enum ShowWhen {
     SmokoNote,
     RaceNote,
     StandardBots,
+    BackyardMode,
+    NotRace,
+    NotHeist,
     MoreOpen,
     Cheeky,
     /// Only with Cheeky mode off (family mode: no alcohol).
@@ -345,6 +348,8 @@ struct ShowDev(bool);
 
 #[derive(Component)]
 struct MenuRoot;
+#[derive(Component)]
+struct MenuContent;
 #[derive(Component)]
 struct PauseRoot;
 #[derive(Component)]
@@ -430,7 +435,24 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
     commands
         .spawn((overlay(false), MenuRoot))
         .with_children(|o| {
-            o.spawn(card(452.0)).with_children(|c| {
+            o.spawn(fixed_card(452.0)).with_children(|c| {
+                c.spawn(Node { flex_shrink: 0.0, ..column(8.0) }).with_children(|nav| {
+                    nav.spawn(row(8.0)).with_children(|t| {
+                        tab_button(t, Tab::Solo, "Solo");
+                        tab_button(t, Tab::Look, "Customise");
+                        tab_button(t, Tab::Mates, "With mates");
+                    });
+                    nav.spawn(row(8.0)).with_children(|t| {
+                        tab_button(t, Tab::Settings, "Game settings");
+                        tab_button(t, Tab::How, "How to play");
+                    });
+                });
+                c.spawn((
+                    Node { min_height: px(0.0), overflow: Overflow::scroll_y(), ..column(16.0) },
+                    RelativeCursorPosition::default(), ScrollPosition::default(),
+                    Interaction::default(), bevy::ui::FocusPolicy::Block,
+                    MenuContent,
+                )).with_children(|c| {
                 // brand (hidden on the Customise tab, to make room)
                 c.spawn((Node {
                     flex_direction: FlexDirection::Column,
@@ -441,7 +463,7 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                     ..default()
                 }, ShowWhen::NotLook))
                 .with_children(|b| {
-                    b.spawn(tag_pill("Backyard Brawl · Rust prototype"));
+                    b.spawn(tag_pill("Backyard Brawl · Rust prototype 0.0.2"));
                     outlined_title(b, "Australian\nBBQ", 54.0);
                     b.spawn(Node { max_width: px(360.0), ..default() }).with_child(text(
                         "Chuck stuff at your mates in the backyard. Hit them before they hit you!",
@@ -468,19 +490,12 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                         children![(text("", 15.0, true, INK), NameText)],
                     ));
                 });
-                // tabs
-                c.spawn(row(8.0)).with_children(|t| {
-                    tab_button(t, Tab::Solo, "Solo");
-                    // (Customise is the button under your blob now, 10 Oct 2026)
-                    tab_button(t, Tab::Mates, "With mates");
-                    tab_button(t, Tab::Settings, "Settings");
-                    tab_button(t, Tab::How, "How to play");
-                });
                 solo_panel(c);
                 look_panel(c);
                 mates_panel(c);
                 settings_panel(c);
                 how_panel(c);
+                });
             });
             // the character preview, in a card beside the menu (Solo tab)
             o.spawn((
@@ -557,6 +572,8 @@ fn lobby_card(o: &mut ChildSpawnerCommands) {
             right: px(24.0),
             top: px(20.0),
             width: px(320.0),
+            max_height: Val::Percent(94.0),
+            overflow: Overflow::scroll_y(),
             padding: UiRect::all(px(16.0)),
             flex_direction: FlexDirection::Column,
             row_gap: px(10.0),
@@ -570,6 +587,10 @@ fn lobby_card(o: &mut ChildSpawnerCommands) {
         BorderColor::all(INK),
         BoxShadow(vec![ShadowStyle { color: INK, x_offset: px(7.0), y_offset: px(7.0), spread_radius: px(0.0), blur_radius: px(0.0) }]),
         ShowWhen::Lobby,
+        RelativeCursorPosition::default(),
+        ScrollPosition::default(),
+        Interaction::default(),
+        bevy::ui::FocusPolicy::Block,
     ))
     .with_children(|c| {
         c.spawn(legend("Lobby: room code"));
@@ -599,10 +620,10 @@ fn lobby_card(o: &mut ChildSpawnerCommands) {
                 });
             }
         });
-        // the host picks the game right here
-        c.spawn((column(0.0), ShowWhen::LobbyHost)).with_children(|w| {
-            // Teddy Heist does not work online yet (9.8 in the plan)
-            seg(w, SegId::Mode, "Maps / Game modes", &[("Free for all", 0), ("Teams", 1)]);
+        c.spawn((column(8.0), ShowWhen::LobbyHost)).with_children(|w| {
+            map_controls(w);
+            button(w, Action::Tab(Tab::Settings), "Map, mode & game settings", Some(SUN));
+            w.spawn(text("Choices apply when the next round starts.", 12.5, false, MUTED));
         });
         c.spawn((text("", 14.0, true, INK), LobbyStatus));
         c.spawn(row(8.0)).with_children(|r| {
@@ -867,6 +888,23 @@ fn look_marks(settings: Res<Settings>, mut q: Query<(&LookChoice, &mut Backgroun
 }
 
 
+/// Maps and their supported modes share the existing round setup, so every entry point
+/// edits the same saved choice. Heist is solo-only until its online rules are supported.
+fn map_controls(p: &mut ChildSpawnerCommands) {
+    seg(p, SegId::Map, "Map", &[("Backyard", 0), ("Smoko yard", 3), ("Race oval", 4)]);
+    p.spawn((column(0.0), ShowWhen::Offline)).with_children(|h| {
+        seg(h, SegId::Map, "Solo map", &[("Teddy Heist", 2)]);
+    });
+    p.spawn((column(6.0), ShowWhen::BackyardMode)).with_children(|m| {
+        seg(m, SegId::Mode, "Game mode", &[("Free for all", 0), ("Teams", 1)]);
+    });
+    for (condition, label) in [(ShowWhen::SmokoNote, "Game mode: Smoko deliveries"),
+        (ShowWhen::RaceNote, "Game mode: Race"), (ShowWhen::HeistNote, "Game mode: Teddy Heist")] {
+        p.spawn((text(label, 13.0, true, INK), condition));
+    }
+    p.spawn((text("Teddy Heist is available in solo play only.", 12.0, false, MUTED), ShowWhen::InYard));
+}
+
 fn solo_panel(c: &mut ChildSpawnerCommands) {
     c.spawn((column(14.0), ShowWhen::Panel(Tab::Solo))).with_children(|outer| {
     // online as a guest: the host picks the game
@@ -889,12 +927,7 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
         p.spawn((column(0.0), ShowWhen::StandardBots)).with_children(|w| {
             seg(w, SegId::Bots, "Bots", &[("None", 0), ("1", 1), ("2", 2), ("3", 3)]);
         });
-        seg(
-            p,
-            SegId::Mode,
-            "Maps / Game modes",
-            &[("Backyard", 0), ("Backyard Teams", 1), ("Teddy Heist", 2), ("Smoko", 3), ("Race", 4)],
-        );
+        map_controls(p);
         p.spawn((
             Node { display: Display::None, ..default() },
             ShowWhen::HeistNote,
@@ -940,10 +973,23 @@ fn settings_panel(c: &mut ChildSpawnerCommands) {
     c.spawn((column(14.0), ShowWhen::Panel(Tab::Settings))).with_children(|p| {
         // the game: the host's to change when playing online
         p.spawn((column(12.0), ShowWhen::NotGuest)).with_children(|g| {
+            map_controls(g);
+            g.spawn((column(6.0), ShowWhen::HeistTeams)).with_children(|h| {
+                seg(h, SegId::HeistTeams, "Heist teams", &[("2", 2), ("3", 3), ("4", 4)]);
+            });
+            g.spawn((column(6.0), ShowWhen::StandardBots)).with_children(|b| {
+                seg(b, SegId::Bots, "Bots", &[("None", 0), ("1", 1), ("2", 2), ("3", 3)]);
+                seg(b, SegId::Skill, "Bot skill", &[("Easy", 0), ("Fair dinkum", 1), ("Spicy", 2)]);
+            });
+            check(g, CheckId::Cheeky, "Cheeky mode");
             g.spawn(legend("The round"));
-            seg(g, SegId::RoundLen, "Round length", &[("1 min", 60), ("3 min", 180)]);
-            seg(g, SegId::Rounds, "Rounds", &[("Single", 1), ("Best of 3", 3), ("Best of 5", 5)]);
-            seg(g, SegId::Skill, "Bot skill", &[("Easy", 0), ("Fair dinkum", 1), ("Spicy", 2)]);
+            g.spawn((column(0.0), ShowWhen::NotRace)).with_children(|r| {
+                seg(r, SegId::RoundLen, "Round length", &[("1 min", 60), ("3 min", 180)]);
+            });
+            g.spawn((text("Race uses 3 laps and a fixed time limit; yard features are off.", 13.0, false, MUTED), ShowWhen::RaceNote));
+            g.spawn((column(0.0), ShowWhen::NotHeist)).with_children(|r| {
+                seg(r, SegId::Rounds, "Rounds", &[("Single", 1), ("Best of 3", 3), ("Best of 5", 5)]);
+            });
             // Cheeky mode's beer and rum bottles (family mode has lemonade cans, as usual)
             g.spawn((column(6.0), ShowWhen::Cheeky)).with_children(|b| {
                 seg(b, SegId::Bottles, "Bottles", &[("None", 0), ("Few", 1), ("Normal", 2), ("Lots", 3)]);
@@ -951,7 +997,7 @@ fn settings_panel(c: &mut ChildSpawnerCommands) {
             g.spawn((column(6.0), ShowWhen::FriendlyFire)).with_children(|h| {
                 seg(h, SegId::FriendlyFire, "Friendly fire", &[("Off", 0), ("On", 1)]);
             });
-            g.spawn(column(6.0)).with_children(|f| {
+            g.spawn((column(6.0), ShowWhen::NotRace)).with_children(|f| {
                 f.spawn(legend("What's in the yard"));
                 f.spawn(Node { flex_wrap: FlexWrap::Wrap, column_gap: px(6.0), row_gap: px(6.0), ..default() })
                     .with_children(|w| {
@@ -973,6 +1019,12 @@ fn settings_panel(c: &mut ChildSpawnerCommands) {
             ShowWhen::Guest,
             children![text("Playing online: the host picks the round and what's in the yard.", 13.0, false, MUTED)],
         ));
+        p.spawn((column(6.0), ShowWhen::RaceNote)).with_children(|r| {
+            seg(r, SegId::RaceRole, "Your race role", &[("Racer", 0), ("Sideline Thrower", 1)]);
+        });
+        p.spawn((column(6.0), ShowWhen::Guest)).with_children(|r| {
+            seg(r, SegId::RaceRole, "If the host picks Race", &[("Racer", 0), ("Sideline Thrower", 1)]);
+        });
         // yours, on this computer
         p.spawn(column(10.0)).with_children(|y| {
             y.spawn(legend("You"));
@@ -1264,17 +1316,27 @@ fn widget_clicks(
     checks: Query<(&Interaction, &CheckBox), Changed<Interaction>>,
     actions: Query<(&Interaction, &Action), Changed<Interaction>>,
     mut cast: ResMut<Cast>,
+    lobby: Res<crate::online::Lobby>,
+    mut content_scroll: Query<&mut ScrollPosition, With<MenuContent>>,
 ) {
+    let guest = lobby.in_yard && !lobby.host;
     let mut changed = false;
     for (i, s) in &segs {
         if *i != Interaction::Pressed {
+            continue;
+        }
+        if guest && !matches!(s.id, SegId::Character | SegId::RaceRole) {
+            continue;
+        }
+        if lobby.in_yard && matches!(s.id, SegId::Map | SegId::Mode) && s.value == 2 {
             continue;
         }
         changed = true;
         let v = s.value;
         match s.id {
             SegId::Bots => settings.bots = v as usize,
-            SegId::Mode => {
+            SegId::Map if v == 0 && settings.mode == GameMode::Teams => {}
+            SegId::Map | SegId::Mode => {
                 settings.mode = match v {
                     1 => GameMode::Teams,
                     2 => GameMode::Heist,
@@ -1306,6 +1368,9 @@ fn widget_clicks(
         if *i != Interaction::Pressed {
             continue;
         }
+        if guest && c.0 != CheckId::Sound {
+            continue;
+        }
         changed = true;
         match c.0 {
             CheckId::Cheeky => settings.cheeky = !settings.cheeky,
@@ -1322,7 +1387,10 @@ fn widget_clicks(
             continue;
         }
         match a {
-            Action::Tab(t) => ui.tab = *t,
+            Action::Tab(t) => {
+                ui.tab = *t;
+                for mut scroll in &mut content_scroll { scroll.y = 0.0; }
+            }
             Action::More => ui.more_open = !ui.more_open,
             Action::FocusName => ui.name_focus = true,
             Action::Play => ui.request = Some(Request::Play),
@@ -1599,6 +1667,12 @@ fn paint_widgets(
     let selected = |id: SegId, v: i32| -> bool {
         match id {
             SegId::Bots => settings.bots as i32 == v,
+            SegId::Map => v == match settings.mode {
+                GameMode::FreeForAll | GameMode::Teams => 0,
+                GameMode::Heist => 2,
+                GameMode::Smoko => 3,
+                GameMode::Race => 4,
+            },
             SegId::Mode => {
                 v == match settings.mode {
                     GameMode::FreeForAll => 0,
@@ -1664,6 +1738,9 @@ fn paint_widgets(
             ShowWhen::HeistTeams | ShowWhen::HeistNote => heist,
             ShowWhen::SmokoNote => settings.mode == GameMode::Smoko,
             ShowWhen::RaceNote => settings.mode == GameMode::Race,
+            ShowWhen::NotRace => settings.mode != GameMode::Race,
+            ShowWhen::NotHeist => settings.mode != GameMode::Heist,
+            ShowWhen::BackyardMode => matches!(settings.mode, GameMode::FreeForAll | GameMode::Teams),
             ShowWhen::StandardBots => !lobby.in_yard && settings.mode != GameMode::Race,
             ShowWhen::FriendlyFire => teams,
             ShowWhen::MoreOpen => ui.more_open,
@@ -2076,4 +2153,150 @@ fn dev_hud(
     for mut v in &mut q {
         *v = if on { Visibility::Inherited } else { Visibility::Hidden };
     }
+}
+
+#[cfg(test)]
+mod menu_tests {
+    use super::*;
+
+    fn menu(lobby: crate::online::Lobby) -> App {
+        NO_SAVE.store(true, std::sync::atomic::Ordering::Relaxed);
+        let mut app = App::new();
+        app.insert_resource(Settings::default())
+            .insert_resource(MenuUi { tab: Tab::Solo, more_open: false, name_focus: false,
+                request: None, net_focus: None, net_request: None, toggle_ready: false })
+            .insert_resource(lobby)
+            .init_resource::<Cast>()
+            .insert_resource(crate::preview::PreviewImage(Handle::default()))
+            .add_systems(Startup, spawn_menu)
+            .add_systems(Update, (widget_clicks, paint_widgets).chain());
+        app.update();
+        app
+    }
+
+    fn visible(world: &World, mut entity: Entity) -> bool {
+        loop {
+            if world.get::<Node>(entity).is_some_and(|n| n.display == Display::None) {
+                return false;
+            }
+            match world.get::<ChildOf>(entity) {
+                Some(parent) => entity = parent.parent(),
+                None => return true,
+            }
+        }
+    }
+
+    #[test]
+    fn every_menu_can_be_reopened_after_switching_tabs() {
+        for (in_yard, host) in [(false, false), (true, true), (true, false)] {
+            let mut app = menu(crate::online::Lobby { active: in_yard, in_yard, host, count: 2 });
+            for from in [Tab::Solo, Tab::Look, Tab::Mates, Tab::Settings, Tab::How] {
+                app.world_mut().resource_mut::<MenuUi>().tab = from;
+                app.update();
+                for target in [Tab::Solo, Tab::Look, Tab::Mates, Tab::Settings, Tab::How] {
+                    if target == from { continue; }
+                    let buttons: Vec<_> = app.world_mut().query::<(Entity, &Action)>()
+                        .iter(app.world()).filter(|(_, a)| **a == Action::Tab(target))
+                        .map(|(e, _)| e).collect();
+                    assert!(buttons.iter().any(|e| visible(app.world(), *e)),
+                        "Cannot reopen {target:?} from {from:?} (online={in_yard}, host={host})");
+                }
+            }
+        }
+    }
+    fn choose(app: &mut App, id: SegId, value: i32) {
+        let entity = app.world_mut().query::<(Entity, &SegOption)>()
+            .iter(app.world()).find(|(_, s)| s.id == id && s.value == value)
+            .map(|(e, _)| e).unwrap();
+        app.world_mut().entity_mut(entity).insert(Interaction::Pressed);
+        app.update();
+        app.world_mut().entity_mut(entity).insert(Interaction::None);
+        app.update();
+    }
+
+    fn start_selected_round(settings: &Settings) -> (Game, YardRes) {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(YardRes(bbq_core::yard::Yard::default()));
+        app.insert_resource(Player {
+            mover: bbq_core::movement::Mover::new(8.0, 0.0), prev: Vec3::ZERO,
+            yaw: 0.0, pitch: 0.0, walk: 0.0, shake: 0.0, fov_base: 85.0, fov: 85.0,
+            rng: bbq_core::rng::Rng::new(1),
+        });
+        app.init_resource::<crate::player::Wanted>();
+        app.add_plugins(crate::game::GamePlugin);
+        let mut game = app.world_mut().remove_resource::<Game>().unwrap();
+        let mut player = app.world_mut().remove_resource::<Player>().unwrap();
+        let mut yard = app.world_mut().remove_resource::<YardRes>().unwrap();
+        begin(settings, &mut game, &mut player, &mut yard, &mut Cast::default());
+        (game, yard)
+    }
+
+    #[test]
+    fn host_selections_start_the_selected_map_and_reach_a_guest() {
+        let mut app = menu(crate::online::Lobby { active: true, in_yard: true, host: true, count: 2 });
+        let (mut guest, mut guest_yard) = start_selected_round(&Settings::default());
+        for (map, mode, expected) in [(0, 1, GameMode::Teams), (3, 3, GameMode::Smoko),
+            (4, 4, GameMode::Race), (0, 0, GameMode::FreeForAll)] {
+            choose(&mut app, SegId::Map, map);
+            if map == 0 { choose(&mut app, SegId::Mode, mode); }
+            choose(&mut app, SegId::RoundLen, 60);
+            choose(&mut app, SegId::Rounds, 3);
+            choose(&mut app, SegId::FriendlyFire, 1);
+            let mut settings = app.world().resource::<Settings>().clone();
+            settings.bots = 0;
+            settings.features.bar = false;
+            settings.features.bbq = false;
+            let (host, host_yard) = start_selected_round(&settings);
+            assert_eq!(host.rules.mode, expected);
+            assert_eq!(host.round.setup.round_len, if expected == GameMode::Race { crate::race::LIMIT } else { 60.0 });
+            assert_eq!(host.round.mtch.len, 3);
+            assert_eq!(host.rules.friendly_fire, expected == GameMode::Teams);
+            assert_eq!(host_yard.0.race, expected == GameMode::Race);
+            assert_eq!(host_yard.0.features.smoko, expected == GameMode::Smoko);
+            let snap = crate::online_world::build_world(&host, &host_yard.0, 1, 0.0, &[]);
+            let message = bbq_core::net::Msg::World(Box::new(snap));
+            let bbq_core::net::Msg::World(decoded) = bbq_core::net::Msg::decode(&message.encode()).unwrap() else { panic!("not a world message") };
+            crate::online_world::apply_world(&mut guest, &mut guest_yard.0, &decoded, 2, "Host");
+            assert_eq!(guest.rules.mode, expected);
+            assert_eq!(guest.rules.friendly_fire, host.rules.friendly_fire);
+            assert_eq!(guest.round.mtch.len, 3);
+            assert_eq!(guest_yard.0.race, host_yard.0.race);
+            assert_eq!(guest_yard.0.features, host_yard.0.features);
+        }
+    }
+
+    #[test]
+    fn guests_cannot_change_host_rules_but_can_choose_their_race_role() {
+        let mut app = menu(crate::online::Lobby { active: true, in_yard: true, host: false, count: 2 });
+        choose(&mut app, SegId::Map, 4);
+        choose(&mut app, SegId::Mode, 1);
+        choose(&mut app, SegId::RoundLen, 60);
+        choose(&mut app, SegId::RaceRole, 1);
+        let settings = app.world().resource::<Settings>();
+        assert_eq!(settings.mode, GameMode::FreeForAll);
+        assert_eq!(settings.round_len, 180.0);
+        assert_eq!(settings.race_role, crate::race::Role::Thrower);
+    }
+
+    #[test]
+    fn switching_from_scrolled_settings_opens_customise_at_the_top() {
+        let mut app = menu(crate::online::Lobby { active: true, in_yard: true, host: true, count: 2 });
+        app.world_mut().resource_mut::<MenuUi>().tab = Tab::Settings;
+        app.update();
+        let content = app.world_mut().query_filtered::<Entity, With<MenuContent>>().single(app.world()).unwrap();
+        app.world_mut().get_mut::<ScrollPosition>(content).unwrap().y = 500.0;
+        let tab = app.world_mut().query::<(Entity, &TabButton)>().iter(app.world())
+            .find(|(_, t)| t.0 == Tab::Look).map(|(e, _)| e).unwrap();
+        let mut ancestor = tab;
+        while let Some(parent) = app.world().get::<ChildOf>(ancestor) {
+            ancestor = parent.parent();
+            assert_ne!(ancestor, content, "navigation must be outside scrolling content");
+        }
+        app.world_mut().entity_mut(tab).insert(Interaction::Pressed);
+        app.update();
+        assert_eq!(app.world().resource::<MenuUi>().tab, Tab::Look);
+        assert_eq!(app.world().get::<ScrollPosition>(content).unwrap().y, 0.0);
+    }
+
 }

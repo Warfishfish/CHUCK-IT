@@ -9,6 +9,9 @@
 ## Already in the game ✅
 
 **Moving**
+- ✅ (Rust desktop and browser, 22 Oct 2026) Host lobby selectors for Backyard, Smoko yard and Race oval, with Free for all / Teams on Backyard and a direct Game settings button. Game settings includes maps, modes, round and match options, Cheeky mode and yard features. Solo retains Teddy Heist; its existing online restriction is clearly labelled. Race's fixed rules are shown instead of offering ignored options.
+- ✅ (Rust desktop and browser, 22 Oct 2026) Permanent menu navigation includes Customise, stays above the scrolling content, and resets content scrolling when changing tabs. Hosts and guests can reopen every menu after switching away.
+
 - ✅ WASD, Space jump, Shift sprint boost, Q swap item, right-click catch
 - ✅ 1.5x bigger yard with cover, a big deep pool (14 x 8), trampoline
 

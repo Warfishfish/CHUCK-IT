@@ -21,6 +21,8 @@ setTimeout(async () => {
   a.send(JSON.stringify({ t: 'msg', room: 'rbq-test', d: 'aGk=' }));
   b.send(JSON.stringify({ t: 'msg', room: 'rbq-test', to: a.peer, d: 'eW8=' }));
   c.send(JSON.stringify({ t: 'msg', room: 'rbq-test', d: 'bm8=' })); // not in the room: dropped
+  // Let the direct reply arrive before the oversize packet closes a's socket.
+  await wait(300);
   a.send(JSON.stringify({ t: 'msg', room: 'rbq-test', d: 'x'.repeat(20000) })); // too big: dropped
   await wait(300);
   const msgs = x => x.got.filter(m => m.t === 'msg');

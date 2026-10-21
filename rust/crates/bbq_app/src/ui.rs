@@ -48,6 +48,15 @@ pub fn text(s: impl Into<String>, size: f32, bold: bool, colour: Color) -> impl 
 
 /// A cream card with a dark outline and a hard shadow.
 pub fn card(width: f32) -> impl Bundle {
+    card_with_scroll(width, true)
+}
+
+/// Menu navigation stays fixed; only the content inside this card scrolls.
+pub fn fixed_card(width: f32) -> impl Bundle {
+    card_with_scroll(width, false)
+}
+
+fn card_with_scroll(width: f32, scroll: bool) -> impl Bundle {
     (
         Node {
             width: px(width),
@@ -59,7 +68,7 @@ pub fn card(width: f32) -> impl Bundle {
             padding: UiRect::axes(px(22.0), px(20.0)),
             border: UiRect::all(px(3.0)),
             border_radius: BorderRadius::all(px(18.0)),
-            overflow: Overflow::scroll_y(),
+            overflow: if scroll { Overflow::scroll_y() } else { Overflow::clip() },
             ..default()
         },
         BackgroundColor(PAPER),
@@ -253,6 +262,7 @@ pub struct SegOption {
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum SegId {
     Bots,
+    Map,
     Mode,
     HeistTeams,
     RaceRole,
