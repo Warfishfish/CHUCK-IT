@@ -395,7 +395,7 @@ fn table_bottles() -> Vec<Part> {
 /// The house in the step 2c look: faded cream paint, a roofline that is a little uneven, and a
 /// veranda whose roof sags in the middle.
 fn house_styled() -> Vec<Part> {
-    let roof = matt(0x9a4636);
+    let roof = matt(0xb36149).textured(Tex::Corrugated).repeating(20.0, 2.0);
     let mut v = vec![
         cuboid(40.0, 4.6, 8.0, matt(0xf3ead4).textured(Tex::Weatherboard).repeating(20.0, 3.0), 0.0, 2.3, -29.5),
         // two roof slabs, one a hair lower and tilted so the ridge is not dead straight
@@ -427,6 +427,14 @@ fn house_styled() -> Vec<Part> {
         let ang = ((y1 - y0) / (x1 - x0)).atan();
         v.push(cuboid(len + 0.1, 0.1, vd + 0.2, matt(0x8a6a4a), mx, my, vz + vd / 2.0).turn(0.0, 0.0, ang));
         v.push(cuboid(len + 0.1, 0.05, vd + 0.25, roof, mx, my + 0.08, vz + vd / 2.0).turn(0.12, 0.0, ang));
+    }
+    // Broad readable trims; no fine noise or new texture assets.
+    for z in [-25.42,-33.58] {v.push(cuboid(40.4,0.20,0.14,matt(0xf4e4c6),0.0,4.55,z));}
+    for x in [-19.9,19.9] {v.push(cuboid(0.16,4.5,0.16,matt(0xe6d2aa),x,2.25,-25.43));}
+    for x in [-15.0,-9.0,-4.0,8.0,13.5] {
+        v.push(cuboid(0.065,1.22,0.04,matt(0xf8eddb),x,2.5,-25.37));
+        v.push(cuboid(1.65,0.065,0.04,matt(0xf8eddb),x,2.5,-25.37));
+        v.push(cuboid(2.02,0.12,0.20,matt(0xd6c29b),x,1.72,-25.39));
     }
     // the rainwater tank
     v.push(cyl(1.3, 1.3, 2.6, 20, matt(0x9fb0a4), 22.0, 1.3, -27.8));
@@ -710,7 +718,7 @@ fn limb(a: V3, b: V3, r0: f32, r1: f32, seg: u32, s: Surface) -> Part {
 fn gum_tree_dusty(rng: &mut Rng, x: f32, z: f32, dust: f32) -> Vec<Part> {
     let bark = matt(0xffffff).material(Tex::Bark, 1.0);
     // sun-bleached gum greens: olive, sage and blue-grey, a few darker
-    let leaves = [0x8fa36f_u32, 0xa3b37f, 0x93a888, 0x7f9a66, 0x9aae8e, 0x6f8a5a, 0xb0bb8a];
+    let leaves = [0x78966e_u32, 0x91a57e, 0x83a08a, 0x708d65, 0x8fa68b, 0x617f59, 0x9eae87];
     let tall = rng.range(0.0, 1.0);
     let h = 5.5 + tall * 4.5;
     let r = 0.2 + rng.range(0.0, 0.14);
@@ -750,7 +758,7 @@ fn gum_tree_dusty(rng: &mut Rng, x: f32, z: f32, dust: f32) -> Vec<Part> {
             let col = mix_colour(col, 0x9ea27c, dust * 0.5);
             let col = if hang < 0.0 || off.y < -0.1 { looks::shade(col, 0.8) } else { col };
             v.push(
-                Part::new(Shape::Ico { r: s, detail: 1 }, matt(col).faceted())
+                Part::new(Shape::Sphere { r: s, ws: 10, hs: 6 }, matt(col))
                     .at(top.x + off.x, top.y + off.y + hang, top.z + off.z)
                     .stretch(rng.range(0.9, 1.3), rng.range(0.5, 0.75), rng.range(0.9, 1.3))
                     .turn(0.0, rng.range(0.0, PI), 0.0),
@@ -761,7 +769,7 @@ fn gum_tree_dusty(rng: &mut Rng, x: f32, z: f32, dust: f32) -> Vec<Part> {
             let p = bend + (top - bend) * t;
             let col = leaves[rng.index(leaves.len())];
             v.push(
-                Part::new(Shape::Ico { r: rng.range(0.35, 0.6), detail: 1 }, matt(col).faceted())
+                Part::new(Shape::Sphere { r: rng.range(0.35, 0.6), ws: 10, hs: 6 }, matt(col))
                     .at(p.x + rng.range(-0.5, 0.5), p.y, p.z + rng.range(-0.5, 0.5))
                     .stretch(1.2, 0.6, 1.2),
             );
@@ -800,11 +808,11 @@ fn cloud(rng: &mut Rng) -> (V3, Vec<Part>) {
         );
         puffs.push(
             Part::new(
-                Shape::Ico { r, detail: 1 },
-                matt(0xffffff).faceted().glow(0x8899aa).no_shadow(),
+                Shape::Sphere { r, ws: 16, hs: 10 },
+                matt(0xe2eaf0).glow(0x20262b).no_shadow(),
             )
-            .at(px, py, pz)
-            .stretch(1.0, 0.45, 1.0),
+            .at(px * 0.7, py + r * 0.14, pz * 0.75)
+            .stretch(1.0, 0.72, 0.9),
         );
     }
     let at = V3::new(
@@ -1021,6 +1029,14 @@ fn house() -> Vec<Part> {
         v.push(cuboid(1.6, 1.2, 0.08, matt(0x2d4b66), x, 2.5, -25.44));
     }
     v.push(cuboid(1.1, 2.2, 0.08, matt(0x7a4b2e), 3.0, 1.1, -25.44));
+    // Broad readable trims; no fine noise or new texture assets.
+    for z in [-25.42,-33.58] {v.push(cuboid(40.4,0.20,0.14,matt(0xf4e4c6),0.0,4.55,z));}
+    for x in [-19.9,19.9] {v.push(cuboid(0.16,4.5,0.16,matt(0xe6d2aa),x,2.25,-25.43));}
+    for x in [-15.0,-9.0,-4.0,8.0,13.5] {
+        v.push(cuboid(0.065,1.22,0.04,matt(0xf8eddb),x,2.5,-25.37));
+        v.push(cuboid(1.65,0.065,0.04,matt(0xf8eddb),x,2.5,-25.37));
+        v.push(cuboid(2.02,0.12,0.20,matt(0xd6c29b),x,1.72,-25.39));
+    }
     // the rainwater tank
     v.push(cyl(1.3, 1.3, 2.6, 20, matt(0x9fb0a4), 22.0, 1.3, -27.8));
     v.push(cyl(1.35, 1.35, 0.1, 20, matt(0x8a9a8f), 22.0, 2.62, -27.8));
@@ -1976,8 +1992,8 @@ fn neighbour_house(rng: &mut Rng, w: f32, d: f32) -> Vec<Part> {
     let slab_d = (d * 0.5 + 0.7) / a.cos();
     let rise = d * 0.25 * a.tan();
     let mut v = vec![
-        cuboid(w, h, d, matt(wall), 0.0, h / 2.0, 0.0),
-        cuboid(w + 0.9, 0.15, slab_d, matt(roof), 0.0, h + rise + 0.08, d * 0.25).turn(a, 0.0, 0.0),
+        cuboid(w, h, d, matt(wall).textured(Tex::Weatherboard).repeating(w*0.5,2.5), 0.0, h / 2.0, 0.0),
+        cuboid(w + 0.9, 0.15, slab_d, matt(roof).textured(Tex::Corrugated).repeating(w*0.5,2.0), 0.0, h + rise + 0.08, d * 0.25).turn(a, 0.0, 0.0),
         cuboid(w + 0.9, 0.15, slab_d, matt(shade_surface(matt(roof), 0.92).color), 0.0, h + rise + 0.08, -d * 0.25).turn(-a, 0.0, 0.0),
         // the roof's end triangles are left open, so close them with a wall slab under the ridge
         cuboid(w, rise * 1.1, d * 0.5, matt(shade_surface(matt(wall), 0.96).color), 0.0, h + rise * 0.5, 0.0),
@@ -2706,4 +2722,17 @@ mod tests {
             assert_eq!((p.x, p.z), (spot.0, spot.1));
         }
     }
+}
+
+/// Visible faces and collision use the same sizes; lid trim stays inside the bounding box.
+pub fn backyard_cover()->Vec<Part> {
+ let mut parts=Vec::new();
+ for (x,z,w,d,h) in crate::yard::BACKYARD_COVER {
+  parts.push(cuboid(w,h,d,matt(0xb98c58).textured(Tex::Wood),x,h/2.0,z));
+  for side in [-1.0,1.0] {
+   parts.push(cuboid(w,0.065,0.06,matt(0xe1b981),x,h-0.0325,z+side*(d/2.0-0.03)));
+   parts.push(cuboid(0.065,h,0.065,matt(0x94653e),x+side*(w/2.0-0.0325),h/2.0,z+d/2.0-0.0325));
+  }
+ }
+ parts
 }

@@ -8,6 +8,9 @@ use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
 use crate::{game::Game, lighting::LookMode, player::EyeCamera, yard_scene::YardRes};
 
+// Muted blade colours in linear space, matching the lawn beneath them.
+const ROOT_COLOUR: Vec3 = Vec3::new(0.20, 0.37, 0.09);
+const TIP_COLOUR: Vec3 = Vec3::new(0.31, 0.52, 0.15);
 const TILE: f32 = 5.0;
 const NEAR_TUFTS: usize = 1600;
 const FAR_TUFTS: usize = 300;
@@ -80,7 +83,8 @@ fn tile_mesh(cx: f32, cz: f32, mode: GameMode, yard: &Yard, tufts: usize) -> Opt
                 positions.push(p.to_array());
                 // Upward shading normals blend with the lawn; no black back-facing stripes.
                 normals.push([0.0, 1.0, 0.0]);
-                colours.push([(0.30 + 0.17*t)*tint, (0.46 + 0.14*t)*tint, (0.07 + 0.04*t)*tint, 1.0]);
+                let colour = ROOT_COLOUR.lerp(TIP_COLOUR, t) * tint;
+                colours.push([colour.x, colour.y, colour.z, 1.0]);
                 uv.push([0.0, t]);
             }
             indices.extend([first,first+2,first+1, first+1,first+2,first+3, first+2,first+4,first+3]);

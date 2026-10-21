@@ -6,7 +6,8 @@ pub const WINDUP_LIGHT: f32 = 0.10;
 pub const WINDUP_HEAVY: f32 = 0.20;
 pub const WIND_SQUASH: f32 = 0.16;
 pub const RELEASE_STRETCH: f32 = 0.23;
-pub const THROW_SETTLE: f32 = 0.65;
+pub const THROW_SETTLE: f32 = 0.72;
+pub const THROW_FOLLOW_THROUGH:f32=0.14;
 pub const HIT_STOP: f32 = 0.070;
 pub const HIT_SQUASH: f32 = 0.22;
 pub const HIT_SHOVE: f32 = 0.09;
@@ -63,7 +64,9 @@ impl Feel {
                 let s=RELEASE_STRETCH*(0.65+0.7*w)*(-5.0*u).exp()*(u*std::f32::consts::TAU*WOBBLE_CYCLES).cos();
                 p.body_scale=(1.0-s*0.4,1.0+s);
                 p.body_rot=p.body_rot.mul(Quat::from_euler_xyz(s,0.0,0.0));
-                p.body_z+=s*0.15;
+                let reach=(std::f32::consts::PI*(t/0.24).clamp(0.0,1.0)).sin()*(0.7+0.3*w);
+                p.body_z+=s*0.15+reach*THROW_FOLLOW_THROUGH;
+                p.hand_r.z+=reach*0.16;
             }
         }
         if let Some(t)=&mut self.release { *t+=dt;if *t>=THROW_SETTLE {self.release=None;} }

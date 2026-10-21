@@ -1,0 +1,159 @@
+--- a/rust/crates/bbq_app/src/lighting.rs
++++ b/rust/crates/bbq_app/src/lighting.rs
+@@ -63,11 +63,11 @@
+                 // channels so the hemisphere approximation never creates negative light.
+                 crate::style::Style::Pop => Rig {
+                     sky: 0xb5d0f5,
+-                    ground: 0xa4b29c,
+-                    hemi: 0.79,
+-                    sun: 0xffdfb1,
+-                    sun_intensity: 1.02,
+-                    grade: Grade { saturation: 1.01, warmth: 0.018, contrast: 1.025, vignette: 0.045 },
++                    ground: 0xa4b2a6,
++                    hemi: 0.82,
++                    sun: 0xffe8c9,
++                    sun_intensity: 0.96,
++                    grade: Grade { saturation: 0.98, warmth: 0.006, contrast: 1.018, vignette: 0.035 },
+                 },
+                 // clay: a strong, low, golden sun with a cool blue shade and warm bounce light
+                 crate::style::Style::Clay => Rig {
+@@ -321,7 +321,7 @@
+             let height = (p[1] / 180.0).max(0.0);
+             let t = (height / 0.7).clamp(0.0, 1.0).sqrt();
+             let horizon = Vec3::new(0.73, 0.86, 0.94);
+-            let zenith = Vec3::new(0.18, 0.42, 0.76);
++            let zenith = Vec3::new(0.24, 0.47, 0.76);
+             let direction=Vec3::from(*p).normalize();
+             let toward_sun=direction.dot(Vec3::new(24.0,20.8,20.0).normalize()).max(0.0);
+             let haze=toward_sun.powf(12.0)*0.16;
+--- a/rust/crates/bbq_app/src/models.rs
++++ b/rust/crates/bbq_app/src/models.rs
+@@ -28,6 +28,11 @@
+ pub const MATT_ROUGHNESS: f32 = 0.5;
+ /// The lawn is seen at a glancing angle, where Bevy lights rough things up; this brings it back.
+ pub const GROUND_ROUGHNESS: f32 = 0.0;
++
++// Reduce repeating grain/rib contrast without changing assets or their average colour.
++const WOOD_DETAIL_CONTRAST: f32 = 0.45;
++const BUILDING_DETAIL_CONTRAST: f32 = 0.65;
++const LAWN_TINT: Vec3 = Vec3::new(0.76, 0.98, 1.15);
+ 
+ /// The polished look draws items with their extra details (set once at start-up from `LookMode`).
+ pub static POLISHED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+@@ -341,7 +346,7 @@
+ }
+ 
+ /// When one of our pictures finishes loading, give it its smaller copies.
+-fn add_mipmaps(mut events: MessageReader<AssetEvent<Image>>, mut images: ResMut<Assets<Image>>) {
++fn add_mipmaps(mut events: MessageReader<AssetEvent<Image>>, mut images: ResMut<Assets<Image>>, cache: Res<ModelCache>) {
+     for ev in events.read() {
+         let AssetEvent::LoadedWithDependencies { id } = ev else {
+             continue;
+@@ -361,6 +366,33 @@
+         if data.len() != (w * h * 4) as usize || (w <= 1 && h <= 1) {
+             continue;
+         }
++        let mut softened;
++        let contrast = if POLISHED.load(std::sync::atomic::Ordering::Relaxed)
++            && crate::style::current() == crate::style::Style::Pop {
++            cache.textures.iter().find_map(|(tex, handle)| {
++                if handle.id() != *id { return None; }
++                match tex {
++                    Tex::Wood => Some(WOOD_DETAIL_CONTRAST),
++                    Tex::Paling | Tex::Corrugated => Some(BUILDING_DETAIL_CONTRAST),
++                    _ => None,
++                }
++            })
++        } else { None };
++        let data = if let Some(contrast) = contrast {
++            // Only colour maps: preserve normal/roughness maps and alpha exactly.
++            let count = (w * h) as f32;
++            let mut mean = [0.0f32; 3];
++            for pixel in data.chunks_exact(4) {
++                for i in 0..3 { mean[i] += pixel[i] as f32 / count; }
++            }
++            softened = data.clone();
++            for pixel in softened.chunks_exact_mut(4) {
++                for i in 0..3 {
++                    pixel[i] = (mean[i] + (pixel[i] as f32 - mean[i]) * contrast).round() as u8;
++                }
++            }
++            &softened
++        } else { data };
+         let mips = build_mips(w, h, data);
+         img.texture_descriptor.mip_level_count = mip_count(w, h);
+         img.data = Some(mips);
+@@ -395,7 +427,7 @@
+     StandardMaterial {
+         base_color: if afternoon_lawn {
+             let c = hex(s.color).to_linear();
+-            Color::linear_rgba(c.red * 0.88, c.green * 1.06, c.blue, s.alpha)
++            Color::linear_rgba(c.red * LAWN_TINT.x, c.green * LAWN_TINT.y, c.blue * LAWN_TINT.z, s.alpha)
+         } else {
+             hex(s.color).with_alpha(s.alpha)
+         },
+--- a/rust/crates/bbq_app/src/grass.rs
++++ b/rust/crates/bbq_app/src/grass.rs
+@@ -8,6 +8,9 @@
+ use bevy::prelude::*;
+ use crate::{game::Game, lighting::LookMode, player::EyeCamera, yard_scene::YardRes};
+ 
++// Muted blade colours in linear space, matching the lawn beneath them.
++const ROOT_COLOUR: Vec3 = Vec3::new(0.20, 0.37, 0.09);
++const TIP_COLOUR: Vec3 = Vec3::new(0.31, 0.52, 0.15);
+ const TILE: f32 = 5.0;
+ const NEAR_TUFTS: usize = 1600;
+ const FAR_TUFTS: usize = 300;
+@@ -80,7 +83,8 @@
+                 positions.push(p.to_array());
+                 // Upward shading normals blend with the lawn; no black back-facing stripes.
+                 normals.push([0.0, 1.0, 0.0]);
+-                colours.push([(0.30 + 0.17*t)*tint, (0.46 + 0.14*t)*tint, (0.07 + 0.04*t)*tint, 1.0]);
++                let colour = ROOT_COLOUR.lerp(TIP_COLOUR, t) * tint;
++                colours.push([colour.x, colour.y, colour.z, 1.0]);
+                 uv.push([0.0, t]);
+             }
+             indices.extend([first,first+2,first+1, first+1,first+2,first+3, first+2,first+4,first+3]);
+--- a/rust/crates/bbq_core/src/looks_yard.rs
++++ b/rust/crates/bbq_core/src/looks_yard.rs
+@@ -718,7 +718,7 @@
+ fn gum_tree_dusty(rng: &mut Rng, x: f32, z: f32, dust: f32) -> Vec<Part> {
+     let bark = matt(0xffffff).material(Tex::Bark, 1.0);
+     // sun-bleached gum greens: olive, sage and blue-grey, a few darker
+-    let leaves = [0x8fa36f_u32, 0xa3b37f, 0x93a888, 0x7f9a66, 0x9aae8e, 0x6f8a5a, 0xb0bb8a];
++    let leaves = [0x78966e_u32, 0x91a57e, 0x83a08a, 0x708d65, 0x8fa68b, 0x617f59, 0x9eae87];
+     let tall = rng.range(0.0, 1.0);
+     let h = 5.5 + tall * 4.5;
+     let r = 0.2 + rng.range(0.0, 0.14);
+@@ -758,7 +758,7 @@
+             let col = mix_colour(col, 0x9ea27c, dust * 0.5);
+             let col = if hang < 0.0 || off.y < -0.1 { looks::shade(col, 0.8) } else { col };
+             v.push(
+-                Part::new(Shape::Ico { r: s, detail: 1 }, matt(col).faceted())
++                Part::new(Shape::Sphere { r: s, ws: 10, hs: 6 }, matt(col))
+                     .at(top.x + off.x, top.y + off.y + hang, top.z + off.z)
+                     .stretch(rng.range(0.9, 1.3), rng.range(0.5, 0.75), rng.range(0.9, 1.3))
+                     .turn(0.0, rng.range(0.0, PI), 0.0),
+@@ -769,7 +769,7 @@
+             let p = bend + (top - bend) * t;
+             let col = leaves[rng.index(leaves.len())];
+             v.push(
+-                Part::new(Shape::Ico { r: rng.range(0.35, 0.6), detail: 1 }, matt(col).faceted())
++                Part::new(Shape::Sphere { r: rng.range(0.35, 0.6), ws: 10, hs: 6 }, matt(col))
+                     .at(p.x + rng.range(-0.5, 0.5), p.y, p.z + rng.range(-0.5, 0.5))
+                     .stretch(1.2, 0.6, 1.2),
+             );
+@@ -809,10 +809,10 @@
+         puffs.push(
+             Part::new(
+                 Shape::Sphere { r, ws: 16, hs: 10 },
+-                matt(0xe2eaf0).no_shadow(),
++                matt(0xe2eaf0).glow(0x20262b).no_shadow(),
+             )
+-            .at(px, py, pz)
+-            .stretch(1.0, 0.45, 1.0),
++            .at(px * 0.7, py + r * 0.14, pz * 0.75)
++            .stretch(1.0, 0.72, 0.9),
+         );
+     }
+     let at = V3::new(

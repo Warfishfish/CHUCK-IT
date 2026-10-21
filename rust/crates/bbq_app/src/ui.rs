@@ -284,6 +284,7 @@ pub enum CheckId {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SliderId {
     LegLength,
+    FaceLength,
     Fov,
     Belly,
     /// How dirty the singlet and shorts are.

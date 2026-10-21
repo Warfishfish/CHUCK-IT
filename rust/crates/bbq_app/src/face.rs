@@ -232,7 +232,7 @@ pub struct FacePlugin;
 impl Plugin for FacePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, make_kit)// after Update, so a model swapped or thrown away this frame is already gone
-            .add_systems(PostUpdate, (sync_faces, wobble_mouths, sync_tints, sync_shorts).chain());
+            .add_systems(PostUpdate, (rig_head_forms, shape_heads, sync_faces, wobble_mouths, sync_tints, sync_shorts).chain().after(crate::legs::rig_legs).before(bevy::transform::TransformSystems::Propagate));
     }
 }
 
@@ -794,5 +794,44 @@ mod tests {
                 }
             }
         }
+    }
+}
+
+#[derive(Component)]
+struct HeadForm { owner: FaceOwner, centre: Vec3 }
+
+// A parent around the existing head and sibling eyes keeps every expression and eye animation
+// in its original coordinate system. No meshes, face features or hit volumes are added.
+fn rig_head_forms(
+    mut commands: Commands,
+    heads: Query<(Entity,&HeadNode,&ChildOf,&Transform),Added<HeadNode>>,
+    children: Query<&Children>, names: Query<&Name>,
+) {
+    for (head,node,parent,tf) in &heads {
+        let root=commands.spawn((Transform::default(),Visibility::default(),HeadForm{owner:node.owner,centre:tf.translation},ChildOf(parent.parent()))).id();
+        commands.entity(root).add_child(head);
+        if let Ok(kids)=children.get(parent.parent()) {
+            for e in kids.iter() {
+                if names.get(e).is_ok_and(|n|n.starts_with("Eye")||n.starts_with("Pupil")) {
+                    commands.entity(root).add_child(e);
+                }
+            }
+        }
+    }
+}
+fn shape_heads(
+    game:Res<Game>, settings:Res<Settings>, online:Option<Res<crate::online::Online>>,
+    mut heads:Query<(&HeadForm,&mut Transform)>,
+) {
+    for (form,mut tf) in &mut heads {
+        let look=match form.owner {
+            FaceOwner::Preview=>Some(settings.look),
+            FaceOwner::Blob(i)=>game.dummies.get(i).map(|d|d.look),
+            FaceOwner::Lobby(id)=>online.as_deref().and_then(|o|crate::lobby::lobby_look(o,&settings,id)).map(|l|l.1),
+        };
+        let Some(look)=look else {continue};
+        let y=look.face_scale();let x=y.sqrt().recip();
+        tf.scale=Vec3::new(x,y,x);
+        tf.translation=form.centre*(Vec3::ONE-tf.scale);
     }
 }

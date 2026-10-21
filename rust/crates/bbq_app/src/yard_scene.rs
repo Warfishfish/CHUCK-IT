@@ -27,6 +27,8 @@ pub struct CheekyOnly(pub bool);
 #[derive(Component)]
 struct NormalYard;
 #[derive(Component)]
+struct BackyardCover;
+#[derive(Component)]
 struct RaceMap;
 
 const LOOK_SEED: u64 = 0xBB0;
@@ -58,6 +60,8 @@ struct MagpieHead {
 }
 #[derive(Component)]
 struct MagpieBody(f32);
+#[derive(Component)]
+struct MagpieWing { bird:usize, side:f32, base:Transform }
 /// One of the yard's other eskies and its lid.
 #[derive(Component)]
 struct DecorLid(usize);
@@ -80,7 +84,7 @@ impl Plugin for YardScenePlugin {
             .add_systems(Startup, build_yard)
             .add_systems(Update, (crate::grass::sync, crate::grass::distance_cull).chain())
             .add_systems(PostUpdate, crate::lighting::follow_sky.before(bevy::transform::TransformSystems::Propagate))
-            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_map, sync_race_map, animate_magpies));
+            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_map, sync_race_map, sync_backyard_cover, animate_magpies));
     }
 }
 
@@ -100,6 +104,9 @@ fn build_yard(
     if *mode == crate::lighting::LookMode::Polished && crate::style::current() == crate::style::Style::Pop {
         crate::lighting::spawn_afternoon_sky(&mut commands, &mut meshes, &mut mats);
     }
+
+    let cover=cache.spawn_parts(&mut commands,&looks_yard::backyard_cover(),&mut meshes,&mut mats,Transform::default());
+    commands.entity(cover).insert(BackyardCover);commands.entity(yard_root).add_child(cover);
 
     // everything that is always there (lawn, fence, house, trees, pool, props)
     let (world_root, kids) = cache.spawn_parts_with_children(
@@ -230,7 +237,8 @@ fn build_yard(
                 MagpieBody(i as f32),
             ))
             .id();
-        let body = cache.spawn_parts(&mut commands, &m.body, &mut meshes, &mut mats, Transform::default());
+        let (body,parts) = cache.spawn_parts_with_children(&mut commands, &m.body, &mut meshes, &mut mats, Transform::default());
+        for (index,side) in [(4,-1.0),(5,-1.0),(8,1.0),(9,1.0)] {commands.entity(parts[index]).insert(MagpieWing{bird:i,side,base:crate::models::transform_of(&m.body[index])});}
         let head = cache.spawn_parts(
             &mut commands,
             &m.head,
@@ -394,13 +402,18 @@ fn sync_decor_eskies(
 /// Magpies turn their heads to follow you, cock them now and then, and bob a little.
 fn animate_magpies(
     time: Res<Time>,
+    game:Res<Game>,
     player: Res<crate::player::Player>,
-    mut heads: Query<(&mut MagpieHead, &mut Transform, &GlobalTransform), Without<MagpieBody>>,
-    mut bodies: Query<(&MagpieBody, &mut Transform), Without<MagpieHead>>,
+    mut heads: Query<(&mut MagpieHead, &mut Transform, &GlobalTransform), (Without<MagpieBody>,Without<MagpieWing>)>,
+    mut bodies: Query<(&MagpieBody, &mut Transform), (Without<MagpieHead>,Without<MagpieWing>)>,
+    mut wings:Query<(&MagpieWing,&mut Transform),(Without<MagpieBody>,Without<MagpieHead>)>,
 ) {
     let t = time.elapsed_secs();
     let k = 1.0 - (-7.0 * time.delta_secs()).exp();
     for (mut h, mut tf, gt) in &mut heads {
+        if h.seed==0.0 && game.magpie.phase>0 && game.rules.mode==bbq_core::GameMode::FreeForAll {
+            tf.rotation=Quat::IDENTITY;continue;
+        }
         let at = gt.translation();
         let (dx, dz) = (player.mover.x - at.x, player.mover.z - at.z);
         let dist = dx.hypot(dz).max(0.1);
@@ -416,7 +429,22 @@ fn animate_magpies(
         let nod = (t * 3.1 + h.seed).sin().max(0.97) - 0.97;
         tf.rotation = Quat::from_euler(EulerRot::YXZ, h.yaw, h.pitch + nod * 6.0, cock * 0.5);
     }
+    for (w,mut tf) in &mut wings {
+        *tf=w.base;
+        if w.bird==0 && game.magpie.phase>0 && game.rules.mode==bbq_core::GameMode::FreeForAll {
+            tf.rotation=Quat::from_rotation_z(w.side*(0.7+(t*24.0).sin()*0.65))*tf.rotation;tf.scale.y*=2.0;
+        }
+    }
     for (b, mut tf) in &mut bodies {
+        if b.0==0.0 && game.rules.mode==bbq_core::GameMode::FreeForAll {
+            let bird=&game.magpie;let next=Vec3::new(bird.pos.x,bird.pos.y,bird.pos.z);
+            let d=next-tf.translation;tf.translation=next;
+            // Use replicated motion for heading, so guests never need a private target aim.
+            if bird.phase>0 {if d.x*d.x+d.z*d.z>0.000001 {tf.rotation=Quat::from_rotation_y(d.x.atan2(d.z))*Quat::from_rotation_x(if bird.phase==2{0.3}else{-0.15});}}
+            else {tf.rotation=Quat::from_rotation_y(std::f32::consts::PI);}
+            continue;
+        }
+        if b.0==0.0 {tf.translation.x=14.0;tf.translation.z=bbq_core::YARD_HALF_Z+0.05;tf.rotation=Quat::from_rotation_y(std::f32::consts::PI);}
         tf.translation.y = bbq_core::looks_yard::FENCE_H + ((t * 1.7 + b.0 * 2.0).sin().max(0.92) - 0.92) * 0.25;
     }
 }
@@ -541,4 +569,8 @@ fn sync_race_map(
  }
  for t in [-0.7_f32,-0.35,0.,0.35,0.7] {parts.extend(looks_yard::place(looks_yard::chair_styled(0),bbq_core::vec::V3::new(45.*t.sin(),0.,-30.5*t.cos()),bbq_core::vec::Quat::from_euler_xyz(0.,-t,0.),1.0));}
  let e=cache.spawn_parts(&mut commands,&parts,&mut meshes,&mut mats,Transform::default());commands.entity(e).insert(RaceMap);
+}
+
+fn sync_backyard_cover(game:Res<Game>,mut q:Query<&mut Visibility,With<BackyardCover>>) {
+ for mut v in &mut q {*v=if game.rules.mode==bbq_core::GameMode::FreeForAll {Visibility::Inherited}else{Visibility::Hidden};}
 }

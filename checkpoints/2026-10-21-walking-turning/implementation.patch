@@ -1,0 +1,315 @@
+--- a/rust/crates/bbq_app/src/characters.rs
++++ b/rust/crates/bbq_app/src/characters.rs
+@@ -1153,6 +1153,24 @@
+     let Some(pose) = want.as_deref() else { return };
+     *frame += 1;
+     // Opt-in visual fixture; never active in normal gameplay.
++    if pose == "locomotion" {
++        game.options.bots_on = false;
++        let t = ((*frame).saturating_sub(320) as f32 / 60.0).min(10.0);
++        let travel = (t - 1.0).clamp(0.0, 6.0);
++        let angle = travel * 0.7;
++        let moving = t > 1.0 && t < 7.0;
++        for (k, d) in game.dummies.iter_mut().take(3).enumerate() {
++            d.look.legs = bbq_core::appearance::Legs::from_percent([0, 50, 100][k]);
++            d.mover.x = (k as f32 - 1.0) * 4.0 + angle.sin() * 1.3;
++            d.mover.z = angle.cos() * 1.3 - 1.3;
++            d.mover.y = 0.0; d.mover.vy = 0.0; d.mover.grounded = true;
++            d.mover.vx = if moving { angle.cos() * 0.91 } else { 0.0 };
++            d.mover.vz = if moving { -angle.sin() * 0.91 } else { 0.0 };
++            d.face = if t > 8.0 { 0.0 } else { angle + std::f32::consts::FRAC_PI_2 };
++            d.bot.winding = false; d.bot.wind_progress = 0.0;
++        }
++        return;
++    }
+     if pose == "polish" {
+         game.options.bots_on=false;
+         for (k,d) in game.dummies.iter_mut().take(3).enumerate() {
+@@ -1216,7 +1234,7 @@
+ }
+ 
+ #[derive(Resource, Default)]
+-struct Poses(Vec<bbq_core::pose::Pose>);
++struct Poses(Vec<bbq_core::pose::Pose>, Vec<crate::locomotion::Gait>);
+ 
+ fn compute_poses(
+     time: Res<Time>,
+@@ -1224,12 +1242,21 @@
+     player: Res<Player>,
+     mut poses: ResMut<Poses>,
+     mut previous: Local<std::collections::HashMap<u32,(f32,f32)>>,
++    mut gait: Local<std::collections::HashMap<u32, crate::locomotion::Gait>>,
++    mut fixture: Local<Option<bool>>,
+ ) {
+     let dt = time.delta_secs();
+     let t = game.now;
+     let (px, pz) = (player.mover.x, player.mover.z);
+     poses.0.clear();
+-    let bots_on = game.options.bots_on;
++    poses.1.clear();
++    gait.retain(|id,_| game.dummies.iter().any(|d|d.id==*id));
++    if game.rules.phase != bbq_core::scoring::Phase::Play { gait.clear(); }
++    let scripted = *fixture.get_or_insert_with(|| {
++        let args: Vec<_> = std::env::args().collect();
++        args.windows(2).any(|a| a[0] == "--pose" && a[1] == "locomotion")
++    });
++    let bots_on = game.options.bots_on || scripted;
+     let mirror=game.mirror;
+     previous.retain(|id,_| game.dummies.iter().any(|d|d.id==*id));
+     let weights: Vec<_> = game.dummies.iter().map(|d| d.bot.slots.selected().and_then(|id| game.world.items.get(&id)).map(|it| bbq_core::feel::weight(it.kind))).collect();
+@@ -1244,9 +1271,19 @@
+         if mirror && old.is_some_and(|(stun,wet)| d.body.stun>stun+0.1 || d.body.wet_t>wet+0.2) {
+             d.anim.feel.hit(V3::new(d.face.sin(),0.0,d.face.cos()),if d.body.wet_t>0.0 {3.0}else{8.0});
+         }
++        let ordinary = !d.body.is_down() && d.body.stun <= 0.0 && !d.fallen
++            && d.seat.is_none() && d.naughty_t <= 0.0 && d.dragged.is_none()
++            && d.mover.dive <= 0.0 && d.anim.slap.is_none() && d.anim.emote.is_none();
++        let busy = !ordinary || d.bot.winding || d.anim.swing.is_some();
++        let motion = gait.entry(d.id).or_default();
++        if !d.anim.feel.frozen() {
++            motion.tick(dt, Vec3::new(d.mover.x,d.mover.y,d.mover.z),
++                Vec3::new(d.mover.vx,d.mover.vy,d.mover.vz), face,
++                crate::legs::legs_shown(d).lift(), ordinary && d.mover.grounded, busy);
++        }
+         let inputs = Inputs {
+             t,
+-            face,
++            face: motion.yaw,
+             charging: d.bot.winding,
+             charge: d.bot.wind_progress,
+             item_weight: weights[index].unwrap_or(d.anim.feel.weight),
+@@ -1262,7 +1299,14 @@
+             dive: d.mover.dive,
+             ..Default::default()
+         };
+-        poses.0.push(d.anim.tick(dt, &inputs));
++        let mut pose = d.anim.tick(dt, &inputs);
++        // Replace only the ordinary walking bob, leaving throw/hit/down/emote offsets intact.
++        if ordinary && d.mover.grounded && !busy && d.drunk <= 0.0 {
++            pose.body_y -= d.anim.walk.sin().abs() * 0.07;
++            pose.body_y += motion.phase.sin().powi(2) * crate::locomotion::BODY_BOB * motion.blend;
++        }
++        poses.0.push(pose);
++        poses.1.push(*motion);
+     }
+ }
+ 
+@@ -1729,6 +1773,7 @@
+ /// slosh about on springs and the big feet step. Dizzy blobs get swirling, cross-eyed pupils.
+ fn animate_face_and_feet(
+     time: Res<Time>,
++    poses: Res<Poses>,
+     game: Res<Game>,
+     cast: Res<Cast>,
+     mut drive: Local<Vec<EyeDrive>>,
+@@ -1752,16 +1797,16 @@
+     let mut accel = vec![Vec3::ZERO; n];
+     for (i, d) in game.dummies.iter().enumerate() {
+         let dr = &mut drive[i];
+-        let s = (d.mover.vx * d.mover.vx + d.mover.vz * d.mover.vz).sqrt();
+-        speed[i] = if d.mover.grounded { s } else { 0.0 };
+-        dr.phase += speed[i] * dt * 1.7;
++        let motion = poses.1.get(i).copied().unwrap_or_default();
++        speed[i] = motion.speed;
++        dr.phase = motion.phase;
+         let step = (dr.phase / std::f32::consts::PI).floor() as i32;
+         if step != dr.step {
+             kick[i] = (speed[i] / 5.0).min(1.4);
+             kick_side[i] = if step % 2 == 0 { 1.0 } else { -1.0 };
+             dr.step = step;
+         }
+-        let local = Quat::from_rotation_y(-d.face) * Vec3::new(d.mover.vx, d.mover.vy, d.mover.vz);
++        let local = Quat::from_rotation_y(-motion.yaw) * Vec3::new(d.mover.vx, d.mover.vy, d.mover.vz);
+         accel[i] = (local - dr.vel) / dt;
+         if d.mover.grounded && !dr.grounded {
+             kick[i] = kick[i].max((-dr.vel.y / 6.0).clamp(0.4, 1.6)); // a landing
+@@ -1781,7 +1826,7 @@
+         // body lean: forward when speeding up, back when stopping, a roll into turns (C10.5)
+         let fwd_lean = (accel[i].z * 0.0045 + speed[i] * 0.012).clamp(-0.22, 0.3);
+         let yaw_rate = {
+-            let mut dy = d.face - dr.face;
++            let mut dy = motion.yaw - dr.face;
+             while dy > std::f32::consts::PI {
+                 dy -= std::f32::consts::TAU;
+             }
+@@ -1806,7 +1851,7 @@
+         dr.stunned = stunned;
+         dr.sq_v += (dr.sq * -190.0 - dr.sq_v * 9.0) * dt;
+         dr.sq = (dr.sq + dr.sq_v * dt).clamp(-0.22, 0.28);
+-        dr.face = d.face;
++        dr.face = motion.yaw;
+         dr.vel = local;
+         dr.grounded = d.mover.grounded;
+     }
+@@ -1929,20 +1974,12 @@
+         if b.0 >= n {
+             continue;
+         }
+-        let (ph, k) = (drive[b.0].phase, walk(b.0));
+-        let a = ph + if f.right { std::f32::consts::PI } else { 0.0 };
+-        // on legs the steps are longer and higher (the longer the legs, the bigger the stride),
+-        // so the blob walks instead of gliding (10 Oct 2026)
+-        let leg = crate::legs::lift_of(&game, b.0);
+-        let (lift, stride) = (0.06 + leg * 0.45, 0.11 + leg * 0.6 + if leg > 0.0 { 0.05 } else { 0.0 });
+-        tf.translation = f.base + Vec3::new(0.0, a.cos().max(0.0) * lift * k, a.sin() * stride * k);
+-        if f.thong {
+-            // the thong lifts with the foot and slaps back down on the heel (C10.7)
+-            let lift = a.cos().max(0.0);
+-            let slap = (-a.sin()).max(0.0) * (1.0 - lift);
+-            tf.rotation = Quat::from_rotation_x(-(lift * 0.5 + slap * 0.22) * k);
+-        }
+-    }
++        let Some(motion) = poses.1.get(b.0) else { continue };
++        let (offset, pitch) = motion.foot(f.right, crate::legs::lift_of(&game, b.0));
++        tf.translation = f.base + offset;
++        if f.thong { tf.rotation = Quat::from_rotation_x(pitch); }
++    }
++
+     // arms swing opposite the feet while walking (C10.6); the throwing hand stays up when winding up
+     for (b, mut tf) in &mut hands_l {
+         let Some(dr) = drive.get(b.0) else { continue };
+--- a/rust/crates/bbq_app/src/locomotion.rs
++++ b/rust/crates/bbq_app/src/locomotion.rs
+@@ -0,0 +1,110 @@
++//! Presentation only. Movement, aim, collisions and network state never read this state.
++use bevy::prelude::*;
++use std::f32::consts::{PI, TAU};
++
++pub const TURN_RESPONSE: f32 = 13.0;
++pub const STEP_RESPONSE: f32 = 12.0;
++pub const STANCE_FRACTION: f32 = 0.55;
++pub const MAX_CADENCE: f32 = 13.0;
++pub const BODY_BOB: f32 = 0.035;
++pub const CAMERA_BOB_SCALE: f32 = 0.7;
++
++pub fn angle_delta(from: f32, to: f32) -> f32 {
++    (to - from + PI).rem_euclid(TAU) - PI
++}
++pub fn ease(current: f32, target: f32, rate: f32, dt: f32) -> f32 {
++    current + (target - current) * (1.0 - (-rate * dt.max(0.0)).exp())
++}
++
++#[derive(Clone, Copy, Default)]
++pub struct Gait {
++    pub yaw: f32,
++    pub phase: f32,
++    pub blend: f32,
++    pub speed: f32,
++    pub direction: Vec3,
++    position: Vec3,
++    ready: bool,
++}
++impl Gait {
++    pub fn tick(&mut self, dt: f32, position: Vec3, velocity: Vec3, facing: f32,
++        leg: f32, walking: bool, direct_facing: bool) {
++        let dt = dt.clamp(0.0, 0.05);
++        if !self.ready || self.position.distance(position) > 3.0 {
++            *self = Self { yaw: facing, position, ready: true, ..Default::default() };
++        }
++        self.position = position;
++        let previous_yaw = self.yaw;
++        self.yaw = if direct_facing { facing } else {
++            self.yaw + angle_delta(self.yaw, facing) * (1.0 - (-TURN_RESPONSE * dt).exp())
++        };
++        let speed = if walking { velocity.x.hypot(velocity.z) } else { 0.0 };
++        self.speed = ease(self.speed, speed, STEP_RESPONSE, dt);
++        let pivot = if walking && !direct_facing && dt > 0.0 {
++            (angle_delta(previous_yaw, self.yaw).abs() / dt * 0.06).min(0.3)
++        } else { 0.0 };
++        self.blend = ease(self.blend, (speed / 2.5).clamp(0.0, 1.0).max(pivot), STEP_RESPONSE, dt);
++        if speed <= 0.15 && pivot > 0.01 {
++            self.direction = self.direction.lerp(Vec3::Z, 1.0 - (-STEP_RESPONSE * dt).exp());
++            self.phase = (self.phase + pivot * 14.0 * dt).rem_euclid(TAU);
++        }
++        if speed > 0.15 {
++            let local = Quat::from_rotation_y(-self.yaw) * Vec3::new(velocity.x, 0.0, velocity.z) / speed;
++            self.direction = self.direction.lerp(local, 1.0 - (-STEP_RESPONSE * dt).exp());
++            // Roughly match stance travel to world speed. Cap tiny-legged blobs' cadence.
++            let stride = 0.16 + leg * 0.6;
++            let cadence = (speed * PI / (2.0 * stride)).min(MAX_CADENCE);
++            self.phase = (self.phase + cadence * dt).rem_euclid(TAU);
++        }
++    }
++
++    pub fn foot(&self, right: bool, leg: f32) -> (Vec3, f32) {
++        let u = ((self.phase / TAU) + if right { 0.5 } else { 0.0 }).fract();
++        let (travel, lift) = if u < STANCE_FRACTION {
++            (1.0 - 2.0 * u / STANCE_FRACTION, 0.0)
++        } else {
++            let t = (u - STANCE_FRACTION) / (1.0 - STANCE_FRACTION);
++            let smooth = t * t * (3.0 - 2.0 * t);
++            (-1.0 + 2.0 * smooth, (PI * t).sin().powi(2))
++        };
++        let offset = self.direction * travel * (0.16 + leg * 0.6) * self.blend
++            + Vec3::Y * lift * (0.055 + leg * 0.24) * self.blend;
++        (offset, -lift * 0.24 * self.blend)
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn turns_take_short_path_across_wrap_and_are_frame_rate_independent() {
++        let start=179f32.to_radians();let target=(-179f32).to_radians();
++        assert!((angle_delta(start,target)-2f32.to_radians()).abs()<0.0001);
++        let run=|hz:u32| {let mut g=Gait{yaw:start,ready:true,..Default::default()};for _ in 0..hz {
++            g.tick(1.0/hz as f32,Vec3::ZERO,Vec3::ZERO,target,0.3,true,false);
++        }g.yaw};
++        assert!((run(30)-run(144)).abs()<0.0001);
++    }
++    #[test]
++    fn feet_plant_then_lift_and_follow_strafing_for_all_leg_lengths() {
++        for leg in [0.0,0.3,0.6] {
++            let mut g=Gait{blend:1.0,direction:Vec3::X,..Default::default()};
++            for u in [0.0,0.2,0.5] {g.phase=u*TAU;let (p,_)=g.foot(false,leg);assert_eq!(p.y,0.0);assert_eq!(p.z,0.0);}
++            g.phase=0.775*TAU;assert!(g.foot(false,leg).0.y>0.05);
++            g.phase=(1.0-0.00001)*TAU;let last=g.foot(false,leg).0;
++            g.phase=0.0;assert!(last.distance(g.foot(false,leg).0)<0.0001);
++        }
++    }
++    #[test]
++    fn stops_settle_and_respawns_reset_without_rotating_through_old_heading() {
++        let mut g=Gait::default();
++        for _ in 0..60 {g.tick(1.0/60.0,Vec3::ZERO,Vec3::Z*5.0,0.0,0.6,true,false);}
++        assert!(g.blend>0.99);
++        for _ in 0..60 {g.tick(1.0/60.0,Vec3::ZERO,Vec3::ZERO,0.0,0.6,true,false);}
++        assert!(g.foot(false,0.6).0.length()<0.0001);
++        g.tick(0.016,Vec3::X*20.0,Vec3::ZERO,2.0,0.6,false,false);
++        assert_eq!(g.yaw,2.0);assert_eq!(g.blend,0.0);
++        g.tick(0.016,Vec3::X*20.0,Vec3::ZERO,-2.0,0.6,false,true);
++        assert_eq!(g.yaw,-2.0);
++    }
++}
+--- a/rust/crates/bbq_app/src/main.rs
++++ b/rust/crates/bbq_app/src/main.rs
+@@ -26,6 +26,7 @@
+ mod hud_fx;
+ mod items_view;
+ mod legs;
++mod locomotion;
+ mod life;
+ mod lobby;
+ mod lighting;
+--- a/rust/crates/bbq_app/src/player.rs
++++ b/rust/crates/bbq_app/src/player.rs
+@@ -310,6 +310,7 @@
+     game: Res<crate::game::Game>,
+     mut cam: Single<(&mut Transform, &mut Projection), With<EyeCamera>>,
+     mut stop: Local<VisualHitStop>,
++    mut walk_blend: Local<f32>,
+ ) {
+     let dt = time.delta_secs();
+     let p = &mut *player;
+@@ -336,7 +337,10 @@
+     } else {
+         (0.0, 0.0)
+     };
+-    let bob = movement::head_bob(p.walk, p.mover.grounded);
++    let moving = if p.mover.grounded { (p.mover.vx.hypot(p.mover.vz) / 3.0).min(1.0) } else { 0.0 };
++    *walk_blend = crate::locomotion::ease(*walk_blend, moving, crate::locomotion::STEP_RESPONSE, dt);
++    let bob = movement::head_bob(p.walk, p.mover.grounded)
++        * *walk_blend * crate::locomotion::CAMERA_BOB_SCALE;
+     // drunk sway, and the drop to the ground when you've stacked it or been knocked flat
+     let me = &game.me;
+     let fx = bbq_core::drunk_state::camera_fx(

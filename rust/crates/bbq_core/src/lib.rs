@@ -56,3 +56,5 @@ pub enum GameMode {
     Smoko,
     Race,
 }
+
+pub mod magpie;

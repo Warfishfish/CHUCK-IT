@@ -1,0 +1,18 @@
+{
+  "rust/crates/bbq_app/src/lighting.rs": {
+    "before": "57049ae4892d7987b9e466086bc955a18460f530345512edeefcddb87d8381af",
+    "after": "9d430418044e195b5e4b66858cce03fa1f74e8ab58d8515a103db4b492523d93"
+  },
+  "rust/crates/bbq_app/src/models.rs": {
+    "before": "1b8728d139a885f5aaa5f012056df8761cd47034943e6fa7a1467231094775f4",
+    "after": "754e43c3dd4680e424dbce930ffe3e9ffe94c7cbb78e5aaa0f5c076ab2f5807b"
+  },
+  "rust/crates/bbq_app/src/grass.rs": {
+    "before": "e6ed0b599631ba1acd8bfc823cd431b25d3a34968e032fbdcb217d52ca49e943",
+    "after": "c3406fb95849acc2fbd694ab16e33d078957f6a15cc05d645459cb27dcd09a39"
+  },
+  "rust/crates/bbq_core/src/looks_yard.rs": {
+    "before": "28d3f01b17c274439b2d1eb0081e489d6c26c32d96d1e5ca8087f4b74b2d424f",
+    "after": "84353dd8bdc5bd7eb96c137f5a17b57625d1289f6463b1b459a66b37b82b675f"
+  }
+}

@@ -255,7 +255,7 @@ fn step_player(
     settings: Option<Res<crate::menu::Settings>>,
 ) {
     let p = &mut *player;
-    if let Some(s)=settings {p.mover.eye_lift=s.look.legs.lift();p.mover.height=crate::style::measure(s.character).head_top+p.mover.eye_lift;}
+    if let Some(s)=settings {p.mover.eye_lift=s.look.legs.lift();p.mover.height=crate::style::head_height(s.character,s.look)+p.mover.eye_lift;}
     let g = &mut *game;
     p.prev = Vec3::new(p.mover.x, p.mover.y, p.mover.z);
     if crate::smoko_mode::player_locked(g) { return; }
@@ -310,6 +310,7 @@ pub fn update_camera(
     game: Res<crate::game::Game>,
     mut cam: Single<(&mut Transform, &mut Projection), With<EyeCamera>>,
     mut stop: Local<VisualHitStop>,
+    mut walk_blend: Local<f32>,
 ) {
     let dt = time.delta_secs();
     let p = &mut *player;
@@ -336,7 +337,10 @@ pub fn update_camera(
     } else {
         (0.0, 0.0)
     };
-    let bob = movement::head_bob(p.walk, p.mover.grounded);
+    let moving = if p.mover.grounded { (p.mover.vx.hypot(p.mover.vz) / 3.0).min(1.0) } else { 0.0 };
+    *walk_blend = crate::locomotion::ease(*walk_blend, moving, crate::locomotion::STEP_RESPONSE, dt);
+    let bob = movement::head_bob(p.walk, p.mover.grounded)
+        * *walk_blend * crate::locomotion::CAMERA_BOB_SCALE;
     // drunk sway, and the drop to the ground when you've stacked it or been knocked flat
     let me = &game.me;
     let fx = bbq_core::drunk_state::camera_fx(

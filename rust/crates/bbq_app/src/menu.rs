@@ -718,6 +718,7 @@ fn look_panel(c: &mut ChildSpawnerCommands) {
         p.spawn(legend("Body"));
         let shapes: Vec<&str> = Character::ALL.iter().map(|c| c.name()).collect();
         style_buttons(p, LookRow::Shape, "Shape", &shapes);
+        slider(p, SliderId::FaceLength, "Face length · 50% original", 0.0, 100.0);
         slider(p, SliderId::LegLength, "Leg length", 0.0, 100.0);
         style_buttons(p, LookRow::Legs, "", &["Reset leg length"]);
         let shorts: Vec<&str> = Shorts::ALL.iter().map(|x| x.name()).collect();
@@ -1139,6 +1140,7 @@ fn spawn_pause(mut commands: Commands) {
 fn apply_loaded_settings(mut settings: ResMut<Settings>, mut player: ResMut<Player>, mut cast: ResMut<Cast>) {
     let args:Vec<String>=std::env::args().collect();
     if let Some(n)=args.iter().position(|a|a=="--leg-length").and_then(|i|args.get(i+1)).and_then(|s|s.parse::<u8>().ok()) {settings.look.legs=bbq_core::appearance::Legs::from_percent(n);}
+    if let Some(n)=args.iter().position(|a|a=="--face-length").and_then(|i|args.get(i+1)).and_then(|s|s.parse::<u8>().ok()) {settings.look.face_length=n.min(100);}
     player.fov_base = settings.fov;
     player.fov = settings.fov;
     cast.mine = settings.character;
@@ -1414,6 +1416,7 @@ fn slider_drag(
         let Some(n) = rel.normalized else { continue };
         let t = (n.x + 0.5).clamp(0.0, 1.0);
         match s.id {
+            SliderId::FaceLength => {let v=(t*100.0).round() as u8; if v!=settings.look.face_length {settings.look.face_length=v;settings.save();}},
             SliderId::LegLength => {
                 let v=bbq_core::appearance::Legs::from_percent((t*100.0).round() as u8);
                 if v!=settings.look.legs {settings.look.legs=v;settings.save();}
@@ -1696,6 +1699,7 @@ fn paint_widgets(
     };
     for (id, mut t) in &mut texts.p1() {
         t.0 = match id.0 {
+            SliderId::FaceLength => format!("{}%",settings.look.face_length),
             SliderId::LegLength => format!("{}% · +{:.0} cm", settings.look.legs.percent(),settings.look.legs.lift()*100.0),
             SliderId::Fov => format!("{:.0}", settings.fov),
             SliderId::Belly => belly_word(settings.belly).to_string(),
@@ -1711,6 +1715,7 @@ fn paint_widgets(
     }
     for (id, mut n) in &mut handles {
         let frac = match id.0 {
+            SliderId::FaceLength => settings.look.face_length as f32 / 100.0,
             SliderId::LegLength => settings.look.legs.percent() as f32 / 100.0,
             SliderId::Fov => (settings.fov - 60.0) / 45.0,
             SliderId::Belly => settings.belly / 2.0,

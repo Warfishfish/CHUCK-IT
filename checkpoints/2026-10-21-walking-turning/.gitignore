@@ -1,0 +1,4 @@
+!*.log
+before/walk_*.png
+after/walk_*.png
+controlled/walk_*.png

@@ -1,0 +1,3 @@
+Two local release instances connected through the actual relay and entered play.
+Host-accepted roster sent both 0% and 100% face lengths. Guest performed a throw.
+All 101 face lengths separately pass appearance serialization tests. WAN conditions were not tested.

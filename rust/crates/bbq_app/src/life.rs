@@ -400,7 +400,8 @@ fn soak_step(g: &mut Game, p: &mut Player) {
 
 /// Bare-handed slap (Cheeky mode, nothing in your hands).
 pub fn bare_slap(g: &mut Game, p: &mut Player) {
-    if !g.options.adult || !g.slots.is_empty() || !can_swing(g, false) {
+    if !g.options.adult || !g.slots.is_empty() || !can_swing(g, false)
+        || crate::smoko_mode::controlled(g, PLAYER_ID) || g.smoko.carries.contains_key(&PLAYER_ID) {
         return;
     }
     let me = me_pos(p);
@@ -408,31 +409,57 @@ pub fn bare_slap(g: &mut Game, p: &mut Player) {
     let Some(vid) = melee::pick_target(me, facing(p), &cands, false) else {
         return;
     };
-    let Some(i) = g.dummies.iter().position(|d| d.id == vid) else {
-        return;
-    };
     g.life.slap.mark(g.now);
     g.life.me_swing = melee::SWING_TIME;
-    let dpos = V3::new(g.dummies[i].mover.x, 0.0, g.dummies[i].mover.z);
-    let dir = melee::direction(me, dpos);
-    let fx = melee::silly_slap();
-    let sign = if g.rng.chance(0.5) { -1.0 } else { 1.0 };
-    let now = g.now;
-    let d = &mut g.dummies[i];
-    d.last_hit = Some((PLAYER_ID, now));
-    melee::apply(&mut d.body, &mut d.mover, dir, &fx);
-    d.anim.tumble(dir, fx.knock, sign);
-    d.anim.start_swing();
-    let drunk = drunk_bonus(g);
-    let gain = g.board.silly_slap(&g.rules, PLAYER_ID, vid, drunk, false);
-    let n = (g.rng.f32() * 3.0) as usize;
-    let name = melee::SILLY_NAMES[n.min(2)];
-    g.popup(format!("{name} +{gain}"), false);
-    g.say(format!(
-        "You gave {} a {}",
-        dummy_name(i),
-        name.trim_end_matches('!')
-    ));
+    let att = Attacker { id: PLAYER_ID, pos: me, drunk_bonus: drunk_bonus(g), name: "You".into(), is_player: true };
+    apply_bare_hit(g, p, &att, vid);
+}
+
+/// Guest input contains no victim or effect values; the host resolves everything here.
+pub fn guest_bare_slap(g: &mut Game, p: &mut Player, i: usize) {
+    let d = &g.dummies[i];
+    if !g.options.adult || !g.rules.in_play() || !d.bot.slots.is_empty()
+        || d.body.is_down() || d.body.stun > 0.0 || d.seat.is_some()
+        || d.dragged.is_some() || d.bot.drunk.is_drinking()
+        || crate::smoko_mode::controlled(g, d.id) || g.smoko.carries.contains_key(&d.id)
+        || g.now - d.net_slap_at < melee::COOLDOWN_BARE { return; }
+    let att = Attacker { id: d.id, pos: V3::new(d.mover.x,d.mover.y,d.mover.z),
+        drunk_bonus: bbq_core::drinks::drunk_bonus(d.bot.drunk.meter,g.options.drunk_mode),
+        name: crate::bots_app::name_of(g,d.id), is_player: false };
+    let face = (d.face.sin(),d.face.cos());
+    let mut cands: Vec<Candidate> = g.dummies.iter().filter(|d|d.id!=att.id).map(|d|Candidate {
+        id:d.id,pos:V3::new(d.mover.x,d.mover.y,d.mover.z),down_t:d.body.down_t.max(d.body.fall_t),
+        at_smoko:d.seat.is_some(),teammate:g.teams.same_team(att.id,d.id),
+    }).collect();
+    cands.push(Candidate {id:PLAYER_ID,pos:me_pos(p),down_t:g.me.body.down_t.max(g.me.body.fall_t),
+        at_smoko:g.life.seated.is_some(),teammate:g.teams.same_team(att.id,PLAYER_ID)});
+    let Some(victim)=melee::pick_target(att.pos,face,&cands,false) else {return};
+    g.dummies[i].net_slap_at=g.now;
+    g.dummies[i].bot.swing_t=melee::SWING_TIME;
+    g.dummies[i].anim.start_swing();
+    apply_bare_hit(g,p,&att,victim);
+}
+
+fn apply_bare_hit(g: &mut Game, p: &mut Player, att: &Attacker, victim: PlayerId) {
+    let fx=melee::silly_slap();
+    if victim==PLAYER_ID {
+        let dir=melee::direction(att.pos,me_pos(p));
+        melee::apply(&mut g.me.body,&mut p.mover,dir,&fx);
+        g.wind.cancel();g.me.drunk.cancel_drink();p.shake=p.shake.max(0.25);
+    } else {
+        let Some(i)=g.dummies.iter().position(|d|d.id==victim) else {return};
+        let d=&mut g.dummies[i];
+        let dir=melee::direction(att.pos,V3::new(d.mover.x,d.mover.y,d.mover.z));
+        d.last_hit=Some((att.id,g.now));
+        melee::apply(&mut d.body,&mut d.mover,dir,&fx);
+        d.anim.tumble(dir,fx.knock,if g.rng.chance(0.5){-1.0}else{1.0});
+        d.anim.start_swing();
+        crate::online_world::note_slap(g,i,dir,&fx);
+    }
+    let gain=g.board.silly_slap(&g.rules,att.id,victim,att.drunk_bonus,false);
+    let name=melee::SILLY_NAMES[g.rng.index(melee::SILLY_NAMES.len())];
+    if att.is_player {g.popup(format!("{name} +{gain}"),false);}
+    g.say(format!("{} gave {} a {}",att.name,crate::bots_app::name_of(g,victim),name.trim_end_matches('!')));
 }
 
 fn drunk_bonus(g: &Game) -> i32 {

@@ -29,6 +29,11 @@ pub const MATT_ROUGHNESS: f32 = 0.5;
 /// The lawn is seen at a glancing angle, where Bevy lights rough things up; this brings it back.
 pub const GROUND_ROUGHNESS: f32 = 0.0;
 
+// Reduce repeating grain/rib contrast without changing assets or their average colour.
+const WOOD_DETAIL_CONTRAST: f32 = 0.45;
+const BUILDING_DETAIL_CONTRAST: f32 = 0.65;
+const LAWN_TINT: Vec3 = Vec3::new(0.76, 0.98, 1.15);
+
 /// The polished look draws items with their extra details (set once at start-up from `LookMode`).
 pub static POLISHED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -250,7 +255,7 @@ impl Plugin for ModelsPlugin {
             let _ = OUTLINE_SOFT_MAT.set(crate::style::soft_outline_material(&mut mats));
         }
         app.init_resource::<ModelCache>()
-            .add_systems(Startup, load_textures)
+            .add_systems(PreStartup, load_textures)
             .add_systems(Update, add_mipmaps);
     }
 }
@@ -341,7 +346,7 @@ pub fn build_mips(w: u32, h: u32, base: &[u8]) -> Vec<u8> {
 }
 
 /// When one of our pictures finishes loading, give it its smaller copies.
-fn add_mipmaps(mut events: MessageReader<AssetEvent<Image>>, mut images: ResMut<Assets<Image>>) {
+fn add_mipmaps(mut events: MessageReader<AssetEvent<Image>>, mut images: ResMut<Assets<Image>>, cache: Res<ModelCache>) {
     for ev in events.read() {
         let AssetEvent::LoadedWithDependencies { id } = ev else {
             continue;
@@ -361,6 +366,33 @@ fn add_mipmaps(mut events: MessageReader<AssetEvent<Image>>, mut images: ResMut<
         if data.len() != (w * h * 4) as usize || (w <= 1 && h <= 1) {
             continue;
         }
+        let mut softened;
+        let contrast = if POLISHED.load(std::sync::atomic::Ordering::Relaxed)
+            && crate::style::current() == crate::style::Style::Pop {
+            cache.textures.iter().find_map(|(tex, handle)| {
+                if handle.id() != *id { return None; }
+                match tex {
+                    Tex::Wood => Some(WOOD_DETAIL_CONTRAST),
+                    Tex::Paling | Tex::Corrugated => Some(BUILDING_DETAIL_CONTRAST),
+                    _ => None,
+                }
+            })
+        } else { None };
+        let data = if let Some(contrast) = contrast {
+            // Only colour maps: preserve normal/roughness maps and alpha exactly.
+            let count = (w * h) as f32;
+            let mut mean = [0.0f32; 3];
+            for pixel in data.chunks_exact(4) {
+                for i in 0..3 { mean[i] += pixel[i] as f32 / count; }
+            }
+            softened = data.clone();
+            for pixel in softened.chunks_exact_mut(4) {
+                for i in 0..3 {
+                    pixel[i] = (mean[i] + (pixel[i] as f32 - mean[i]) * contrast).round() as u8;
+                }
+            }
+            &softened
+        } else { data };
         let mips = build_mips(w, h, data);
         img.texture_descriptor.mip_level_count = mip_count(w, h);
         img.data = Some(mips);
@@ -395,12 +427,12 @@ pub fn material(s: &Surface, cache: &ModelCache) -> StandardMaterial {
     StandardMaterial {
         base_color: if afternoon_lawn {
             let c = hex(s.color).to_linear();
-            Color::linear_rgba(c.red * 0.88, c.green * 1.06, c.blue, s.alpha)
+            Color::linear_rgba(c.red * LAWN_TINT.x, c.green * LAWN_TINT.y, c.blue * LAWN_TINT.z, s.alpha)
         } else {
             hex(s.color).with_alpha(s.alpha)
         },
         base_color_texture: s.tex.and_then(|t| cache.textures.get(&t).cloned()),
-        normal_map_texture: s.tex.and_then(|t| cache.normals.get(&t).cloned()),
+        normal_map_texture: s.tex.filter(|t| !(crate::style::current()==crate::style::Style::Pop && matches!(t,Tex::Wood|Tex::Bark|Tex::Plastic))).and_then(|t| cache.normals.get(&t).cloned()),
         uv_transform: bevy::math::Affine2::from_scale(Vec2::new(s.repeat.0, s.repeat.1) * repeat),
         emissive,
         perceptual_roughness: rough,

@@ -31,3 +31,27 @@ The first visit downloads about 19 MB (14 MB game + 5 MB pictures and models).
 cd ~/Claude/australian-bbq && npm start
 ```
 Then open http://localhost:3000
+
+## Temporary Cloudflare link for friends
+
+Rebuild the browser version after Rust changes: `./rust/tools/build_web.sh` from the repository root.
+Keep the game server running in one Terminal:
+
+```sh
+cd /Users/marcus/Claude/australian-bbq
+npm start
+```
+
+In another Terminal, create a temporary tunnel (cloudflared is already installed on this Mac):
+
+```sh
+cloudflared tunnel --config /dev/null --no-autoupdate --url http://localhost:3000
+```
+
+Share the printed `https://….trycloudflare.com` address **with `/rust/` on the end**.
+Everyone opens that same link; choose **With mates → Host a yard**, then share the room code.
+Friends choose **Join their yard**. Use a WebGPU-capable desktop browser. Refresh old tabs after updates.
+The Mac must stay awake and both processes must keep running. A restarted quick tunnel gives a new address.
+
+GitHub stores the source. Generated `public/rust/` files stay local and are rebuilt separately;
+a Git push alone does not update this browser build or create a live tunnel.

@@ -1,0 +1,4 @@
+Verified actual host-accepted roster includes Face length 0 and 100. Guest entered mirrored Play and received warning, swoop and retreat magpie states.
+Guest throw check did not execute: first harness omitted item supply in Backyard. Corrected network.py now includes --net-give teddy. Rerun awaits unlocked Mac.
+
+21 October 2026: corrected rerun passed, including supplied-item guest throw. Current logs and verification.txt supersede the earlier harness limitation.

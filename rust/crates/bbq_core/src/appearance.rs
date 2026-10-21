@@ -206,7 +206,7 @@ impl Choice for Hat {
 }
 
 /// How many bytes a look takes in the online messages.
-pub const LOOK_BYTES: usize = 14;
+pub const LOOK_BYTES: usize = 15;
 /// How dirty the singlet and shorts are by default (0 spotless to 100 filthy; Marcus, 10 Oct 2026:
 /// "make the t-shirts a little bit dirty").
 pub const DIRT_DEFAULT: u8 = 30;
@@ -250,6 +250,8 @@ pub struct Appearance {
     pub hat_colour: u8,
     /// How grubby the singlet and shorts are: 0 spotless to 100 filthy (the Dirty slider).
     pub dirt: u8,
+    /// 0: squat oval, 50: original head, 100: long oval.
+    pub face_length: u8,
 }
 
 impl Default for Appearance {
@@ -269,6 +271,7 @@ impl Default for Appearance {
             hat: Hat::None,
             hat_colour: 0,
             dirt: DIRT_DEFAULT,
+            face_length: 50,
         }
     }
 }
@@ -299,6 +302,9 @@ impl Palette {
 }
 
 impl Appearance {
+    pub const FACE_DEFAULT:u8=50;
+    pub fn face_scale(self)->f32 {let n=self.face_length.min(100) as f32; if n<=50.0 {0.75+n*0.005}else{1.0+(n-50.0)*0.012}}
+
     pub fn colour_index(&self, p: Palette) -> u8 {
         match p {
             Palette::Body => self.body,
@@ -343,6 +349,7 @@ impl Appearance {
         self.shorts_colour = fix(self.shorts_colour, Palette::Shorts);
         self.hat_colour = fix(self.hat_colour, Palette::Hat);
         self.dirt = self.dirt.min(100);
+        self.face_length = self.face_length.min(100);
         self
     }
 
@@ -365,6 +372,7 @@ impl Appearance {
             hat: Hat::None,
             hat_colour: pick(rng, HAT_COLOURS.len()),
             dirt: DIRT_DEFAULT,
+            face_length: 50,
         };
         // about half wear a hat (picked after everything else so the rest of a look is as it was)
         a.hat = Hat::from_index(rng.index(6).saturating_sub(2) as u8);
@@ -382,7 +390,7 @@ impl Appearance {
     /// `key=value` lines for `settings.txt`.
     pub fn to_lines(&self) -> String {
         format!(
-            "mouth={}\nbrows={}\nhair={}\nbody_colour={}\nsinglet_colour={}\nthong_colour={}\nhair_colour={}\nbrow_colour={}\nlegs={}\nshorts={}\nshorts_colour={}\nhat={}\nhat_colour={}\ndirt={}\nleg_length={}\n",
+            "mouth={}\nbrows={}\nhair={}\nbody_colour={}\nsinglet_colour={}\nthong_colour={}\nhair_colour={}\nbrow_colour={}\nlegs={}\nshorts={}\nshorts_colour={}\nhat={}\nhat_colour={}\ndirt={}\nleg_length={}\nface_length={}\n",
             self.mouth.name(),
             self.brows.name(),
             self.hair.name(),
@@ -397,7 +405,7 @@ impl Appearance {
             self.hat.name(),
             self.hat_colour,
             self.dirt,
-            self.legs.percent()
+            self.legs.percent(), self.face_length
         )
     }
 
@@ -414,6 +422,7 @@ impl Appearance {
             "thong_colour" => self.thong = num(value).unwrap_or(self.thong),
             "hair_colour" => self.hair_colour = num(value).unwrap_or(self.hair_colour),
             "brow_colour" => self.brow_colour = num(value).unwrap_or(self.brow_colour),
+            "face_length" => { if let Some(n)=num(value) {self.face_length=n.min(100);} },
             "leg_length" => { if let Some(n)=num(value) {self.legs=Legs::from_percent(n);} },
             "legs" => self.legs = Legs::from_name(value).unwrap_or(self.legs),
             "shorts" => self.shorts = Shorts::from_name(value).unwrap_or(self.shorts),
@@ -444,6 +453,7 @@ impl Appearance {
             self.hat.index(),
             self.hat_colour,
             self.dirt,
+            self.face_length.min(100),
         ]
     }
 
@@ -464,6 +474,7 @@ impl Appearance {
             hat: Hat::from_index(b[11]),
             hat_colour: b[12],
             dirt: b[13],
+            face_length: b[14].min(100),
         }
         .tidy()
     }
@@ -489,7 +500,21 @@ mod tests {
             hat: Hat::Akubra,
             hat_colour: 3,
             dirt: 72,
+            face_length: 85,
         }
+    }
+
+    #[test]
+    fn face_length_is_bounded_saved_and_replicated() {
+        assert_eq!(Appearance::default().face_scale(),1.0);
+        for n in 0..=100 {
+            let a=Appearance{face_length:n,..Default::default()};
+            assert_eq!(Appearance::from_bytes(a.to_bytes()),a);
+            let mut b=Appearance::default();for line in a.to_lines().lines(){let(k,v)=line.split_once('=').unwrap();b.read_line(k,v);}
+            assert_eq!(a,b);assert!((0.75..=1.6).contains(&a.face_scale()));
+        }
+        let mut a=Appearance::default();a.read_line("face_length","255");assert_eq!(a.face_length,100);
+        a.read_line("face_length","bad");assert_eq!(a.face_length,100);
     }
 
     #[test]

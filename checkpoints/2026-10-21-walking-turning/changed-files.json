@@ -1,0 +1,18 @@
+{
+  "rust/crates/bbq_app/src/characters.rs": {
+    "before": "b7486e24b3d637a4e40960fc6c44e4bd6e5a47e4ff87a07ecd56e92c61672f50",
+    "after": "4a746714857837fde6d3f0c677071941e358e4822b4289e23f2201916ce75397"
+  },
+  "rust/crates/bbq_app/src/locomotion.rs": {
+    "before": null,
+    "after": "069f03604e55d8a6470edeb830327a248ad6960a210adf8e9a97ea99710c5422"
+  },
+  "rust/crates/bbq_app/src/main.rs": {
+    "before": "b677baf4adda732c7f3c78dfe406ebc0395af6ed49824acb8cdf2f72560c2ca1",
+    "after": "85381bb083603e8ca485f917d3d7a3136807c00a73b237d7d327aaed24b7ea56"
+  },
+  "rust/crates/bbq_app/src/player.rs": {
+    "before": "241b07d98c369c190a08e84b424ea4cf4c24420bf9190410509876a69cb50ef1",
+    "after": "42f2f3d398f94bb63cf9cce5764ee3747adccb2738926cb1ec884443ce12ae60"
+  }
+}

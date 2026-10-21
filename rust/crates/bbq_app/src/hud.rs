@@ -1204,7 +1204,7 @@ fn update_prompt(
     mut shown: Local<String>,
 ) {
     let (e, mut vis) = holder.into_inner();
-    let want = game.prompt.clone();
+    let want = if game.magpie.target==crate::player::PLAYER_ID && matches!(game.magpie.phase,1|2) && game.rules.mode==GameMode::FreeForAll {"MAGPIE SWOOP! Move aside, right-click catch, or hit it with a throw".to_string()}else{game.prompt.clone()};
     if *shown != want {
         *shown = want.clone();
         pill(&mut commands, e, &want, 15.0);

@@ -473,6 +473,7 @@ fn sync_viewmodel(
     let scale = match kind {
         ItemKind::Noodle | ItemKind::Fish => 0.36,
         ItemKind::Dildo => 0.5,
+        ItemKind::WaterBalloon => 0.62,
         _ => 0.8,
     };
     let fl = if flop { 0.04 } else { 0.0 };
@@ -488,6 +489,15 @@ fn sync_viewmodel(
         c * 0.3,
     );
     tf.scale = Vec3::splat(scale);
+    if kind==ItemKind::WaterBalloon {
+        // Visual water weight: restrained lag and volume-preserving squash, no physics change.
+        let movement=(player.mover.speed()/8.0).clamp(0.0,1.0);
+        let flex=(player.walk*0.7-0.5).sin()*0.055*movement;
+        let sy=1.06+flex-c*0.10;
+        tf.scale*=Vec3::new(1.0/sy.sqrt(),sy,1.0/sy.sqrt());
+        tf.translation+=Vec3::new(0.015,-0.035,-0.035);
+        tf.rotation*=Quat::from_rotation_z(-0.12+flex*1.8);
+    }
     // your own slap: the browser's swing across the screen (right to left, tip whipping through)
     if game.life.me_swing > 0.0 && bbq_core::items::ItemKind::def(kind).melee != Melee::None {
         let p = 1.0 - game.life.me_swing / (bbq_core::melee::SWING_TIME * crate::life::swing_mul(&game));

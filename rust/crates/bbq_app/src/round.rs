@@ -271,6 +271,7 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
     g.life.chest.new_round(spot);
     // Clear delivery state on every round/mode transition.
     g.smoko = Default::default();
+    g.magpie = Default::default();
     // No voluntary safe seating in the competitive Smoko mode.
     g.options.smoko_on = setup.mode == GameMode::Smoko;
     g.options.naughty = false;

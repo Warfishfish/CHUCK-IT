@@ -1,3 +1,18 @@
+# Publication approval — 21 October 2026
+
+User approved committing and pushing the reviewed Cartoon Backyard, Unarmed Pickup, Natural Graphics and Walking/Turning updates, and selected Cloudflare for online browser access. [Online publication and verification](2026-10-21-online-publication/CHECKPOINT.md). Historical review statuses below record the time each milestone was completed.
+
+[Walking and turning — complete, awaiting review](2026-10-21-walking-turning/CHECKPOINT.md). [Actual gameplay and controlled animation clips](2026-10-21-walking-turning/review.html). Directional planted steps, eased body turns/start-stop transitions and gentler camera bob. 650 tests and release passed; paired performance 9.165 → 9.201 ms. Full backup and guarded rollback verified. No commit/push.
+
+[Natural graphics — complete, awaiting review](2026-10-21-natural-graphics/CHECKPOINT.md). [Actual before/after and moving-camera clip](2026-10-21-natural-graphics/review.html). Calmer greens, softer sunlight/texture detail and smooth foliage/clouds. 647 tests, release build and five-mode launch/capture checks passed. Performance comparable in repeated gameplay checks; full backup and guarded rollback verified. No commit/push.
+
+[Unarmed hit pickup — complete, awaiting review](2026-10-21-unarmed-pickup/CHECKPOINT.md). Empty-hand hits now stun for 2.5 seconds, allowing existing F pickup; host-validated guest unarmed hits and victim replication included. 647 tests and release build passed. Full backup and guarded rollback preserve pending Cartoon Backyard work. Protocol 14; no commit/push.
+
+
+[Cartoon Backyard — complete, awaiting review](2026-10-20-cartoon-backyard/CHECKPOINT.md). [Actual comparisons and motion](2026-10-20-cartoon-backyard/review.html). Verified 21 October 2026: 642 tests, release build, real local multiplayer guest throw and appearance replication, direct Face length slider interaction. Graphics, balloon/throw polish, cover and Backyard-only magpie ready. Full backup and guarded rollback verified. No commit/push.
+
+
+
 # Publication approval — 20 October 2026
 
 User approved committing and pushing the height slider, clothesline clearance, stacked-box collision and graphics update. All 15 source files match the reviewed state: 633 tests and release build passed, with actual captures and local multiplayer verification. Historical review notes below retain their original status. Full backup and guarded rollback remain available.

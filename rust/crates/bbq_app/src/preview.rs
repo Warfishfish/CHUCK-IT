@@ -266,7 +266,7 @@ fn spin_preview(
 /// Tall blobs (the Egg, and anyone on legs) are seen from a little further back so all of them
 /// fits, hair and all; the others keep the usual close view. The camera glides to it.
 fn frame_preview(time: Res<Time>, settings: Res<Settings>, mut cam: Query<&mut Transform, With<PreviewCamera>>) {
-    let top = crate::style::measure(settings.character).head_top + settings.look.legs.lift() + 0.15;
+    let top = crate::style::head_height(settings.character,settings.look) + settings.look.legs.lift() + 0.15 + (settings.look.face_scale()-1.0).max(0.0)*0.8;
     let aim = (top * 0.5 - 0.2).max(0.92);
     let back = ((top * 0.5 + 0.3) / 17f32.to_radians().tan()).max(4.7);
     let want = Transform::from_xyz(0.0, aim + 0.18, back).looking_at(Vec3::new(0.0, aim, 0.0), Vec3::Y);

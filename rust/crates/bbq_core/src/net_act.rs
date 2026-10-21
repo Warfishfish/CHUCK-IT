@@ -20,6 +20,8 @@ pub enum GuestAct {
     Throw { item: u32, from: (f32, f32, f32), vel: (f32, f32, f32), charge: f32 },
     /// Swing the item in your hand at whoever is in front of you.
     Slap { item: u32 },
+    /// Empty-handed hit. Host chooses the target and validates mode, range and cooldown.
+    BareSlap,
     /// Throw away what you hold (G).
     Drop { item: u32 },
     /// Change which item is in your hand.
@@ -75,6 +77,7 @@ impl GuestAct {
                 w.u32(*item);
             }
             GuestAct::Catch => w.u8(5),
+            GuestAct::BareSlap => w.u8(8),
             GuestAct::RaceRole {thrower} => {w.u8(7);w.u8(*thrower as u8);},
             GuestAct::Carry { pressed } => { w.u8(6); w.u8(*pressed as u8); },
         }
@@ -87,6 +90,7 @@ impl GuestAct {
             3 => GuestAct::Drop { item: r.u32()? },
             4 => GuestAct::Select { item: r.u32()? },
             5 => GuestAct::Catch,
+            8 => GuestAct::BareSlap,
             7 => GuestAct::RaceRole {thrower:r.u8()? != 0},
             6 => GuestAct::Carry { pressed: r.u8()? != 0 },
             k => return Err(DecodeError::UnknownKind(k)),
@@ -168,6 +172,7 @@ mod tests {
             Msg::Act(GuestAct::Drop { item: 4 }),
             Msg::Act(GuestAct::Select { item: 5 }),
             Msg::Act(GuestAct::Catch),
+            Msg::Act(GuestAct::BareSlap),
             Msg::Act(GuestAct::Carry {pressed:true}),
             Msg::Act(GuestAct::Carry {pressed:false}),
             Msg::Hit(HitMsg::Smoko {pos:(1.0,0.8,2.0),vel:(0.0,0.0,0.0),locked:true,carrying:false}),

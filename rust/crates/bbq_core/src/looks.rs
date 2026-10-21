@@ -1074,12 +1074,12 @@ pub fn dildo_scale(v: DildoVariant) -> f32 {
 /// Opaque latex keeps the small projectile legible; a tied neck distinguishes it from a ball.
 pub fn water_balloon(id: u32) -> Vec<Part> {
     let color = [0x25b8ed, 0xf878a4, 0xffc935, 0x64d5ba][id as usize % 4];
-    let latex = Surface::shiny(color, 0xffffff, 65.0);
+    let latex = Surface::shiny(color, 0xffffff, 26.0);
     vec![
-        Part::new(sphere(0.25, 20, 14), latex).stretch(1.0, 1.12, 1.0),
-        Part::new(cyl(0.025, 0.07, 0.09, 12), latex).at(0.0, 0.28, 0.0),
+        Part::new(sphere(0.25, 20, 14), latex).at(0.0,-0.025,0.0).stretch(1.06, 1.12, 1.03),
+        Part::new(cyl(0.022, 0.052, 0.065, 12), latex).at(0.0, 0.28, 0.0),
         Part::new(sphere(0.04, 10, 6), latex).at(0.0, 0.33, 0.0).stretch(1.2, 0.6, 1.0),
-        Part::new(Shape::Cone { r: 0.045, h: 0.05, seg: 10 }, latex).at(0.0, 0.37, 0.0),
+        Part::new(Shape::Cone { r: 0.031, h: 0.026, seg: 10 }, latex).at(0.014, 0.35, 0.0).turn(0.0,0.0,-0.3),
     ]
 }
 

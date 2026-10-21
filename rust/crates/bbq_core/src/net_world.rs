@@ -152,6 +152,7 @@ pub struct RaceSnap {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct WorldSnap {
+    pub magpie: (u8,u32,(f32,f32,f32)),
     pub race: Vec<RaceSnap>,
     /// Host-only status, including zero for recovery. Position bounds wet remote prediction.
     pub wet: Vec<WetSnap>,
@@ -174,6 +175,7 @@ pub struct WorldSnap {
 
 impl WorldSnap {
     pub(crate) fn write(&self, w: &mut Writer) {
+        w.u8(self.magpie.0);w.u32(self.magpie.1);w.triple(self.magpie.2);
         w.u8(self.wet.len().min(MAX_BOARD) as u8);
         for s in self.wet.iter().take(MAX_BOARD) {
             w.u32(s.id); w.f32(s.remaining); w.triple(s.pos);
@@ -270,6 +272,7 @@ impl WorldSnap {
             let n = r.u8()? as usize;
             if n > max { Err(DecodeError::TooMany) } else { Ok(n) }
         };
+        let magpie=(r.u8()?.min(3),r.u32()?,r.triple()?);
         let n = count(r, MAX_BOARD)?;
         let mut wet = Vec::with_capacity(n);
         for _ in 0..n {
@@ -369,7 +372,7 @@ impl WorldSnap {
         for _ in 0..n {
             fx.push(FxSnap { kind: r.u8()?, at: r.triple()? });
         }
-        Ok(WorldSnap { race, wet, seq, now, round, items, bots, dazza, board, teams, feed, fx })
+        Ok(WorldSnap { magpie, race, wet, seq, now, round, items, bots, dazza, board, teams, feed, fx })
     }
 }
 
@@ -380,6 +383,7 @@ mod tests {
 
     fn sample() -> WorldSnap {
         WorldSnap {
+            magpie:(0,0,(14.0,2.2,23.05)),
             race:vec![],
             wet: vec![WetSnap { id: 2, remaining: 3.75, pos: (1.0, 0.0, 2.0) }],
             seq: 42,
@@ -471,7 +475,7 @@ mod tests {
         let mut s = sample();
         s.round.banner = None;
         let mut bytes = Msg::World(Box::new(s)).encode();
-        let at = 1 + 1 + 20 + 1 + 4 + 4 + 3 + 4 + 4 + 8 + 1 + 1; // kind, seq, now, phase/mode/features, time, round/len/spot/stock, smoko, heist, banner flag
+        let at = 17 + 1 + 1 + 20 + 1 + 4 + 4 + 3 + 4 + 4 + 8 + 1 + 1; // kind, seq, now, phase/mode/features, time, round/len/spot/stock, smoko, heist, banner flag
         bytes[at] = 200;
         assert!(Msg::decode(&bytes).is_err());
         // every cut-off version is refused, never a panic

@@ -184,3 +184,10 @@ pub fn body_material(colour: Color, assets: &AssetServer) -> StandardMaterial {
         ..default()
     }
 }
+
+/// Same head radius used by the existing models; keeps overhead clearance aligned with the oval.
+pub fn head_height(c:Character,look:bbq_core::appearance::Appearance)->f32 {
+ let radius=match c {Character::Classic=>0.32,Character::Pear=>0.30,Character::Egg=>0.33,Character::Gumdrop=>0.37};
+ let radius=match current(){Style::Pop=>radius*1.32,Style::Clay=>radius*0.95,Style::Current=>radius};
+ measure(c).head_top+radius*(look.face_scale()-1.0)
+}

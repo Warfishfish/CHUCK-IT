@@ -1,0 +1,1 @@
+Live dry-run passed. Disposable-copy rollback restored all 4 sources exactly; new files removed. Later edit caused refusal before any mutation. No rollback applied to the working project.

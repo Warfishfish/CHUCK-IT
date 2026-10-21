@@ -33,7 +33,8 @@ pub const DOWN_GRACE: f32 = 0.3;
 /// Bare-handed slap numbers (Cheeky mode).
 pub const SILLY_KNOCK: f32 = 8.5;
 pub const SILLY_UP: f32 = 3.0;
-pub const SILLY_STUN: f32 = 0.6;
+/// Gives the victim time to land and the attacker time to approach and press F.
+pub const SILLY_STUN: f32 = 2.5;
 pub const SILLY_NAMES: [&str; 3] = ["WET WILLY!", "NOOGIE!", "WEDGIE!"];
 
 /// Someone who might get slapped.
@@ -541,9 +542,9 @@ mod tests {
     }
 
     #[test]
-    fn silly_slap_is_a_quick_shove() {
+    fn silly_slap_keeps_its_shove_but_allows_a_pickup_window() {
         let s = silly_slap();
-        assert_eq!((s.knock, s.up, s.stun), (8.5, 3.0, 0.6));
+        assert_eq!((s.knock, s.up, s.stun), (8.5, 3.0, 2.5));
         assert!(s.down.is_none());
     }
 

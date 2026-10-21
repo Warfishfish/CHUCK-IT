@@ -1113,7 +1113,7 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>, yard: Res<crate::
         d.mover.vz = s.vel.1;
         d.mover.grounded = s.grounded;
         if !mirror {
-            d.mover.height=crate::style::measure(r.character).head_top+r.look.legs.lift();
+            d.mover.height=crate::style::head_height(r.character,r.look)+r.look.legs.lift();
             d.mover.resolve_obstacles(&yard.0);
         }
         // the game's `yaw` looks along (-sin, -cos); a puppet's `face` looks along (sin, cos)
@@ -1326,6 +1326,7 @@ mod tests {
         use bbq_core::net_world::*;
         let mut p = Pair::new();
         let snap = |seq| WorldSnap {
+            magpie:(0,0,(14.0,1.8,24.05)),
             race:vec![],
             wet: vec![],
             seq,

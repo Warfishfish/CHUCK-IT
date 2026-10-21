@@ -1,0 +1,38 @@
+ M checkpoints/LATEST.md
+ M rust/crates/bbq_app/src/characters.rs
+ M rust/crates/bbq_app/src/face.rs
+ M rust/crates/bbq_app/src/game.rs
+ M rust/crates/bbq_app/src/grass.rs
+ M rust/crates/bbq_app/src/hud.rs
+ M rust/crates/bbq_app/src/items_view.rs
+ M rust/crates/bbq_app/src/legs.rs
+ M rust/crates/bbq_app/src/life.rs
+ M rust/crates/bbq_app/src/lighting.rs
+ M rust/crates/bbq_app/src/main.rs
+ M rust/crates/bbq_app/src/menu.rs
+ M rust/crates/bbq_app/src/models.rs
+ M rust/crates/bbq_app/src/online.rs
+ M rust/crates/bbq_app/src/online_world.rs
+ M rust/crates/bbq_app/src/player.rs
+ M rust/crates/bbq_app/src/preview.rs
+ M rust/crates/bbq_app/src/round.rs
+ M rust/crates/bbq_app/src/style.rs
+ M rust/crates/bbq_app/src/ui.rs
+ M rust/crates/bbq_app/src/visual_review.rs
+ M rust/crates/bbq_app/src/yard_scene.rs
+ M rust/crates/bbq_core/src/appearance.rs
+ M rust/crates/bbq_core/src/feel.rs
+ M rust/crates/bbq_core/src/lib.rs
+ M rust/crates/bbq_core/src/looks.rs
+ M rust/crates/bbq_core/src/looks_yard.rs
+ M rust/crates/bbq_core/src/melee.rs
+ M rust/crates/bbq_core/src/net.rs
+ M rust/crates/bbq_core/src/net_act.rs
+ M rust/crates/bbq_core/src/net_world.rs
+ M rust/crates/bbq_core/src/yard.rs
+?? checkpoints/2026-10-20-cartoon-backyard/
+?? checkpoints/2026-10-21-natural-graphics/
+?? checkpoints/2026-10-21-unarmed-pickup/
+?? checkpoints/2026-10-21-walking-turning/
+?? rust/crates/bbq_app/src/magpie.rs
+?? rust/crates/bbq_core/src/magpie.rs

@@ -1,0 +1,1061 @@
+diff --git a/rust/crates/bbq_app/src/characters.rs b/rust/crates/bbq_app/src/characters.rs
+index eb40655..1a2e91d 100644
+--- a/rust/crates/bbq_app/src/characters.rs
++++ b/rust/crates/bbq_app/src/characters.rs
+@@ -1344,7 +1344,7 @@ fn fit_to_shape(
+         // a height on Classic's body moved to the same spot on this body (and up its legs), and
+         // how much wider it is
+         let up = move |y: f32| lift + 0.07 + (y - 0.07) * (m.body_top - 0.07) / (classic.body_top - 0.07);
+-        m.head_top += lift;
++        m.head_top=crate::style::head_height(cast.character_of(i),game.dummies.get(i).map_or(Default::default(),|d|d.look))+lift;
+         m.body_top += lift;
+         (m, up, m.body_w / classic.body_w)
+     };
+diff --git a/rust/crates/bbq_app/src/face.rs b/rust/crates/bbq_app/src/face.rs
+index 86c4df6..988173d 100644
+--- a/rust/crates/bbq_app/src/face.rs
++++ b/rust/crates/bbq_app/src/face.rs
+@@ -232,7 +232,7 @@ pub struct FacePlugin;
+ impl Plugin for FacePlugin {
+     fn build(&self, app: &mut App) {
+         app.add_systems(Startup, make_kit)// after Update, so a model swapped or thrown away this frame is already gone
+-            .add_systems(PostUpdate, (sync_faces, wobble_mouths, sync_tints, sync_shorts).chain());
++            .add_systems(PostUpdate, (rig_head_forms, shape_heads, sync_faces, wobble_mouths, sync_tints, sync_shorts).chain().after(crate::legs::rig_legs).before(bevy::transform::TransformSystems::Propagate));
+     }
+ }
+ 
+@@ -796,3 +796,42 @@ mod tests {
+         }
+     }
+ }
++
++#[derive(Component)]
++struct HeadForm { owner: FaceOwner, centre: Vec3 }
++
++// A parent around the existing head and sibling eyes keeps every expression and eye animation
++// in its original coordinate system. No meshes, face features or hit volumes are added.
++fn rig_head_forms(
++    mut commands: Commands,
++    heads: Query<(Entity,&HeadNode,&ChildOf,&Transform),Added<HeadNode>>,
++    children: Query<&Children>, names: Query<&Name>,
++) {
++    for (head,node,parent,tf) in &heads {
++        let root=commands.spawn((Transform::default(),Visibility::default(),HeadForm{owner:node.owner,centre:tf.translation},ChildOf(parent.parent()))).id();
++        commands.entity(root).add_child(head);
++        if let Ok(kids)=children.get(parent.parent()) {
++            for e in kids.iter() {
++                if names.get(e).is_ok_and(|n|n.starts_with("Eye")||n.starts_with("Pupil")) {
++                    commands.entity(root).add_child(e);
++                }
++            }
++        }
++    }
++}
++fn shape_heads(
++    game:Res<Game>, settings:Res<Settings>, online:Option<Res<crate::online::Online>>,
++    mut heads:Query<(&HeadForm,&mut Transform)>,
++) {
++    for (form,mut tf) in &mut heads {
++        let look=match form.owner {
++            FaceOwner::Preview=>Some(settings.look),
++            FaceOwner::Blob(i)=>game.dummies.get(i).map(|d|d.look),
++            FaceOwner::Lobby(id)=>online.as_deref().and_then(|o|crate::lobby::lobby_look(o,&settings,id)).map(|l|l.1),
++        };
++        let Some(look)=look else {continue};
++        let y=look.face_scale();let x=y.sqrt().recip();
++        tf.scale=Vec3::new(x,y,x);
++        tf.translation=form.centre*(Vec3::ONE-tf.scale);
++    }
++}
+diff --git a/rust/crates/bbq_app/src/game.rs b/rust/crates/bbq_app/src/game.rs
+index 92f5eca..b891c37 100644
+--- a/rust/crates/bbq_app/src/game.rs
++++ b/rust/crates/bbq_app/src/game.rs
+@@ -196,6 +196,7 @@ pub struct Game {
+     pub remotes: Vec<RemoteInfo>,
+     pub smoko: crate::smoko_mode::State,
+     pub race: crate::race::State,
++    pub magpie: bbq_core::magpie::Bird,
+     /// Online guest: this game does not run the yard, it shows what the host says (see
+     /// `online_world.rs`).
+     pub mirror: bool,
+@@ -309,6 +310,7 @@ impl Plugin for GamePlugin {
+             fx: Vec::new(),
+             remotes: Vec::new(),
+             smoko: Default::default(),
++            magpie:Default::default(),
+             race: Default::default(),
+             mirror: false,
+             net_fx: false,
+@@ -354,12 +356,13 @@ pub fn step_game(
+     mut g: ResMut<Game>,
+     mut player: ResMut<Player>,
+     mut wanted: ResMut<Wanted>,
+-    yard: Res<YardRes>,
++    mut yard: ResMut<YardRes>,
+     cast: Option<Res<crate::characters::Cast>>,
+ ) {
++    yard.0.set_backyard_cover(g.rules.mode==GameMode::FreeForAll);
+     for (i,d) in g.dummies.iter_mut().enumerate() {
+         let c=d.remote.as_ref().map(|r|r.character).or_else(||cast.as_ref().map(|c|c.character_of(i))).unwrap_or(bbq_core::character::Character::Classic);
+-        d.mover.height=crate::style::measure(c).head_top+d.look.legs.lift();
++        d.mover.height=crate::style::head_height(c,d.look)+d.look.legs.lift();
+     }
+     let dt = TICK_DT;
+     g.now += dt;
+@@ -597,6 +600,8 @@ pub fn step_game(
+         g.catcher.press(can);
+     }
+ 
++    crate::magpie::step(g,p,dt);
++
+     // ---- pick things up ----
+     if g.rules.phase != Phase::Countdown
+         && g.me.body.stun <= 0.0
+diff --git a/rust/crates/bbq_app/src/hud.rs b/rust/crates/bbq_app/src/hud.rs
+index c4fd5e9..ecaf95a 100644
+--- a/rust/crates/bbq_app/src/hud.rs
++++ b/rust/crates/bbq_app/src/hud.rs
+@@ -1204,7 +1204,7 @@ fn update_prompt(
+     mut shown: Local<String>,
+ ) {
+     let (e, mut vis) = holder.into_inner();
+-    let want = game.prompt.clone();
++    let want = if game.magpie.target==crate::player::PLAYER_ID && matches!(game.magpie.phase,1|2) && game.rules.mode==GameMode::FreeForAll {"MAGPIE SWOOP! Move aside, right-click catch, or hit it with a throw".to_string()}else{game.prompt.clone()};
+     if *shown != want {
+         *shown = want.clone();
+         pill(&mut commands, e, &want, 15.0);
+diff --git a/rust/crates/bbq_app/src/items_view.rs b/rust/crates/bbq_app/src/items_view.rs
+index edb56f4..f7170bb 100644
+--- a/rust/crates/bbq_app/src/items_view.rs
++++ b/rust/crates/bbq_app/src/items_view.rs
+@@ -473,6 +473,7 @@ fn sync_viewmodel(
+     let scale = match kind {
+         ItemKind::Noodle | ItemKind::Fish => 0.36,
+         ItemKind::Dildo => 0.5,
++        ItemKind::WaterBalloon => 0.62,
+         _ => 0.8,
+     };
+     let fl = if flop { 0.04 } else { 0.0 };
+@@ -488,6 +489,15 @@ fn sync_viewmodel(
+         c * 0.3,
+     );
+     tf.scale = Vec3::splat(scale);
++    if kind==ItemKind::WaterBalloon {
++        // Visual water weight: restrained lag and volume-preserving squash, no physics change.
++        let movement=(player.mover.speed()/8.0).clamp(0.0,1.0);
++        let flex=(player.walk*0.7-0.5).sin()*0.055*movement;
++        let sy=1.06+flex-c*0.10;
++        tf.scale*=Vec3::new(1.0/sy.sqrt(),sy,1.0/sy.sqrt());
++        tf.translation+=Vec3::new(0.015,-0.035,-0.035);
++        tf.rotation*=Quat::from_rotation_z(-0.12+flex*1.8);
++    }
+     // your own slap: the browser's swing across the screen (right to left, tip whipping through)
+     if game.life.me_swing > 0.0 && bbq_core::items::ItemKind::def(kind).melee != Melee::None {
+         let p = 1.0 - game.life.me_swing / (bbq_core::melee::SWING_TIME * crate::life::swing_mul(&game));
+diff --git a/rust/crates/bbq_app/src/legs.rs b/rust/crates/bbq_app/src/legs.rs
+index 68421b8..102c3e6 100644
+--- a/rust/crates/bbq_app/src/legs.rs
++++ b/rust/crates/bbq_app/src/legs.rs
+@@ -69,7 +69,7 @@ struct LegLine;
+ /// The leg shapes: one unit-tall tapered tube per kind (stretched to the leg's length), plus a
+ /// slightly fatter one for the black line.
+ #[derive(Resource)]
+-struct LegKit {
++pub(crate) struct LegKit {
+     stubby: (Handle<Mesh>, Handle<Mesh>),
+     skinny: (Handle<Mesh>, Handle<Mesh>),
+     /// Skinny legs with knees: thigh, shin and knee (each with its line).
+@@ -157,7 +157,7 @@ pub fn lift_of(game: &Game, i: usize) -> f32 {
+ 
+ /// A model has just loaded (its head was found): move its feet out from under the body and add
+ /// two hidden legs beside them.
+-fn rig_legs(
++pub(crate) fn rig_legs(
+     mut commands: Commands,
+     kit: Res<LegKit>,
+     heads: Query<(Entity, &HeadNode), Added<HeadNode>>,
+diff --git a/rust/crates/bbq_app/src/lighting.rs b/rust/crates/bbq_app/src/lighting.rs
+index df86165..646e13e 100644
+--- a/rust/crates/bbq_app/src/lighting.rs
++++ b/rust/crates/bbq_app/src/lighting.rs
+@@ -64,10 +64,10 @@ impl LookMode {
+                 crate::style::Style::Pop => Rig {
+                     sky: 0xb5d0f5,
+                     ground: 0xa4b29c,
+-                    hemi: 0.75,
+-                    sun: 0xffd294,
+-                    sun_intensity: 1.10,
+-                    grade: Grade { saturation: 1.04, warmth: 0.02, contrast: 1.025, vignette: 0.08 },
++                    hemi: 0.79,
++                    sun: 0xffdfb1,
++                    sun_intensity: 1.02,
++                    grade: Grade { saturation: 1.01, warmth: 0.018, contrast: 1.025, vignette: 0.045 },
+                 },
+                 // clay: a strong, low, golden sun with a cool blue shade and warm bounce light
+                 crate::style::Style::Clay => Rig {
+@@ -320,9 +320,12 @@ pub fn spawn_afternoon_sky(
+         let colours: Vec<[f32; 4]> = positions.iter().map(|p| {
+             let height = (p[1] / 180.0).max(0.0);
+             let t = (height / 0.7).clamp(0.0, 1.0).sqrt();
+-            let horizon = Vec3::new(0.60, 0.80, 0.96);
+-            let zenith = Vec3::new(0.20, 0.46, 0.84);
+-            let c = horizon.lerp(zenith, t);
++            let horizon = Vec3::new(0.73, 0.86, 0.94);
++            let zenith = Vec3::new(0.18, 0.42, 0.76);
++            let direction=Vec3::from(*p).normalize();
++            let toward_sun=direction.dot(Vec3::new(24.0,20.8,20.0).normalize()).max(0.0);
++            let haze=toward_sun.powf(12.0)*0.16;
++            let c = horizon.lerp(zenith, t).lerp(Vec3::new(1.0,0.89,0.69),haze);
+             [c.x, c.y, c.z, 1.0]
+         }).collect();
+         mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colours);
+diff --git a/rust/crates/bbq_app/src/main.rs b/rust/crates/bbq_app/src/main.rs
+index 26cfb19..35ffa7b 100644
+--- a/rust/crates/bbq_app/src/main.rs
++++ b/rust/crates/bbq_app/src/main.rs
+@@ -18,6 +18,7 @@ mod face_meshes;
+ mod fx;
+ mod wet;
+ mod game;
++mod magpie;
+ mod gamepad;
+ mod grass;
+ mod heist_app;
+diff --git a/rust/crates/bbq_app/src/menu.rs b/rust/crates/bbq_app/src/menu.rs
+index 6e10cbc..7ff96bd 100644
+--- a/rust/crates/bbq_app/src/menu.rs
++++ b/rust/crates/bbq_app/src/menu.rs
+@@ -718,6 +718,7 @@ fn look_panel(c: &mut ChildSpawnerCommands) {
+         p.spawn(legend("Body"));
+         let shapes: Vec<&str> = Character::ALL.iter().map(|c| c.name()).collect();
+         style_buttons(p, LookRow::Shape, "Shape", &shapes);
++        slider(p, SliderId::FaceLength, "Face length · 50% original", 0.0, 100.0);
+         slider(p, SliderId::LegLength, "Leg length", 0.0, 100.0);
+         style_buttons(p, LookRow::Legs, "", &["Reset leg length"]);
+         let shorts: Vec<&str> = Shorts::ALL.iter().map(|x| x.name()).collect();
+@@ -1139,6 +1140,7 @@ fn spawn_pause(mut commands: Commands) {
+ fn apply_loaded_settings(mut settings: ResMut<Settings>, mut player: ResMut<Player>, mut cast: ResMut<Cast>) {
+     let args:Vec<String>=std::env::args().collect();
+     if let Some(n)=args.iter().position(|a|a=="--leg-length").and_then(|i|args.get(i+1)).and_then(|s|s.parse::<u8>().ok()) {settings.look.legs=bbq_core::appearance::Legs::from_percent(n);}
++    if let Some(n)=args.iter().position(|a|a=="--face-length").and_then(|i|args.get(i+1)).and_then(|s|s.parse::<u8>().ok()) {settings.look.face_length=n.min(100);}
+     player.fov_base = settings.fov;
+     player.fov = settings.fov;
+     cast.mine = settings.character;
+@@ -1414,6 +1416,7 @@ fn slider_drag(
+         let Some(n) = rel.normalized else { continue };
+         let t = (n.x + 0.5).clamp(0.0, 1.0);
+         match s.id {
++            SliderId::FaceLength => {let v=(t*100.0).round() as u8; if v!=settings.look.face_length {settings.look.face_length=v;settings.save();}},
+             SliderId::LegLength => {
+                 let v=bbq_core::appearance::Legs::from_percent((t*100.0).round() as u8);
+                 if v!=settings.look.legs {settings.look.legs=v;settings.save();}
+@@ -1696,6 +1699,7 @@ fn paint_widgets(
+     };
+     for (id, mut t) in &mut texts.p1() {
+         t.0 = match id.0 {
++            SliderId::FaceLength => format!("{}%",settings.look.face_length),
+             SliderId::LegLength => format!("{}% · +{:.0} cm", settings.look.legs.percent(),settings.look.legs.lift()*100.0),
+             SliderId::Fov => format!("{:.0}", settings.fov),
+             SliderId::Belly => belly_word(settings.belly).to_string(),
+@@ -1711,6 +1715,7 @@ fn paint_widgets(
+     }
+     for (id, mut n) in &mut handles {
+         let frac = match id.0 {
++            SliderId::FaceLength => settings.look.face_length as f32 / 100.0,
+             SliderId::LegLength => settings.look.legs.percent() as f32 / 100.0,
+             SliderId::Fov => (settings.fov - 60.0) / 45.0,
+             SliderId::Belly => settings.belly / 2.0,
+diff --git a/rust/crates/bbq_app/src/models.rs b/rust/crates/bbq_app/src/models.rs
+index 7738040..7e5182a 100644
+--- a/rust/crates/bbq_app/src/models.rs
++++ b/rust/crates/bbq_app/src/models.rs
+@@ -400,7 +400,7 @@ pub fn material(s: &Surface, cache: &ModelCache) -> StandardMaterial {
+             hex(s.color).with_alpha(s.alpha)
+         },
+         base_color_texture: s.tex.and_then(|t| cache.textures.get(&t).cloned()),
+-        normal_map_texture: s.tex.and_then(|t| cache.normals.get(&t).cloned()),
++        normal_map_texture: s.tex.filter(|t| !(crate::style::current()==crate::style::Style::Pop && matches!(t,Tex::Wood|Tex::Bark|Tex::Plastic))).and_then(|t| cache.normals.get(&t).cloned()),
+         uv_transform: bevy::math::Affine2::from_scale(Vec2::new(s.repeat.0, s.repeat.1) * repeat),
+         emissive,
+         perceptual_roughness: rough,
+diff --git a/rust/crates/bbq_app/src/online.rs b/rust/crates/bbq_app/src/online.rs
+index 03f978f..11b9c6c 100644
+--- a/rust/crates/bbq_app/src/online.rs
++++ b/rust/crates/bbq_app/src/online.rs
+@@ -1113,7 +1113,7 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>, yard: Res<crate::
+         d.mover.vz = s.vel.1;
+         d.mover.grounded = s.grounded;
+         if !mirror {
+-            d.mover.height=crate::style::measure(r.character).head_top+r.look.legs.lift();
++            d.mover.height=crate::style::head_height(r.character,r.look)+r.look.legs.lift();
+             d.mover.resolve_obstacles(&yard.0);
+         }
+         // the game's `yaw` looks along (-sin, -cos); a puppet's `face` looks along (sin, cos)
+@@ -1326,6 +1326,7 @@ mod tests {
+         use bbq_core::net_world::*;
+         let mut p = Pair::new();
+         let snap = |seq| WorldSnap {
++            magpie:(0,0,(14.0,1.8,24.05)),
+             race:vec![],
+             wet: vec![],
+             seq,
+diff --git a/rust/crates/bbq_app/src/online_world.rs b/rust/crates/bbq_app/src/online_world.rs
+index 5e1aee4..034392b 100644
+--- a/rust/crates/bbq_app/src/online_world.rs
++++ b/rust/crates/bbq_app/src/online_world.rs
+@@ -255,7 +255,8 @@ pub fn build_world(g: &Game, yard: &Yard, seq: u32, feed_after: f32, fx: &[FxEve
+         for (id,r) in &g.race.racers {race.push(RaceSnap{id:net(*id),thrower:false,passed:r.passed as u8,finish:r.finish.unwrap_or(-1.),score:0,streak:0,hits:0,disconnected:r.disconnected});}
+         for (id,t) in &g.race.throwers {race.push(RaceSnap{id:net(*id),thrower:true,passed:0,finish:-1.,score:t.score,streak:t.streak,hits:t.hits,disconnected:t.disconnected});}
+     }
+-    WorldSnap { race, wet, seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
++    let b=&g.magpie;let magpie=(b.phase,if b.target==0{0}else{net(b.target)},(b.pos.x,b.pos.y,b.pos.z));
++    WorldSnap { magpie, race, wet, seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
+ }
+ 
+ /// Make this game look like the host's. `my_net` is our own number; `host_name` replaces
+@@ -263,6 +264,8 @@ pub fn build_world(g: &Game, yard: &Yard, seq: u32, feed_after: f32, fx: &[FxEve
+ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32, host_name: &str) {
+     let local = |net: u32| local_of_net(net, my_net);
+     g.mirror = true;
++    g.magpie.phase=snap.magpie.0;g.magpie.target=if snap.magpie.1==0{0}else{local(snap.magpie.1)};
++    g.magpie.pos=V3::new(snap.magpie.2.0,snap.magpie.2.1,snap.magpie.2.2);
+ 
+     // ---- the round ----
+     let r = &snap.round;
+@@ -561,6 +564,18 @@ mod tests {
+     use super::*;
+     use bevy::prelude::*;
+ 
++    #[test]
++    fn magpie_host_state_and_score_replicate_without_duplicate_penalty(){
++        let mut host=app();
++        {let mut g=host.world_mut().resource_mut::<Game>();g.magpie.phase=2;g.magpie.target=REMOTE_ID_BASE+2;g.magpie.pos=V3::new(3.0,2.0,4.0);g.board.ensure(REMOTE_ID_BASE+2);let rules=g.rules.clone();g.board.award(&rules,REMOTE_ID_BASE+2,-10);}
++        let snap=build_world(host.world().resource::<Game>(),&Yard::default(),1,-1.0,&[]);
++        let bbq_core::net::Msg::World(snap)=bbq_core::net::Msg::decode(&bbq_core::net::Msg::World(Box::new(snap)).encode()).unwrap()else{panic!()};
++        let mut guest=app();let mut yard=Yard::default();
++        let mut g=guest.world_mut().resource_mut::<Game>();
++        for _ in 0..2 {apply_world(&mut g,&mut yard,&snap,2,"Host");}
++        assert_eq!(g.magpie.target,PLAYER_ID);assert_eq!(g.magpie.phase,2);assert_eq!(g.magpie.pos,V3::new(3.0,2.0,4.0));assert_eq!(g.board.score(PLAYER_ID),-10);
++    }
++
+     #[test]
+     fn balloon_host_hit_replicates_and_recovers_without_replaying_timer() {
+         use bbq_core::net::Msg;
+diff --git a/rust/crates/bbq_app/src/player.rs b/rust/crates/bbq_app/src/player.rs
+index 6d7fec3..a374b0b 100644
+--- a/rust/crates/bbq_app/src/player.rs
++++ b/rust/crates/bbq_app/src/player.rs
+@@ -255,7 +255,7 @@ fn step_player(
+     settings: Option<Res<crate::menu::Settings>>,
+ ) {
+     let p = &mut *player;
+-    if let Some(s)=settings {p.mover.eye_lift=s.look.legs.lift();p.mover.height=crate::style::measure(s.character).head_top+p.mover.eye_lift;}
++    if let Some(s)=settings {p.mover.eye_lift=s.look.legs.lift();p.mover.height=crate::style::head_height(s.character,s.look)+p.mover.eye_lift;}
+     let g = &mut *game;
+     p.prev = Vec3::new(p.mover.x, p.mover.y, p.mover.z);
+     if crate::smoko_mode::player_locked(g) { return; }
+diff --git a/rust/crates/bbq_app/src/preview.rs b/rust/crates/bbq_app/src/preview.rs
+index c7a823a..d3b2094 100644
+--- a/rust/crates/bbq_app/src/preview.rs
++++ b/rust/crates/bbq_app/src/preview.rs
+@@ -266,7 +266,7 @@ fn spin_preview(
+ /// Tall blobs (the Egg, and anyone on legs) are seen from a little further back so all of them
+ /// fits, hair and all; the others keep the usual close view. The camera glides to it.
+ fn frame_preview(time: Res<Time>, settings: Res<Settings>, mut cam: Query<&mut Transform, With<PreviewCamera>>) {
+-    let top = crate::style::measure(settings.character).head_top + settings.look.legs.lift() + 0.15;
++    let top = crate::style::head_height(settings.character,settings.look) + settings.look.legs.lift() + 0.15 + (settings.look.face_scale()-1.0).max(0.0)*0.8;
+     let aim = (top * 0.5 - 0.2).max(0.92);
+     let back = ((top * 0.5 + 0.3) / 17f32.to_radians().tan()).max(4.7);
+     let want = Transform::from_xyz(0.0, aim + 0.18, back).looking_at(Vec3::new(0.0, aim, 0.0), Vec3::Y);
+diff --git a/rust/crates/bbq_app/src/round.rs b/rust/crates/bbq_app/src/round.rs
+index 4e90a7b..e94c2c2 100644
+--- a/rust/crates/bbq_app/src/round.rs
++++ b/rust/crates/bbq_app/src/round.rs
+@@ -271,6 +271,7 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
+     g.life.chest.new_round(spot);
+     // Clear delivery state on every round/mode transition.
+     g.smoko = Default::default();
++    g.magpie = Default::default();
+     // No voluntary safe seating in the competitive Smoko mode.
+     g.options.smoko_on = setup.mode == GameMode::Smoko;
+     g.options.naughty = false;
+diff --git a/rust/crates/bbq_app/src/style.rs b/rust/crates/bbq_app/src/style.rs
+index bc476a2..85a99a1 100644
+--- a/rust/crates/bbq_app/src/style.rs
++++ b/rust/crates/bbq_app/src/style.rs
+@@ -184,3 +184,10 @@ pub fn body_material(colour: Color, assets: &AssetServer) -> StandardMaterial {
+         ..default()
+     }
+ }
++
++/// Same head radius used by the existing models; keeps overhead clearance aligned with the oval.
++pub fn head_height(c:Character,look:bbq_core::appearance::Appearance)->f32 {
++ let radius=match c {Character::Classic=>0.32,Character::Pear=>0.30,Character::Egg=>0.33,Character::Gumdrop=>0.37};
++ let radius=match current(){Style::Pop=>radius*1.32,Style::Clay=>radius*0.95,Style::Current=>radius};
++ measure(c).head_top+radius*(look.face_scale()-1.0)
++}
+diff --git a/rust/crates/bbq_app/src/ui.rs b/rust/crates/bbq_app/src/ui.rs
+index 6004170..1ea30fa 100644
+--- a/rust/crates/bbq_app/src/ui.rs
++++ b/rust/crates/bbq_app/src/ui.rs
+@@ -284,6 +284,7 @@ pub enum CheckId {
+ #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+ pub enum SliderId {
+     LegLength,
++    FaceLength,
+     Fov,
+     Belly,
+     /// How dirty the singlet and shorts are.
+diff --git a/rust/crates/bbq_app/src/visual_review.rs b/rust/crates/bbq_app/src/visual_review.rs
+index 73c040c..2d7df21 100644
+--- a/rust/crates/bbq_app/src/visual_review.rs
++++ b/rust/crates/bbq_app/src/visual_review.rs
+@@ -145,7 +145,7 @@ fn motion_mode() -> Option<&'static str> {
+     MODE.get_or_init(|| {
+         let a: Vec<String> = std::env::args().collect();
+         if !a.iter().any(|v|v=="--shot") || !a.iter().any(|v|v=="--review") { return None; }
+-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height"].contains(&v.as_str())).cloned()
++        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie"].contains(&v.as_str())).cloned()
+     }).as_deref()
+ }
+ 
+@@ -155,6 +155,19 @@ pub fn is_scripted_walk_review() -> bool { matches!(motion_mode(),Some("water-ba
+ fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut wanted: ResMut<crate::player::Wanted>, mut frame: Local<u32>) {
+     let Some(mode) = motion_mode() else { return };
+     if mode=="race" {return;}
++    if mode=="magpie" {
++        *frame+=1;game.options.bots_on=false;
++        if *frame==120 {
++            game.attract=false;game.rules.phase=bbq_core::scoring::Phase::Play;game.round.time_left=180.0;
++            game.world.clear();game.dummies.truncate(1);game.board.clear();game.board.ensure(100);
++            if let Some(d)=game.dummies.first_mut(){d.mover=bbq_core::movement::Mover::new(0.0,10.0);d.home=(0.0,10.0);d.body=Default::default();}
++            player.mover=bbq_core::movement::Mover::new(0.0,18.0);
++            game.life.dazza.pos=bbq_core::vec::V3::new(1000.0,0.0,1000.0);
++        }
++        if *frame==180 {game.magpie.phase=1;game.magpie.target=100;game.magpie.timer=bbq_core::magpie::WARNING_SECONDS;}
++        if *frame>=180 && *frame%30==0 {println!("MAGPIE_REVIEW frame={} phase={} score={}",*frame,game.magpie.phase,game.board.score(100));}
++        return;
++    }
+     if mode=="height" {
+         *frame+=1;game.options.bots_on=false;
+         if *frame==120 {
+@@ -257,13 +270,13 @@ fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate:
+ 
+ // Controlled first-person input playback. The camera remains in one location so
+ // shape and spring behaviour are easy to compare; speed/turn inputs are staged.
+-fn held_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut frame: Local<u32>) {
++fn held_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut wanted:ResMut<crate::player::Wanted>, mut frame: Local<u32>) {
+     let Some(mode) = motion_mode().filter(|m| m.starts_with("held-")) else { return; };
+     *frame += 1;
+     let t = (*frame as f32 - 180.0) / 60.0;
+     use bbq_core::{flight::{Item,ItemState},items::ItemKind,vec::V3};
+     if *frame == 120 {
+-        let kind = if mode == "held-noodle" { ItemKind::Noodle } else { ItemKind::Dildo };
++        let kind = if mode == "held-noodle" { ItemKind::Noodle } else if mode=="held-balloon" {ItemKind::WaterBalloon} else { ItemKind::Dildo };
+         let mut item = Item::new(900001,kind,V3::ZERO);
+         item.state = ItemState::Held;
+         item.holder = Some(crate::player::PLAYER_ID);
+@@ -271,6 +284,7 @@ fn held_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::p
+         game.slots.clear();
+         game.slots.add(900001);
+     }
++    if mode=="held-balloon" {if *frame==330 {wanted.throw_down=true;}if *frame==375 {wanted.throw_up=true;}}
+     let speed = if t < 0.5 { 0.0 } else if t < 1.5 { 3.0 } else if t < 3.0 { 8.0 } else { 0.0 };
+     player.mover.vx = 0.0;
+     player.mover.vz = -speed;
+diff --git a/rust/crates/bbq_app/src/yard_scene.rs b/rust/crates/bbq_app/src/yard_scene.rs
+index 9af61c9..d263879 100644
+--- a/rust/crates/bbq_app/src/yard_scene.rs
++++ b/rust/crates/bbq_app/src/yard_scene.rs
+@@ -27,6 +27,8 @@ pub struct CheekyOnly(pub bool);
+ #[derive(Component)]
+ struct NormalYard;
+ #[derive(Component)]
++struct BackyardCover;
++#[derive(Component)]
+ struct RaceMap;
+ 
+ const LOOK_SEED: u64 = 0xBB0;
+@@ -58,6 +60,8 @@ struct MagpieHead {
+ }
+ #[derive(Component)]
+ struct MagpieBody(f32);
++#[derive(Component)]
++struct MagpieWing { bird:usize, side:f32, base:Transform }
+ /// One of the yard's other eskies and its lid.
+ #[derive(Component)]
+ struct DecorLid(usize);
+@@ -80,7 +84,7 @@ impl Plugin for YardScenePlugin {
+             .add_systems(Startup, build_yard)
+             .add_systems(Update, (crate::grass::sync, crate::grass::distance_cull).chain())
+             .add_systems(PostUpdate, crate::lighting::follow_sky.before(bevy::transform::TransformSystems::Propagate))
+-            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_map, sync_race_map, animate_magpies));
++            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_map, sync_race_map, sync_backyard_cover, animate_magpies));
+     }
+ }
+ 
+@@ -101,6 +105,9 @@ fn build_yard(
+         crate::lighting::spawn_afternoon_sky(&mut commands, &mut meshes, &mut mats);
+     }
+ 
++    let cover=cache.spawn_parts(&mut commands,&looks_yard::backyard_cover(),&mut meshes,&mut mats,Transform::default());
++    commands.entity(cover).insert(BackyardCover);commands.entity(yard_root).add_child(cover);
++
+     // everything that is always there (lawn, fence, house, trees, pool, props)
+     let (world_root, kids) = cache.spawn_parts_with_children(
+         &mut commands,
+@@ -230,7 +237,8 @@ fn build_yard(
+                 MagpieBody(i as f32),
+             ))
+             .id();
+-        let body = cache.spawn_parts(&mut commands, &m.body, &mut meshes, &mut mats, Transform::default());
++        let (body,parts) = cache.spawn_parts_with_children(&mut commands, &m.body, &mut meshes, &mut mats, Transform::default());
++        for (index,side) in [(4,-1.0),(5,-1.0),(8,1.0),(9,1.0)] {commands.entity(parts[index]).insert(MagpieWing{bird:i,side,base:crate::models::transform_of(&m.body[index])});}
+         let head = cache.spawn_parts(
+             &mut commands,
+             &m.head,
+@@ -394,13 +402,18 @@ fn sync_decor_eskies(
+ /// Magpies turn their heads to follow you, cock them now and then, and bob a little.
+ fn animate_magpies(
+     time: Res<Time>,
++    game:Res<Game>,
+     player: Res<crate::player::Player>,
+-    mut heads: Query<(&mut MagpieHead, &mut Transform, &GlobalTransform), Without<MagpieBody>>,
+-    mut bodies: Query<(&MagpieBody, &mut Transform), Without<MagpieHead>>,
++    mut heads: Query<(&mut MagpieHead, &mut Transform, &GlobalTransform), (Without<MagpieBody>,Without<MagpieWing>)>,
++    mut bodies: Query<(&MagpieBody, &mut Transform), (Without<MagpieHead>,Without<MagpieWing>)>,
++    mut wings:Query<(&MagpieWing,&mut Transform),(Without<MagpieBody>,Without<MagpieHead>)>,
+ ) {
+     let t = time.elapsed_secs();
+     let k = 1.0 - (-7.0 * time.delta_secs()).exp();
+     for (mut h, mut tf, gt) in &mut heads {
++        if h.seed==0.0 && game.magpie.phase>0 && game.rules.mode==bbq_core::GameMode::FreeForAll {
++            tf.rotation=Quat::IDENTITY;continue;
++        }
+         let at = gt.translation();
+         let (dx, dz) = (player.mover.x - at.x, player.mover.z - at.z);
+         let dist = dx.hypot(dz).max(0.1);
+@@ -416,7 +429,22 @@ fn animate_magpies(
+         let nod = (t * 3.1 + h.seed).sin().max(0.97) - 0.97;
+         tf.rotation = Quat::from_euler(EulerRot::YXZ, h.yaw, h.pitch + nod * 6.0, cock * 0.5);
+     }
++    for (w,mut tf) in &mut wings {
++        *tf=w.base;
++        if w.bird==0 && game.magpie.phase>0 && game.rules.mode==bbq_core::GameMode::FreeForAll {
++            tf.rotation=Quat::from_rotation_z(w.side*(0.7+(t*24.0).sin()*0.65))*tf.rotation;tf.scale.y*=2.0;
++        }
++    }
+     for (b, mut tf) in &mut bodies {
++        if b.0==0.0 && game.rules.mode==bbq_core::GameMode::FreeForAll {
++            let bird=&game.magpie;let next=Vec3::new(bird.pos.x,bird.pos.y,bird.pos.z);
++            let d=next-tf.translation;tf.translation=next;
++            // Use replicated motion for heading, so guests never need a private target aim.
++            if bird.phase>0 {if d.x*d.x+d.z*d.z>0.000001 {tf.rotation=Quat::from_rotation_y(d.x.atan2(d.z))*Quat::from_rotation_x(if bird.phase==2{0.3}else{-0.15});}}
++            else {tf.rotation=Quat::from_rotation_y(std::f32::consts::PI);}
++            continue;
++        }
++        if b.0==0.0 {tf.translation.x=14.0;tf.translation.z=bbq_core::YARD_HALF_Z+0.05;tf.rotation=Quat::from_rotation_y(std::f32::consts::PI);}
+         tf.translation.y = bbq_core::looks_yard::FENCE_H + ((t * 1.7 + b.0 * 2.0).sin().max(0.92) - 0.92) * 0.25;
+     }
+ }
+@@ -542,3 +570,7 @@ fn sync_race_map(
+  for t in [-0.7_f32,-0.35,0.,0.35,0.7] {parts.extend(looks_yard::place(looks_yard::chair_styled(0),bbq_core::vec::V3::new(45.*t.sin(),0.,-30.5*t.cos()),bbq_core::vec::Quat::from_euler_xyz(0.,-t,0.),1.0));}
+  let e=cache.spawn_parts(&mut commands,&parts,&mut meshes,&mut mats,Transform::default());commands.entity(e).insert(RaceMap);
+ }
++
++fn sync_backyard_cover(game:Res<Game>,mut q:Query<&mut Visibility,With<BackyardCover>>) {
++ for mut v in &mut q {*v=if game.rules.mode==bbq_core::GameMode::FreeForAll {Visibility::Inherited}else{Visibility::Hidden};}
++}
+diff --git a/rust/crates/bbq_core/src/appearance.rs b/rust/crates/bbq_core/src/appearance.rs
+index 1af584c..e717afa 100644
+--- a/rust/crates/bbq_core/src/appearance.rs
++++ b/rust/crates/bbq_core/src/appearance.rs
+@@ -206,7 +206,7 @@ impl Choice for Hat {
+ }
+ 
+ /// How many bytes a look takes in the online messages.
+-pub const LOOK_BYTES: usize = 14;
++pub const LOOK_BYTES: usize = 15;
+ /// How dirty the singlet and shorts are by default (0 spotless to 100 filthy; Marcus, 10 Oct 2026:
+ /// "make the t-shirts a little bit dirty").
+ pub const DIRT_DEFAULT: u8 = 30;
+@@ -250,6 +250,8 @@ pub struct Appearance {
+     pub hat_colour: u8,
+     /// How grubby the singlet and shorts are: 0 spotless to 100 filthy (the Dirty slider).
+     pub dirt: u8,
++    /// 0: squat oval, 50: original head, 100: long oval.
++    pub face_length: u8,
+ }
+ 
+ impl Default for Appearance {
+@@ -269,6 +271,7 @@ impl Default for Appearance {
+             hat: Hat::None,
+             hat_colour: 0,
+             dirt: DIRT_DEFAULT,
++            face_length: 50,
+         }
+     }
+ }
+@@ -299,6 +302,9 @@ impl Palette {
+ }
+ 
+ impl Appearance {
++    pub const FACE_DEFAULT:u8=50;
++    pub fn face_scale(self)->f32 {let n=self.face_length.min(100) as f32; if n<=50.0 {0.75+n*0.005}else{1.0+(n-50.0)*0.012}}
++
+     pub fn colour_index(&self, p: Palette) -> u8 {
+         match p {
+             Palette::Body => self.body,
+@@ -343,6 +349,7 @@ impl Appearance {
+         self.shorts_colour = fix(self.shorts_colour, Palette::Shorts);
+         self.hat_colour = fix(self.hat_colour, Palette::Hat);
+         self.dirt = self.dirt.min(100);
++        self.face_length = self.face_length.min(100);
+         self
+     }
+ 
+@@ -365,6 +372,7 @@ impl Appearance {
+             hat: Hat::None,
+             hat_colour: pick(rng, HAT_COLOURS.len()),
+             dirt: DIRT_DEFAULT,
++            face_length: 50,
+         };
+         // about half wear a hat (picked after everything else so the rest of a look is as it was)
+         a.hat = Hat::from_index(rng.index(6).saturating_sub(2) as u8);
+@@ -382,7 +390,7 @@ impl Appearance {
+     /// `key=value` lines for `settings.txt`.
+     pub fn to_lines(&self) -> String {
+         format!(
+-            "mouth={}\nbrows={}\nhair={}\nbody_colour={}\nsinglet_colour={}\nthong_colour={}\nhair_colour={}\nbrow_colour={}\nlegs={}\nshorts={}\nshorts_colour={}\nhat={}\nhat_colour={}\ndirt={}\nleg_length={}\n",
++            "mouth={}\nbrows={}\nhair={}\nbody_colour={}\nsinglet_colour={}\nthong_colour={}\nhair_colour={}\nbrow_colour={}\nlegs={}\nshorts={}\nshorts_colour={}\nhat={}\nhat_colour={}\ndirt={}\nleg_length={}\nface_length={}\n",
+             self.mouth.name(),
+             self.brows.name(),
+             self.hair.name(),
+@@ -397,7 +405,7 @@ impl Appearance {
+             self.hat.name(),
+             self.hat_colour,
+             self.dirt,
+-            self.legs.percent()
++            self.legs.percent(), self.face_length
+         )
+     }
+ 
+@@ -414,6 +422,7 @@ impl Appearance {
+             "thong_colour" => self.thong = num(value).unwrap_or(self.thong),
+             "hair_colour" => self.hair_colour = num(value).unwrap_or(self.hair_colour),
+             "brow_colour" => self.brow_colour = num(value).unwrap_or(self.brow_colour),
++            "face_length" => { if let Some(n)=num(value) {self.face_length=n.min(100);} },
+             "leg_length" => { if let Some(n)=num(value) {self.legs=Legs::from_percent(n);} },
+             "legs" => self.legs = Legs::from_name(value).unwrap_or(self.legs),
+             "shorts" => self.shorts = Shorts::from_name(value).unwrap_or(self.shorts),
+@@ -444,6 +453,7 @@ impl Appearance {
+             self.hat.index(),
+             self.hat_colour,
+             self.dirt,
++            self.face_length.min(100),
+         ]
+     }
+ 
+@@ -464,6 +474,7 @@ impl Appearance {
+             hat: Hat::from_index(b[11]),
+             hat_colour: b[12],
+             dirt: b[13],
++            face_length: b[14].min(100),
+         }
+         .tidy()
+     }
+@@ -489,7 +500,21 @@ mod tests {
+             hat: Hat::Akubra,
+             hat_colour: 3,
+             dirt: 72,
++            face_length: 85,
++        }
++    }
++
++    #[test]
++    fn face_length_is_bounded_saved_and_replicated() {
++        assert_eq!(Appearance::default().face_scale(),1.0);
++        for n in 0..=100 {
++            let a=Appearance{face_length:n,..Default::default()};
++            assert_eq!(Appearance::from_bytes(a.to_bytes()),a);
++            let mut b=Appearance::default();for line in a.to_lines().lines(){let(k,v)=line.split_once('=').unwrap();b.read_line(k,v);}
++            assert_eq!(a,b);assert!((0.75..=1.6).contains(&a.face_scale()));
+         }
++        let mut a=Appearance::default();a.read_line("face_length","255");assert_eq!(a.face_length,100);
++        a.read_line("face_length","bad");assert_eq!(a.face_length,100);
+     }
+ 
+     #[test]
+diff --git a/rust/crates/bbq_core/src/feel.rs b/rust/crates/bbq_core/src/feel.rs
+index 5b194c8..f6eaa0b 100644
+--- a/rust/crates/bbq_core/src/feel.rs
++++ b/rust/crates/bbq_core/src/feel.rs
+@@ -6,7 +6,8 @@ pub const WINDUP_LIGHT: f32 = 0.10;
+ pub const WINDUP_HEAVY: f32 = 0.20;
+ pub const WIND_SQUASH: f32 = 0.16;
+ pub const RELEASE_STRETCH: f32 = 0.23;
+-pub const THROW_SETTLE: f32 = 0.65;
++pub const THROW_SETTLE: f32 = 0.72;
++pub const THROW_FOLLOW_THROUGH:f32=0.14;
+ pub const HIT_STOP: f32 = 0.070;
+ pub const HIT_SQUASH: f32 = 0.22;
+ pub const HIT_SHOVE: f32 = 0.09;
+@@ -63,7 +64,9 @@ impl Feel {
+                 let s=RELEASE_STRETCH*(0.65+0.7*w)*(-5.0*u).exp()*(u*std::f32::consts::TAU*WOBBLE_CYCLES).cos();
+                 p.body_scale=(1.0-s*0.4,1.0+s);
+                 p.body_rot=p.body_rot.mul(Quat::from_euler_xyz(s,0.0,0.0));
+-                p.body_z+=s*0.15;
++                let reach=(std::f32::consts::PI*(t/0.24).clamp(0.0,1.0)).sin()*(0.7+0.3*w);
++                p.body_z+=s*0.15+reach*THROW_FOLLOW_THROUGH;
++                p.hand_r.z+=reach*0.16;
+             }
+         }
+         if let Some(t)=&mut self.release { *t+=dt;if *t>=THROW_SETTLE {self.release=None;} }
+diff --git a/rust/crates/bbq_core/src/lib.rs b/rust/crates/bbq_core/src/lib.rs
+index 52fd7c9..bbd4d6e 100644
+--- a/rust/crates/bbq_core/src/lib.rs
++++ b/rust/crates/bbq_core/src/lib.rs
+@@ -56,3 +56,5 @@ pub enum GameMode {
+     Smoko,
+     Race,
+ }
++
++pub mod magpie;
+diff --git a/rust/crates/bbq_core/src/looks.rs b/rust/crates/bbq_core/src/looks.rs
+index f0b1576..fa2176d 100644
+--- a/rust/crates/bbq_core/src/looks.rs
++++ b/rust/crates/bbq_core/src/looks.rs
+@@ -1074,12 +1074,12 @@ pub fn dildo_scale(v: DildoVariant) -> f32 {
+ /// Opaque latex keeps the small projectile legible; a tied neck distinguishes it from a ball.
+ pub fn water_balloon(id: u32) -> Vec<Part> {
+     let color = [0x25b8ed, 0xf878a4, 0xffc935, 0x64d5ba][id as usize % 4];
+-    let latex = Surface::shiny(color, 0xffffff, 65.0);
++    let latex = Surface::shiny(color, 0xffffff, 26.0);
+     vec![
+-        Part::new(sphere(0.25, 20, 14), latex).stretch(1.0, 1.12, 1.0),
+-        Part::new(cyl(0.025, 0.07, 0.09, 12), latex).at(0.0, 0.28, 0.0),
++        Part::new(sphere(0.25, 20, 14), latex).at(0.0,-0.025,0.0).stretch(1.06, 1.12, 1.03),
++        Part::new(cyl(0.022, 0.052, 0.065, 12), latex).at(0.0, 0.28, 0.0),
+         Part::new(sphere(0.04, 10, 6), latex).at(0.0, 0.33, 0.0).stretch(1.2, 0.6, 1.0),
+-        Part::new(Shape::Cone { r: 0.045, h: 0.05, seg: 10 }, latex).at(0.0, 0.37, 0.0),
++        Part::new(Shape::Cone { r: 0.031, h: 0.026, seg: 10 }, latex).at(0.014, 0.35, 0.0).turn(0.0,0.0,-0.3),
+     ]
+ }
+ 
+diff --git a/rust/crates/bbq_core/src/looks_yard.rs b/rust/crates/bbq_core/src/looks_yard.rs
+index f59f49b..4c4cdc5 100644
+--- a/rust/crates/bbq_core/src/looks_yard.rs
++++ b/rust/crates/bbq_core/src/looks_yard.rs
+@@ -395,7 +395,7 @@ fn table_bottles() -> Vec<Part> {
+ /// The house in the step 2c look: faded cream paint, a roofline that is a little uneven, and a
+ /// veranda whose roof sags in the middle.
+ fn house_styled() -> Vec<Part> {
+-    let roof = matt(0x9a4636);
++    let roof = matt(0xb36149).textured(Tex::Corrugated).repeating(20.0, 2.0);
+     let mut v = vec![
+         cuboid(40.0, 4.6, 8.0, matt(0xf3ead4).textured(Tex::Weatherboard).repeating(20.0, 3.0), 0.0, 2.3, -29.5),
+         // two roof slabs, one a hair lower and tilted so the ridge is not dead straight
+@@ -428,6 +428,14 @@ fn house_styled() -> Vec<Part> {
+         v.push(cuboid(len + 0.1, 0.1, vd + 0.2, matt(0x8a6a4a), mx, my, vz + vd / 2.0).turn(0.0, 0.0, ang));
+         v.push(cuboid(len + 0.1, 0.05, vd + 0.25, roof, mx, my + 0.08, vz + vd / 2.0).turn(0.12, 0.0, ang));
+     }
++    // Broad readable trims; no fine noise or new texture assets.
++    for z in [-25.42,-33.58] {v.push(cuboid(40.4,0.20,0.14,matt(0xf4e4c6),0.0,4.55,z));}
++    for x in [-19.9,19.9] {v.push(cuboid(0.16,4.5,0.16,matt(0xe6d2aa),x,2.25,-25.43));}
++    for x in [-15.0,-9.0,-4.0,8.0,13.5] {
++        v.push(cuboid(0.065,1.22,0.04,matt(0xf8eddb),x,2.5,-25.37));
++        v.push(cuboid(1.65,0.065,0.04,matt(0xf8eddb),x,2.5,-25.37));
++        v.push(cuboid(2.02,0.12,0.20,matt(0xd6c29b),x,1.72,-25.39));
++    }
+     // the rainwater tank
+     v.push(cyl(1.3, 1.3, 2.6, 20, matt(0x9fb0a4), 22.0, 1.3, -27.8));
+     v.push(cyl(1.35, 1.35, 0.1, 20, matt(0x8a9a8f), 22.0, 2.62, -27.8));
+@@ -800,8 +808,8 @@ fn cloud(rng: &mut Rng) -> (V3, Vec<Part>) {
+         );
+         puffs.push(
+             Part::new(
+-                Shape::Ico { r, detail: 1 },
+-                matt(0xffffff).faceted().glow(0x8899aa).no_shadow(),
++                Shape::Sphere { r, ws: 16, hs: 10 },
++                matt(0xe2eaf0).no_shadow(),
+             )
+             .at(px, py, pz)
+             .stretch(1.0, 0.45, 1.0),
+@@ -1021,6 +1029,14 @@ fn house() -> Vec<Part> {
+         v.push(cuboid(1.6, 1.2, 0.08, matt(0x2d4b66), x, 2.5, -25.44));
+     }
+     v.push(cuboid(1.1, 2.2, 0.08, matt(0x7a4b2e), 3.0, 1.1, -25.44));
++    // Broad readable trims; no fine noise or new texture assets.
++    for z in [-25.42,-33.58] {v.push(cuboid(40.4,0.20,0.14,matt(0xf4e4c6),0.0,4.55,z));}
++    for x in [-19.9,19.9] {v.push(cuboid(0.16,4.5,0.16,matt(0xe6d2aa),x,2.25,-25.43));}
++    for x in [-15.0,-9.0,-4.0,8.0,13.5] {
++        v.push(cuboid(0.065,1.22,0.04,matt(0xf8eddb),x,2.5,-25.37));
++        v.push(cuboid(1.65,0.065,0.04,matt(0xf8eddb),x,2.5,-25.37));
++        v.push(cuboid(2.02,0.12,0.20,matt(0xd6c29b),x,1.72,-25.39));
++    }
+     // the rainwater tank
+     v.push(cyl(1.3, 1.3, 2.6, 20, matt(0x9fb0a4), 22.0, 1.3, -27.8));
+     v.push(cyl(1.35, 1.35, 0.1, 20, matt(0x8a9a8f), 22.0, 2.62, -27.8));
+@@ -1976,8 +1992,8 @@ fn neighbour_house(rng: &mut Rng, w: f32, d: f32) -> Vec<Part> {
+     let slab_d = (d * 0.5 + 0.7) / a.cos();
+     let rise = d * 0.25 * a.tan();
+     let mut v = vec![
+-        cuboid(w, h, d, matt(wall), 0.0, h / 2.0, 0.0),
+-        cuboid(w + 0.9, 0.15, slab_d, matt(roof), 0.0, h + rise + 0.08, d * 0.25).turn(a, 0.0, 0.0),
++        cuboid(w, h, d, matt(wall).textured(Tex::Weatherboard).repeating(w*0.5,2.5), 0.0, h / 2.0, 0.0),
++        cuboid(w + 0.9, 0.15, slab_d, matt(roof).textured(Tex::Corrugated).repeating(w*0.5,2.0), 0.0, h + rise + 0.08, d * 0.25).turn(a, 0.0, 0.0),
+         cuboid(w + 0.9, 0.15, slab_d, matt(shade_surface(matt(roof), 0.92).color), 0.0, h + rise + 0.08, -d * 0.25).turn(-a, 0.0, 0.0),
+         // the roof's end triangles are left open, so close them with a wall slab under the ridge
+         cuboid(w, rise * 1.1, d * 0.5, matt(shade_surface(matt(wall), 0.96).color), 0.0, h + rise * 0.5, 0.0),
+@@ -2707,3 +2723,16 @@ mod tests {
+         }
+     }
+ }
++
++/// Visible faces and collision use the same sizes; lid trim stays inside the bounding box.
++pub fn backyard_cover()->Vec<Part> {
++ let mut parts=Vec::new();
++ for (x,z,w,d,h) in crate::yard::BACKYARD_COVER {
++  parts.push(cuboid(w,h,d,matt(0xb98c58).textured(Tex::Wood),x,h/2.0,z));
++  for side in [-1.0,1.0] {
++   parts.push(cuboid(w,0.065,0.06,matt(0xe1b981),x,h-0.0325,z+side*(d/2.0-0.03)));
++   parts.push(cuboid(0.065,h,0.065,matt(0x94653e),x+side*(w/2.0-0.0325),h/2.0,z+d/2.0-0.0325));
++  }
++ }
++ parts
++}
+diff --git a/rust/crates/bbq_core/src/net.rs b/rust/crates/bbq_core/src/net.rs
+index 2130274..6a7098e 100644
+--- a/rust/crates/bbq_core/src/net.rs
++++ b/rust/crates/bbq_core/src/net.rs
+@@ -13,7 +13,7 @@
+ 
+ /// Bump this whenever a message changes, so old and new copies of the game refuse each other
+ /// politely instead of misreading each other.
+-pub const PROTOCOL: u16 = 12;
++pub const PROTOCOL: u16 = 13;
+ /// The most people in one yard (the browser game's limit).
+ pub const MAX_PLAYERS: usize = 16;
+ /// How often each player reports where they are.
+diff --git a/rust/crates/bbq_core/src/net_world.rs b/rust/crates/bbq_core/src/net_world.rs
+index 8691cf6..dee7d91 100644
+--- a/rust/crates/bbq_core/src/net_world.rs
++++ b/rust/crates/bbq_core/src/net_world.rs
+@@ -152,6 +152,7 @@ pub struct RaceSnap {
+ }
+ #[derive(Clone, Debug, PartialEq)]
+ pub struct WorldSnap {
++    pub magpie: (u8,u32,(f32,f32,f32)),
+     pub race: Vec<RaceSnap>,
+     /// Host-only status, including zero for recovery. Position bounds wet remote prediction.
+     pub wet: Vec<WetSnap>,
+@@ -174,6 +175,7 @@ pub struct WorldSnap {
+ 
+ impl WorldSnap {
+     pub(crate) fn write(&self, w: &mut Writer) {
++        w.u8(self.magpie.0);w.u32(self.magpie.1);w.triple(self.magpie.2);
+         w.u8(self.wet.len().min(MAX_BOARD) as u8);
+         for s in self.wet.iter().take(MAX_BOARD) {
+             w.u32(s.id); w.f32(s.remaining); w.triple(s.pos);
+@@ -270,6 +272,7 @@ impl WorldSnap {
+             let n = r.u8()? as usize;
+             if n > max { Err(DecodeError::TooMany) } else { Ok(n) }
+         };
++        let magpie=(r.u8()?.min(3),r.u32()?,r.triple()?);
+         let n = count(r, MAX_BOARD)?;
+         let mut wet = Vec::with_capacity(n);
+         for _ in 0..n {
+@@ -369,7 +372,7 @@ impl WorldSnap {
+         for _ in 0..n {
+             fx.push(FxSnap { kind: r.u8()?, at: r.triple()? });
+         }
+-        Ok(WorldSnap { race, wet, seq, now, round, items, bots, dazza, board, teams, feed, fx })
++        Ok(WorldSnap { magpie, race, wet, seq, now, round, items, bots, dazza, board, teams, feed, fx })
+     }
+ }
+ 
+@@ -380,6 +383,7 @@ mod tests {
+ 
+     fn sample() -> WorldSnap {
+         WorldSnap {
++            magpie:(0,0,(14.0,2.2,23.05)),
+             race:vec![],
+             wet: vec![WetSnap { id: 2, remaining: 3.75, pos: (1.0, 0.0, 2.0) }],
+             seq: 42,
+@@ -471,7 +475,7 @@ mod tests {
+         let mut s = sample();
+         s.round.banner = None;
+         let mut bytes = Msg::World(Box::new(s)).encode();
+-        let at = 1 + 1 + 20 + 1 + 4 + 4 + 3 + 4 + 4 + 8 + 1 + 1; // kind, seq, now, phase/mode/features, time, round/len/spot/stock, smoko, heist, banner flag
++        let at = 17 + 1 + 1 + 20 + 1 + 4 + 4 + 3 + 4 + 4 + 8 + 1 + 1; // kind, seq, now, phase/mode/features, time, round/len/spot/stock, smoko, heist, banner flag
+         bytes[at] = 200;
+         assert!(Msg::decode(&bytes).is_err());
+         // every cut-off version is refused, never a panic
+diff --git a/rust/crates/bbq_core/src/yard.rs b/rust/crates/bbq_core/src/yard.rs
+index 766aba4..55ec642 100644
+--- a/rust/crates/bbq_core/src/yard.rs
++++ b/rust/crates/bbq_core/src/yard.rs
+@@ -28,6 +28,7 @@ pub enum Kind {
+     HeistWall,
+     Steps,
+     HeistCrate,
++    BackyardCover,
+ }
+ 
+ /// The four map features the host can switch off.
+@@ -446,3 +447,21 @@ mod tests {
+         }
+     }
+ }
++
++/// Modest cover away from starts, pool, clothesline and pickup stations: x,z,width,depth,height.
++pub const BACKYARD_COVER:[(f32,f32,f32,f32,f32);3]=[
++ (-8.0,4.5,1.8,1.1,0.9),(7.5,11.0,1.5,1.1,0.75),(17.0,-9.0,1.8,1.1,0.9),
++];
++impl Yard {
++ pub fn set_backyard_cover(&mut self,on:bool) {
++  let has=self.colliders.iter().any(|c|c.kind==Kind::BackyardCover);
++  if has==on{return;}
++  self.colliders.retain(|c|c.kind!=Kind::BackyardCover);
++  if on && !self.race {for (x,z,w,d,h) in BACKYARD_COVER {self.colliders.push(Collider::centred(x,z,w,d,h).of(Kind::BackyardCover));}}
++ }
++}
++
++#[cfg(test)] mod backyard_cover_tests {
++ use super::*;
++ #[test] fn cover_is_mode_scoped_and_never_duplicates(){let mut y=Yard::default();let n=y.colliders.len();y.set_backyard_cover(true);y.set_backyard_cover(true);assert_eq!(y.colliders.len(),n+3);for (x,z,w,d,h) in BACKYARD_COVER {assert!(h<=1.05);assert!(CHAR_SPAWNS.iter().all(|(a,b)|(*a-x).abs()>w/2.0+0.5 || (*b-z).abs()>d/2.0+0.5));}y.set_backyard_cover(false);assert_eq!(y.colliders.len(),n);}
++}
+diff --git a/rust/crates/bbq_app/src/magpie.rs b/rust/crates/bbq_app/src/magpie.rs
+new file mode 100644
+index 0000000..ad3d86b
+--- /dev/null
++++ b/rust/crates/bbq_app/src/magpie.rs
+@@ -0,0 +1,66 @@
++//! Backyard nuisance bird integration. All hit/score decisions run only on the host.
++use bbq_core::{GameMode,flight::ItemState,magpie::*,vec::V3};
++use crate::{game::Game,player::{Player,PLAYER_ID}};
++
++pub fn step(g:&mut Game,p:&Player,dt:f32) {
++    let enabled=g.rules.mode==GameMode::FreeForAll && g.rules.in_play() && !g.attract;
++    let mut targets=Vec::new();
++    if !g.me.body.is_down() && g.me.body.stun<=0.0 && !p.mover.in_pool {
++        targets.push((PLAYER_ID,V3::new(p.mover.x,p.mover.y+p.mover.height-0.25,p.mover.z)));
++    }
++    for d in &g.dummies {
++        if !d.body.is_down() && d.body.stun<=0.0 && !d.mover.in_pool {
++            targets.push((d.id,V3::new(d.mover.x,d.mover.y+d.mover.height-0.25,d.mover.z)));
++        }
++    }
++    if enabled && matches!(g.magpie.phase,1|2) {
++        // Only an actual live projectile crossing the bird repels it; scenery misses do not.
++        let hit=g.world.items.values().find(|it|it.state==ItemState::Flying && it.live && segment_distance(g.magpie.pos,it.pos,it.pos+it.vel*dt)<0.48).map(|it|it.id);
++        let caught=(g.catcher.open() && (g.magpie.pos-V3::new(p.mover.x,p.mover.y+p.mover.height-0.2,p.mover.z)).len()<1.3)
++            || g.dummies.iter().any(|d|d.bot.catcher.open() && (g.magpie.pos-V3::new(d.mover.x,d.mover.y+d.mover.height-0.2,d.mover.z)).len()<1.3);
++        if hit.is_some() || caught {
++            if let Some(id)=hit {if let Some(it)=g.world.items.get_mut(&id){it.live=false;it.vel=it.vel*0.35;}}
++            g.magpie.repel();g.say("Magpie chased off!");
++        }
++    }
++    let old=g.magpie.phase;
++    if let Some(victim)=g.magpie.tick(dt,enabled,&targets) {
++        let score=g.board.award(&g.rules,victim,PECK_POINTS);
++        if score!=0 {let who=crate::bots_app::name_of(g,victim);g.say(format!("Magpie pecked {who}: -10"));
++            if victim==PLAYER_ID {g.popup("MAGPIE! -10",false);}
++        }
++    }
++    if old==0 && g.magpie.phase==1 {let who=crate::bots_app::name_of(g,g.magpie.target);g.say(format!("MAGPIE SWOOP! {who}, dodge or catch!"));}
++}
++
++#[cfg(test)] mod tests {
++ use super::*;
++ use bevy::prelude::*;
++ fn setup()->(App,Player){let mut app=App::new();app.add_plugins(MinimalPlugins);app.add_plugins(crate::game::GamePlugin);
++ let p=Player{mover:bbq_core::movement::Mover::new(0.0,0.0),prev:Vec3::ZERO,yaw:0.0,pitch:0.0,walk:0.0,shake:0.0,fov_base:85.0,fov:85.0,rng:bbq_core::rng::Rng::new(1)};
++ {let mut g=app.world_mut().resource_mut::<Game>();g.world.clear();g.dummies.clear();g.magpie.phase=2;g.magpie.timer=0.0;g.magpie.target=PLAYER_ID;g.magpie.pos=V3::new(0.0,1.70,0.5);g.magpie.aim=V3::new(0.0,1.70,0.0);}
++ (app,p)}
++ #[test] fn only_backyard_loses_ten_and_repeat_ticks_do_not_charge_again(){
++  for mode in [GameMode::FreeForAll,GameMode::Teams,GameMode::Heist,GameMode::Smoko,GameMode::Race]{
++   let(mut app,p)=setup();let mut g=app.world_mut().resource_mut::<Game>();g.rules.mode=mode;
++   for _ in 0..60 {step(&mut g,&p,1.0/60.0);}
++   assert_eq!(g.board.score(PLAYER_ID),if mode==GameMode::FreeForAll{-10}else{0});
++  }
++ }
++ #[test] fn only_live_projectile_intersection_repels(){
++  for on_target in [false,true]{let(mut app,p)=setup();let mut g=app.world_mut().resource_mut::<Game>();
++   g.magpie.pos=V3::new(0.0,2.0,4.0);g.magpie.aim=V3::new(0.0,2.0,0.0);
++   let mut it=bbq_core::flight::Item::new(999,bbq_core::items::ItemKind::Teddy,V3::new(if on_target{0.0}else{3.0},2.0,4.0));
++   it.state=ItemState::Flying;it.live=true;g.world.items.insert(999,it);step(&mut g,&p,1.0/60.0);
++   assert_eq!(g.magpie.phase==3,on_target);assert_eq!(g.world.items[&999].live,!on_target);assert_eq!(g.board.score(PLAYER_ID),0);
++  }
++ }
++ #[test] fn menu_countdown_results_reset_attack_without_points(){
++  use bbq_core::scoring::Phase;
++  for (phase,attract) in [(Phase::Countdown,false),(Phase::Results,false),(Phase::Play,true)] {
++   let(mut app,p)=setup();let mut g=app.world_mut().resource_mut::<Game>();g.rules.phase=phase;g.attract=attract;
++   step(&mut g,&p,1.0/60.0);assert_eq!(g.magpie,Bird::default());assert_eq!(g.board.score(PLAYER_ID),0);
++  }
++ }
++
++}
+diff --git a/rust/crates/bbq_core/src/magpie.rs b/rust/crates/bbq_core/src/magpie.rs
+new file mode 100644
+index 0000000..88ed005
+--- /dev/null
++++ b/rust/crates/bbq_core/src/magpie.rs
+@@ -0,0 +1,55 @@
++//! One Backyard-only nuisance bird. Host advances this state; peers only draw snapshots.
++use crate::vec::V3;
++pub const PECK_POINTS:i32=-10;
++pub const REST_SECONDS:f32=16.0;
++pub const WARNING_SECONDS:f32=1.25;
++pub const SWOOP_SPEED:f32=19.0;
++pub const PECK_RADIUS:f32=0.70;
++pub const PERCH:V3=V3::new(14.0,crate::looks_yard::FENCE_H,crate::YARD_HALF_Z+0.05);
++
++#[derive(Clone,Debug,PartialEq)]
++pub struct Bird {
++    /// 0 perched, 1 warning, 2 committed swoop, 3 retreat.
++    pub phase:u8, pub pos:V3, pub target:u32, pub timer:f32,
++    pub aim:V3, pub previous_target:u32,
++}
++impl Default for Bird {
++    fn default()->Self {Self{phase:0,pos:PERCH,target:0,timer:REST_SECONDS,aim:PERCH,previous_target:0}}
++}
++impl Bird {
++    pub fn repel(&mut self) {self.phase=3;self.timer=0.0;self.target=0;}
++    /// Targets contain only standing, active participants. Lock aim after warning so dodging works.
++    pub fn tick(&mut self,dt:f32,enabled:bool,targets:&[(u32,V3)])->Option<u32> {
++        if !enabled {*self=Self::default();return None;}
++        let dt=dt.clamp(0.0,0.05);
++        if self.phase>0 && self.phase<3 && !targets.iter().any(|t|t.0==self.target) {self.repel();}
++        match self.phase {
++            0=>{self.timer-=dt;if self.timer<=0.0 {
++                let t=targets.iter().filter(|t|t.0>self.previous_target).min_by_key(|t|t.0).or_else(||targets.iter().min_by_key(|t|t.0));
++                if let Some(&(id,at))=t {self.target=id;self.aim=at;self.phase=1;self.timer=WARNING_SECONDS;}else{self.timer=2.0;}
++            }},
++            1=>{self.timer-=dt;if let Some(t)=targets.iter().find(|t|t.0==self.target){self.aim=t.1;}
++                self.pos=PERCH+V3::new(0.0,(WARNING_SECONDS-self.timer)*0.45,0.0);
++                if self.timer<=0.0 {self.phase=2;self.timer=0.0;}
++            },
++            2=>{let old=self.pos;let d=self.aim-self.pos;self.pos=self.pos+d.normalised()*(SWOOP_SPEED*dt).min(d.len());
++                self.timer+=dt;
++                let hit=targets.iter().find(|t|t.0==self.target && segment_distance(t.1,old,self.pos)<PECK_RADIUS).map(|t|t.0);
++                if hit.is_some() || (self.pos-self.aim).len()<0.05 || self.timer>4.0 {self.previous_target=self.target;self.repel();}
++                return hit;
++            },
++            _=>{let d=PERCH-self.pos;self.pos=self.pos+d.normalised()*(12.0*dt).min(d.len());
++                if d.len()<0.1 {self.phase=0;self.pos=PERCH;self.timer=REST_SECONDS;}
++            },
++        }
++        None
++    }
++}
++pub fn segment_distance(p:V3,a:V3,b:V3)->f32 {let d=b-a;let t=((p-a).dot(d)/d.dot(d).max(0.00001)).clamp(0.0,1.0);(p-(a+d*t)).len()}
++
++#[cfg(test)] mod tests {
++ use super::*;
++ #[test] fn contact_scores_once_and_retreats(){let mut b=Bird::default();b.timer=0.0;let t=[(1,V3::new(10.0,1.8,10.0))];let mut hits=0;for _ in 0..400 {hits+=b.tick(1.0/60.0,true,&t).is_some() as u32;}assert_eq!(hits,1);assert_eq!(b.target,0);}
++ #[test] fn dodge_disconnect_and_disabled_never_peck(){let mut b=Bird::default();b.phase=2;b.timer=0.0;b.target=1;b.aim=V3::ZERO;b.pos=V3::new(0.0,0.0,1.0);assert_eq!(b.tick(0.05,true,&[(1,V3::new(5.0,0.0,0.0))]),None);b.target=1;b.phase=2;assert_eq!(b.tick(0.02,true,&[]),None);assert_eq!(b.phase,3);b.tick(0.02,false,&[]);assert_eq!(b,Bird::default());}
++ #[test] fn repel_cancels_the_swoop(){let mut b=Bird::default();b.phase=2;b.timer=0.0;b.target=1;b.repel();for _ in 0..60{assert_eq!(b.tick(0.016,true,&[(1,PERCH)]),None);}}
++}

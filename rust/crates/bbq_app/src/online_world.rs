@@ -255,7 +255,8 @@ pub fn build_world(g: &Game, yard: &Yard, seq: u32, feed_after: f32, fx: &[FxEve
         for (id,r) in &g.race.racers {race.push(RaceSnap{id:net(*id),thrower:false,passed:r.passed as u8,finish:r.finish.unwrap_or(-1.),score:0,streak:0,hits:0,disconnected:r.disconnected});}
         for (id,t) in &g.race.throwers {race.push(RaceSnap{id:net(*id),thrower:true,passed:0,finish:-1.,score:t.score,streak:t.streak,hits:t.hits,disconnected:t.disconnected});}
     }
-    WorldSnap { race, wet, seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
+    let b=&g.magpie;let magpie=(b.phase,if b.target==0{0}else{net(b.target)},(b.pos.x,b.pos.y,b.pos.z));
+    WorldSnap { magpie, race, wet, seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
 }
 
 /// Make this game look like the host's. `my_net` is our own number; `host_name` replaces
@@ -263,6 +264,8 @@ pub fn build_world(g: &Game, yard: &Yard, seq: u32, feed_after: f32, fx: &[FxEve
 pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32, host_name: &str) {
     let local = |net: u32| local_of_net(net, my_net);
     g.mirror = true;
+    g.magpie.phase=snap.magpie.0;g.magpie.target=if snap.magpie.1==0{0}else{local(snap.magpie.1)};
+    g.magpie.pos=V3::new(snap.magpie.2.0,snap.magpie.2.1,snap.magpie.2.2);
 
     // ---- the round ----
     let r = &snap.round;
@@ -560,6 +563,18 @@ pub fn mirror_tick(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
 mod tests {
     use super::*;
     use bevy::prelude::*;
+
+    #[test]
+    fn magpie_host_state_and_score_replicate_without_duplicate_penalty(){
+        let mut host=app();
+        {let mut g=host.world_mut().resource_mut::<Game>();g.magpie.phase=2;g.magpie.target=REMOTE_ID_BASE+2;g.magpie.pos=V3::new(3.0,2.0,4.0);g.board.ensure(REMOTE_ID_BASE+2);let rules=g.rules.clone();g.board.award(&rules,REMOTE_ID_BASE+2,-10);}
+        let snap=build_world(host.world().resource::<Game>(),&Yard::default(),1,-1.0,&[]);
+        let bbq_core::net::Msg::World(snap)=bbq_core::net::Msg::decode(&bbq_core::net::Msg::World(Box::new(snap)).encode()).unwrap()else{panic!()};
+        let mut guest=app();let mut yard=Yard::default();
+        let mut g=guest.world_mut().resource_mut::<Game>();
+        for _ in 0..2 {apply_world(&mut g,&mut yard,&snap,2,"Host");}
+        assert_eq!(g.magpie.target,PLAYER_ID);assert_eq!(g.magpie.phase,2);assert_eq!(g.magpie.pos,V3::new(3.0,2.0,4.0));assert_eq!(g.board.score(PLAYER_ID),-10);
+    }
 
     #[test]
     fn balloon_host_hit_replicates_and_recovers_without_replaying_timer() {
@@ -980,6 +995,53 @@ mod tests {
     }
 
     #[test]
+    fn guest_bare_hit_can_be_followed_by_smoko_pickup_and_is_rate_limited() {
+        let mut app=host_with_a_guest();let id=REMOTE_ID_BASE+2;
+        {let mut g=app.world_mut().resource_mut::<Game>();g.options.adult=true;g.rules.mode=GameMode::Smoko;g.world.clear();}
+        app.world_mut().resource_mut::<Player>().mover=bbq_core::movement::Mover::new(8.0,-1.5);
+        act(&mut app,GuestAct::BareSlap);
+        {let mut g=app.world_mut().resource_mut::<Game>();assert_eq!(g.me.body.stun,melee::SILLY_STUN);g.me.body.tick(1.0);}
+        act(&mut app,GuestAct::BareSlap);
+        assert_eq!(app.world().resource::<Game>().me.body.stun,1.5,"replayed input cannot reset stun");
+        // Contact is grounded and in reach after the shove lands; carrying uses its existing rules.
+        {let mut p=app.world_mut().resource_mut::<Player>();p.mover.y=0.0;}
+        act(&mut app,GuestAct::Carry{pressed:true});
+        assert_eq!(app.world().resource::<Game>().smoko.carries[&id].victim,PLAYER_ID);
+    }
+
+    #[test]
+    fn guest_bare_hit_rejects_invalid_requests_and_notifies_remote_victims() {
+        for invalid in 0..6 {
+            let mut app=host_with_a_guest();
+            app.world_mut().resource_mut::<Player>().mover=bbq_core::movement::Mover::new(8.0,-1.5);
+            {let mut g=app.world_mut().resource_mut::<Game>();g.options.adult=true;g.world.clear();
+                match invalid {0=>g.options.adult=false,1=>g.rules.phase=Phase::Countdown,
+                    2=>g.dummies.iter_mut().find(|d|d.remote.is_some()).unwrap().body.stun=1.0,
+                    3=>g.dummies.iter_mut().find(|d|d.remote.is_some()).unwrap().face=0.0,_=>{}}
+            }
+            if invalid==4 {give_guest(&mut app,ItemKind::Teddy,None);}
+            if invalid==5 {app.world_mut().resource_mut::<Player>().mover.x=20.0;}
+            act(&mut app,GuestAct::BareSlap);assert_eq!(app.world().resource::<Game>().me.body.stun,0.0);
+        }
+        // Host empty-handed hit must send the same stun to the guest who was hit.
+        let mut app=host_with_a_guest();
+        {let mut p=app.world_mut().resource_mut::<Player>();p.mover=bbq_core::movement::Mover::new(8.0,1.5);p.yaw=0.0;}
+        let mut p=app.world_mut().remove_resource::<Player>().unwrap();
+        let mut g=app.world_mut().resource_mut::<Game>();g.options.adult=true;g.slots.clear();
+        crate::life::bare_slap(&mut g,&mut p);
+        assert!(g.net_hits.iter().any(|(id,h)|*id==REMOTE_ID_BASE+2 && matches!(h,HitMsg::Slap{stun,..} if *stun==melee::SILLY_STUN)));
+    }
+
+    #[test]
+    fn empty_guest_click_sends_only_host_resolved_bare_action() {
+        let mut a=app();let mut p=a.world_mut().remove_resource::<Player>().unwrap();
+        let mut g=a.world_mut().resource_mut::<Game>();g.options.adult=true;g.slots.clear();g.rules.phase=Phase::Play;
+        let mut w=Wanted::default();w.throw_down=true;guest_hands(&mut g,&mut p,&mut w,1.0/60.0);
+        assert_eq!(g.net_acts,vec![GuestAct::BareSlap]);
+        w.throw_down=true;guest_hands(&mut g,&mut p,&mut w,1.0/60.0);assert_eq!(g.net_acts.len(),1);
+    }
+
+    #[test]
     fn a_guests_slap_hits_the_person_in_front_of_them() {
         let mut app = host_with_a_guest_and(1);
         let id = give_guest(&mut app, ItemKind::Steak, None);
@@ -1241,6 +1303,12 @@ pub fn guest_hands(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
     if std::mem::take(&mut wanted.throw_down) {
         match g.wind.press(now, selected_kind, &situation) {
             Press::SlapNow => guest_slap(g),
+            Press::Refused(hands::Refuse::NothingHeld) => {
+                if g.options.adult && g.slots.is_empty() && g.life.slap.ready(now,false) {
+                    g.life.slap.mark(now);g.life.me_swing=melee::SWING_TIME;
+                    g.net_acts.push(GuestAct::BareSlap);
+                }
+            }
             Press::Charging | Press::Refused(_) => {}
         }
     }
@@ -1413,6 +1481,7 @@ pub fn apply_guest_act(g: &mut Game, p: &mut Player, net_id: u32, act: &GuestAct
     let holds = |g: &Game, item: u32| g.dummies[i].bot.slots.ids().contains(&item);
     match act {
         GuestAct::RaceRole {..} => {},
+        GuestAct::BareSlap => {if can_act {crate::life::guest_bare_slap(g,p,i);}},
         GuestAct::Carry { pressed } => crate::smoko_mode::input(g,p,id,*pressed),
         GuestAct::Select { item } => {
             let slots = &mut g.dummies[i].bot.slots;

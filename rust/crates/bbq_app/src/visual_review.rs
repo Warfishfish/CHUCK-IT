@@ -145,7 +145,7 @@ fn motion_mode() -> Option<&'static str> {
     MODE.get_or_init(|| {
         let a: Vec<String> = std::env::args().collect();
         if !a.iter().any(|v|v=="--shot") || !a.iter().any(|v|v=="--review") { return None; }
-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height"].contains(&v.as_str())).cloned()
+        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie"].contains(&v.as_str())).cloned()
     }).as_deref()
 }
 
@@ -155,6 +155,19 @@ pub fn is_scripted_walk_review() -> bool { matches!(motion_mode(),Some("water-ba
 fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut wanted: ResMut<crate::player::Wanted>, mut frame: Local<u32>) {
     let Some(mode) = motion_mode() else { return };
     if mode=="race" {return;}
+    if mode=="magpie" {
+        *frame+=1;game.options.bots_on=false;
+        if *frame==120 {
+            game.attract=false;game.rules.phase=bbq_core::scoring::Phase::Play;game.round.time_left=180.0;
+            game.world.clear();game.dummies.truncate(1);game.board.clear();game.board.ensure(100);
+            if let Some(d)=game.dummies.first_mut(){d.mover=bbq_core::movement::Mover::new(0.0,10.0);d.home=(0.0,10.0);d.body=Default::default();}
+            player.mover=bbq_core::movement::Mover::new(0.0,18.0);
+            game.life.dazza.pos=bbq_core::vec::V3::new(1000.0,0.0,1000.0);
+        }
+        if *frame==180 {game.magpie.phase=1;game.magpie.target=100;game.magpie.timer=bbq_core::magpie::WARNING_SECONDS;}
+        if *frame>=180 && *frame%30==0 {println!("MAGPIE_REVIEW frame={} phase={} score={}",*frame,game.magpie.phase,game.board.score(100));}
+        return;
+    }
     if mode=="height" {
         *frame+=1;game.options.bots_on=false;
         if *frame==120 {
@@ -257,13 +270,13 @@ fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate:
 
 // Controlled first-person input playback. The camera remains in one location so
 // shape and spring behaviour are easy to compare; speed/turn inputs are staged.
-fn held_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut frame: Local<u32>) {
+fn held_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut wanted:ResMut<crate::player::Wanted>, mut frame: Local<u32>) {
     let Some(mode) = motion_mode().filter(|m| m.starts_with("held-")) else { return; };
     *frame += 1;
     let t = (*frame as f32 - 180.0) / 60.0;
     use bbq_core::{flight::{Item,ItemState},items::ItemKind,vec::V3};
     if *frame == 120 {
-        let kind = if mode == "held-noodle" { ItemKind::Noodle } else { ItemKind::Dildo };
+        let kind = if mode == "held-noodle" { ItemKind::Noodle } else if mode=="held-balloon" {ItemKind::WaterBalloon} else { ItemKind::Dildo };
         let mut item = Item::new(900001,kind,V3::ZERO);
         item.state = ItemState::Held;
         item.holder = Some(crate::player::PLAYER_ID);
@@ -271,6 +284,7 @@ fn held_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::p
         game.slots.clear();
         game.slots.add(900001);
     }
+    if mode=="held-balloon" {if *frame==330 {wanted.throw_down=true;}if *frame==375 {wanted.throw_up=true;}}
     let speed = if t < 0.5 { 0.0 } else if t < 1.5 { 3.0 } else if t < 3.0 { 8.0 } else { 0.0 };
     player.mover.vx = 0.0;
     player.mover.vz = -speed;

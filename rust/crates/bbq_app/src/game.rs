@@ -196,6 +196,7 @@ pub struct Game {
     pub remotes: Vec<RemoteInfo>,
     pub smoko: crate::smoko_mode::State,
     pub race: crate::race::State,
+    pub magpie: bbq_core::magpie::Bird,
     /// Online guest: this game does not run the yard, it shows what the host says (see
     /// `online_world.rs`).
     pub mirror: bool,
@@ -309,6 +310,7 @@ impl Plugin for GamePlugin {
             fx: Vec::new(),
             remotes: Vec::new(),
             smoko: Default::default(),
+            magpie:Default::default(),
             race: Default::default(),
             mirror: false,
             net_fx: false,
@@ -354,12 +356,13 @@ pub fn step_game(
     mut g: ResMut<Game>,
     mut player: ResMut<Player>,
     mut wanted: ResMut<Wanted>,
-    yard: Res<YardRes>,
+    mut yard: ResMut<YardRes>,
     cast: Option<Res<crate::characters::Cast>>,
 ) {
+    yard.0.set_backyard_cover(g.rules.mode==GameMode::FreeForAll);
     for (i,d) in g.dummies.iter_mut().enumerate() {
         let c=d.remote.as_ref().map(|r|r.character).or_else(||cast.as_ref().map(|c|c.character_of(i))).unwrap_or(bbq_core::character::Character::Classic);
-        d.mover.height=crate::style::measure(c).head_top+d.look.legs.lift();
+        d.mover.height=crate::style::head_height(c,d.look)+d.look.legs.lift();
     }
     let dt = TICK_DT;
     g.now += dt;
@@ -596,6 +599,8 @@ pub fn step_game(
         let can = g.rules.in_play() && g.me.body.stun <= 0.0;
         g.catcher.press(can);
     }
+
+    crate::magpie::step(g,p,dt);
 
     // ---- pick things up ----
     if g.rules.phase != Phase::Countdown
@@ -1811,6 +1816,33 @@ mod tests {
             .body
             .start_fall(10.0);
         ticks(app, 2);
+    }
+
+    #[test]
+    fn bare_hit_leaves_time_to_approach_and_pick_up_in_backyard_and_smoko() {
+        for mode in [GameMode::FreeForAll, GameMode::Smoko] {
+            let mut app=app();near_dummy0(&mut app);
+            {let mut g=app.world_mut().resource_mut::<Game>();g.options.adult=true;g.rules.mode=mode;}
+            click(&mut app);ticks(&mut app,60);
+            let (x,z)={let g=app.world().resource::<Game>();let d=&g.dummies[0];
+                assert!(d.body.stun>1.0);assert!(d.mover.y<0.6,"victim must land before pickup");(d.mover.x,d.mover.z)};
+            put_player(&mut app,x,z-1.0);
+            app.world_mut().resource_mut::<Wanted>().grab_pressed=true;ticks(&mut app,2);
+            let g=app.world().resource::<Game>();
+            if mode==GameMode::Smoko {assert_eq!(g.smoko.carries[&PLAYER_ID].victim,100);assert_eq!(g.board.score(PLAYER_ID),0);}
+            else {assert!(g.life.carry.is_some());assert_eq!(g.board.score(PLAYER_ID),40);}
+        }
+    }
+
+    #[test]
+    fn unarmed_pickup_window_expires_and_misses_do_not_enable_it() {
+        let mut app=app();near_dummy0(&mut app);app.world_mut().resource_mut::<Game>().options.adult=true;
+        click(&mut app);ticks(&mut app,180);
+        let (x,z)={let g=app.world().resource::<Game>();let d=&g.dummies[0];assert_eq!(d.body.stun,0.0);(d.mover.x,d.mover.z)};
+        put_player(&mut app,x,z-1.0);app.world_mut().resource_mut::<Wanted>().grab_pressed=true;ticks(&mut app,2);
+        assert!(app.world().resource::<Game>().life.carry.is_none());
+        put_player(&mut app,-20.0,0.0);click(&mut app);
+        assert_eq!(app.world().resource::<Game>().dummies[0].body.stun,0.0);
     }
 
     #[test]

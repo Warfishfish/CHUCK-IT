@@ -1,0 +1,26 @@
+{
+  "before": {
+    "samples": 600.0,
+    "mean_ms": 9.165,
+    "median_ms": 8.408,
+    "p95_ms": 13.381,
+    "mean_fps": 109.11,
+    "frames_over_16_67ms": 0.0,
+    "meshes": 2953.0,
+    "materials": 787.0,
+    "mesh_entities": 6192.0,
+    "image_cpu_bytes": 42930584.0
+  },
+  "after": {
+    "samples": 600.0,
+    "mean_ms": 9.201,
+    "median_ms": 8.472,
+    "p95_ms": 13.628,
+    "mean_fps": 108.69,
+    "frames_over_16_67ms": 0.0,
+    "meshes": 2953.0,
+    "materials": 787.0,
+    "mesh_entities": 6192.0,
+    "image_cpu_bytes": 42930584.0
+  }
+}

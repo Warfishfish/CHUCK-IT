@@ -1,0 +1,276 @@
+--- a/rust/crates/bbq_core/src/net_act.rs
++++ b/rust/crates/bbq_core/src/net_act.rs
+@@ -20,6 +20,8 @@
+     Throw { item: u32, from: (f32, f32, f32), vel: (f32, f32, f32), charge: f32 },
+     /// Swing the item in your hand at whoever is in front of you.
+     Slap { item: u32 },
++    /// Empty-handed hit. Host chooses the target and validates mode, range and cooldown.
++    BareSlap,
+     /// Throw away what you hold (G).
+     Drop { item: u32 },
+     /// Change which item is in your hand.
+@@ -75,6 +77,7 @@
+                 w.u32(*item);
+             }
+             GuestAct::Catch => w.u8(5),
++            GuestAct::BareSlap => w.u8(8),
+             GuestAct::RaceRole {thrower} => {w.u8(7);w.u8(*thrower as u8);},
+             GuestAct::Carry { pressed } => { w.u8(6); w.u8(*pressed as u8); },
+         }
+@@ -87,6 +90,7 @@
+             3 => GuestAct::Drop { item: r.u32()? },
+             4 => GuestAct::Select { item: r.u32()? },
+             5 => GuestAct::Catch,
++            8 => GuestAct::BareSlap,
+             7 => GuestAct::RaceRole {thrower:r.u8()? != 0},
+             6 => GuestAct::Carry { pressed: r.u8()? != 0 },
+             k => return Err(DecodeError::UnknownKind(k)),
+@@ -168,6 +172,7 @@
+             Msg::Act(GuestAct::Drop { item: 4 }),
+             Msg::Act(GuestAct::Select { item: 5 }),
+             Msg::Act(GuestAct::Catch),
++            Msg::Act(GuestAct::BareSlap),
+             Msg::Act(GuestAct::Carry {pressed:true}),
+             Msg::Act(GuestAct::Carry {pressed:false}),
+             Msg::Hit(HitMsg::Smoko {pos:(1.0,0.8,2.0),vel:(0.0,0.0,0.0),locked:true,carrying:false}),
+--- a/rust/crates/bbq_core/src/melee.rs
++++ b/rust/crates/bbq_core/src/melee.rs
+@@ -33,7 +33,8 @@
+ /// Bare-handed slap numbers (Cheeky mode).
+ pub const SILLY_KNOCK: f32 = 8.5;
+ pub const SILLY_UP: f32 = 3.0;
+-pub const SILLY_STUN: f32 = 0.6;
++/// Gives the victim time to land and the attacker time to approach and press F.
++pub const SILLY_STUN: f32 = 2.5;
+ pub const SILLY_NAMES: [&str; 3] = ["WET WILLY!", "NOOGIE!", "WEDGIE!"];
+ 
+ /// Someone who might get slapped.
+@@ -541,9 +542,9 @@
+     }
+ 
+     #[test]
+-    fn silly_slap_is_a_quick_shove() {
++    fn silly_slap_keeps_its_shove_but_allows_a_pickup_window() {
+         let s = silly_slap();
+-        assert_eq!((s.knock, s.up, s.stun), (8.5, 3.0, 0.6));
++        assert_eq!((s.knock, s.up, s.stun), (8.5, 3.0, 2.5));
+         assert!(s.down.is_none());
+     }
+ 
+--- a/rust/crates/bbq_core/src/net.rs
++++ b/rust/crates/bbq_core/src/net.rs
+@@ -13,7 +13,7 @@
+ 
+ /// Bump this whenever a message changes, so old and new copies of the game refuse each other
+ /// politely instead of misreading each other.
+-pub const PROTOCOL: u16 = 13;
++pub const PROTOCOL: u16 = 14;
+ /// The most people in one yard (the browser game's limit).
+ pub const MAX_PLAYERS: usize = 16;
+ /// How often each player reports where they are.
+--- a/rust/crates/bbq_app/src/game.rs
++++ b/rust/crates/bbq_app/src/game.rs
+@@ -1819,6 +1819,33 @@
+     }
+ 
+     #[test]
++    fn bare_hit_leaves_time_to_approach_and_pick_up_in_backyard_and_smoko() {
++        for mode in [GameMode::FreeForAll, GameMode::Smoko] {
++            let mut app=app();near_dummy0(&mut app);
++            {let mut g=app.world_mut().resource_mut::<Game>();g.options.adult=true;g.rules.mode=mode;}
++            click(&mut app);ticks(&mut app,60);
++            let (x,z)={let g=app.world().resource::<Game>();let d=&g.dummies[0];
++                assert!(d.body.stun>1.0);assert!(d.mover.y<0.6,"victim must land before pickup");(d.mover.x,d.mover.z)};
++            put_player(&mut app,x,z-1.0);
++            app.world_mut().resource_mut::<Wanted>().grab_pressed=true;ticks(&mut app,2);
++            let g=app.world().resource::<Game>();
++            if mode==GameMode::Smoko {assert_eq!(g.smoko.carries[&PLAYER_ID].victim,100);assert_eq!(g.board.score(PLAYER_ID),0);}
++            else {assert!(g.life.carry.is_some());assert_eq!(g.board.score(PLAYER_ID),40);}
++        }
++    }
++
++    #[test]
++    fn unarmed_pickup_window_expires_and_misses_do_not_enable_it() {
++        let mut app=app();near_dummy0(&mut app);app.world_mut().resource_mut::<Game>().options.adult=true;
++        click(&mut app);ticks(&mut app,180);
++        let (x,z)={let g=app.world().resource::<Game>();let d=&g.dummies[0];assert_eq!(d.body.stun,0.0);(d.mover.x,d.mover.z)};
++        put_player(&mut app,x,z-1.0);app.world_mut().resource_mut::<Wanted>().grab_pressed=true;ticks(&mut app,2);
++        assert!(app.world().resource::<Game>().life.carry.is_none());
++        put_player(&mut app,-20.0,0.0);click(&mut app);
++        assert_eq!(app.world().resource::<Game>().dummies[0].body.stun,0.0);
++    }
++
++    #[test]
+     fn f_grabs_someone_who_is_down_and_a_tap_puts_them_down() {
+         let mut app = app();
+         near_dummy0(&mut app);
+--- a/rust/crates/bbq_app/src/online_world.rs
++++ b/rust/crates/bbq_app/src/online_world.rs
+@@ -995,6 +995,53 @@
+     }
+ 
+     #[test]
++    fn guest_bare_hit_can_be_followed_by_smoko_pickup_and_is_rate_limited() {
++        let mut app=host_with_a_guest();let id=REMOTE_ID_BASE+2;
++        {let mut g=app.world_mut().resource_mut::<Game>();g.options.adult=true;g.rules.mode=GameMode::Smoko;g.world.clear();}
++        app.world_mut().resource_mut::<Player>().mover=bbq_core::movement::Mover::new(8.0,-1.5);
++        act(&mut app,GuestAct::BareSlap);
++        {let mut g=app.world_mut().resource_mut::<Game>();assert_eq!(g.me.body.stun,melee::SILLY_STUN);g.me.body.tick(1.0);}
++        act(&mut app,GuestAct::BareSlap);
++        assert_eq!(app.world().resource::<Game>().me.body.stun,1.5,"replayed input cannot reset stun");
++        // Contact is grounded and in reach after the shove lands; carrying uses its existing rules.
++        {let mut p=app.world_mut().resource_mut::<Player>();p.mover.y=0.0;}
++        act(&mut app,GuestAct::Carry{pressed:true});
++        assert_eq!(app.world().resource::<Game>().smoko.carries[&id].victim,PLAYER_ID);
++    }
++
++    #[test]
++    fn guest_bare_hit_rejects_invalid_requests_and_notifies_remote_victims() {
++        for invalid in 0..6 {
++            let mut app=host_with_a_guest();
++            app.world_mut().resource_mut::<Player>().mover=bbq_core::movement::Mover::new(8.0,-1.5);
++            {let mut g=app.world_mut().resource_mut::<Game>();g.options.adult=true;g.world.clear();
++                match invalid {0=>g.options.adult=false,1=>g.rules.phase=Phase::Countdown,
++                    2=>g.dummies.iter_mut().find(|d|d.remote.is_some()).unwrap().body.stun=1.0,
++                    3=>g.dummies.iter_mut().find(|d|d.remote.is_some()).unwrap().face=0.0,_=>{}}
++            }
++            if invalid==4 {give_guest(&mut app,ItemKind::Teddy,None);}
++            if invalid==5 {app.world_mut().resource_mut::<Player>().mover.x=20.0;}
++            act(&mut app,GuestAct::BareSlap);assert_eq!(app.world().resource::<Game>().me.body.stun,0.0);
++        }
++        // Host empty-handed hit must send the same stun to the guest who was hit.
++        let mut app=host_with_a_guest();
++        {let mut p=app.world_mut().resource_mut::<Player>();p.mover=bbq_core::movement::Mover::new(8.0,1.5);p.yaw=0.0;}
++        let mut p=app.world_mut().remove_resource::<Player>().unwrap();
++        let mut g=app.world_mut().resource_mut::<Game>();g.options.adult=true;g.slots.clear();
++        crate::life::bare_slap(&mut g,&mut p);
++        assert!(g.net_hits.iter().any(|(id,h)|*id==REMOTE_ID_BASE+2 && matches!(h,HitMsg::Slap{stun,..} if *stun==melee::SILLY_STUN)));
++    }
++
++    #[test]
++    fn empty_guest_click_sends_only_host_resolved_bare_action() {
++        let mut a=app();let mut p=a.world_mut().remove_resource::<Player>().unwrap();
++        let mut g=a.world_mut().resource_mut::<Game>();g.options.adult=true;g.slots.clear();g.rules.phase=Phase::Play;
++        let mut w=Wanted::default();w.throw_down=true;guest_hands(&mut g,&mut p,&mut w,1.0/60.0);
++        assert_eq!(g.net_acts,vec![GuestAct::BareSlap]);
++        w.throw_down=true;guest_hands(&mut g,&mut p,&mut w,1.0/60.0);assert_eq!(g.net_acts.len(),1);
++    }
++
++    #[test]
+     fn a_guests_slap_hits_the_person_in_front_of_them() {
+         let mut app = host_with_a_guest_and(1);
+         let id = give_guest(&mut app, ItemKind::Steak, None);
+@@ -1256,6 +1303,12 @@
+     if std::mem::take(&mut wanted.throw_down) {
+         match g.wind.press(now, selected_kind, &situation) {
+             Press::SlapNow => guest_slap(g),
++            Press::Refused(hands::Refuse::NothingHeld) => {
++                if g.options.adult && g.slots.is_empty() && g.life.slap.ready(now,false) {
++                    g.life.slap.mark(now);g.life.me_swing=melee::SWING_TIME;
++                    g.net_acts.push(GuestAct::BareSlap);
++                }
++            }
+             Press::Charging | Press::Refused(_) => {}
+         }
+     }
+@@ -1428,6 +1481,7 @@
+     let holds = |g: &Game, item: u32| g.dummies[i].bot.slots.ids().contains(&item);
+     match act {
+         GuestAct::RaceRole {..} => {},
++        GuestAct::BareSlap => {if can_act {crate::life::guest_bare_slap(g,p,i);}},
+         GuestAct::Carry { pressed } => crate::smoko_mode::input(g,p,id,*pressed),
+         GuestAct::Select { item } => {
+             let slots = &mut g.dummies[i].bot.slots;
+--- a/rust/crates/bbq_app/src/life.rs
++++ b/rust/crates/bbq_app/src/life.rs
+@@ -400,7 +400,8 @@
+ 
+ /// Bare-handed slap (Cheeky mode, nothing in your hands).
+ pub fn bare_slap(g: &mut Game, p: &mut Player) {
+-    if !g.options.adult || !g.slots.is_empty() || !can_swing(g, false) {
++    if !g.options.adult || !g.slots.is_empty() || !can_swing(g, false)
++        || crate::smoko_mode::controlled(g, PLAYER_ID) || g.smoko.carries.contains_key(&PLAYER_ID) {
+         return;
+     }
+     let me = me_pos(p);
+@@ -408,31 +409,57 @@
+     let Some(vid) = melee::pick_target(me, facing(p), &cands, false) else {
+         return;
+     };
+-    let Some(i) = g.dummies.iter().position(|d| d.id == vid) else {
+-        return;
+-    };
+     g.life.slap.mark(g.now);
+     g.life.me_swing = melee::SWING_TIME;
+-    let dpos = V3::new(g.dummies[i].mover.x, 0.0, g.dummies[i].mover.z);
+-    let dir = melee::direction(me, dpos);
+-    let fx = melee::silly_slap();
+-    let sign = if g.rng.chance(0.5) { -1.0 } else { 1.0 };
+-    let now = g.now;
+-    let d = &mut g.dummies[i];
+-    d.last_hit = Some((PLAYER_ID, now));
+-    melee::apply(&mut d.body, &mut d.mover, dir, &fx);
+-    d.anim.tumble(dir, fx.knock, sign);
+-    d.anim.start_swing();
+-    let drunk = drunk_bonus(g);
+-    let gain = g.board.silly_slap(&g.rules, PLAYER_ID, vid, drunk, false);
+-    let n = (g.rng.f32() * 3.0) as usize;
+-    let name = melee::SILLY_NAMES[n.min(2)];
+-    g.popup(format!("{name} +{gain}"), false);
+-    g.say(format!(
+-        "You gave {} a {}",
+-        dummy_name(i),
+-        name.trim_end_matches('!')
+-    ));
++    let att = Attacker { id: PLAYER_ID, pos: me, drunk_bonus: drunk_bonus(g), name: "You".into(), is_player: true };
++    apply_bare_hit(g, p, &att, vid);
++}
++
++/// Guest input contains no victim or effect values; the host resolves everything here.
++pub fn guest_bare_slap(g: &mut Game, p: &mut Player, i: usize) {
++    let d = &g.dummies[i];
++    if !g.options.adult || !g.rules.in_play() || !d.bot.slots.is_empty()
++        || d.body.is_down() || d.body.stun > 0.0 || d.seat.is_some()
++        || d.dragged.is_some() || d.bot.drunk.is_drinking()
++        || crate::smoko_mode::controlled(g, d.id) || g.smoko.carries.contains_key(&d.id)
++        || g.now - d.net_slap_at < melee::COOLDOWN_BARE { return; }
++    let att = Attacker { id: d.id, pos: V3::new(d.mover.x,d.mover.y,d.mover.z),
++        drunk_bonus: bbq_core::drinks::drunk_bonus(d.bot.drunk.meter,g.options.drunk_mode),
++        name: crate::bots_app::name_of(g,d.id), is_player: false };
++    let face = (d.face.sin(),d.face.cos());
++    let mut cands: Vec<Candidate> = g.dummies.iter().filter(|d|d.id!=att.id).map(|d|Candidate {
++        id:d.id,pos:V3::new(d.mover.x,d.mover.y,d.mover.z),down_t:d.body.down_t.max(d.body.fall_t),
++        at_smoko:d.seat.is_some(),teammate:g.teams.same_team(att.id,d.id),
++    }).collect();
++    cands.push(Candidate {id:PLAYER_ID,pos:me_pos(p),down_t:g.me.body.down_t.max(g.me.body.fall_t),
++        at_smoko:g.life.seated.is_some(),teammate:g.teams.same_team(att.id,PLAYER_ID)});
++    let Some(victim)=melee::pick_target(att.pos,face,&cands,false) else {return};
++    g.dummies[i].net_slap_at=g.now;
++    g.dummies[i].bot.swing_t=melee::SWING_TIME;
++    g.dummies[i].anim.start_swing();
++    apply_bare_hit(g,p,&att,victim);
++}
++
++fn apply_bare_hit(g: &mut Game, p: &mut Player, att: &Attacker, victim: PlayerId) {
++    let fx=melee::silly_slap();
++    if victim==PLAYER_ID {
++        let dir=melee::direction(att.pos,me_pos(p));
++        melee::apply(&mut g.me.body,&mut p.mover,dir,&fx);
++        g.wind.cancel();g.me.drunk.cancel_drink();p.shake=p.shake.max(0.25);
++    } else {
++        let Some(i)=g.dummies.iter().position(|d|d.id==victim) else {return};
++        let d=&mut g.dummies[i];
++        let dir=melee::direction(att.pos,V3::new(d.mover.x,d.mover.y,d.mover.z));
++        d.last_hit=Some((att.id,g.now));
++        melee::apply(&mut d.body,&mut d.mover,dir,&fx);
++        d.anim.tumble(dir,fx.knock,if g.rng.chance(0.5){-1.0}else{1.0});
++        d.anim.start_swing();
++        crate::online_world::note_slap(g,i,dir,&fx);
++    }
++    let gain=g.board.silly_slap(&g.rules,att.id,victim,att.drunk_bonus,false);
++    let name=melee::SILLY_NAMES[g.rng.index(melee::SILLY_NAMES.len())];
++    if att.is_player {g.popup(format!("{name} +{gain}"),false);}
++    g.say(format!("{} gave {} a {}",att.name,crate::bots_app::name_of(g,victim),name.trim_end_matches('!')));
+ }
+ 
+ fn drunk_bonus(g: &Game) -> i32 {

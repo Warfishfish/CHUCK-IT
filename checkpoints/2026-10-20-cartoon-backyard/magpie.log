@@ -1,0 +1,15 @@
+MAGPIE_REVIEW frame=180 phase=1 score=0
+MAGPIE_REVIEW frame=210 phase=1 score=0
+MAGPIE_REVIEW frame=240 phase=1 score=0
+MAGPIE_REVIEW frame=270 phase=2 score=0
+MAGPIE_REVIEW frame=300 phase=2 score=0
+MAGPIE_REVIEW frame=330 phase=3 score=-10
+MAGPIE_REVIEW frame=360 phase=3 score=-10
+MAGPIE_REVIEW frame=390 phase=3 score=-10
+MAGPIE_REVIEW frame=420 phase=0 score=-10
+MAGPIE_REVIEW frame=450 phase=0 score=-10
+MAGPIE_REVIEW frame=480 phase=0 score=-10
+MAGPIE_REVIEW frame=510 phase=0 score=-10
+MAGPIE_REVIEW frame=540 phase=0 score=-10
+2026-10-20T08:12:20.033518Z  WARN bevy_render::view::window::screenshot: Duplicate render target for screenshot, skipping entity 7247v1: Window(NormalizedWindowRef(65v0))
+2026-10-20T08:12:22.955187Z  WARN bevy_winit::state: Skipped event Destroyed for unknown winit Window Id WindowId(47633318528)

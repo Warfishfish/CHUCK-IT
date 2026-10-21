@@ -69,7 +69,7 @@ struct LegLine;
 /// The leg shapes: one unit-tall tapered tube per kind (stretched to the leg's length), plus a
 /// slightly fatter one for the black line.
 #[derive(Resource)]
-struct LegKit {
+pub(crate) struct LegKit {
     stubby: (Handle<Mesh>, Handle<Mesh>),
     skinny: (Handle<Mesh>, Handle<Mesh>),
     /// Skinny legs with knees: thigh, shin and knee (each with its line).
@@ -157,7 +157,7 @@ pub fn lift_of(game: &Game, i: usize) -> f32 {
 
 /// A model has just loaded (its head was found): move its feet out from under the body and add
 /// two hidden legs beside them.
-fn rig_legs(
+pub(crate) fn rig_legs(
     mut commands: Commands,
     kit: Res<LegKit>,
     heads: Query<(Entity, &HeadNode), Added<HeadNode>>,

@@ -63,11 +63,11 @@ impl LookMode {
                 // channels so the hemisphere approximation never creates negative light.
                 crate::style::Style::Pop => Rig {
                     sky: 0xb5d0f5,
-                    ground: 0xa4b29c,
-                    hemi: 0.75,
-                    sun: 0xffd294,
-                    sun_intensity: 1.10,
-                    grade: Grade { saturation: 1.04, warmth: 0.02, contrast: 1.025, vignette: 0.08 },
+                    ground: 0xa4b2a6,
+                    hemi: 0.82,
+                    sun: 0xffe8c9,
+                    sun_intensity: 0.96,
+                    grade: Grade { saturation: 0.98, warmth: 0.006, contrast: 1.018, vignette: 0.035 },
                 },
                 // clay: a strong, low, golden sun with a cool blue shade and warm bounce light
                 crate::style::Style::Clay => Rig {
@@ -320,9 +320,12 @@ pub fn spawn_afternoon_sky(
         let colours: Vec<[f32; 4]> = positions.iter().map(|p| {
             let height = (p[1] / 180.0).max(0.0);
             let t = (height / 0.7).clamp(0.0, 1.0).sqrt();
-            let horizon = Vec3::new(0.60, 0.80, 0.96);
-            let zenith = Vec3::new(0.20, 0.46, 0.84);
-            let c = horizon.lerp(zenith, t);
+            let horizon = Vec3::new(0.73, 0.86, 0.94);
+            let zenith = Vec3::new(0.24, 0.47, 0.76);
+            let direction=Vec3::from(*p).normalize();
+            let toward_sun=direction.dot(Vec3::new(24.0,20.8,20.0).normalize()).max(0.0);
+            let haze=toward_sun.powf(12.0)*0.16;
+            let c = horizon.lerp(zenith, t).lerp(Vec3::new(1.0,0.89,0.69),haze);
             [c.x, c.y, c.z, 1.0]
         }).collect();
         mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colours);

@@ -28,6 +28,7 @@ pub enum Kind {
     HeistWall,
     Steps,
     HeistCrate,
+    BackyardCover,
 }
 
 /// The four map features the host can switch off.
@@ -445,4 +446,22 @@ mod tests {
             assert!(inside_yard(x, z, 0.45));
         }
     }
+}
+
+/// Modest cover away from starts, pool, clothesline and pickup stations: x,z,width,depth,height.
+pub const BACKYARD_COVER:[(f32,f32,f32,f32,f32);3]=[
+ (-8.0,4.5,1.8,1.1,0.9),(7.5,11.0,1.5,1.1,0.75),(17.0,-9.0,1.8,1.1,0.9),
+];
+impl Yard {
+ pub fn set_backyard_cover(&mut self,on:bool) {
+  let has=self.colliders.iter().any(|c|c.kind==Kind::BackyardCover);
+  if has==on{return;}
+  self.colliders.retain(|c|c.kind!=Kind::BackyardCover);
+  if on && !self.race {for (x,z,w,d,h) in BACKYARD_COVER {self.colliders.push(Collider::centred(x,z,w,d,h).of(Kind::BackyardCover));}}
+ }
+}
+
+#[cfg(test)] mod backyard_cover_tests {
+ use super::*;
+ #[test] fn cover_is_mode_scoped_and_never_duplicates(){let mut y=Yard::default();let n=y.colliders.len();y.set_backyard_cover(true);y.set_backyard_cover(true);assert_eq!(y.colliders.len(),n+3);for (x,z,w,d,h) in BACKYARD_COVER {assert!(h<=1.05);assert!(CHAR_SPAWNS.iter().all(|(a,b)|(*a-x).abs()>w/2.0+0.5 || (*b-z).abs()>d/2.0+0.5));}y.set_backyard_cover(false);assert_eq!(y.colliders.len(),n);}
 }
