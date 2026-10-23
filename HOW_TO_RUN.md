@@ -53,5 +53,6 @@ Everyone opens that same link; choose **With mates → Host a yard**, then share
 Friends choose **Join their yard**. Use a WebGPU-capable desktop browser. Refresh old tabs after updates.
 The Mac must stay awake and both processes must keep running. A restarted quick tunnel gives a new address.
 
-GitHub stores the source. Generated `public/rust/` files stay local and are rebuilt separately;
-a Git push alone does not update this browser build or create a live tunnel.
+GitHub now stores the source and generated `public/rust/` browser files. Rebuild those files
+after Rust changes before publishing. A Git push alone does not rebuild the browser game
+or start a live tunnel; this link serves the files on this Mac.

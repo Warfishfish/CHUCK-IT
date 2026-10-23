@@ -1,3 +1,7 @@
+# Online publication verified — 23 October 2026
+
+Game commit `04b69f4` is on `origin/main`, including the host-map menu update. Cloudflare browser page and two-way WebSocket relay verified; macOS/Linux/Windows CI passed. [Publication details and temporary link](2026-10-21-online-publication/CHECKPOINT.md). [Latest host-menu verification](2026-10-22-host-menu/README.md). Earlier review statuses below are historical.
+
 # Publication approval — 21 October 2026
 
 User approved committing and pushing the reviewed Cartoon Backyard, Unarmed Pickup, Natural Graphics and Walking/Turning updates, and selected Cloudflare for online browser access. [Online publication and verification](2026-10-21-online-publication/CHECKPOINT.md). Historical review statuses below record the time each milestone was completed.
