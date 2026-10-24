@@ -2,6 +2,10 @@
 use crate::{items::ItemKind, pose::Pose, vec::{Quat, V3}};
 
 // Animation tuning: seconds, metres and radians. Weight is an artistic 0..1 value.
+pub const CHARGE_LEAN: f32 = 0.42;
+pub const CHARGE_HEAVY_LEAN: f32 = 0.12;
+pub const CHARGE_WARNING: f32 = 0.82;
+pub const CHARGE_TREMBLE: f32 = 0.035;
 pub const WINDUP_LIGHT: f32 = 0.10;
 pub const WINDUP_HEAVY: f32 = 0.20;
 pub const WIND_SQUASH: f32 = 0.16;

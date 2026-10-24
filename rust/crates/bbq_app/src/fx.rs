@@ -69,8 +69,11 @@ impl FxKind {
     }
 }
 
+pub const IMPACT_SCALE_MIN:f32=0.75;
+pub const IMPACT_SCALE_MAX:f32=1.25;
 #[derive(Clone, Copy, Debug)]
 pub struct FxEvent {
+    pub scale:f32,
     pub kind: FxKind,
     pub at: V3,
 }
@@ -394,7 +397,7 @@ fn spawn_events(
             commands.spawn((
                 ParticleEffect::new(h.clone()),
                 EffectMaterial { images: vec![fx.dot.clone()] },
-                Transform::from_xyz(e.at.x, e.at.y, e.at.z),
+                Transform::from_xyz(e.at.x, e.at.y, e.at.z).with_scale(Vec3::splat(e.scale)),
                 FxLife(life),
             ));
         }

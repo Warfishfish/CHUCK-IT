@@ -30,8 +30,8 @@ pub const MATT_ROUGHNESS: f32 = 0.5;
 pub const GROUND_ROUGHNESS: f32 = 0.0;
 
 // Reduce repeating grain/rib contrast without changing assets or their average colour.
-const WOOD_DETAIL_CONTRAST: f32 = 0.45;
-const BUILDING_DETAIL_CONTRAST: f32 = 0.65;
+const WOOD_DETAIL_CONTRAST: f32 = 0.32;
+const BUILDING_DETAIL_CONTRAST: f32 = 0.48;
 const LAWN_TINT: Vec3 = Vec3::new(0.76, 0.98, 1.15);
 
 /// The polished look draws items with their extra details (set once at start-up from `LookMode`).
@@ -184,11 +184,13 @@ fn build_part(
             h
         }
     };
-    let mat_key = format!("{s:?}");
+    let mat_key = format!("{s:?}|hero={}",p.hero);
     let material = match cache.shared_materials.get(&mat_key) {
         Some(h) => h.clone(),
         None => {
-            let h = mats.add(material(s, cache));
+            let mut finish=material(s,cache);
+            if p.hero && crate::style::current()==crate::style::Style::Pop {finish.perceptual_roughness=finish.perceptual_roughness.max(0.48);finish.reflectance=0.30;}
+            let h = mats.add(finish);
             cache.shared_materials.insert(mat_key, h.clone());
             h
         }

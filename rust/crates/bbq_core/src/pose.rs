@@ -480,6 +480,15 @@ impl Animator {
             0.0
         };
 
+        // State-driven charge lean: every viewer reconstructs from replicated charge.
+        if i.charging && i.down_t <= 0.0 && !i.fallen && i.dragged_by.is_none() {
+            let c=i.charge.clamp(0.0,1.0);
+            let warning=((c-crate::feel::CHARGE_WARNING)/(1.0-crate::feel::CHARGE_WARNING)).clamp(0.0,1.0);
+            let lean=(crate::feel::CHARGE_LEAN+crate::feel::CHARGE_HEAVY_LEAN*i.item_weight.clamp(0.0,1.0))*c*c;
+            p.body_rot=p.body_rot.mul(Quat::from_euler_xyz(-lean,0.0,(t*34.0+ph).sin()*warning*crate::feel::CHARGE_TREMBLE));
+            p.body_z -= lean*0.18;
+        }
+
         // the throwing hand winds up
         let wind = if i.charging { i.charge } else { 0.0 };
         p.hand_r = V3::new(

@@ -1,0 +1,182 @@
+warning: unused imports: `SMOKO_X` and `SMOKO_Z`
+  --> crates/bbq_core/src/bots.rs:19:57
+   |
+19 | use crate::yard::{BAR, Features, MEAT_TABLE, POOL_SINK, SMOKO_X, SMOKO_Z, Yard};
+   |                                                         ^^^^^^^  ^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `bbq_core` (lib) generated 1 warning (run `cargo fix --lib -p bbq_core` to apply 1 suggestion)
+   Compiling bbq_app v0.0.1 (/Users/marcus/Claude/australian-bbq/rust/crates/bbq_app)
+warning: unnecessary parentheses around method argument
+    --> crates/bbq_app/src/hud.rs:1030:29
+     |
+1030 |                     p.spawn((Node{width:px(40.0),height:px(38.0),..default()})).with_children(|icon| {
+     |                             ^                                                ^
+     |
+     = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+     |
+1030 -                     p.spawn((Node{width:px(40.0),height:px(38.0),..default()})).with_children(|icon| {
+1030 +                     p.spawn(Node{width:px(40.0),height:px(38.0),..default()}).with_children(|icon| {
+     |
+
+warning: unused import: `crate::shapes::build_mesh`
+  --> crates/bbq_app/src/models.rs:15:5
+   |
+15 | use crate::shapes::build_mesh;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> crates/bbq_app/src/legs.rs:189:13
+    |
+189 |         let mut part = |commands: &mut Commands, (mesh, line): &(Handle<Mesh>, Handle<Mesh>)| -> (Entity, Option<Entity>) {
+    |             ----^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `peers`
+   --> crates/bbq_app/src/online.rs:281:24
+    |
+281 |             In::Snap { peers, .. } => {
+    |                        ^^^^^ help: try ignoring the field: `peers: _`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> crates/bbq_app/src/shapes.rs:571:17
+    |
+571 |             let mut corner = |x: f32, z: f32, b: &mut Buf| {
+    |                 ----^^^^^^
+    |                 |
+    |                 help: remove this `mut`
+
+warning: unused variable: `mid`
+   --> crates/bbq_app/src/yard_scene.rs:559:141
+    |
+559 | ...dz);let yaw=dx.atan2(dz);let mid=((a.0+b.0)*0.5,(a.1+b.1)*0.5);
+    |                                 ^^^ help: if this is intentional, prefix it with an underscore: `_mid`
+
+warning: associated function `on` is never used
+   --> crates/bbq_app/src/lighting.rs:170:12
+    |
+169 | impl DisplayRaw {
+    | --------------- associated function in this implementation
+170 |     pub fn on() -> Self {
+    |            ^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: variant `MoreOpen` is never constructed
+   --> crates/bbq_app/src/menu.rs:381:5
+    |
+351 | pub enum ShowWhen {
+    |          -------- variant in this enum
+...
+381 |     MoreOpen,
+    |     ^^^^^^^^
+    |
+    = note: `ShowWhen` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: struct `PlayLabel` is never constructed
+   --> crates/bbq_app/src/menu.rs:407:8
+    |
+407 | struct PlayLabel;
+    |        ^^^^^^^^^
+
+warning: struct `AmmoNote` is never constructed
+   --> crates/bbq_app/src/menu.rs:409:8
+    |
+409 | struct AmmoNote;
+    |        ^^^^^^^^
+
+warning: variant `Leave` is never constructed
+  --> crates/bbq_app/src/net_link.rs:25:5
+   |
+21 | pub enum Out {
+   |          --- variant in this enum
+...
+25 |     Leave(String),
+   |     ^^^^^
+   |
+   = note: `Out` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: method `recv_timeout` is never used
+  --> crates/bbq_app/src/net_link.rs:90:12
+   |
+73 | impl Link {
+   | --------- method in this implementation
+...
+90 |     pub fn recv_timeout(&self, t: Duration) -> Option<In> {
+   |            ^^^^^^^^^^^^
+
+warning: method `active` is never used
+   --> crates/bbq_app/src/online.rs:556:12
+    |
+548 | impl Online {
+    | ----------- method in this implementation
+...
+556 |     pub fn active(&self) -> bool {
+    |            ^^^^^^
+
+warning: fields `lines` and `match_over` are never read
+  --> crates/bbq_app/src/round.rs:90:9
+   |
+89 | pub struct Results {
+   |            ------- fields in this struct
+90 |     pub lines: Vec<String>,
+   |         ^^^^^
+91 |     pub winner: Option<Key>,
+92 |     pub match_over: bool,
+   |         ^^^^^^^^^^
+   |
+   = note: `Results` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: field `rng` is never read
+   --> crates/bbq_app/src/round.rs:107:9
+    |
+ 96 | pub struct RoundCtl {
+    |            -------- field in this struct
+...
+107 |     pub rng: Rng,
+    |         ^^^
+
+warning: variants `More` and `LookStep` are never constructed
+   --> crates/bbq_app/src/ui.rs:200:5
+    |
+196 | pub enum Action {
+    |          ------ variants in this enum
+...
+200 |     More,
+    |     ^^^^
+...
+212 |     LookStep(LookRow, i32),
+    |     ^^^^^^^^
+    |
+    = note: `Action` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: variant `Character` is never constructed
+   --> crates/bbq_app/src/ui.rs:277:5
+    |
+267 | pub enum SegId {
+    |          ----- variant in this enum
+...
+277 |     Character,
+    |     ^^^^^^^^^
+    |
+    = note: `SegId` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: field `base` is never read
+   --> crates/bbq_app/src/ui.rs:454:9
+    |
+453 | pub struct ButtonLook {
+    |            ---------- field in this struct
+454 |     pub base: Color,
+    |         ^^^^
+
+warning: `bbq_app` (bin "bbq_app") generated 18 warnings (run `cargo fix --bin "bbq_app" -p bbq_app` to apply 6 suggestions)
+    Finished `release` profile [optimized] target(s) in 3m 12s

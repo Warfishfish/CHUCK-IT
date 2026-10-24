@@ -226,12 +226,13 @@ fn build_yard(
     }
 
     // magpies on the fence, watching you
-    for (i, (at, yaw)) in look.magpies.iter().enumerate() {
+    for i in 0..look.magpies.len().max(bbq_core::magpie::MAX_FLOCK+1) {
+        let (at,yaw)=look.magpies.get(i).copied().unwrap_or((bbq_core::magpie::PERCH,0.0));
         let m = looks_yard::magpie();
         let root = commands
             .spawn((
                 Transform::from_xyz(at.x, at.y, at.z)
-                    .with_rotation(Quat::from_rotation_y(*yaw))
+                    .with_rotation(Quat::from_rotation_y(yaw))
                     .with_scale(Vec3::splat(1.35)),
                 Visibility::default(),
                 MagpieBody(i as f32),
@@ -246,7 +247,7 @@ fn build_yard(
             &mut mats,
             Transform::from_xyz(m.neck.x, m.neck.y, m.neck.z),
         );
-        commands.entity(head).insert(MagpieHead { body_yaw: *yaw, seed: i as f32 * 3.7, yaw: 0.0, pitch: 0.0 });
+        commands.entity(head).insert(MagpieHead { body_yaw: yaw, seed: i as f32 * 3.7, yaw: 0.0, pitch: 0.0 });
         commands.entity(yard_root).add_child(root);
     commands.entity(root).add_children(&[body, head]);
     }
@@ -405,13 +406,13 @@ fn animate_magpies(
     game:Res<Game>,
     player: Res<crate::player::Player>,
     mut heads: Query<(&mut MagpieHead, &mut Transform, &GlobalTransform), (Without<MagpieBody>,Without<MagpieWing>)>,
-    mut bodies: Query<(&MagpieBody, &mut Transform), (Without<MagpieHead>,Without<MagpieWing>)>,
+    mut bodies: Query<(&MagpieBody, &mut Transform, &mut Visibility), (Without<MagpieHead>,Without<MagpieWing>)>,
     mut wings:Query<(&MagpieWing,&mut Transform),(Without<MagpieBody>,Without<MagpieHead>)>,
 ) {
     let t = time.elapsed_secs();
     let k = 1.0 - (-7.0 * time.delta_secs()).exp();
     for (mut h, mut tf, gt) in &mut heads {
-        if h.seed==0.0 && game.magpie.phase>0 && game.rules.mode==bbq_core::GameMode::FreeForAll {
+        if h.seed==0.0 && game.magpie.phase>0 && matches!(game.rules.mode,bbq_core::GameMode::FreeForAll|bbq_core::GameMode::Teams) {
             tf.rotation=Quat::IDENTITY;continue;
         }
         let at = gt.translation();
@@ -431,14 +432,24 @@ fn animate_magpies(
     }
     for (w,mut tf) in &mut wings {
         *tf=w.base;
-        if w.bird==0 && game.magpie.phase>0 && game.rules.mode==bbq_core::GameMode::FreeForAll {
+        if ((w.bird==0 && game.magpie.phase>0) || (w.bird>0 && game.flock.get(w.bird-1).is_some_and(|b|b.phase>0))) && matches!(game.rules.mode,bbq_core::GameMode::FreeForAll|bbq_core::GameMode::Teams) {
             tf.rotation=Quat::from_rotation_z(w.side*(0.7+(t*24.0).sin()*0.65))*tf.rotation;tf.scale.y*=2.0;
         }
     }
-    for (b, mut tf) in &mut bodies {
-        if b.0==0.0 && game.rules.mode==bbq_core::GameMode::FreeForAll {
+    for (b, mut tf,mut visibility) in &mut bodies {
+        let index=b.0 as usize;
+        if index>0 {
+            if let Some(bird)=game.flock.get(index-1) {
+                *visibility=Visibility::Inherited;let next=Vec3::new(bird.pos.x,bird.pos.y,bird.pos.z);let delta=next-tf.translation;
+                tf.translation=tf.translation.lerp(next,1.0-(-24.0*time.delta_secs()).exp());
+                if delta.length_squared()>0.0001 {tf.rotation=Quat::from_rotation_y(delta.x.atan2(delta.z));}
+                continue;
+            } else if index>=2 {*visibility=Visibility::Hidden;continue;}
+        }
+        *visibility=Visibility::Inherited;
+        if b.0==0.0 && matches!(game.rules.mode,bbq_core::GameMode::FreeForAll|bbq_core::GameMode::Teams) {
             let bird=&game.magpie;let next=Vec3::new(bird.pos.x,bird.pos.y,bird.pos.z);
-            let d=next-tf.translation;tf.translation=next;
+            let d=next-tf.translation;tf.translation=tf.translation.lerp(next,1.0-(-24.0*time.delta_secs()).exp());
             // Use replicated motion for heading, so guests never need a private target aim.
             if bird.phase>0 {if d.x*d.x+d.z*d.z>0.000001 {tf.rotation=Quat::from_rotation_y(d.x.atan2(d.z))*Quat::from_rotation_x(if bird.phase==2{0.3}else{-0.15});}}
             else {tf.rotation=Quat::from_rotation_y(std::f32::consts::PI);}
@@ -597,7 +608,7 @@ fn sync_race_map(
 }
 
 fn sync_backyard_cover(game:Res<Game>,mut q:Query<&mut Visibility,With<BackyardCover>>) {
- for mut v in &mut q {*v=if game.rules.mode==bbq_core::GameMode::FreeForAll {Visibility::Inherited}else{Visibility::Hidden};}
+ for mut v in &mut q {*v=if matches!(game.rules.mode,bbq_core::GameMode::FreeForAll|bbq_core::GameMode::Teams) {Visibility::Inherited}else{Visibility::Hidden};}
 }
 
 #[derive(Component)]

@@ -536,7 +536,6 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                     tab_button(p, Tab::Solo, "Solo game");
                     tab_button(p, Tab::Mates, "With mates");
                     tab_button(p, Tab::Look, "Customise");
-                    tab_button(p, Tab::Settings, "Game settings");
                     tab_button(p, Tab::How, "How to play");
                 });
                 solo_panel(c);
@@ -1091,6 +1090,7 @@ fn mates_panel(c: &mut ChildSpawnerCommands) {
         });
     };
     c.spawn((column(12.0), ShowWhen::Panel(Tab::Mates))).with_children(|p| {
+        tab_button(p, Tab::Settings, "Game settings");
         p.spawn((text("", 14.0, true, INK), NetStatusText));
         p.spawn(text(
             "One of you hosts and gets a room code. Your mates type the host's server link and the code, then join. Everybody meets in the lobby, customises, and presses Ready.",
@@ -2286,12 +2286,18 @@ mod menu_tests {
     fn main_menu_children_have_a_visible_way_back() {
         let mut app = menu(crate::online::Lobby::default());
         assert_eq!(app.world().resource::<MenuUi>().tab, Tab::Main);
-        for page in [Tab::Solo, Tab::Mates, Tab::Look, Tab::Settings, Tab::How] {
+        for page in [Tab::Solo, Tab::Mates, Tab::Look, Tab::How] {
             press(&mut app, Action::Tab(page));
             assert_eq!(app.world().resource::<MenuUi>().tab, page);
             press(&mut app, Action::Back);
             assert_eq!(app.world().resource::<MenuUi>().tab, Tab::Main);
         }
+        press(&mut app, Action::Tab(Tab::Mates));
+        press(&mut app, Action::Tab(Tab::Settings));
+        press(&mut app, Action::Back);
+        assert_eq!(app.world().resource::<MenuUi>().tab, Tab::Mates);
+        press(&mut app, Action::Back);
+        assert_eq!(app.world().resource::<MenuUi>().tab, Tab::Main);
     }
 
     #[test]

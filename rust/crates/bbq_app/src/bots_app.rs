@@ -225,8 +225,7 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &Yard) {
     if !g.options.bots_on {
         for d in &mut g.dummies {
             if !crate::visual_review::is_scripted_walk_review() { d.bot.wish = (0.0, 0.0); }
-            d.bot.winding = false;
-            d.bot.wind_progress = 0.0;
+            if !g.charge.starts.contains_key(&d.id){d.bot.winding = false;d.bot.wind_progress = 0.0;}
         }
         return;
     }
@@ -751,9 +750,10 @@ pub fn hit_player(
     charge: f32,
     start: V3,
 ) {
-    g.fx(
+    g.fx_scaled(
         if kind == ItemKind::WaterBalloon { crate::fx::FxKind::BalloonBurst } else if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
         V3::new(p.mover.x, 1.0, p.mover.z),
+        crate::fx::IMPACT_SCALE_MIN+0.5*bbq_core::feel::strength(kind.def().knock),
     );
     let mut item = Item::new(0, kind, V3::ZERO);
     item.bottle = bottle;

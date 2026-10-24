@@ -247,7 +247,7 @@ pub fn build_world(g: &Game, yard: &Yard, seq: u32, feed_after: f32, fx: &[FxEve
         .into_iter()
         .rev()
         .collect();
-    let fx = fx.iter().take(MAX_FX).map(|e| FxSnap { kind: e.kind.index(), at: (e.at.x, e.at.y, e.at.z) }).collect();
+    let fx = fx.iter().take(MAX_FX).map(|e| FxSnap { scale:e.scale,kind: e.kind.index(), at: (e.at.x, e.at.y, e.at.z) }).collect();
     let mut wet = vec![WetSnap { id: 1, remaining: g.me.body.wet_t, pos: (0.0, 0.0, 0.0) }];
     wet.extend(g.dummies.iter().map(|d| WetSnap { id: net(d.id), remaining: d.body.wet_t, pos: (d.mover.x, d.mover.y, d.mover.z) }));
     let mut race=Vec::new();
@@ -256,7 +256,11 @@ pub fn build_world(g: &Game, yard: &Yard, seq: u32, feed_after: f32, fx: &[FxEve
         for (id,t) in &g.race.throwers {race.push(RaceSnap{id:net(*id),thrower:true,passed:0,finish:-1.,score:t.score,streak:t.streak,hits:t.hits,disconnected:t.disconnected,return_to:(0.,0.,0.),tug_remaining:0.,carried_by:0,protected_remaining:0.});}
     }
     let b=&g.magpie;let magpie=(b.phase,if b.target==0{0}else{net(b.target)},(b.pos.x,b.pos.y,b.pos.z));
-    WorldSnap { magpie, race, wet, seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
+    let mut charges=Vec::new();
+    charges.push((net(PLAYER_ID),if g.wind.charging{g.wind.charge}else{0.0},g.charge.falls.get(&PLAYER_ID).map_or(0.0,|t|(*t-g.now).max(0.0))));
+    for d in &g.dummies {if d.remote.is_some(){charges.push((net(d.id),if d.bot.winding{d.bot.wind_progress}else{0.0},g.charge.falls.get(&d.id).map_or(0.0,|t|(*t-g.now).max(0.0))));}}
+    let flock=g.flock.iter().map(|b|(b.phase,if b.target==0{0}else{net(b.target)},(b.pos.x,b.pos.y,b.pos.z))).collect();
+    WorldSnap { flock, charges, magpie, race, wet, seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
 }
 
 /// Make this game look like the host's. `my_net` is our own number; `host_name` replaces
@@ -264,6 +268,18 @@ pub fn build_world(g: &Game, yard: &Yard, seq: u32, feed_after: f32, fx: &[FxEve
 pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32, host_name: &str) {
     let local = |net: u32| local_of_net(net, my_net);
     g.mirror = true;
+    g.flock=snap.flock.iter().map(|&(phase,id,pos)|bbq_core::magpie::Bird{phase,target:if id==0{0}else{local(id)},pos:V3::new(pos.0,pos.1,pos.2),cling:true,..Default::default()}).collect();
+    g.charge.falls.clear();
+    for &(net_id,c,f) in &snap.charges {
+        let id=local(net_id);
+        if f>0.0 {g.charge.falls.insert(id,g.now+f);}
+        if id==PLAYER_ID {if f>0.0 {g.wind.cancel();g.me.body.down_t=f;g.me.body.stun=g.me.body.stun.max(f);}}
+        else if let Some(d)=g.dummies.iter_mut().find(|d|d.id==id) {
+            d.bot.winding=c>0.0;d.bot.wind_progress=c;
+            if f>0.0 {if d.body.down_t<=0.0 {d.anim.start_slap(bbq_core::pose::SlapKind::SentFlying,crate::charge::FALL_SECONDS);}
+                d.body.down_t=f;d.body.stun=d.body.stun.max(f);}
+        }
+    }
     g.magpie.phase=snap.magpie.0;g.magpie.target=if snap.magpie.1==0{0}else{local(snap.magpie.1)};
     g.magpie.pos=V3::new(snap.magpie.2.0,snap.magpie.2.1,snap.magpie.2.2);
 
@@ -501,7 +517,7 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
     }
     for f in &snap.fx {
         if let Some(&kind) = FxKind::ALL.get(f.kind as usize) {
-            g.fx(kind, V3::new(f.at.0, f.at.1, f.at.2));
+            g.fx_scaled(kind, V3::new(f.at.0, f.at.1, f.at.2),f.scale);
         }
     }
 }
@@ -776,7 +792,7 @@ mod tests {
         let host = busy_host();
         let hg = host.world().resource::<Game>();
         let hy = host.world().resource::<crate::yard_scene::YardRes>().0.clone();
-        let snap = build_world(hg, &hy, 1, -1.0, &[FxEvent { kind: FxKind::Hit, at: V3::new(1.0, 2.0, 3.0) }]);
+        let snap = build_world(hg, &hy, 1, -1.0, &[FxEvent { scale:1.0,kind: FxKind::Hit, at: V3::new(1.0, 2.0, 3.0) }]);
         // the trip over the wire
         let bytes = bbq_core::net::Msg::World(Box::new(snap)).encode();
         let Ok(bbq_core::net::Msg::World(snap)) = bbq_core::net::Msg::decode(&bytes) else { panic!("did not decode") };
@@ -938,6 +954,8 @@ mod tests {
     fn a_guests_throw_flies_from_the_host_and_counts_for_them() {
         let mut app = host_with_a_guest();
         let id = give_guest(&mut app, ItemKind::Teddy, None);
+        act(&mut app,GuestAct::Charge{item:id,pressed:true});
+        app.world_mut().resource_mut::<Game>().now+=0.6;
         act(&mut app, GuestAct::Throw { item: id, from: (8.0, 1.5, 0.0), vel: (0.0, 4.0, -12.0), charge: 0.6 });
         let g = app.world().resource::<Game>();
         let it = &g.world.items[&id];
@@ -947,6 +965,18 @@ mod tests {
         let guest = g.dummies.iter().find(|d| d.id == REMOTE_ID_BASE + 2).unwrap();
         assert!(guest.bot.slots.is_empty());
         assert_eq!(g.board.get(REMOTE_ID_BASE + 2).map(|s| s.throws), Some(1));
+    }
+
+    #[test]
+    fn host_times_overhold_and_replicates_recovery() {
+        let mut host=host_with_a_guest();let item=give_guest(&mut host,ItemKind::Teddy,None);
+        act(&mut host,GuestAct::Charge{item,pressed:true});
+        host.world_mut().resource_mut::<Game>().now+=ItemKind::Teddy.def().charge+hands::OVERHOLD+0.1;
+        host.world_mut().run_schedule(FixedUpdate);
+        let snap={let g=host.world().resource::<Game>();let d=g.dummies.iter().find(|d|d.id==REMOTE_ID_BASE+2).unwrap();assert!(d.bot.slots.is_empty());assert!(d.body.down_t>1.7);assert!(!d.bot.winding);build_world(g,&bbq_core::yard::Yard::default(),1,0.0,&[])};
+        let mut guest=app();{let mut g=guest.world_mut().resource_mut::<Game>();let mut y=bbq_core::yard::Yard::default();apply_world(&mut g,&mut y,&snap,2,"Guest");assert!(g.me.body.down_t>1.7);assert!(!g.wind.charging);}
+        for _ in 0..120{host.world_mut().run_schedule(FixedUpdate);}
+        let g=host.world().resource::<Game>();assert!(!g.charge.falls.contains_key(&(REMOTE_ID_BASE+2)));assert!(g.dummies.iter().find(|d|d.id==REMOTE_ID_BASE+2).unwrap().body.down_t<=0.0);
     }
 
     #[test]
@@ -1191,7 +1221,7 @@ mod tests {
         guest.world_mut().run_schedule(FixedUpdate);
         let g = guest.world().resource::<Game>();
         let sent: Vec<&GuestAct> = g.net_acts.iter().collect();
-        assert!(matches!(sent.as_slice(), [GuestAct::Throw { item, charge, .. }] if *item == id && *charge > 0.2), "{sent:?}");
+        assert!(matches!(sent.as_slice(), [GuestAct::Charge { item: start, pressed:true }, GuestAct::Throw { item, charge, .. }] if *start==id && *item == id && *charge > 0.2), "{sent:?}");
         assert!(g.slots.is_empty(), "the hand is empty at once");
         // the host's next picture still says we hold it: it must not jump back into the hand
         let snap = {
@@ -1334,7 +1364,7 @@ pub fn guest_hands(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
     }
     let selected_kind = g.slots.selected().and_then(|id| g.world.items.get(&id)).map(|i| i.kind);
     let situation = Situation {
-        can_act: in_play && g.me.body.fall_t <= 0.0,
+        can_act: in_play && g.me.body.fall_t <= 0.0 && !g.charge.falls.contains_key(&PLAYER_ID),
         stunned_standing: g.me.body.stun > 0.0 && g.me.body.down_t <= 0.0,
         drinking: g.me.drunk.is_drinking(),
         at_smoko: false,
@@ -1349,17 +1379,11 @@ pub fn guest_hands(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
                     g.net_acts.push(GuestAct::BareSlap);
                 }
             }
-            Press::Charging | Press::Refused(_) => {}
+            Press::Charging => crate::charge::send_start(g),
+            Press::Refused(_) => {}
         }
     }
-    if g.wind.tick(dt, selected_kind)
-        && let Some(id) = g.slots.selected()
-    {
-        // held it too long: it drops
-        gone(g, id);
-        g.net_acts.push(GuestAct::Drop { item: id });
-        g.say("Held it too long! You dropped it.");
-    }
+    g.wind.tick(dt, selected_kind); // host decides overhold and drops
     if std::mem::take(&mut wanted.throw_up) {
         match g.wind.release(now, selected_kind, situation.can_act) {
             Release::Throw { charge } => {
@@ -1514,6 +1538,19 @@ pub fn apply_guest_act(g: &mut Game, p: &mut Player, net_id: u32, act: &GuestAct
         if !g.round.timed || g.rules.phase==Phase::Results {g.race.choices.insert(id,if *thrower{crate::race::Role::Thrower}else{crate::race::Role::Racer});}
         return;
     }
+    if let GuestAct::Charge{item,pressed}=act {crate::charge::request(g,id,*item,*pressed);return;}
+    // Clamp both charge reward and launch speed to time observed by the host.
+    let authoritative;
+    let act=if let GuestAct::Throw{item,from,vel,charge}=act {
+        let elapsed=g.charge.starts.get(&id).filter(|(held,_)|held==item).map_or(0.0,|(_,t)|(g.now-*t).max(0.0));
+        if let Some(kind)=g.world.items.get(item).map(|it|it.kind) {
+            let c=charge.min((elapsed/kind.def().charge).clamp(0.0,1.0));
+            let v=V3::new(vel.0,vel.1,vel.2);if v.len()>kind.def().speed+8.0{return;}let max=kind.def().speed*(0.42+0.58*c)+g.dummies[i].mover.speed()*0.3;
+            let v=if v.len()>max {v.normalised()*max}else{v};
+            authoritative=GuestAct::Throw{item:*item,from:*from,vel:(v.x,v.y,v.z),charge:c};&authoritative
+        }else{act}
+    }else{act};
+    if matches!(act,GuestAct::Throw{..}|GuestAct::Drop{..}|GuestAct::Select{..}|GuestAct::Slap{..}) {g.charge.starts.remove(&id);g.dummies[i].bot.winding=false;g.dummies[i].bot.wind_progress=0.0;}
     if g.rules.mode==GameMode::Race {
         match act {
             GuestAct::Carry{pressed}=>crate::smoko_mode::input(g,p,id,*pressed),
@@ -1527,7 +1564,7 @@ pub fn apply_guest_act(g: &mut Game, p: &mut Player, net_id: u32, act: &GuestAct
     let can_act = in_play && !g.smoko.carries.contains_key(&id) && g.dummies[i].body.stun <= 0.0 && !g.dummies[i].body.is_down() && g.dummies[i].seat.is_none();
     let holds = |g: &Game, item: u32| g.dummies[i].bot.slots.ids().contains(&item);
     match act {
-        GuestAct::RaceRole {..} | GuestAct::RaceTug => {},
+        GuestAct::Charge{..} | GuestAct::RaceRole {..} | GuestAct::RaceTug => {},
         GuestAct::BareSlap => {if can_act {crate::life::guest_bare_slap(g,p,i);}},
         GuestAct::Carry { pressed } => crate::smoko_mode::input(g,p,id,*pressed),
         GuestAct::Select { item } => {

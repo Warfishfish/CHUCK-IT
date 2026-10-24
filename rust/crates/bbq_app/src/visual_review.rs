@@ -145,16 +145,41 @@ fn motion_mode() -> Option<&'static str> {
     MODE.get_or_init(|| {
         let a: Vec<String> = std::env::args().collect();
         if !a.iter().any(|v|v=="--shot") || !a.iter().any(|v|v=="--review") { return None; }
-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie", "race-carry", "race-tug", "race-grass"].contains(&v.as_str())).cloned()
+        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie", "race-carry", "race-tug", "race-grass", "charge-fall", "magpie-flock"].contains(&v.as_str())).cloned()
     }).as_deref()
 }
 
 pub fn is_water_review() -> bool { motion_mode()==Some("water-balloon") }
-pub fn is_scripted_walk_review() -> bool { matches!(motion_mode(),Some("water-balloon"|"height")) }
+pub fn is_scripted_walk_review() -> bool { matches!(motion_mode(),Some("water-balloon"|"height"|"charge-fall"|"magpie-flock")) }
 
 fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut wanted: ResMut<crate::player::Wanted>, mut frame: Local<u32>) {
     let Some(mode) = motion_mode() else { return };
     if mode=="race" {return;}
+    if mode=="charge-fall" {
+        *frame+=1;
+        if *frame>=140 { for d in &mut game.dummies { d.bot.wish=(0.0,0.0); } }
+        if *frame==140 {
+            game.attract=false;game.options.bots_on=false;game.rules.phase=bbq_core::scoring::Phase::Play;game.round.time_left=180.0;
+            game.dummies.truncate(1);game.world.clear();game.magpie.timer=1000.0;
+            if let Some(d)=game.dummies.first_mut(){d.mover=bbq_core::movement::Mover::new(0.0,10.0);d.body=Default::default();d.face=1.0;d.bot.slots.clear();}
+            player.mover=bbq_core::movement::Mover::new(0.0,18.0);
+            let mut rng=bbq_core::rng::Rng::new(44);let item=game.world.spawn(bbq_core::items::ItemKind::Teddy,0.0,10.0,false,&mut rng);game.world.give(item,100);game.dummies[0].bot.slots.add(item);
+        }
+        if *frame==185 {let item=game.dummies[0].bot.slots.selected().unwrap();crate::charge::request(&mut game,100,item,true);}
+        if *frame>=180 && *frame%15==0 {let d=&game.dummies[0];println!("CHARGE_REVIEW frame={} charge={:.3} down={:.3} held={}",*frame,d.bot.wind_progress,d.body.down_t,d.bot.slots.len());}
+        return;
+    }
+    if mode=="magpie-flock" {
+        *frame+=1;game.options.bots_on=false;
+        if *frame==140 {
+            game.attract=false;game.rules.phase=bbq_core::scoring::Phase::Play;game.round.time_left=180.0;game.world.clear();game.dummies.truncate(3);game.board.clear();
+            for(i,d)in game.dummies.iter_mut().enumerate(){d.mover=bbq_core::movement::Mover::new(-3.0+i as f32*3.0,10.0);d.body=Default::default();}
+            player.mover=bbq_core::movement::Mover::new(0.0,18.0);game.flock_next=game.now+0.5;
+        }
+        if *frame>=180 && *frame%30==0 {println!("FLOCK_REVIEW frame={} birds={:?}",*frame,game.flock.iter().map(|b|(b.target,b.phase)).collect::<Vec<_>>());}
+        return;
+    }
+
     if matches!(mode,"race-carry"|"race-tug"|"race-grass") {
         *frame+=1;
         if *frame==140 {

@@ -1111,7 +1111,7 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>, yard: Res<crate::
     let carriers: Vec<_> = game.smoko.carries.keys().copied().collect();
     for d in game.dummies.iter_mut() {
         // While stunned, the host simulates physical knockback; client positions cannot cancel it.
-        if (race && mirror) || controlled.contains(&d.id) || (d.body.wet_t > 0.0 && (mirror || d.body.stun > 0.0)) {continue;}
+        if d.body.down_t>0.0 || (race && mirror) || controlled.contains(&d.id) || (d.body.wet_t > 0.0 && (mirror || d.body.stun > 0.0)) {continue;}
         let Some(r) = &d.remote else { continue };
         let Some(h) = session.heard.get(&r.net_id) else { continue };
         let s = h.state;
@@ -1142,8 +1142,7 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>, yard: Res<crate::
         }
         // the game's `yaw` looks along (-sin, -cos); a puppet's `face` looks along (sin, cos)
         d.face = (-s.yaw.sin()).atan2(-s.yaw.cos());
-        d.bot.winding = s.charge > 0.0;
-        d.bot.wind_progress = s.charge;
+        // Charge and recovery come from the host world snapshot, never peer animation data.
         d.belly = s.belly as f32 / 255.0 * 2.0;
         d.net_dive = s.dive as f32 / 255.0;
     }
@@ -1366,6 +1365,7 @@ mod tests {
         use bbq_core::net_world::*;
         let mut p = Pair::new();
         let snap = |seq| WorldSnap {
+            charges:vec![],flock:vec![],
             magpie:(0,0,(14.0,1.8,24.05)),
             race:vec![],
             wet: vec![],

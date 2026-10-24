@@ -10,12 +10,13 @@ use bevy::prelude::*;
 use bevy::text::{FontSource, FontWeight};
 use bevy::ui::RelativeCursorPosition;
 
-pub const INK: Color = Color::srgb(0.090, 0.141, 0.094);
-pub const PAPER: Color = Color::srgb(0.957, 0.976, 0.937);
-pub const PAPER2: Color = Color::srgb(0.894, 0.933, 0.863);
-pub const SUN: Color = Color::srgb(1.0, 0.824, 0.247);
-pub const ESKY: Color = Color::srgb(0.122, 0.435, 0.820);
-pub const TOMATO: Color = Color::srgb(1.0, 0.302, 0.239);
+const fn palette_colour(c:u32)->Color{Color::srgb(((c>>16)&255) as f32/255.0,((c>>8)&255) as f32/255.0,(c&255) as f32/255.0)}
+pub const INK: Color = palette_colour(bbq_core::finish::PALETTE.ink);
+pub const PAPER: Color = palette_colour(bbq_core::finish::PALETTE.paper);
+pub const PAPER2: Color = Color::srgb(0.894,0.933,0.863);
+pub const SUN: Color = palette_colour(bbq_core::finish::PALETTE.sun);
+pub const ESKY: Color = palette_colour(bbq_core::finish::PALETTE.blue);
+pub const TOMATO: Color = palette_colour(bbq_core::finish::PALETTE.red);
 pub const MUTED: Color = Color::srgb(0.310, 0.376, 0.298);
 pub const WHITE: Color = Color::WHITE;
 pub const HUD: Color = Color::srgba(0.071, 0.125, 0.078, 0.74);

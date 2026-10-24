@@ -213,18 +213,7 @@ pub const DIRT_DEFAULT: u8 = 30;
 
 /// The colour palettes (0xRRGGBB). Everything but the body has 5 colours (Marcus, 9 Oct 2026); the
 /// body keeps its 10 skin colours. Sun-baked but clear, picked to sit well in the yard.
-pub const BODY_COLOURS: [u32; 10] = [
-    0xffd23f, // sunny yellow (the old fixed preview colour)
-    0xff9f1c, // orange
-    0xe85d4a, // tomato
-    0xf28fb0, // pink
-    0xa77bd6, // purple
-    0x4f8fe0, // sky blue
-    0x2fb5a8, // teal
-    0x5fbf5a, // grass green
-    0xc89a6a, // tan
-    0x9aa3ad, // grey
-];
+pub const BODY_COLOURS: [u32; 10] = crate::finish::PALETTE.body;
 pub const SINGLET_COLOURS: [u32; 5] = [0xf4f1e6, 0xd63a2f, 0x2f7fe0, 0xf2c230, 0x111111];
 pub const THONG_COLOURS: [u32; 5] = [0xe8443a, 0x2f8ee8, 0xf4c20d, 0x30c26b, 0xff7ab8];
 pub const SHORTS_COLOURS: [u32; 5] = [0x2f5fa8, 0x1b1b1b, 0xc2a878, 0xd63a2f, 0xf2c230];

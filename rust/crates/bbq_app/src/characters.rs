@@ -1303,7 +1303,12 @@ fn compute_poses(
         // Replace only the ordinary walking bob, leaving throw/hit/down/emote offsets intact.
         if ordinary && d.mover.grounded && !busy && d.drunk <= 0.0 {
             pose.body_y -= d.anim.walk.sin().abs() * 0.07;
-            pose.body_y += motion.phase.sin().powi(2) * crate::locomotion::BODY_BOB * motion.blend;
+            pose.body_y += motion.phase.sin().powi(2) * crate::locomotion::BODY_BOB * motion.blend * (1.0 + 0.12 * (motion.phase * 0.5 + index as f32).sin());
+        }
+        if ordinary && !busy {
+            let breath=(t*2.0+index as f32*1.7).sin()*crate::locomotion::IDLE_BREATH;
+            pose.body_scale.1 *= 1.0+breath*(1.0-motion.blend);
+            pose.body_rot=pose.body_rot.mul(bbq_core::vec::Quat::from_euler_xyz(0.0,0.0,motion.phase.sin()*crate::locomotion::BODY_SWAY*motion.blend));
         }
         poses.0.push(pose);
         poses.1.push(*motion);
@@ -1819,7 +1824,7 @@ fn animate_face_and_feet(
         }
         let fwd = accel[i].z.clamp(-40.0, 40.0);
         dr.swell_v -= fwd * 0.02;
-        dr.sag_v += (dr.sag * -150.0 - dr.sag_v * 6.0) * dt;
+        dr.sag_v += (dr.sag * -crate::locomotion::BELLY_STIFFNESS - dr.sag_v * crate::locomotion::BELLY_DAMPING) * dt;
         dr.swell_v += (dr.swell * -110.0 - dr.swell_v * 5.0) * dt;
         dr.sag = (dr.sag + dr.sag_v * dt).clamp(-0.6, 1.0);
         dr.swell = (dr.swell + dr.swell_v * dt).clamp(-0.35, 0.35);

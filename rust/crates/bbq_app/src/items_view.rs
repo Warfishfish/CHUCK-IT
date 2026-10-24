@@ -153,6 +153,7 @@ impl Plugin for ItemsViewPlugin {
                 Update,
                 (
                     sync_items,
+                    motion_trails,
                     sync_viewmodel.in_set(HeldViewSet),
                     sync_puddles,
                     draw_trajectory,
@@ -918,4 +919,19 @@ mod flop_tests {
         assert!((mean - 0.5).abs() < 0.02, "{mean}");
         assert!((0..n).all(|i| (0.0..=1.0).contains(&rand01(i, 9.0, 0))));
     }
+}
+
+// Lightweight velocity streaks: one shared mesh/material, capped; never affect collision.
+pub const TRAIL_SECONDS:f32=0.045;
+pub const TRAIL_WIDTH:f32=0.018;
+pub const TRAIL_LIMIT:usize=64;
+#[derive(Component)] struct MotionTrail(u32);
+fn motion_trails(mut commands:Commands,game:Res<Game>,mut meshes:ResMut<Assets<Mesh>>,mut mats:ResMut<Assets<StandardMaterial>>,mut kit:Local<Option<(Handle<Mesh>,Handle<StandardMaterial>)>>,mut q:Query<(Entity,&MotionTrail,&mut Transform)>) {
+ if bbq_core::finish::DETAIL_LEVEL==0 {for(e,_,_)in &mut q{commands.entity(e).despawn();}return;}
+ let (mesh,mat)=kit.get_or_insert_with(||(meshes.add(Sphere::new(1.0).mesh().uv(6,4)),mats.add(StandardMaterial{base_color:Color::srgba(1.0,0.94,0.75,0.26),unlit:true,alpha_mode:AlphaMode::Blend,..default()})));
+ let flying:Vec<_>=game.world.items.values().filter(|it|it.state==ItemState::Flying&&it.live&&it.vel.len()>4.0).take(TRAIL_LIMIT).collect();
+ let mut shown=std::collections::HashSet::new();
+ let pose=|it:&bbq_core::flight::Item| {let vel=Vec3::new(it.vel.x,it.vel.y,it.vel.z);let span=vel*TRAIL_SECONDS;let width=TRAIL_WIDTH*(0.7+bbq_core::feel::strength(it.knock()));Transform::from_translation(Vec3::new(it.pos.x,it.pos.y,it.pos.z)-span*0.5).with_rotation(Quat::from_rotation_arc(Vec3::Y,vel.normalize())).with_scale(Vec3::new(width,span.length()*0.5,width))};
+ for(e,id,mut tf)in &mut q {if let Some(it)=flying.iter().find(|it|it.id==id.0){*tf=pose(it);shown.insert(id.0);}else{commands.entity(e).despawn();}}
+ for it in flying {if !shown.contains(&it.id){commands.spawn((MotionTrail(it.id),Mesh3d(mesh.clone()),MeshMaterial3d(mat.clone()),pose(it),bevy::light::NotShadowCaster));}}
 }

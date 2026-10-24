@@ -197,6 +197,10 @@ pub struct Game {
     pub smoko: crate::smoko_mode::State,
     pub race: crate::race::State,
     pub magpie: bbq_core::magpie::Bird,
+    pub charge: crate::charge::State,
+    pub flock: Vec<bbq_core::magpie::Bird>,
+    pub flock_next:f32,
+    pub flock_until:f32,
     /// Online guest: this game does not run the yard, it shows what the host says (see
     /// `online_world.rs`).
     pub mirror: bool,
@@ -228,12 +232,14 @@ impl Game {
     }
 
     /// Show a particle effect at `at`.
-    pub fn fx(&mut self, kind: crate::fx::FxKind, at: V3) {
+    pub fn fx(&mut self,kind:crate::fx::FxKind,at:V3){self.fx_scaled(kind,at,1.0);}
+    pub fn fx_scaled(&mut self, kind: crate::fx::FxKind, at: V3,scale:f32) {
+        let scale=scale.clamp(crate::fx::IMPACT_SCALE_MIN,crate::fx::IMPACT_SCALE_MAX);
         if self.fx.len() < 24 {
-            self.fx.push(crate::fx::FxEvent { kind, at });
+            self.fx.push(crate::fx::FxEvent { kind, at,scale });
         }
         if self.net_fx && self.fx_out.len() < 32 {
-            self.fx_out.push(crate::fx::FxEvent { kind, at });
+            self.fx_out.push(crate::fx::FxEvent { kind, at,scale });
         }
     }
 
@@ -311,6 +317,8 @@ impl Plugin for GamePlugin {
             remotes: Vec::new(),
             smoko: Default::default(),
             magpie:Default::default(),
+            charge:Default::default(),
+            flock:vec![],flock_next:bbq_core::magpie::FLOCK_INTERVAL,flock_until:0.0,
             race: Default::default(),
             mirror: false,
             net_fx: false,
@@ -378,6 +386,7 @@ pub fn step_game(
 
     // ---- the round clock, and Heist banking ----
     crate::round::step(g);
+    crate::charge::tick(g,p);
     if g.rules.mode == GameMode::Race { crate::race::step(g,p,&mut wanted,&yard); return; }
     crate::heist_app::step(g, p);
 
@@ -538,7 +547,7 @@ pub fn step_game(
         .and_then(|id| g.world.items.get(&id))
         .map(|i| i.kind);
     let situation = Situation {
-        can_act: g.rules.in_play() && g.me.body.fall_t <= 0.0,
+        can_act: g.rules.in_play() && g.me.body.fall_t <= 0.0 && !g.charge.falls.contains_key(&PLAYER_ID),
         stunned_standing: g.me.body.stun > 0.0 && g.me.body.down_t <= 0.0,
         drinking: g.me.drunk.is_drinking(),
         at_smoko: seated,
@@ -562,12 +571,7 @@ pub fn step_game(
     if g.wind.tick(dt, selected_kind)
         && let Some(id) = g.slots.selected()
     {
-        // held it too long: drop it, and you can't pick it up again for 2.5 s
-        let pos = eye_of(p);
-        g.slots.remove(id);
-        g.world
-            .drop_item(id, pos, Some((PLAYER_ID, now + hands::OVERHOLD_BLOCK)));
-        g.say("Held it too long! You dropped it.");
+        crate::charge::fall(g,p,PLAYER_ID,id);
     }
     if std::mem::take(&mut wanted.throw_up) {
         let kind = g
@@ -600,7 +604,6 @@ pub fn step_game(
         g.catcher.press(can);
     }
 
-    crate::magpie::step(g,p,dt);
 
     // ---- pick things up ----
     if g.rules.phase != Phase::Countdown
@@ -620,6 +623,7 @@ pub fn step_game(
 
     // ---- the bots decide what to do ----
     crate::bots_app::step(g, p, &yard.0);
+    crate::magpie::step(g,p,dt);
 
     // ---- the dummies stand about and get knocked over ----
     let countdown = g.rules.phase == Phase::Countdown;
@@ -760,9 +764,10 @@ pub fn step_game(
                     continue;
                 };
                 let (vx, vz) = (g.dummies[di].mover.x, g.dummies[di].mover.z);
-                g.fx(
+                g.fx_scaled(
                     if kind == ItemKind::WaterBalloon { crate::fx::FxKind::BalloonBurst } else if kind == ItemKind::Stubby { crate::fx::FxKind::smash_of(bottle) } else { crate::fx::FxKind::Hit },
                     V3::new(vx, 1.2, vz),
+                    crate::fx::IMPACT_SCALE_MIN+0.5*bbq_core::feel::strength(kind.def().knock),
                 );
                 let leader = g.board.leader() == Some(victim);
                 // knock and stun (a bottle of spirits knocks harder)

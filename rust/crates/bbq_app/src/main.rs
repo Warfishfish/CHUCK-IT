@@ -9,6 +9,7 @@
 // Bevy systems take many parameters by design.
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
+mod charge;
 mod bots_app;
 mod characters;
 mod decals;

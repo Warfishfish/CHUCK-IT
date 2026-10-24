@@ -1,3 +1,7 @@
+# Animation, magpies and cartoon finish — approved for publication (25 October 2026)
+
+[Checkpoint](2026-10-25-animation-graphics/CHECKPOINT.md) · [Actual clips and comparison](2026-10-25-animation-graphics/review.html). Verified full backup; 668 tests, native/web builds pass. Charge lean/fall/recovery, belly/walk polish, Backyard/Teams magpie rescues and flock, subtle graphics/UI finish. Matched mean frame time 8.859 → 8.890 ms. Browser menu/game loads; automated pointer-lock limitation documented. User approved committing and pushing, including the rebuilt browser version and With mates settings relocation. Previous shirt/Race and menu updates were committed and pushed as b7f8b44.
+
 # Shirt names and Race interactions — complete, awaiting review (24 October 2026)
 
 [Recovery checkpoint](2026-10-24-race-shirt/CHECKPOINT.md). Verified full backup includes the pending main-menu update. Global rear shirt names; Race carry/throw, shorts tug, grass return rules and scenery. 664 tests and native/browser builds passed; actual captures, motion clips and matched performance checks complete. [Review](2026-10-24-race-shirt/review.html). No commit or push.

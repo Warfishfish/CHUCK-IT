@@ -241,7 +241,7 @@ pub struct FacePlugin;
 impl Plugin for FacePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, make_kit)// after Update, so a model swapped or thrown away this frame is already gone
-            .add_systems(PostUpdate, (rig_head_forms, shape_heads, sync_faces, wobble_mouths, sync_tints, sync_shorts).chain().after(crate::legs::rig_legs).before(bevy::transform::TransformSystems::Propagate));
+            .add_systems(PostUpdate, (rig_head_forms, shape_heads, sync_faces, wobble_mouths, sync_tints, gradient_skin, sync_shorts).chain().after(crate::legs::rig_legs).before(bevy::transform::TransformSystems::Propagate));
     }
 }
 
@@ -842,5 +842,20 @@ fn shape_heads(
         let y=look.face_scale();let x=y.sqrt().recip();
         tf.scale=Vec3::new(x,y,x);
         tf.translation=form.centre*(Vec3::ONE-tf.scale);
+    }
+}
+
+/// One cached vertex gradient per source mesh. No shader pass or per-frame mesh work.
+#[derive(Component)] struct SkinGradient;
+fn gradient_skin(mut commands:Commands,mut meshes:ResMut<Assets<Mesh>>,q:Query<(Entity,&LookTint,&Mesh3d),Without<SkinGradient>>,mut cache:Local<std::collections::HashMap<AssetId<Mesh>,Handle<Mesh>>>) {
+    if bbq_core::finish::DETAIL_LEVEL==0{return;}
+    for (e,t,h) in &q {
+        if !matches!(t.part,TintPart::Body|TintPart::Head){continue;}
+        if let Some(mesh)=cache.get(&h.0.id()){commands.entity(e).insert((Mesh3d(mesh.clone()),SkinGradient));continue;}
+        let Some(source)=meshes.get(&h.0) else {continue};let mut mesh=source.clone();
+        let Some(bevy::mesh::VertexAttributeValues::Float32x3(positions))=mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {continue};
+        let lo=positions.iter().map(|p|p[1]).fold(f32::INFINITY,f32::min);let hi=positions.iter().map(|p|p[1]).fold(f32::NEG_INFINITY,f32::max);
+        let colors:Vec<[f32;4]>=positions.iter().map(|p|{let u=((p[1]-lo)/(hi-lo).max(0.001)).clamp(0.0,1.0);let v=1.0-bbq_core::finish::GRADIENT_DEPTH*(1.0-u)*bbq_core::finish::DETAIL_LEVEL.min(2) as f32;[v,v,v,1.0]}).collect();
+        mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR,colors);let new=meshes.add(mesh);cache.insert(h.0.id(),new.clone());commands.entity(e).insert((Mesh3d(new),SkinGradient));
     }
 }

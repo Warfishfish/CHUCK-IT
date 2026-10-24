@@ -1027,17 +1027,13 @@ fn update_slots(
             ));
             match item {
                 Some(it) => {
-                    p.spawn((
-                        Node {
-                            width: px(34.0),
-                            height: px(34.0),
-                            border: UiRect::all(px(2.0)),
-                            border_radius: BorderRadius::MAX,
-                            ..default()
-                        },
-                        BackgroundColor(item_colour(it.kind)),
-                        BorderColor::all(INK),
-                    ));
+                    p.spawn((Node{width:px(40.0),height:px(38.0),..default()})).with_children(|icon| {
+                        use bbq_core::items::ItemKind::*;
+                        let (w,h,r)=match it.kind {Stubby=>(20.0,30.0,5.0),Noodle=>(9.0,34.0,5.0),Fish=>(30.0,16.0,9.0),Snag=>(30.0,12.0,6.0),Steak=>(29.0,23.0,10.0),_=>(28.0,28.0,18.0)};
+                        icon.spawn((Node{position_type:PositionType::Absolute,left:px((40.0-w)/2.0),top:px((38.0-h)/2.0),width:px(w),height:px(h),border:UiRect::all(px(2.0)),border_radius:BorderRadius::all(px(r)),..default()},BackgroundColor(item_colour(it.kind)),BorderColor::all(INK)));
+                        if it.kind==Teddy {for x in [5.0,26.0]{icon.spawn((Node{position_type:PositionType::Absolute,left:px(x),top:px(1.0),width:px(10.0),height:px(10.0),border:UiRect::all(px(2.0)),border_radius:BorderRadius::MAX,..default()},BackgroundColor(item_colour(it.kind)),BorderColor::all(INK)));}}
+                        if it.kind==WaterBalloon {icon.spawn((Node{position_type:PositionType::Absolute,left:px(17.0),top:px(31.0),width:px(7.0),height:px(5.0),border_radius:BorderRadius::all(px(2.0)),..default()},BackgroundColor(item_colour(it.kind))));}
+                    });
                     let def = it.kind.def();
                     let name = crate::items_view::item_name(it);
                     let label = if it.kind == bbq_core::items::ItemKind::WaterBalloon {

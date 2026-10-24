@@ -6,7 +6,11 @@ pub const TURN_RESPONSE: f32 = 13.0;
 pub const STEP_RESPONSE: f32 = 12.0;
 pub const STANCE_FRACTION: f32 = 0.55;
 pub const MAX_CADENCE: f32 = 13.0;
-pub const BODY_BOB: f32 = 0.035;
+pub const BODY_BOB: f32 = 0.055;
+pub const BODY_SWAY: f32 = 0.035;
+pub const IDLE_BREATH: f32 = 0.009;
+pub const BELLY_STIFFNESS: f32 = 125.0;
+pub const BELLY_DAMPING: f32 = 6.5;
 pub const CAMERA_BOB_SCALE: f32 = 0.7;
 
 pub fn angle_delta(from: f32, to: f32) -> f32 {

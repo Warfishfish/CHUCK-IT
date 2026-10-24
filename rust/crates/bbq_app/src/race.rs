@@ -616,13 +616,13 @@ fn combat(g: &mut Game, p: &mut Player, w: &mut Wanted, y: &YardRes) {
                 g.now,
                 kind,
                 &hands::Situation {
-                    can_act: true,
+                    can_act: !g.me.body.is_down() && g.me.body.stun<=0.0,
                     ..Default::default()
                 },
             );
         }
         if g.wind.tick(dt, kind) {
-            g.say("Charge released — hold again to throw");
+            if let Some(item)=g.slots.selected(){crate::charge::fall(g,p,PLAYER_ID,item);}
         }
         if w.throw_up && g.wind.charging {
             let charge = g.wind.charge;
@@ -959,6 +959,7 @@ pub fn guest_input(g: &mut Game, p: &mut Player, w: &mut Wanted, dt: f32) {
             },
         );
     }
+    if w.throw_down && g.wind.charging {crate::charge::send_start(g);}
     g.wind.tick(dt, kind);
     if w.throw_up && g.wind.charging {
         let charge = g.wind.charge;

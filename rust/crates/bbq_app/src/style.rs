@@ -155,8 +155,8 @@ pub fn body_material(colour: Color, assets: &AssetServer) -> StandardMaterial {
         // a soft sheen on the skin (C11.5): a thin glossy coat over the colour
         return StandardMaterial {
             base_color: colour,
-            perceptual_roughness: if current() == Style::Pop { 0.60 } else { 0.55 },
-            clearcoat: if current() == Style::Pop { 0.12 } else { 0.2 },
+            perceptual_roughness: if current() == Style::Pop { bbq_core::finish::BODY_ROUGHNESS } else { 0.55 },
+            clearcoat: if current() == Style::Pop { if bbq_core::finish::DETAIL_LEVEL>0 {bbq_core::finish::BODY_COAT}else{0.0} } else { 0.2 },
             clearcoat_perceptual_roughness: 0.45,
             ..default()
         };

@@ -16,6 +16,7 @@ pub const MAX_THROW_START: f32 = 4.0;
 /// What a guest asks the host for.
 #[derive(Clone, Debug, PartialEq)]
 pub enum GuestAct {
+    Charge { item:u32, pressed:bool },
     /// Let go of a throw: the item, where it starts, how fast, how long it was wound up.
     Throw { item: u32, from: (f32, f32, f32), vel: (f32, f32, f32), charge: f32 },
     /// Swing the item in your hand at whoever is in front of you.
@@ -59,6 +60,7 @@ pub enum HitMsg {
 impl GuestAct {
     pub(crate) fn write(&self, w: &mut Writer) {
         match self {
+            GuestAct::Charge{item,pressed}=>{w.u8(10);w.u32(*item);w.u8(*pressed as u8);},
             GuestAct::Throw { item, from, vel, charge } => {
                 w.u8(1);
                 w.u32(*item);
@@ -88,6 +90,7 @@ impl GuestAct {
 
     pub(crate) fn read(r: &mut Reader) -> Result<GuestAct, DecodeError> {
         Ok(match r.u8()? {
+            10 => GuestAct::Charge{item:r.u32()?,pressed:r.u8()?!=0},
             1 => GuestAct::Throw { item: r.u32()?, from: r.triple()?, vel: r.triple()?, charge: r.f32()?.clamp(0.0, 1.0) },
             2 => GuestAct::Slap { item: r.u32()? },
             3 => GuestAct::Drop { item: r.u32()? },

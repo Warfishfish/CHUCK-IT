@@ -133,6 +133,7 @@ pub struct RoundSnap {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FxSnap {
+    pub scale:f32,
     /// Index into the game's list of effect kinds.
     pub kind: u8,
     pub at: (f32, f32, f32),
@@ -153,6 +154,9 @@ pub struct RaceSnap {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct WorldSnap {
+    /// Host state: id, charge fraction, overhold recovery seconds.
+    pub charges: Vec<(u32,f32,f32)>,
+    pub flock:Vec<(u8,u32,(f32,f32,f32))>,
     pub magpie: (u8,u32,(f32,f32,f32)),
     pub race: Vec<RaceSnap>,
     /// Host-only status, including zero for recovery. Position bounds wet remote prediction.
@@ -176,6 +180,10 @@ pub struct WorldSnap {
 
 impl WorldSnap {
     pub(crate) fn write(&self, w: &mut Writer) {
+        w.u8(self.flock.len().min(crate::magpie::MAX_FLOCK) as u8);
+        for &(phase,id,pos) in self.flock.iter().take(crate::magpie::MAX_FLOCK){w.u8(phase);w.u32(id);w.triple(pos);}
+        w.u8(self.charges.len().min(MAX_BOARD) as u8);
+        for &(id,c,f) in self.charges.iter().take(MAX_BOARD){w.u32(id);w.f32(c);w.f32(f);}
         w.u8(self.magpie.0);w.u32(self.magpie.1);w.triple(self.magpie.2);
         w.u8(self.wet.len().min(MAX_BOARD) as u8);
         for s in self.wet.iter().take(MAX_BOARD) {
@@ -264,7 +272,7 @@ impl WorldSnap {
         w.u8(self.fx.len().min(MAX_FX) as u8);
         for f in self.fx.iter().take(MAX_FX) {
             w.u8(f.kind);
-            w.triple(f.at);
+            w.triple(f.at);w.f32(f.scale);
         }
     }
 
@@ -273,7 +281,11 @@ impl WorldSnap {
             let n = r.u8()? as usize;
             if n > max { Err(DecodeError::TooMany) } else { Ok(n) }
         };
-        let magpie=(r.u8()?.min(3),r.u32()?,r.triple()?);
+        let n=count(r,crate::magpie::MAX_FLOCK)?;let mut flock=Vec::with_capacity(n);
+        for _ in 0..n {flock.push((r.u8()?.min(4),r.u32()?,r.triple()?));}
+        let n=count(r,MAX_BOARD)?;let mut charges=Vec::with_capacity(n);
+        for _ in 0..n {charges.push((r.u32()?,r.f32()?.clamp(0.0,1.0),r.f32()?.clamp(0.0,2.0)));}
+        let magpie=(r.u8()?.min(4),r.u32()?,r.triple()?);
         let n = count(r, MAX_BOARD)?;
         let mut wet = Vec::with_capacity(n);
         for _ in 0..n {
@@ -371,9 +383,9 @@ impl WorldSnap {
         let n = count(r, MAX_FX)?;
         let mut fx = Vec::with_capacity(n);
         for _ in 0..n {
-            fx.push(FxSnap { kind: r.u8()?, at: r.triple()? });
+            fx.push(FxSnap { kind: r.u8()?, at: r.triple()?,scale:r.f32()?.clamp(0.5,2.0) });
         }
-        Ok(WorldSnap { magpie, race, wet, seq, now, round, items, bots, dazza, board, teams, feed, fx })
+        Ok(WorldSnap { flock, charges, magpie, race, wet, seq, now, round, items, bots, dazza, board, teams, feed, fx })
     }
 }
 
@@ -384,6 +396,7 @@ mod tests {
 
     fn sample() -> WorldSnap {
         WorldSnap {
+            charges:vec![(2,0.7,1.5)],flock:vec![(4,2,(1.0,2.0,3.0))],
             magpie:(0,0,(14.0,2.2,23.05)),
             race:vec![],
             wet: vec![WetSnap { id: 2, remaining: 3.75, pos: (1.0, 0.0, 2.0) }],
@@ -437,7 +450,7 @@ mod tests {
             ],
             teams: vec![(1, 0), (100, 1)],
             feed: vec!["Marcus hit Kev (+100)".into(), "Dazza: bugger off".into()],
-            fx: vec![FxSnap { kind: 2, at: (1.0, 1.5, 2.0) }],
+            fx: vec![FxSnap { scale:1.0,kind: 2, at: (1.0, 1.5, 2.0) }],
         }
     }
 
@@ -476,8 +489,7 @@ mod tests {
         let mut s = sample();
         s.round.banner = None;
         let mut bytes = Msg::World(Box::new(s)).encode();
-        let at = 17 + 1 + 1 + 20 + 1 + 4 + 4 + 3 + 4 + 4 + 8 + 1 + 1; // kind, seq, now, phase/mode/features, time, round/len/spot/stock, smoko, heist, banner flag
-        bytes[at] = 200;
+        bytes[1] = 200; // bounded flock count immediately after message kind
         assert!(Msg::decode(&bytes).is_err());
         // every cut-off version is refused, never a panic
         for n in 0..good.len() {
