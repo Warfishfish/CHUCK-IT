@@ -92,6 +92,15 @@ pub fn oval(t: f32) -> (f32, f32) {
     (12.0 * COURSE_SCALE * t.sin(), -8.0 * COURSE_SCALE * t.cos())
 }
 pub const WIDTH: f32 = 4.8;
+/// Grace verge, grass pace and permitted re-entry distance are metres / speed fractions.
+pub const VERGE: f32 = 0.6;
+pub const GRASS_SPEED: f32 = 0.55;
+pub const REJOIN_RADIUS: f32 = 3.0;
+pub const TUG_REACH: f32 = 1.65;
+pub const TUG_SPEED: f32 = 0.65;
+pub const TUG_TIME: f32 = 1.25;
+pub const TUG_COOLDOWN: f32 = 5.0;
+pub const TUG_IMMUNITY: f32 = 6.0;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Role {
     #[default]
@@ -105,6 +114,9 @@ pub struct Progress {
     pub previous: (f32, f32),
     pub disconnected: bool,
     pub protected_until: f32,
+    pub return_to: Option<(f32,f32)>,
+    pub tug_until: f32,
+    pub tug_immune_until: f32,
 }
 #[derive(Default)]
 pub struct State {
@@ -112,6 +124,7 @@ pub struct State {
     pub elapsed: f32,
     pub throwers: BTreeMap<PlayerId, Thrower>,
     pub choices: BTreeMap<PlayerId, Role>,
+    pub tug_ready: BTreeMap<PlayerId,f32>,
 }
 fn distance(a: (f32, f32), b: (f32, f32)) -> f32 {
     (a.0 - b.0).hypot(a.1 - b.1)
@@ -140,6 +153,7 @@ impl Progress {
             previous: at,
             disconnected: false,
             protected_until: 0.0,
+            return_to: None, tug_until: 0.0, tug_immune_until: 0.0,
         }
     }
     pub fn target(&self) -> (f32, f32) {
@@ -149,9 +163,17 @@ impl Progress {
         if self.finish.is_some() || self.disconnected {
             return false;
         }
-        // Out-of-lane movement or teleporting must never advance race progress.
-        if track_distance(at) > WIDTH * 0.5 + 0.35 || distance(at, self.previous) > 2.0 {
-            return true;
+        // Leaving the verge suspends progress until returning near the departure point.
+        // No ordinary grass teleport. A shortcut, carry or throw cannot earn a gate.
+        if track_distance(at) > WIDTH * 0.5 + VERGE || distance(at, self.previous) > 2.0 {
+            self.return_to.get_or_insert(self.previous);
+        }
+        if let Some(back) = self.return_to {
+            if track_distance(at) <= WIDTH * 0.5 + VERGE && distance(at,back) < REJOIN_RADIUS {
+                self.return_to = None;
+            }
+            self.previous = at;
+            return false;
         }
         let target = self.target();
         if distance(at, target) < 1.3 && distance(self.previous, target) > distance(at, target) {
@@ -252,7 +274,7 @@ pub fn standings(g: &Game) -> Vec<PlayerId> {
                 (Some(_), None) => std::cmp::Ordering::Less,
                 (None, Some(_)) => std::cmp::Ordering::Greater,
                 (None, None) => b.passed.cmp(&a.passed).then_with(|| {
-                    distance(a.previous, a.target()).total_cmp(&distance(b.previous, b.target()))
+                    distance(a.return_to.unwrap_or(a.previous), a.target()).total_cmp(&distance(b.return_to.unwrap_or(b.previous), b.target()))
                 }),
             })
     });
@@ -285,11 +307,14 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted, y: &YardRes) {
     if g.rules.in_play() {
         g.race.elapsed += dt;
     }
+    let held: Vec<_> = g.smoko.carries.values().map(|c|c.victim).collect();
+    let controlled: Vec<_> = g.dummies.iter().filter(|d|crate::smoko_mode::controlled(g,d.id)).map(|d|d.id).collect();
     for d in &mut g.dummies {
         let Some(r) = g.race.racers.get(&d.id) else {
             continue;
         };
-        if d.remote.is_some() {
+        if held.contains(&d.id) {continue;}
+        if d.remote.is_some() && !controlled.contains(&d.id) {
             if d.mover.boost_t > 0. {
                 d.mover.boost_t = (d.mover.boost_t - dt).max(0.);
                 if d.mover.boost_t == 0. {
@@ -314,10 +339,10 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted, y: &YardRes) {
         let tangent = (36. * aim.cos(), 24. * aim.sin());
         let len = tangent.0.hypot(tangent.1);
         let lane = (d.id % 3) as f32 - 1.;
-        let target = (
+        let target = r.return_to.unwrap_or((
             centre.0 + tangent.1 / len * lane * 0.75,
             centre.1 - tangent.0 / len * lane * 0.75,
-        );
+        ));
         let v = (target.0 - at.0, target.1 - at.1);
         let len = v.0.hypot(v.1).max(0.001);
         let running = g.rules.in_play() && r.finish.is_none() && g.options.bots_on;
@@ -334,7 +359,10 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted, y: &YardRes) {
                 ..Default::default()
             },
             &Modifiers {
-                frozen: !running,
+                frozen: !running && !controlled.contains(&d.id),
+                stunned: d.body.stun > 0.0,
+                carrying: g.smoko.carries.contains_key(&d.id),
+                gait: pace(r, at, g.now, g.race.elapsed),
                 wet: d.body.wet_t > 0.0,
                 ..Default::default()
             },
@@ -343,6 +371,9 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted, y: &YardRes) {
     }
     constrain_throwers(g, p);
     combat(g, p, w, y);
+    if std::mem::take(&mut w.interact_pressed) { tug(g,p,PLAYER_ID); }
+    crate::smoko_mode::step(g,p,w);
+    let held: Vec<_> = g.race.racers.keys().copied().filter(|id|crate::smoko_mode::controlled(g,*id)).collect();
     if g.rules.in_play() {
         for (id, r) in &mut g.race.racers {
             let m = if *id == PLAYER_ID {
@@ -353,10 +384,12 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted, y: &YardRes) {
                 r.disconnected = true;
                 continue;
             };
-            if r.update((m.x, m.z), g.race.elapsed) || m.y < -1.0 {
+            if held.contains(id) {r.return_to.get_or_insert(r.previous);} else {r.update((m.x,m.z),g.race.elapsed);}
+            if m.y < -4.0 || m.x.abs()>51.0 || m.z.abs()>36.0 {
                 let at = TRACK[r.passed % 8];
                 *m = Mover::new(at.0, at.1);
                 r.previous = at;
+                r.return_to = None;
                 r.protected_until = g.race.elapsed + 2.0;
             }
         }
@@ -369,6 +402,7 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted, y: &YardRes) {
         }
     }
     g.prompt = prompt(g);
+    if let Some(v)=crate::smoko_mode::pickup_target(g,p,PLAYER_ID) {g.prompt.push_str(&format!(" • F: pick up {}",crate::round::name_of(g,v)));}
     *w = Wanted {
         wish: w.wish,
         dive: w.dive,
@@ -410,15 +444,20 @@ pub fn prompt(g: &Game) -> String {
             t.next(),
             upgrade
         )
+    } else if crate::smoko_mode::player_locked(g) {
+        "CARRIED • Escape automatically after 3 seconds; rivals can interrupt the carrier".into()
+    } else if g.smoko.carries.contains_key(&PLAYER_ID) || g.smoko.guest_carrying {
+        "CARRYING • Tap F: drop • Hold F, release: throw • 3-second limit".into()
     } else if let Some(r) = g.race.racers.get(&PLAYER_ID) {
         r.finish.map_or_else(
             || {
                 format!(
-                    "RACER • Lap {}/{} • Gate {} → • Dodge sideline throws!",
+                    "RACER • Lap {}/{} • Gate {} → • F: pick up • R: shorts tug",
                     (r.passed / 8 + 1).min(LAPS),
                     LAPS,
                     r.passed % 8 + 1
-                )
+                ) + &r.return_to.map_or(String::new(), |(x,z)|format!(" • RETURN to gold ring: {:.0}m",distance(r.previous,(x,z))))
+                  + if r.tug_until>g.now {" • SHORTS TUG! Slowed briefly"} else {""}
             },
             |t| format!("FINISHED in {t:.2}s • Waiting for the other racers"),
         )
@@ -828,11 +867,32 @@ mod tests {
         }
     }
     #[test]
+    fn grass_keeps_position_and_requires_reentry_without_shortcut_credit() {
+        let mut r=Progress::new(TRACK[0]);
+        for n in 1..20 {r.update((0.,-24.+n as f32*0.3),n as f32);}
+        let back=r.return_to.unwrap();assert_eq!(r.passed,0);
+        assert_eq!(r.previous,(0.,-18.3));
+        r.update(TRACK[1],21.);assert_eq!(r.passed,0);assert!(r.return_to.is_some());
+        r.update(back,22.);assert!(r.return_to.is_none());assert_eq!(r.passed,0);
+    }
+    #[test]
+    fn grass_tug_and_edge_grace_are_bounded() {
+        let mut r=Progress::new(TRACK[0]);
+        assert_eq!(pace(&r,(0.,-26.8),0.,1.),1.0);
+        assert_eq!(pace(&r,(0.,-29.),0.,1.),GRASS_SPEED);
+        r.tug_until=1.25;
+        assert_eq!(pace(&r,TRACK[0],0.,1.),TUG_SPEED);
+        assert_eq!(pace(&r,(0.,-29.),0.,1.),GRASS_SPEED,"penalties do not multiply");
+        assert_eq!(pace(&r,TRACK[0],1.25,1.),1.0);
+        r.protected_until=3.;assert_eq!(pace(&r,(0.,-29.),2.,2.),1.0);
+    }
+    #[test]
     fn shortcuts_and_teleports_do_not_advance() {
         let mut r = Progress::new(TRACK[0]);
-        assert!(r.update(TRACK[1], 1.));
+        assert!(!r.update(TRACK[1], 1.));
+        assert!(r.return_to.is_some());
         assert_eq!(r.passed, 0);
-        assert!(r.update((0., 0.), 2.));
+        assert!(!r.update((0., 0.), 2.));
         assert_eq!(r.passed, 0);
     }
     #[test]
@@ -861,6 +921,9 @@ mod tests {
 /// Guests request throws; only the host consumes supplies and scores collisions.
 pub fn guest_input(g: &mut Game, p: &mut Player, w: &mut Wanted, dt: f32) {
     g.prompt = prompt(g);
+    if std::mem::take(&mut w.grab_pressed) {g.net_acts.push(bbq_core::net_act::GuestAct::Carry{pressed:true});}
+    if std::mem::take(&mut w.grab_released) {g.net_acts.push(bbq_core::net_act::GuestAct::Carry{pressed:false});}
+    if std::mem::take(&mut w.interact_pressed) {g.net_acts.push(bbq_core::net_act::GuestAct::RaceTug);}
     constrain_throwers(g, p);
     if !g.race.throwers.contains_key(&PLAYER_ID) {
         g.wind.cancel();
@@ -955,4 +1018,38 @@ pub fn guest_act(g: &mut Game, i: usize, act: &bbq_core::net_act::GuestAct) {
         }
         _ => {}
     }
+}
+
+/// Shared local prediction, bot movement and host remote speed validation.
+fn pace(r: &Progress, at:(f32,f32), now:f32, elapsed:f32)->f32 {
+    let grass=track_distance(at)>WIDTH*0.5+VERGE && elapsed>=r.protected_until;
+    (if grass {GRASS_SPEED}else{1.0_f32}).min(if now<r.tug_until {TUG_SPEED}else{1.0})
+}
+pub fn speed(g:&Game,id:PlayerId,at:(f32,f32))->f32 {
+    if g.rules.mode!=GameMode::Race {return 1.0;}
+    g.race.racers.get(&id).map_or(1.0,|r|pace(r,at,g.now,g.race.elapsed))
+}
+pub fn active_racer(g:&Game,id:PlayerId)->bool {
+    g.race.racers.get(&id).is_some_and(|r|r.finish.is_none()&&!r.disconnected)
+}
+/// R reuses the interaction key. The host selects the nearby target in front, never the client.
+pub fn tug(g:&mut Game,p:&mut Player,id:PlayerId) {
+    if g.mirror || g.rules.mode!=GameMode::Race || !g.rules.in_play() || !active_racer(g,id)
+        || !crate::smoko_mode::able(g,id) || crate::smoko_mode::carried(g,id)
+        || g.smoko.carries.contains_key(&id) || g.race.tug_ready.get(&id).is_some_and(|t|*t>g.now) {return;}
+    let Some(at)=crate::smoko_mode::pos(g,p,id) else{return};
+    let f=crate::smoko_mode::face(g,p,id);
+    let target=g.race.racers.iter().filter(|(v,r)|**v!=id && r.finish.is_none() && !r.disconnected && r.tug_immune_until<=g.now)
+        .filter(|(v,_)|!crate::smoko_mode::controlled(g,**v) && !g.smoko.carries.contains_key(v))
+        .filter_map(|(v,_)|crate::smoko_mode::pos(g,p,*v).map(|b|(*v,b)))
+        .filter(|(_,b)|b.horiz_dist(at)<=TUG_REACH && (b.y-at.y).abs()<0.65 && (b.x-at.x)*f.0+(b.z-at.z)*f.1>0.15)
+        .min_by(|a,b|a.1.horiz_dist(at).total_cmp(&b.1.horiz_dist(at))).map(|(v,_)|v);
+    let Some(v)=target else{return};
+    g.race.tug_ready.insert(id,g.now+TUG_COOLDOWN);
+    let r=g.race.racers.get_mut(&v).unwrap();r.tug_until=g.now+TUG_TIME;r.tug_immune_until=g.now+TUG_IMMUNITY;
+    if let Some(d)=g.dummies.iter_mut().find(|d|d.id==v){d.anim.feel.hit(V3::new(f.0,0.0,f.1),1.0);}
+    if let Some(d)=g.dummies.iter_mut().find(|d|d.id==id){d.anim.start_swing();}
+    if v==PLAYER_ID {p.shake=p.shake.max(0.035);g.popup("SHORTS TUG! Brief slowdown",false);}
+    if id==PLAYER_ID {g.popup("SHORTS TUG!",true);}
+    g.say(format!("{} tugged {}'s shorts!",crate::round::name_of(g,id),crate::round::name_of(g,v)));
 }

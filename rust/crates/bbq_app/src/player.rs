@@ -279,7 +279,7 @@ fn step_player(
         at_smoko: g.life.seated.is_some(),
         carrying: g.life.carry.is_some() || g.smoko.carries.contains_key(&PLAYER_ID) || g.smoko.guest_carrying,
         frozen: g.rules.phase == bbq_core::scoring::Phase::Countdown,
-        gait,
+        gait: gait * crate::race::speed(g,PLAYER_ID,(p.mover.x,p.mover.z)),
         dive: wanted.dive,
         ..Default::default()
     };

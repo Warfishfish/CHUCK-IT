@@ -1,3 +1,11 @@
+# Shirt names and Race interactions — complete, awaiting review (24 October 2026)
+
+[Recovery checkpoint](2026-10-24-race-shirt/CHECKPOINT.md). Verified full backup includes the pending main-menu update. Global rear shirt names; Race carry/throw, shorts tug, grass return rules and scenery. 664 tests and native/browser builds passed; actual captures, motion clips and matched performance checks complete. [Review](2026-10-24-race-shirt/review.html). No commit or push.
+
+# Main menu and hosting flow — complete, awaiting review (24 October 2026)
+
+[Checkpoint and recovery](2026-10-23-main-menu/CHECKPOINT.md) · [Actual menu captures](2026-10-23-main-menu/review.html). Dedicated main menu, child pages and lobby; hosting waits for server acknowledgement, and connection errors remain visible. 657 tests plus native/web release builds passed. Nothing committed or pushed.
+
 # Online publication verified — 23 October 2026
 
 Game commit `04b69f4` is on `origin/main`, including the host-map menu update. Cloudflare browser page and two-way WebSocket relay verified; macOS/Linux/Windows CI passed. [Publication details and temporary link](2026-10-21-online-publication/CHECKPOINT.md). [Latest host-menu verification](2026-10-22-host-menu/README.md). Earlier review statuses below are historical.

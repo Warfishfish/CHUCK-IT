@@ -1,8 +1,8 @@
-//! Names on shirts (Marcus, 9 Oct 2026): everybody's name is printed across the front of their
-//! singlet (moved from the back on 10 Oct 2026), so you can tell who is who.
+//! Names on shirts (Marcus, 9 Oct 2026): everybody's name is printed across the upper back of their
+//! existing singlet in every mode. No shirt is added to shirtless models.
 //!
 //! Each name is drawn once into a small picture (the game's bold font, rasterised with
-//! `ab_glyph`) and put on a thin curved strip that wraps round the chest of the singlet, a hair
+//! `ab_glyph`) and put on a thin curved strip that wraps round the back of the singlet, a hair
 //! outside the cloth, and moves with the body. The letters are cut out (no see-through edges to
 //! sort). The ink is dark on light singlets and white on dark ones. Yard blobs and the lobby
 //! line-up wear them.
@@ -29,7 +29,6 @@ const PAD: u32 = 16;
 struct Printed {
     name: String,
     ink: u32,
-    material: Handle<StandardMaterial>,
     /// The print strip, the singlet node (its belly weights), where the strip sits with no belly,
     /// and how far the cloth under its middle moves for the "Belly" and "Sag" shapes.
     strip: Entity,
@@ -88,7 +87,7 @@ pub fn ink_for(singlet: u32) -> u32 {
 /// (RGBA), its width and its height.
 pub fn draw_name(name: &str) -> (Vec<u8>, u32, u32) {
     let font = FontRef::try_from_slice(FONT).expect("the bundled font");
-    let text: String = name.trim().to_uppercase().chars().take(14).collect();
+    let text: String = name.chars().filter(|c| !c.is_control()).take(bbq_core::net::NAME_MAX).collect::<String>().trim().to_uppercase();
     // a small random number generator seeded from the name, so a name always looks the same
     let mut seed = text.bytes().fold(0x9E37_79B9u32, |h, b| (h ^ b as u32).wrapping_mul(0x0100_0193)) | 1;
     let mut rand = move || {
@@ -109,14 +108,14 @@ pub fn draw_name(name: &str) -> (Vec<u8>, u32, u32) {
     let mut letters = Vec::new();
     let mut last = None;
     for ch in text.chars() {
-        let size = LETTER_PX * (1.0 + 0.09 * rand());
+        let size = LETTER_PX * (1.0 + 0.035 * rand());
         let scale = PxScale::from(size);
         let f = font.as_scaled(scale);
         let id = f.glyph_id(ch);
         if let Some(prev) = last {
             x += fb.kern(prev, id);
         }
-        letters.push(Letter { glyph: id.with_scale_and_position(scale, ab_glyph::point(x, fb.ascent())), tilt: 0.13 * rand(), lift: 5.0 * rand() });
+        letters.push(Letter { glyph: id.with_scale_and_position(scale, ab_glyph::point(x, fb.ascent())), tilt: 0.045 * rand(), lift: 2.0 * rand() });
         x += f.h_advance(id) + 2.0 * rand();
         last = Some(id);
     }
@@ -159,8 +158,22 @@ pub fn draw_name(name: &str) -> (Vec<u8>, u32, u32) {
     (px, w, h)
 }
 
-fn name_image(name: &str) -> (Image, f32) {
-    let (px, w, h) = draw_name(name);
+fn name_image(name: &str, ink: u32) -> (Image, f32) {
+    let (mut px, w, h) = draw_name(name);
+    // A contrasting three-pixel keyline keeps lettering readable on every shirt.
+    let alpha: Vec<u8> = px.chunks_exact(4).map(|p| p[3]).collect();
+    let outline = if ink == 0x1b1b1b { 0xf4f1e6 } else { 0x1b1b1b };
+    for y in 0..h as i32 { for x in 0..w as i32 {
+        let i=(y as u32*w+x as u32) as usize;
+        let mut edge=alpha[i];
+        for dy in -3..=3 { for dx in -3..=3 {
+            if dx*dx+dy*dy>9 {continue;}
+            let (xx,yy)=(x+dx,y+dy);
+            if xx>=0 && yy>=0 && xx<w as i32 && yy<h as i32 {edge=edge.max(alpha[(yy as u32*w+xx as u32) as usize]);}
+        }}
+        let colour=if alpha[i]>127 {ink}else{outline};
+        px[i*4..i*4+4].copy_from_slice(&[(colour>>16) as u8,(colour>>8) as u8,colour as u8,edge]);
+    }}
     let img = Image::new(
         Extent3d { width: w, height: h, depth_or_array_layers: 1 },
         TextureDimension::D2,
@@ -190,9 +203,9 @@ fn singlet_points(body: Entity, kids: &Query<&Children>, names: &Query<&Name>, t
     None
 }
 
-/// Where the print sits: (height, how far out the singlet's front is there, half its width
-/// there, the singlet's height), so the print can sit just outside the chest of the cloth.
-pub fn chest_spot(points: &[Vec3]) -> Option<(f32, f32, f32, f32)> {
+/// Where the print sits: (height, how far out the singlet's back is there, half its width
+/// there, the singlet's height), so the print can sit just outside the back of the cloth.
+pub fn back_spot(points: &[Vec3]) -> Option<(f32, f32, f32, f32)> {
     let lo = points.iter().fold(Vec3::splat(f32::MAX), |a, p| a.min(*p));
     let hi = points.iter().fold(Vec3::splat(f32::MIN), |a, p| a.max(*p));
     if !(lo.y < hi.y) {
@@ -201,9 +214,9 @@ pub fn chest_spot(points: &[Vec3]) -> Option<(f32, f32, f32, f32)> {
     // up on the chest, above the tummy (which swells with the belly slider)
     let mid_y = lo.y + (hi.y - lo.y) * 0.74;
     let band: Vec<&Vec3> = points.iter().filter(|p| (p.y - mid_y).abs() < (hi.y - lo.y) * 0.12).collect();
-    let front = band.iter().filter(|p| p.x.abs() < 0.12).map(|p| p.z).fold(f32::MIN, f32::max);
+    let front = band.iter().filter(|p| p.x.abs() < 0.12).map(|p| p.z).fold(f32::MAX, f32::min);
     let half = band.iter().map(|p| p.x.abs()).fold(0.0f32, f32::max);
-    (front > f32::MIN).then_some((mid_y, front, half, hi.y - lo.y))
+    (front < 0.0).then_some((mid_y, front, half, hi.y - lo.y))
 }
 
 /// Print each blob's name on its back, and reprint it when the name or the singlet colour changes.
@@ -239,55 +252,40 @@ fn print_names(
         let Some(name) = name_of(node.owner, &game, &settings, online.as_deref()) else { continue };
         let Some(singlet) = singlet_of(node.owner, &game, &settings, online.as_deref()) else { continue };
         let ink = ink_for(singlet);
-        if let Some(mut p) = printed {
-            if p.name == name && p.ink == ink {
-                continue;
-            }
-            // a new name or singlet: redraw the picture, change the ink
-            if p.name != name {
-                let (img, _) = name_image(&name);
-                if let Some(mut m) = mats.get_mut(&p.material) {
-                    m.base_color_texture = Some(images.add(img));
-                }
-                p.name = name;
-            }
-            if let Some(mut m) = mats.get_mut(&p.material) {
-                m.base_color = crate::models::hex(ink);
-            }
-            p.ink = ink;
-            continue;
+        if let Some(p) = printed {
+            if p.name == name && p.ink == ink { continue; }
+            commands.entity(p.strip).despawn();
         }
         let Ok(body) = parents.get(head).map(|p| p.parent()) else { continue };
         let read_tfs = tfs.as_readonly();
         let Some((singlet_node, points, moves)) = singlet_points(body, &kids, &names, &read_tfs, &meshes_on, &meshes) else { continue };
-        let Some((mid_y, front, half, singlet_tall)) = chest_spot(&points) else { continue };
+        let Some((mid_y, front, half, singlet_tall)) = back_spot(&points) else { continue };
         // the cloth point under the print's middle, and how it moves for the belly shapes
         let middle = Vec3::new(0.0, mid_y, front);
         let nearest = points.iter().enumerate().min_by(|a, b| a.1.distance_squared(middle).total_cmp(&b.1.distance_squared(middle))).map(|(i, _)| i).unwrap_or(0);
         let n = points.len();
         let shape_moves = if moves.len() >= 2 * n { [moves[nearest], moves[n + nearest]] } else { [Vec3::ZERO; 2] };
-        let (img, aspect) = name_image(&name);
+        let (img, aspect) = name_image(&name, ink);
         let material = mats.add(StandardMaterial {
-            base_color: crate::models::hex(ink),
+            base_color: Color::WHITE,
             base_color_texture: Some(images.add(img)),
             alpha_mode: AlphaMode::Mask(0.5),
             perceptual_roughness: 0.95,
             reflectance: 0.05,
             ..default()
         });
-        // across the chest, sized to it, just outside the cloth (the blobs face +z)
-        let r = front + 0.015;
+        // Fit the complete name to the upper back; the blobs face +z.
+        let r = -front + 0.015;
         let width = (half * 1.6).min(0.9);
         let tall = (width / aspect).min(singlet_tall * 0.36);
         let width = tall * aspect;
         let strip = meshes.add(curved_strip(r, width / r, tall, 16));
-        // the strip is made on the back (-z): turned half round it faces out of the front, still
-        // reading left to right for someone in front
+        // The strip faces outward on -z; UVs read left to right from behind.
         let base = Vec3::new(0.0, mid_y, 0.0);
         let mut print = commands.spawn((
             Mesh3d(strip),
             MeshMaterial3d(material.clone()),
-            Transform::from_translation(base).with_rotation(Quat::from_rotation_y(std::f32::consts::PI)),
+            Transform::from_translation(base),
             bevy::light::NotShadowCaster,
             ChildOf(body),
         ));
@@ -295,7 +293,7 @@ fn print_names(
             print.insert(bevy::camera::visibility::RenderLayers::layer(l));
         }
         let strip = print.id();
-        commands.entity(head).try_insert(Printed { name, ink, material, strip, singlet: singlet_node, base, moves: shape_moves });
+        commands.entity(head).try_insert(Printed { name, ink, strip, singlet: singlet_node, base, moves: shape_moves });
     }
 }
 
@@ -443,6 +441,15 @@ mod tests {
         assert_eq!(draw_name("Marcus").0, px);
     }
 
+    #[test]
+    fn complete_names_and_back_geometry_keep_readable_bounds() {
+        assert!(draw_name("ABCDEFGHIJKLMNOP").1>draw_name("ABCDEFGHIJKLMN").1);
+        let points=vec![Vec3::new(0.,0.,0.),Vec3::new(0.,1.,0.),Vec3::new(0.,0.74,-0.4),Vec3::new(0.,0.74,0.5),Vec3::new(0.4,0.74,0.)];
+        let (_,z,_,_)=back_spot(&points).unwrap();assert_eq!(z,-0.4);
+        let (image,_)=name_image("Davo",0xf4f1e6);
+        let data=image.data.unwrap();assert!(data.chunks_exact(4).any(|p|p[0]==0x1b&&p[3]>127));
+        assert!(data.chunks_exact(4).any(|p|p[0]==0xf4&&p[3]>127));
+    }
     #[test]
     fn the_ink_stands_out_from_the_singlet() {
         for s in bbq_core::appearance::SINGLET_COLOURS {

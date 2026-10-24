@@ -1,0 +1,4 @@
+NET-EVENT Closed("could not connect: URL error: Unable to connect to ws://127.0.0.1:1/ws")
+ONLINE screen=Menu status="Disconnected: could not connect: URL error: Unable to connect to ws://127.0.0.1:1/ws" members=[Warfish#1] puppets=[] mirror=false items=16 bots=3 ids=[100, 101, 102] remotes=0 bot0=(-14.0,-4.6) phase=Play clock=3 dazza=(-6.0,-19.3)
+ONLINE screen=Menu status="Disconnected: could not connect: URL error: Unable to connect to ws://127.0.0.1:1/ws" members=[Warfish#1] puppets=[] mirror=false items=16 bots=3 ids=[100, 101, 102] remotes=0 bot0=(-12.4,-5.6) phase=Play clock=3 dazza=(-6.0,-19.3)
+2026-10-23T07:13:21.825971Z  WARN bevy_winit::state: Skipped event Destroyed for unknown winit Window Id WindowId(47202845312)

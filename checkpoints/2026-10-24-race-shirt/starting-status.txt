@@ -1,0 +1,8 @@
+ M checkpoints/LATEST.md
+ M public/rust/bbq.js
+ M public/rust/bbq_bg.wasm
+ M public/rust/bbq_bg.wasm.gz
+ M rust/crates/bbq_app/src/menu.rs
+ M rust/crates/bbq_app/src/online.rs
+ M rust/crates/bbq_app/src/ui.rs
+?? checkpoints/2026-10-23-main-menu/

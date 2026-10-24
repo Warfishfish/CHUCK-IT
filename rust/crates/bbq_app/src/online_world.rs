@@ -252,8 +252,8 @@ pub fn build_world(g: &Game, yard: &Yard, seq: u32, feed_after: f32, fx: &[FxEve
     wet.extend(g.dummies.iter().map(|d| WetSnap { id: net(d.id), remaining: d.body.wet_t, pos: (d.mover.x, d.mover.y, d.mover.z) }));
     let mut race=Vec::new();
     if g.rules.mode==GameMode::Race {
-        for (id,r) in &g.race.racers {race.push(RaceSnap{id:net(*id),thrower:false,passed:r.passed as u8,finish:r.finish.unwrap_or(-1.),score:0,streak:0,hits:0,disconnected:r.disconnected});}
-        for (id,t) in &g.race.throwers {race.push(RaceSnap{id:net(*id),thrower:true,passed:0,finish:-1.,score:t.score,streak:t.streak,hits:t.hits,disconnected:t.disconnected});}
+        for (id,r) in &g.race.racers {race.push(RaceSnap{id:net(*id),thrower:false,passed:r.passed as u8,finish:r.finish.unwrap_or(-1.),score:0,streak:0,hits:0,disconnected:r.disconnected,return_to:r.return_to.map_or((0.,0.,0.),|(x,z)|(x,1.,z)),tug_remaining:(r.tug_until-g.now).max(0.),carried_by:g.smoko.carries.iter().find(|(_,c)|c.victim==*id).map_or(0,|(o,_)|net(*o)),protected_remaining:(r.protected_until-g.race.elapsed).max(0.)});}
+        for (id,t) in &g.race.throwers {race.push(RaceSnap{id:net(*id),thrower:true,passed:0,finish:-1.,score:t.score,streak:t.streak,hits:t.hits,disconnected:t.disconnected,return_to:(0.,0.,0.),tug_remaining:0.,carried_by:0,protected_remaining:0.});}
     }
     let b=&g.magpie;let magpie=(b.phase,if b.target==0{0}else{net(b.target)},(b.pos.x,b.pos.y,b.pos.z));
     WorldSnap { magpie, race, wet, seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
@@ -306,12 +306,14 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
     }
     if g.rules.mode==GameMode::Race {yard.race=true;yard.colliders.clear();} else {yard.race=false;}
     g.race.racers.clear();g.race.throwers.clear();
+    if g.rules.mode==GameMode::Race {g.smoko.carries.clear();}
     if g.rules.mode==GameMode::Race {
         g.race.elapsed=(crate::race::LIMIT-r.time_left).max(0.);
         for row in &snap.race {
             let id=local(row.id);
             if row.thrower {g.race.throwers.insert(id,crate::race::Thrower{score:row.score,streak:row.streak,hits:row.hits,disconnected:row.disconnected,..Default::default()});}
-            else {let pos=snap.wet.iter().find(|w|w.id==row.id).map_or((0.,-24.),|w|(w.pos.0,w.pos.2));let mut progress=crate::race::Progress::new(pos);progress.passed=row.passed as usize;progress.finish=(row.finish>=0.).then_some(row.finish);progress.disconnected=row.disconnected;g.race.racers.insert(id,progress);}
+            else {let pos=snap.wet.iter().find(|w|w.id==row.id).map_or((0.,-24.),|w|(w.pos.0,w.pos.2));let mut progress=crate::race::Progress::new(pos);progress.passed=row.passed as usize;progress.finish=(row.finish>=0.).then_some(row.finish);progress.disconnected=row.disconnected;progress.return_to=(row.return_to.1>0.5).then_some((row.return_to.0,row.return_to.2));progress.tug_until=g.now+row.tug_remaining;progress.protected_until=g.race.elapsed+row.protected_remaining;g.race.racers.insert(id,progress);
+                if row.carried_by!=0 {g.smoko.carries.insert(local(row.carried_by),crate::smoko_mode::Carry{victim:id,since:g.now});}}
         }
     }
     // the whistle went: work out the results here, from the host's scores, so the results card
@@ -377,6 +379,13 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
             if (s.remaining > 0.0 || g.rules.mode==GameMode::Race) && d.remote.is_some() {
                 d.net_target = Some((V3::new(s.pos.0, s.pos.1, s.pos.2), (0.0,0.0), g.now));
             }
+        }
+    }
+
+    if g.rules.mode==GameMode::Race {
+        g.smoko.guest_carrying=g.smoko.carries.contains_key(&PLAYER_ID);
+        for d in &mut g.dummies {
+            d.dragged=g.smoko.carries.values().any(|c|c.victim==d.id).then_some(bbq_core::pose::DraggerInfo{face:d.face,speed:2.0,walk:g.now*5.0,grounded:true});
         }
     }
 
@@ -995,6 +1004,37 @@ mod tests {
     }
 
     #[test]
+    fn race_guest_requests_are_host_validated_and_status_roundtrips() {
+        let mut host=host_with_a_guest();let id=REMOTE_ID_BASE+2;
+        host.world_mut().resource_mut::<Player>().mover=bbq_core::movement::Mover::new(8.0,-1.2);
+        {let mut g=host.world_mut().resource_mut::<Game>();g.rules.mode=GameMode::Race;g.options.bots_on=false;
+            g.race.racers.insert(id,crate::race::Progress::new((8.,0.)));
+            g.race.racers.insert(PLAYER_ID,crate::race::Progress::new((8.,-1.2)));}
+        act(&mut host,GuestAct::RaceTug);
+        let until=host.world().resource::<Game>().race.racers[&PLAYER_ID].tug_until;
+        assert!(until>0.0);
+        act(&mut host,GuestAct::RaceTug);
+        assert_eq!(host.world().resource::<Game>().race.racers[&PLAYER_ID].tug_until,until);
+        act(&mut host,GuestAct::Carry{pressed:true});
+        let g=host.world().resource::<Game>();assert_eq!(g.smoko.carries[&id].victim,PLAYER_ID);
+        assert_eq!(g.board.score(id),0);
+        let snap=build_world(g,&Yard::default(),1,-1.0,&[]);
+        let bytes=bbq_core::net::Msg::World(Box::new(snap)).encode();
+        let bbq_core::net::Msg::World(snap)=bbq_core::net::Msg::decode(&bytes).unwrap() else{panic!()};
+        let mut guest=app();let mut gg=guest.world_mut().resource_mut::<Game>();
+        apply_world(&mut gg,&mut Yard::default(),&snap,2,"Host");
+        assert_eq!(gg.smoko.carries[&PLAYER_ID].victim,REMOTE_ID_BASE+1);
+        assert!(gg.race.racers[&(REMOTE_ID_BASE+1)].tug_until>gg.now);
+        assert!(gg.race.racers[&(REMOTE_ID_BASE+1)].return_to.is_some());
+        assert!(gg.smoko.guest_carrying);
+        drop(gg);
+        // Outside Race, the same tug request has no effect.
+        {let mut g=host.world_mut().resource_mut::<Game>();g.rules.mode=GameMode::FreeForAll;g.race.tug_ready.clear();g.race.racers.get_mut(&PLAYER_ID).unwrap().tug_until=0.0;}
+        act(&mut host,GuestAct::RaceTug);
+        assert_eq!(host.world().resource::<Game>().race.racers[&PLAYER_ID].tug_until,0.0);
+    }
+
+    #[test]
     fn guest_bare_hit_can_be_followed_by_smoko_pickup_and_is_rate_limited() {
         let mut app=host_with_a_guest();let id=REMOTE_ID_BASE+2;
         {let mut g=app.world_mut().resource_mut::<Game>();g.options.adult=true;g.rules.mode=GameMode::Smoko;g.world.clear();}
@@ -1382,13 +1422,13 @@ pub fn apply_hit(g: &mut Game, p: &mut Player, hit: &HitMsg) {
     g.wind.cancel();
     match hit {
         HitMsg::Smoko { pos, vel, locked, carrying } => {
-            if g.rules.mode != GameMode::Smoko { return; }
+            if !matches!(g.rules.mode,GameMode::Smoko|GameMode::Race) { return; }
             p.mover.x=pos.0; p.mover.y=pos.1; p.mover.z=pos.2;
             p.mover.vx=vel.0; p.mover.vy=vel.1; p.mover.vz=vel.2;
             p.mover.grounded=pos.1<=0.01;
             g.smoko.guest_until=if *locked {g.now+0.3} else {0.0};
             g.smoko.guest_carrying=*carrying;
-            if *locked { g.me.body.down_t=0.3; } else {g.me.body=Default::default();}
+            if *locked { g.me.body.down_t=0.3; } else if g.rules.mode==GameMode::Smoko {g.me.body=Default::default();} else {g.me.body.down_t=0.0;g.me.body.stun=0.0;}
         }
         HitMsg::Item { kind, dir, flatten } => {
             let spirit = *kind >= 100;
@@ -1474,13 +1514,20 @@ pub fn apply_guest_act(g: &mut Game, p: &mut Player, net_id: u32, act: &GuestAct
         if !g.round.timed || g.rules.phase==Phase::Results {g.race.choices.insert(id,if *thrower{crate::race::Role::Thrower}else{crate::race::Role::Racer});}
         return;
     }
-    if g.rules.mode==GameMode::Race {crate::race::guest_act(g,i,act);return;}
+    if g.rules.mode==GameMode::Race {
+        match act {
+            GuestAct::Carry{pressed}=>crate::smoko_mode::input(g,p,id,*pressed),
+            GuestAct::RaceTug=>crate::race::tug(g,p,id),
+            _=>crate::race::guest_act(g,i,act),
+        }
+        return;
+    }
     let now = g.now;
     let in_play = g.rules.in_play();
     let can_act = in_play && !g.smoko.carries.contains_key(&id) && g.dummies[i].body.stun <= 0.0 && !g.dummies[i].body.is_down() && g.dummies[i].seat.is_none();
     let holds = |g: &Game, item: u32| g.dummies[i].bot.slots.ids().contains(&item);
     match act {
-        GuestAct::RaceRole {..} => {},
+        GuestAct::RaceRole {..} | GuestAct::RaceTug => {},
         GuestAct::BareSlap => {if can_act {crate::life::guest_bare_slap(g,p,i);}},
         GuestAct::Carry { pressed } => crate::smoko_mode::input(g,p,id,*pressed),
         GuestAct::Select { item } => {

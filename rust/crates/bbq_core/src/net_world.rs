@@ -149,6 +149,7 @@ pub struct WetSnap {
 pub struct RaceSnap {
     pub id:u32, pub thrower:bool, pub passed:u8, pub finish:f32,
     pub score:u32, pub streak:u32, pub hits:u32, pub disconnected:bool,
+    pub return_to:(f32,f32,f32), pub tug_remaining:f32, pub carried_by:u32, pub protected_remaining:f32,
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct WorldSnap {
@@ -181,7 +182,7 @@ impl WorldSnap {
             w.u32(s.id); w.f32(s.remaining); w.triple(s.pos);
         }
         w.u8(self.race.len().min(MAX_BOARD) as u8);
-        for s in self.race.iter().take(MAX_BOARD) {w.u32(s.id);w.u8(s.thrower as u8);w.u8(s.passed);w.f32(s.finish);w.u32(s.score);w.u32(s.streak);w.u32(s.hits);w.u8(s.disconnected as u8);}
+        for s in self.race.iter().take(MAX_BOARD) {w.u32(s.id);w.u8(s.thrower as u8);w.u8(s.passed);w.f32(s.finish);w.u32(s.score);w.u32(s.streak);w.u32(s.hits);w.u8(s.disconnected as u8);w.triple(s.return_to);w.f32(s.tug_remaining);w.u32(s.carried_by);w.f32(s.protected_remaining);}
         w.u32(self.seq);
         w.f32(self.now);
         let r = &self.round;
@@ -279,7 +280,7 @@ impl WorldSnap {
             wet.push(WetSnap { id: r.u32()?, remaining: r.f32()?.clamp(0.0, crate::stun::WET_DURATION), pos: r.triple()? });
         }
         let n=count(r,MAX_BOARD)?;let mut race=Vec::with_capacity(n);
-        for _ in 0..n {race.push(RaceSnap{id:r.u32()?,thrower:r.u8()?!=0,passed:r.u8()?.min(24),finish:r.f32()?,score:r.u32()?,streak:r.u32()?,hits:r.u32()?,disconnected:r.u8()?!=0});}
+        for _ in 0..n {race.push(RaceSnap{id:r.u32()?,thrower:r.u8()?!=0,passed:r.u8()?.min(24),finish:r.f32()?,score:r.u32()?,streak:r.u32()?,hits:r.u32()?,disconnected:r.u8()?!=0,return_to:r.triple()?,tug_remaining:r.f32()?.clamp(0.0,2.0),carried_by:r.u32()?,protected_remaining:r.f32()?.clamp(0.0,6.0)});}
         let seq = r.u32()?;
         let now = r.f32()?;
         let round = RoundSnap {

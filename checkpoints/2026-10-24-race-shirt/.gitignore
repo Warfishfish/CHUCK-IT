@@ -1,0 +1,4 @@
+*.log
+*.pid
+# Large pre-edit binary patch is a local recovery aid; full backup is outside the repo.
+starting.patch

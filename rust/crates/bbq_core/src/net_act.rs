@@ -22,6 +22,8 @@ pub enum GuestAct {
     Slap { item: u32 },
     /// Empty-handed hit. Host chooses the target and validates mode, range and cooldown.
     BareSlap,
+    /// Race-only R request; the host selects a nearby target.
+    RaceTug,
     /// Throw away what you hold (G).
     Drop { item: u32 },
     /// Change which item is in your hand.
@@ -78,6 +80,7 @@ impl GuestAct {
             }
             GuestAct::Catch => w.u8(5),
             GuestAct::BareSlap => w.u8(8),
+            GuestAct::RaceTug => w.u8(9),
             GuestAct::RaceRole {thrower} => {w.u8(7);w.u8(*thrower as u8);},
             GuestAct::Carry { pressed } => { w.u8(6); w.u8(*pressed as u8); },
         }
@@ -91,6 +94,7 @@ impl GuestAct {
             4 => GuestAct::Select { item: r.u32()? },
             5 => GuestAct::Catch,
             8 => GuestAct::BareSlap,
+            9 => GuestAct::RaceTug,
             7 => GuestAct::RaceRole {thrower:r.u8()? != 0},
             6 => GuestAct::Carry { pressed: r.u8()? != 0 },
             k => return Err(DecodeError::UnknownKind(k)),

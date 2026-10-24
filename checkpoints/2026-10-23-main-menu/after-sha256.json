@@ -1,0 +1,8 @@
+{
+  "rust/crates/bbq_app/src/menu.rs": "a4edeac9d826ec8e4e8f9b6c05751574d68c953db673d7ed1679a50b45eff7d8",
+  "rust/crates/bbq_app/src/online.rs": "1c3809479ce48a9471b0c1e26365204407b94f5bdf3cfa061f5989e382c72885",
+  "rust/crates/bbq_app/src/ui.rs": "676d9499e79ac64140567f59fa809dc14e00dcfee670782a5f3653857c9a0a97",
+  "public/rust/bbq.js": "d64778f75b4663b8492a0e946926d5e25a80a41d37a6fefecb87ca4f939de0c1",
+  "public/rust/bbq_bg.wasm": "7f71e860d35eb3679df0ab28f41ad27482559758710c40fc1ae16de98e4fa73e",
+  "public/rust/bbq_bg.wasm.gz": "679b7165eb5344d759ad9be828512a9e27ec2bdc577fa27523d60872ef5eed22"
+}

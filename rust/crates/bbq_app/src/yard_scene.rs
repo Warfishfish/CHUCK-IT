@@ -84,7 +84,7 @@ impl Plugin for YardScenePlugin {
             .add_systems(Startup, build_yard)
             .add_systems(Update, (crate::grass::sync, crate::grass::distance_cull).chain())
             .add_systems(PostUpdate, crate::lighting::follow_sky.before(bevy::transform::TransformSystems::Propagate))
-            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_map, sync_race_map, sync_backyard_cover, animate_magpies));
+            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_map, sync_race_map, sync_race_return_marker, sync_backyard_cover, animate_magpies));
     }
 }
 
@@ -529,7 +529,7 @@ fn sync_race_map(
  let mut lawn_surface=Surface::matt(0xd4e4b6).textured(bbq_core::looks::Tex::Lawn);
  lawn_surface.repeat=(12.,9.);
  let mut lawn=Part::new(Shape::Cylinder{top:1.,bottom:1.,h:0.2,seg:96,caps:true},lawn_surface).at(0.,-0.12,0.);
- lawn.scale=bbq_core::vec::V3::new(52.,1.,37.);
+ lawn.scale=bbq_core::vec::V3::new(60.,1.,42.);
  let mut parts=vec![lawn];
  // Many short shared strips make a smooth constant-width racing surface.
  for i in 0..96 {
@@ -568,9 +568,43 @@ fn sync_race_map(
   parts.push(block(0.5,3.,0.5,x,1.5,z,0x825433));parts.push(Part::new(Shape::Sphere{r:1.7,ws:8,hs:6},Surface::matt(0x386b37)).at(x,4.,z));
  }
  for t in [-0.7_f32,-0.35,0.,0.35,0.7] {parts.extend(looks_yard::place(looks_yard::chair_styled(0),bbq_core::vec::V3::new(45.*t.sin(),0.,-30.5*t.cos()),bbq_core::vec::Quat::from_euler_xyz(0.,-t,0.),1.0));}
+ // Four distinct spectator landmarks beyond the racing lane and throwing sightlines.
+ // North: a striped marquee; east: corrugated shed; west: tyre/plant garden.
+ for (x,z) in [(-17.0,30.0),(17.0,30.0)] {
+  for dx in [-2.4,2.4] {for dz in [-1.4,1.4] {parts.push(block(0.12,3.2,0.12,x+dx,1.6,z+dz,0xf7eccf));}}
+  for i in 0..8 {parts.push(block(0.64,0.18,3.4,x-2.24+i as f32*0.64,3.2,z,if i%2==0{0xe36e42}else{0xffe4b1}));}
+  parts.push(block(3.5,0.18,1.1,x,0.9,z,0x9a673f));
+  for dx in [-1.4,1.4] {parts.push(block(0.16,0.9,0.7,x+dx,0.45,z,0x493f38));}
+ }
+ // Garden shed sits beyond the oval boundary; never an invisible track obstacle.
+ parts.push(block(5.,3.,4.,55.,1.5,6.,0x849c8c));
+ for i in 0..20 {parts.push(block(0.07,2.9,0.05,52.6+i as f32*0.25,1.5,3.97,0xaac0a7));}
+ parts.push(block(5.6,0.18,4.6,55.,3.15,6.,0xb65e42).turn(0.,0.,0.08));
+ parts.push(block(1.4,2.2,0.08,55.,1.1,3.94,0x3b6665));
+ parts.push(block(0.12,0.12,0.12,55.5,1.2,3.86,0xffd457));
+ for (x,z) in [(-44.,-11.),(-45.,7.),(40.,18.),(9.,32.)] {
+  for j in 0..3 {let dx=(j as f32-1.)*0.9;
+   parts.push(Part::new(Shape::Cylinder{top:0.45,bottom:0.34,h:0.6,seg:8,caps:true},Surface::matt(0xba764e)).at(x+dx,0.3,z));
+   parts.push(Part::new(Shape::Sphere{r:0.6,ws:8,hs:6},Surface::matt(if j%2==0{0x69834b}else{0x87974b})).at(x+dx,0.95,z));
+  }
+ }
+ // Bunting sits high above spectators, leaving the near-bend aiming corridor open.
+ for side in [-1.,1.] {for i in 0..7 {
+  let x=side*12.+i as f32*0.75;let z=31.;
+  parts.push(block(0.65,0.55,0.06,x,3.5,z,if i%3==0{0xe96c42}else if i%3==1{0xf3cc4e}else{0x4c99a6}).turn(0.,0.,0.08*(i as f32-3.)));
+ }}
  let e=cache.spawn_parts(&mut commands,&parts,&mut meshes,&mut mats,Transform::default());commands.entity(e).insert(RaceMap);
 }
 
 fn sync_backyard_cover(game:Res<Game>,mut q:Query<&mut Visibility,With<BackyardCover>>) {
  for mut v in &mut q {*v=if game.rules.mode==bbq_core::GameMode::FreeForAll {Visibility::Inherited}else{Visibility::Hidden};}
+}
+
+#[derive(Component)]
+struct RaceReturnMarker;
+fn sync_race_return_marker(mut commands:Commands,game:Res<Game>,mut q:Query<(Entity,&mut Transform),With<RaceReturnMarker>>,mut meshes:ResMut<Assets<Mesh>>,mut mats:ResMut<Assets<StandardMaterial>>) {
+    let target=if game.rules.mode==bbq_core::GameMode::Race {game.race.racers.get(&crate::player::PLAYER_ID).and_then(|r|r.return_to)}else{None};
+    let Some((x,z))=target else {for (e,_) in &q {commands.entity(e).despawn();}return;};
+    if let Ok((_,mut tf))=q.single_mut() {tf.translation=Vec3::new(x,0.14,z);return;}
+    commands.spawn((RaceReturnMarker,Mesh3d(meshes.add(Torus::new(0.8,1.0))),MeshMaterial3d(mats.add(StandardMaterial{base_color:Color::srgb(1.0,0.84,0.2),unlit:true,..default()})),Transform::from_xyz(x,0.14,z),bevy::light::NotShadowCaster));
 }

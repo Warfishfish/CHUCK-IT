@@ -206,9 +206,18 @@ fn sync_shorts(
     game: Res<Game>,
     settings: Res<Settings>,
     online: Option<Res<crate::online::Online>>,
-    mut q: Query<(&ShortsPiece, &mut Visibility)>,
+    mut q: Query<(Entity, &ShortsPiece, &mut Visibility, &mut Transform)>,
+    mut offsets: Local<std::collections::HashMap<Entity,f32>>,
 ) {
-    for (p, mut v) in &mut q {
+    offsets.retain(|e,_|q.contains(*e));
+    for (e,p, mut v,mut tf) in &mut q {
+        let remaining=if game.rules.mode==bbq_core::GameMode::Race {
+            match p.owner {FaceOwner::Blob(i)=>game.dummies.get(i).and_then(|d|game.race.racers.get(&d.id)).map_or(0.0,|r|(r.tug_until-game.now).max(0.0)),_=>0.0}
+        }else{0.0};
+        let elapsed=crate::race::TUG_TIME-remaining;
+        let offset=if remaining>0.0 {0.035*(elapsed*24.0).sin()*(-elapsed*4.0).exp()}else{0.0};
+        tf.translation.x+=offset-offsets.insert(e,offset).unwrap_or(0.0);
+
         let look = match p.owner {
             FaceOwner::Preview => settings.look,
             FaceOwner::Lobby(id) => match online.as_deref().and_then(|o| crate::lobby::lobby_look(o, &settings, id)) {

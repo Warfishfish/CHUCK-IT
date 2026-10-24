@@ -1,4 +1,4 @@
-//! Phase 8: the screens around the game, as close to the browser page as the engine allows:
+//! Screens around the game: a main menu with child pages and a dedicated online lobby,
 //! the main menu (Solo / With mates / How to play), the pause card ("Paused") and the results
 //! card, plus the flow between them and the settings that are saved on this computer.
 //!
@@ -6,7 +6,7 @@
 //! while the camera drifts round the yard. Play starts a round with the chosen options.
 //!
 //! Left out on purpose: the emoji on the browser's labels (the engine can't draw colour emoji
-//! yet), the touch controls, and the online "With mates" tab, which waits for Phase 9.
+//! yet) and touch controls.
 
 use bbq_core::GameMode;
 use bbq_core::bots::Difficulty;
@@ -269,6 +269,7 @@ impl Settings {
 #[derive(Resource)]
 pub struct MenuUi {
     pub tab: Tab,
+    history: Vec<Tab>,
     pub more_open: bool,
     pub name_focus: bool,
     pub request: Option<Request>,
@@ -279,6 +280,48 @@ pub struct MenuUi {
     /// Lobby: the Ready button was pressed (`online.rs` toggles it).
     pub toggle_ready: bool,
 }
+
+impl MenuUi {
+    fn open(&mut self, tab: Tab) {
+        if self.tab != tab {
+            self.history.push(self.tab);
+            self.tab = tab;
+        }
+        self.name_focus = false;
+        self.net_focus = None;
+    }
+
+    pub(crate) fn reset_page(&mut self, tab: Tab) {
+        self.history = match tab {
+            Tab::Main => vec![],
+            Tab::Lobby => vec![Tab::Main, Tab::Mates],
+            _ => vec![Tab::Main],
+        };
+        self.tab = tab;
+        self.name_focus = false;
+        self.net_focus = None;
+    }
+
+    fn back(&mut self) {
+        if self.tab == Tab::Lobby {
+            self.net_request = Some(crate::online::NetRequest::Leave);
+            self.reset_page(Tab::Mates);
+        } else {
+            // Cancels an unfinished connection when leaving the online setup page.
+            if self.tab == Tab::Mates {
+                self.net_request = Some(crate::online::NetRequest::Leave);
+            }
+            self.tab = self.history.pop().unwrap_or(Tab::Main);
+            self.name_focus = false;
+            self.net_focus = None;
+        }
+    }
+}
+
+#[derive(Component)]
+struct PageHeading;
+#[derive(Component)]
+struct BackLabel;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum NetField {
@@ -307,6 +350,8 @@ pub enum Request {
 #[derive(Component, Clone, Copy)]
 pub enum ShowWhen {
     Panel(Tab),
+    Subpage,
+    NameEntry,
     /// The blob preview card: on the Solo and Customise tabs.
     Preview,
     /// Only the Solo and How to play tabs (the title and field of view make room for the
@@ -390,8 +435,10 @@ impl Plugin for MenuPlugin {
                     Some("mates") => Tab::Mates,
                     Some("settings") => Tab::Settings,
                     Some("how") => Tab::How,
-                    _ => Tab::Solo,
+                    Some("solo") => Tab::Solo,
+                    _ => Tab::Main,
                 },
+                history: vec![Tab::Main],
                 more_open: false,
                 name_focus: false,
                 request: None,
@@ -405,6 +452,7 @@ impl Plugin for MenuPlugin {
                 Update,
                 (
                     widget_clicks,
+                    flow_keys,
                     slider_drag,
                     name_typing,
                     net_typing,
@@ -414,9 +462,9 @@ impl Plugin for MenuPlugin {
                     net_texts,
                     scroll_cards,
                     run_requests,
-                    flow_keys,
                     sync_cursor,
                     paint_widgets,
+                    paint_navigation,
                     show_screens,
                     dev_hud,
                     open_results,
@@ -436,16 +484,10 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
         .spawn((overlay(false), MenuRoot))
         .with_children(|o| {
             o.spawn(fixed_card(452.0)).with_children(|c| {
-                c.spawn(Node { flex_shrink: 0.0, ..column(8.0) }).with_children(|nav| {
-                    nav.spawn(row(8.0)).with_children(|t| {
-                        tab_button(t, Tab::Solo, "Solo");
-                        tab_button(t, Tab::Look, "Customise");
-                        tab_button(t, Tab::Mates, "With mates");
-                    });
-                    nav.spawn(row(8.0)).with_children(|t| {
-                        tab_button(t, Tab::Settings, "Game settings");
-                        tab_button(t, Tab::How, "How to play");
-                    });
+                c.spawn((Node { flex_shrink: 0.0, ..column(8.0) }, ShowWhen::Subpage)).with_children(|nav| {
+                    let back = button(nav, Action::Back, "Back to main menu", None);
+                    nav.commands().entity(back).insert(BackLabel);
+                    nav.spawn((Text::new(""), display_font(28.0), TextColor(INK), PageHeading));
                 });
                 c.spawn((
                     Node { min_height: px(0.0), overflow: Overflow::scroll_y(), ..column(16.0) },
@@ -453,7 +495,7 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                     Interaction::default(), bevy::ui::FocusPolicy::Block,
                     MenuContent,
                 )).with_children(|c| {
-                // brand (hidden on the Customise tab, to make room)
+                // Brand and welcome copy belong to the main menu.
                 c.spawn((Node {
                     flex_direction: FlexDirection::Column,
                     align_items: AlignItems::FlexStart,
@@ -463,8 +505,8 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                     ..default()
                 }, ShowWhen::NotLook))
                 .with_children(|b| {
-                    b.spawn(tag_pill("Backyard Brawl · Rust prototype 0.0.2"));
-                    outlined_title(b, "Australian\nBBQ", 54.0);
+                    b.spawn(tag_pill("Main menu"));
+                    outlined_title(b, "Australian\nBBQ", 48.0);
                     b.spawn(Node { max_width: px(360.0), ..default() }).with_child(text(
                         "Chuck stuff at your mates in the backyard. Hit them before they hit you!",
                         15.0,
@@ -473,7 +515,7 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                     ));
                 });
                 // name
-                c.spawn(column(6.0)).with_children(|f| {
+                c.spawn((column(6.0), ShowWhen::NameEntry)).with_children(|f| {
                     f.spawn(legend("Your name"));
                     f.spawn((
                         Button,
@@ -490,17 +532,26 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                         children![(text("", 15.0, true, INK), NameText)],
                     ));
                 });
+                c.spawn((column(10.0), ShowWhen::Panel(Tab::Main))).with_children(|p| {
+                    tab_button(p, Tab::Solo, "Solo game");
+                    tab_button(p, Tab::Mates, "With mates");
+                    tab_button(p, Tab::Look, "Customise");
+                    tab_button(p, Tab::Settings, "Game settings");
+                    tab_button(p, Tab::How, "How to play");
+                });
                 solo_panel(c);
                 look_panel(c);
                 mates_panel(c);
                 settings_panel(c);
                 how_panel(c);
+                lobby_card(c);
                 });
             });
-            // the character preview, in a card beside the menu (Solo tab)
+            // Character preview beside the main, solo and customisation pages.
             o.spawn((
                 Node {
                     width: px(340.0),
+                    max_width: Val::Vw(32.0),
                     margin: UiRect::left(px(28.0)),
                     padding: UiRect::all(px(16.0)),
                     flex_direction: FlexDirection::Column,
@@ -557,7 +608,7 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                     MUTED,
                 ));
             });
-            lobby_card(o);
+
         });
 }
 
@@ -565,37 +616,16 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
 /// is ready, the Ready button, and the host's Start button. Everybody's blob stands in the yard
 /// behind the cards (see `lobby.rs`).
 fn lobby_card(o: &mut ChildSpawnerCommands) {
-    o.spawn((
-        Node {
-            // at the right-hand edge, so the line-up stands in the middle between the cards
-            position_type: PositionType::Absolute,
-            right: px(24.0),
-            top: px(20.0),
-            width: px(320.0),
-            max_height: Val::Percent(94.0),
-            overflow: Overflow::scroll_y(),
-            padding: UiRect::all(px(16.0)),
-            flex_direction: FlexDirection::Column,
-            row_gap: px(10.0),
-            border: UiRect::all(px(3.0)),
-            border_radius: BorderRadius::all(px(18.0)),
-            align_self: AlignSelf::FlexStart,
-            display: Display::None,
-            ..default()
-        },
-        BackgroundColor(PAPER),
-        BorderColor::all(INK),
-        BoxShadow(vec![ShadowStyle { color: INK, x_offset: px(7.0), y_offset: px(7.0), spread_radius: px(0.0), blur_radius: px(0.0) }]),
-        ShowWhen::Lobby,
-        RelativeCursorPosition::default(),
-        ScrollPosition::default(),
-        Interaction::default(),
-        bevy::ui::FocusPolicy::Block,
-    ))
+    o.spawn((column(10.0), ShowWhen::Panel(Tab::Lobby)))
     .with_children(|c| {
-        c.spawn(legend("Lobby: room code"));
+        c.spawn(legend("Room code — share with mates"));
         c.spawn((Text::new(""), display_font(34.0), TextColor(INK), LobbyCode));
-        c.spawn(text("Mates join with this code and your server link (With mates tab).", 12.5, false, MUTED));
+        c.spawn(text("Mates open the same game link, choose With mates, then enter this code.", 12.5, false, MUTED));
+        c.spawn(row(8.0)).with_children(|r| {
+            button(r, Action::Tab(Tab::Look), "Customise", None);
+            button(r, Action::Tab(Tab::How), "How to play", None);
+            button(r, Action::Tab(Tab::Settings), "Settings", None);
+        });
         c.spawn(legend("Players"));
         c.spawn(column(5.0)).with_children(|list| {
             for i in 0..bbq_core::net::MAX_PLAYERS {
@@ -620,11 +650,6 @@ fn lobby_card(o: &mut ChildSpawnerCommands) {
                 });
             }
         });
-        c.spawn((column(8.0), ShowWhen::LobbyHost)).with_children(|w| {
-            map_controls(w);
-            button(w, Action::Tab(Tab::Settings), "Map, mode & game settings", Some(SUN));
-            w.spawn(text("Choices apply when the next round starts.", 12.5, false, MUTED));
-        });
         c.spawn((text("", 14.0, true, INK), LobbyStatus));
         c.spawn(row(8.0)).with_children(|r| {
             let b = button(r, Action::LobbyReady, "Ready!", Some(SUN));
@@ -632,6 +657,14 @@ fn lobby_card(o: &mut ChildSpawnerCommands) {
         });
         c.spawn((row(8.0), ShowWhen::LobbyHost)).with_children(|r| {
             button(r, Action::LobbyStart, "Start now", Some(TOMATO));
+        });
+        c.spawn((column(8.0), ShowWhen::LobbyHost)).with_children(|w| {
+            map_controls(w);
+            button(w, Action::Tab(Tab::Settings), "Map, mode & game settings", Some(SUN));
+            w.spawn(text("Choices apply when the next round starts.", 12.5, false, MUTED));
+        });
+        c.spawn(column(6.0)).with_children(|r| {
+            seg(r, SegId::RaceRole, "Your role when playing Race", &[("Racer", 0), ("Sideline Thrower", 1)]);
         });
         c.spawn(row(8.0)).with_children(|r| {
             button(r, Action::Leave, "Leave the yard", None);
@@ -945,7 +978,7 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
         ));
         p.spawn((column(6.0), ShowWhen::RaceNote)).with_children(|r| {
             seg(r,SegId::RaceRole,"Your role",&[("Racer",0),("Sideline Thrower",1)]);
-            r.spawn(text("BACKYARD OVAL • 3 racers, 3 laps, 190m per lap. Race and dodge, or throw from the terrace. Hits: +50, +75, +100…; misses reset the streak. 225: refill 1.4s → 1s; 500: recovery 0.55s → 0.35s; 900: teddy + second slot (Q). Separate winners. Online: choose your role before the host starts; three racer seats, extra players throw.",13.0,false,MUTED));
+            r.spawn(text("3 laps • 190m oval. Racers: F picks up; tap F drops; hold/release F throws (3s carry limit). R tugs shorts briefly. Grass slows you: return to the gold ring. Throwers build hit streaks and unlock upgrades. Separate winners. Online: choose your role before the host starts.",13.0,false,MUTED));
         });
         p.spawn((column(6.0), ShowWhen::HeistTeams))
             .with_children(|h| {
@@ -1058,6 +1091,7 @@ fn mates_panel(c: &mut ChildSpawnerCommands) {
         });
     };
     c.spawn((column(12.0), ShowWhen::Panel(Tab::Mates))).with_children(|p| {
+        p.spawn((text("", 14.0, true, INK), NetStatusText));
         p.spawn(text(
             "One of you hosts and gets a room code. Your mates type the host's server link and the code, then join. Everybody meets in the lobby, customises, and presses Ready.",
             13.0,
@@ -1073,7 +1107,6 @@ fn mates_panel(c: &mut ChildSpawnerCommands) {
         p.spawn(row(0.0)).with_children(|r| {
             button(r, Action::Join, "Join their yard", None);
         });
-        p.spawn((text("", 14.0, true, INK), NetStatusText));
         p.spawn((row(0.0), ShowWhen::Lobby)).with_children(|r| {
             button(r, Action::Leave, "Leave the yard", None);
         });
@@ -1388,7 +1421,11 @@ fn widget_clicks(
         }
         match a {
             Action::Tab(t) => {
-                ui.tab = *t;
+                ui.open(*t);
+                for mut scroll in &mut content_scroll { scroll.y = 0.0; }
+            }
+            Action::Back => {
+                ui.back();
                 for mut scroll in &mut content_scroll { scroll.y = 0.0; }
             }
             Action::More => ui.more_open = !ui.more_open,
@@ -1399,7 +1436,10 @@ fn widget_clicks(
             Action::Again => ui.request = Some(Request::Again),
             Action::HostYard => ui.net_request = Some(crate::online::NetRequest::Host),
             Action::Join => ui.net_request = Some(crate::online::NetRequest::Join),
-            Action::Leave => ui.net_request = Some(crate::online::NetRequest::Leave),
+            Action::Leave => {
+                ui.net_request = Some(crate::online::NetRequest::Leave);
+                ui.reset_page(Tab::Mates);
+            }
             Action::LookStep(row, dir) => {
                 use bbq_core::appearance::Choice;
                 match row {
@@ -1603,6 +1643,40 @@ fn net_typing(
 }
 
 /// The server and room boxes, and the line saying how it is going.
+fn paint_navigation(
+    ui: Res<MenuUi>,
+    mut heading: Query<&mut Text, With<PageHeading>>,
+    buttons: Query<&Children, With<BackLabel>>,
+    mut labels: Query<&mut Text, Without<PageHeading>>,
+    mut scroll: Query<&mut ScrollPosition, With<MenuContent>>,
+    mut previous: Local<Option<Tab>>,
+) {
+    let title = |page| match page {
+        Tab::Main => "Main menu", Tab::Solo => "Solo game", Tab::Mates => "With mates",
+        Tab::Lobby => "Yard lobby", Tab::Look => "Customise",
+        Tab::Settings => "Game settings", Tab::How => "How to play",
+    };
+    for mut text in &mut heading {
+        if text.0 != title(ui.tab) { text.0 = title(ui.tab).into(); }
+    }
+    let back = if ui.tab == Tab::Lobby {
+        "Leave yard".into()
+    } else {
+        format!("Back to {}", title(ui.history.last().copied().unwrap_or(Tab::Main)).to_lowercase())
+    };
+    for children in &buttons {
+        for child in children.iter() {
+            if let Ok(mut text) = labels.get_mut(child) {
+                if text.0 != back { text.0 = back.clone(); }
+            }
+        }
+    }
+    if *previous != Some(ui.tab) {
+        for mut position in &mut scroll { position.y = 0.0; }
+        *previous = Some(ui.tab);
+    }
+}
+
 fn net_texts(
     settings: Res<Settings>,
     ui: Res<MenuUi>,
@@ -1727,14 +1801,16 @@ fn paint_widgets(
     for (w, mut n) in &mut shows {
         let show = match w {
             ShowWhen::Panel(t) => *t == ui.tab,
-            ShowWhen::Preview => matches!(ui.tab, Tab::Solo | Tab::Look) && !lobby.active,
+            ShowWhen::Subpage => ui.tab != Tab::Main,
+            ShowWhen::NameEntry => matches!(ui.tab, Tab::Solo | Tab::Mates | Tab::Look) && !lobby.in_yard,
+            ShowWhen::Preview => matches!(ui.tab, Tab::Main | Tab::Solo | Tab::Look) && !lobby.active,
             ShowWhen::Lobby => lobby.active,
             ShowWhen::LobbyHost => lobby.active && lobby.host,
             ShowWhen::Offline => !lobby.in_yard,
             ShowWhen::InYard => lobby.in_yard,
             ShowWhen::Guest => lobby.in_yard && !lobby.host,
             ShowWhen::NotGuest => !(lobby.in_yard && !lobby.host),
-            ShowWhen::NotLook => matches!(ui.tab, Tab::Solo | Tab::How),
+            ShowWhen::NotLook => ui.tab == Tab::Main,
             ShowWhen::HeistTeams | ShowWhen::HeistNote => heist,
             ShowWhen::SmokoNote => settings.mode == GameMode::Smoko,
             ShowWhen::RaceNote => settings.mode == GameMode::Race,
@@ -1913,6 +1989,7 @@ fn run_requests(
     mut player: ResMut<Player>,
     mut yard: ResMut<YardRes>,
     mut cast: ResMut<Cast>,
+    online: Res<crate::online::Online>,
     mut started: Local<bool>,
     mut frames: Local<u32>,
 ) {
@@ -1977,7 +2054,14 @@ fn run_requests(
         Request::Menu => {
             attract(&settings, &mut game, &mut player, &mut yard);
             *screen = Screen::Menu;
-            ui.tab = Tab::Solo;
+            let page = if online.session.as_ref().is_some_and(|s| s.joined()) {
+                Tab::Lobby
+            } else if ui.tab == Tab::Mates {
+                Tab::Mates
+            } else {
+                Tab::Main
+            };
+            ui.reset_page(page);
         }
     }
 }
@@ -1997,6 +2081,7 @@ fn flow_keys(
             Screen::Paused => *screen = Screen::Playing,
             Screen::Menu if ui.name_focus => ui.name_focus = false,
             Screen::Menu if ui.net_focus.is_some() => ui.net_focus = None,
+            Screen::Menu if ui.tab != Tab::Main => ui.back(),
             _ => {}
         }
     }
@@ -2163,13 +2248,13 @@ mod menu_tests {
         NO_SAVE.store(true, std::sync::atomic::Ordering::Relaxed);
         let mut app = App::new();
         app.insert_resource(Settings::default())
-            .insert_resource(MenuUi { tab: Tab::Solo, more_open: false, name_focus: false,
+            .insert_resource(MenuUi { tab: Tab::Main, history: vec![], more_open: false, name_focus: false,
                 request: None, net_focus: None, net_request: None, toggle_ready: false })
             .insert_resource(lobby)
             .init_resource::<Cast>()
             .insert_resource(crate::preview::PreviewImage(Handle::default()))
             .add_systems(Startup, spawn_menu)
-            .add_systems(Update, (widget_clicks, paint_widgets).chain());
+            .add_systems(Update, (widget_clicks, paint_widgets, paint_navigation).chain());
         app.update();
         app
     }
@@ -2186,24 +2271,76 @@ mod menu_tests {
         }
     }
 
+    fn press(app: &mut App, action: Action) {
+        let buttons: Vec<_> = app.world_mut().query::<(Entity, &Action)>().iter(app.world())
+            .filter(|(_, a)| **a == action).map(|(e, _)| e).collect();
+        let entity = buttons.into_iter().find(|e| visible(app.world(), *e))
+            .unwrap_or_else(|| panic!("No visible button for {action:?}"));
+        app.world_mut().entity_mut(entity).insert(Interaction::Pressed);
+        app.update();
+        app.world_mut().entity_mut(entity).insert(Interaction::None);
+        app.update();
+    }
+
     #[test]
-    fn every_menu_can_be_reopened_after_switching_tabs() {
-        for (in_yard, host) in [(false, false), (true, true), (true, false)] {
-            let mut app = menu(crate::online::Lobby { active: in_yard, in_yard, host, count: 2 });
-            for from in [Tab::Solo, Tab::Look, Tab::Mates, Tab::Settings, Tab::How] {
-                app.world_mut().resource_mut::<MenuUi>().tab = from;
-                app.update();
-                for target in [Tab::Solo, Tab::Look, Tab::Mates, Tab::Settings, Tab::How] {
-                    if target == from { continue; }
-                    let buttons: Vec<_> = app.world_mut().query::<(Entity, &Action)>()
-                        .iter(app.world()).filter(|(_, a)| **a == Action::Tab(target))
-                        .map(|(e, _)| e).collect();
-                    assert!(buttons.iter().any(|e| visible(app.world(), *e)),
-                        "Cannot reopen {target:?} from {from:?} (online={in_yard}, host={host})");
-                }
-            }
+    fn main_menu_children_have_a_visible_way_back() {
+        let mut app = menu(crate::online::Lobby::default());
+        assert_eq!(app.world().resource::<MenuUi>().tab, Tab::Main);
+        for page in [Tab::Solo, Tab::Mates, Tab::Look, Tab::Settings, Tab::How] {
+            press(&mut app, Action::Tab(page));
+            assert_eq!(app.world().resource::<MenuUi>().tab, page);
+            press(&mut app, Action::Back);
+            assert_eq!(app.world().resource::<MenuUi>().tab, Tab::Main);
         }
     }
+
+    #[test]
+    fn lobby_subpages_return_to_lobby_without_leaving_the_session() {
+        for host in [false, true] {
+            let mut app = menu(crate::online::Lobby { active: true, in_yard: true, host, count: 2 });
+            app.world_mut().resource_mut::<MenuUi>().reset_page(Tab::Lobby);
+            app.update();
+            for page in [Tab::Look, Tab::How, Tab::Settings] {
+                press(&mut app, Action::Tab(page));
+                press(&mut app, Action::Back);
+                let ui = app.world().resource::<MenuUi>();
+                assert_eq!(ui.tab, Tab::Lobby);
+                assert_eq!(ui.net_request, None);
+            }
+            press(&mut app, Action::Back);
+            let ui = app.world().resource::<MenuUi>();
+            assert_eq!(ui.tab, Tab::Mates);
+            assert_eq!(ui.net_request, Some(crate::online::NetRequest::Leave));
+        }
+    }
+
+    #[test]
+    fn host_connection_opens_lobby_and_disconnect_keeps_status_accessible() {
+        let mut app = menu(crate::online::Lobby::default());
+        let (game, _) = start_selected_round(&Settings::default());
+        app.insert_resource(game).insert_resource(Screen::Menu)
+            .init_resource::<Time>().init_resource::<crate::online::Online>()
+            .add_systems(Update, crate::online::lobby_logic.before(widget_clicks));
+        press(&mut app, Action::Tab(Tab::Mates));
+        press(&mut app, Action::HostYard);
+        assert_eq!(app.world().resource::<MenuUi>().net_request, Some(crate::online::NetRequest::Host));
+        assert_eq!(app.world().resource::<MenuUi>().tab, Tab::Mates, "stay here while connecting");
+        let host = crate::online::Session::host("Host", Character::Gumdrop, "rbq-menu");
+        app.world_mut().resource_mut::<crate::online::Online>().session = Some(host);
+        app.update();
+        assert_eq!(app.world().resource::<MenuUi>().tab, Tab::Mates);
+        assert!(!app.world().resource::<crate::online::Lobby>().active);
+        app.world_mut().resource_mut::<crate::online::Online>().session.as_mut().unwrap()
+            .on_event(crate::net_link::In::Snap { room: "rbq-menu".into(), peers: vec![] }, 0.0);
+        app.update();
+        assert_eq!(app.world().resource::<MenuUi>().tab, Tab::Lobby);
+        app.world_mut().resource_mut::<crate::online::Online>().session.as_mut().unwrap()
+            .on_event(crate::net_link::In::Closed("test disconnect".into()), 1.0);
+        app.update();
+        assert_eq!(app.world().resource::<MenuUi>().tab, Tab::Mates);
+        assert!(app.world().resource::<crate::online::Online>().status().contains("test disconnect"));
+    }
+
     fn choose(app: &mut App, id: SegId, value: i32) {
         let entity = app.world_mut().query::<(Entity, &SegOption)>()
             .iter(app.world()).find(|(_, s)| s.id == id && s.value == value)
@@ -2280,21 +2417,22 @@ mod menu_tests {
     }
 
     #[test]
-    fn switching_from_scrolled_settings_opens_customise_at_the_top() {
+    fn back_is_fixed_and_subpages_open_at_the_top() {
         let mut app = menu(crate::online::Lobby { active: true, in_yard: true, host: true, count: 2 });
-        app.world_mut().resource_mut::<MenuUi>().tab = Tab::Settings;
+        app.world_mut().resource_mut::<MenuUi>().reset_page(Tab::Lobby);
         app.update();
+        press(&mut app, Action::Tab(Tab::Settings));
         let content = app.world_mut().query_filtered::<Entity, With<MenuContent>>().single(app.world()).unwrap();
         app.world_mut().get_mut::<ScrollPosition>(content).unwrap().y = 500.0;
-        let tab = app.world_mut().query::<(Entity, &TabButton)>().iter(app.world())
-            .find(|(_, t)| t.0 == Tab::Look).map(|(e, _)| e).unwrap();
-        let mut ancestor = tab;
+        let back = app.world_mut().query::<(Entity, &Action)>().iter(app.world())
+            .find(|(_, a)| **a == Action::Back).map(|(e, _)| e).unwrap();
+        let mut ancestor = back;
         while let Some(parent) = app.world().get::<ChildOf>(ancestor) {
             ancestor = parent.parent();
-            assert_ne!(ancestor, content, "navigation must be outside scrolling content");
+            assert_ne!(ancestor, content, "Back must stay outside scrolling content");
         }
-        app.world_mut().entity_mut(tab).insert(Interaction::Pressed);
-        app.update();
+        press(&mut app, Action::Back);
+        press(&mut app, Action::Tab(Tab::Look));
         assert_eq!(app.world().resource::<MenuUi>().tab, Tab::Look);
         assert_eq!(app.world().get::<ScrollPosition>(content).unwrap().y, 0.0);
     }

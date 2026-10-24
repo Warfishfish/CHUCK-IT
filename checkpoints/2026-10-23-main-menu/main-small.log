@@ -1,0 +1,1 @@
+2026-10-23T07:13:18.599971Z  WARN bevy_winit::state: Skipped event Destroyed for unknown winit Window Id WindowId(30323163776)

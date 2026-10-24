@@ -77,6 +77,8 @@ pub struct Session {
     pub round_on: bool,
     /// Set when the session is over (refused, host left, connection lost).
     pub ended: bool,
+    /// The relay acknowledged joining the room; host id 1 alone is not a connection.
+    relay_joined: bool,
 }
 
 impl Session {
@@ -106,6 +108,7 @@ impl Session {
             status: "Connecting...".into(),
             round_on: false,
             ended: false,
+            relay_joined: false,
         }
     }
 
@@ -132,6 +135,7 @@ impl Session {
             status: "Connecting...".into(),
             round_on: false,
             ended: false,
+            relay_joined: false,
         }
     }
 
@@ -248,7 +252,7 @@ impl Session {
 
     /// Are we in the yard (host: connected; guest: welcomed)?
     pub fn joined(&self) -> bool {
-        self.my_id != 0 && !self.ended
+        self.relay_joined && self.my_id != 0 && !self.ended
     }
 
     fn hello(&self) -> Msg {
@@ -275,6 +279,7 @@ impl Session {
         match ev {
             In::Open { .. } => vec![Do::Join(self.room.clone())],
             In::Snap { peers, .. } => {
+                self.relay_joined = true;
                 if self.role == Role::Host {
                     // anybody already here is a mate who got here first (they say hello again
                     // when they see us arrive), so there is nothing to refuse
@@ -815,7 +820,7 @@ pub struct Lobby {
 
 /// The lobby: send our look when it changes, count down when everybody is ready (host), start
 /// the round, and keep the yard quiet (no bots wandering through the line-up).
-fn lobby_logic(
+pub(crate) fn lobby_logic(
     time: Res<Time>,
     mut online: ResMut<Online>,
     mut lobby: ResMut<Lobby>,
@@ -829,12 +834,13 @@ fn lobby_logic(
     let Online { link, session, .. } = &mut *online;
     let active = session.as_ref().is_some_and(|s| s.joined()) && *screen == crate::menu::Screen::Menu;
     if active && !lobby.active {
-        // just arrived: open on the Customise tab, with the line-up behind it
-        ui.tab = crate::ui::Tab::Look;
+        // Successful Host/Join always arrives at the dedicated lobby.
+        ui.reset_page(crate::ui::Tab::Lobby);
     }
     let host = session.as_ref().is_some_and(|s| s.role == Role::Host);
     // left the yard (or it closed) while in the lobby: back to the normal menu yard, with bots
     if lobby.active && !active && *screen == crate::menu::Screen::Menu {
+        ui.reset_page(crate::ui::Tab::Mates);
         ui.request = Some(crate::menu::Request::Menu);
     }
     let count = session.as_ref().map_or(0, |s| s.members.len());
@@ -985,9 +991,25 @@ fn net_test_actions(
     mut wanted: ResMut<crate::player::Wanted>,
     mut given: Local<bool>,
     mut stage: Local<(u32, bool)>,
+    mut social: Local<(Option<f32>,u8,u32)>,
 ) {
     let args: Vec<String> = std::env::args().collect();
     let Some(session) = online.session.as_ref().filter(|s| s.joined()) else { return };
+    // Explicit opt-in live-relay regression: genuine guest requests, ordinary host validators.
+    if args.iter().any(|a|a=="--net-race-social") && game.rules.mode==bbq_core::GameMode::Race && game.rules.in_play() && game.round.timed {
+        let start=*social.0.get_or_insert(game.now);let elapsed=game.now-start;
+        social.2+=1;
+        if session.role==Role::Guest {
+            let thresholds=[1.0,1.5,2.1,2.5];
+            if (social.1 as usize)<thresholds.len() && elapsed>=thresholds[social.1 as usize] {
+                let act=match social.1 {0=>GuestAct::RaceTug,1|2=>GuestAct::Carry{pressed:true},_=>GuestAct::Carry{pressed:false}};
+                println!("NET-RACE request elapsed={elapsed:.2} {act:?}");game.net_acts.push(act);social.1+=1;
+            }
+        }
+        if social.2%30==0 {
+            println!("NET-RACE {:?} t={elapsed:.2} carries={:?} tug={:?}",session.role,game.smoko.carries.iter().map(|(o,c)|(*o,c.victim)).collect::<Vec<_>>(),game.race.racers.iter().map(|(id,r)|(*id,(r.tug_until-game.now).max(0.0),r.return_to)).collect::<Vec<_>>());
+        }
+    }
     if session.role == Role::Host && !*given && game.rules.phase == bbq_core::scoring::Phase::Play {
         if let Some(kind) = args.iter().position(|a| a == "--net-give").and_then(|i| args.get(i + 1)) {
             let want = match kind.as_str() {
@@ -1085,6 +1107,8 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>, yard: Res<crate::
     let race=game.rules.mode==bbq_core::GameMode::Race;
     let playing=game.rules.in_play();
     let controlled: Vec<_> = game.dummies.iter().filter(|d| crate::smoko_mode::controlled(&game,d.id)).map(|d|d.id).collect();
+    let speeds: std::collections::BTreeMap<_,_> = game.dummies.iter().map(|d|(d.id,crate::race::speed(&game,d.id,(d.mover.x,d.mover.z)))).collect();
+    let carriers: Vec<_> = game.smoko.carries.keys().copied().collect();
     for d in game.dummies.iter_mut() {
         // While stunned, the host simulates physical knockback; client positions cannot cancel it.
         if (race && mirror) || controlled.contains(&d.id) || (d.body.wet_t > 0.0 && (mirror || d.body.stun > 0.0)) {continue;}
@@ -1098,7 +1122,7 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>, yard: Res<crate::
         let k = if far { 1.0 } else { k };
         let (mut dx, mut dz) = ((target.0 - d.mover.x) * k, (target.2 - d.mover.z) * k);
         if !mirror {
-            let mods = bbq_core::movement::Modifiers { wet: d.body.wet_t>0.0, frozen: race && !playing, stunned: d.body.stun > 0.0, charging: d.bot.winding, ..Default::default() };
+            let mods = bbq_core::movement::Modifiers { gait: speeds.get(&d.id).copied().unwrap_or(1.0), carrying: carriers.contains(&d.id), wet: d.body.wet_t>0.0, frozen: race && !playing, stunned: d.body.stun > 0.0, charging: d.bot.winding, ..Default::default() };
             // Sprint requests remain subject to the host mover's duration/cooldown.
             if s.vel.0.hypot(s.vel.1) > bbq_core::movement::BASE_SPEED { d.mover.try_boost(&mods); }
             let step = d.mover.max_speed(&mods) * bbq_core::sim::TICK_DT;
@@ -1182,6 +1206,22 @@ mod tests {
                 self.to_guest(e);
             }
         }
+    }
+
+    #[test]
+    fn host_waits_for_relay_acknowledgement_and_failed_connect_never_joins() {
+        let mut host = Session::host("Host", Character::Gumdrop, "rbq-test");
+        assert!(!host.joined());
+        host.on_event(In::Open { peer: "H".into() }, 0.0);
+        assert!(!host.joined(), "socket open is not room acknowledgement");
+        host.on_event(In::Snap { room: "rbq-test".into(), peers: vec![] }, 0.1);
+        assert!(host.joined());
+        host.on_event(In::Closed("offline".into()), 0.2);
+        assert!(!host.joined());
+        let mut failed = Session::host("Host", Character::Gumdrop, "rbq-failed");
+        failed.on_event(In::Closed("connection refused".into()), 0.0);
+        assert!(!failed.joined());
+        assert!(failed.status.contains("connection refused"));
     }
 
     #[test]

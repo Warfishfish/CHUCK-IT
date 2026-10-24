@@ -194,6 +194,7 @@ fn title_text(s: &str, size: f32, c: Color, dx: f32, dy: f32) -> impl Bundle {
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Action {
     Tab(Tab),
+    Back,
     Play,
     More,
     Resume,
@@ -244,6 +245,8 @@ pub enum LookRow {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum Tab {
+    Main,
+    Lobby,
     Solo,
     Look,
     Mates,
@@ -450,13 +453,14 @@ pub struct ButtonLook {
     pub base: Color,
 }
 
-/// The wide tab buttons (Solo / With mates / How to play).
+/// Full-width main-menu destinations.
 pub fn tab_button(p: &mut ChildSpawnerCommands, tab: Tab, label: &str) {
     p.spawn((
         Button,
         Node {
-            flex_grow: 1.0,
-            flex_basis: px(0.0),
+            width: Val::Percent(100.0),
+            min_height: px(46.0),
+            flex_shrink: 0.0,
             padding: UiRect::axes(px(4.0), px(11.0)),
             justify_content: JustifyContent::Center,
             border: UiRect::all(px(3.0)),
@@ -467,7 +471,7 @@ pub fn tab_button(p: &mut ChildSpawnerCommands, tab: Tab, label: &str) {
         BorderColor::all(INK),
         Action::Tab(tab),
         TabButton(tab),
-        children![text(label, 14.0, true, INK)],
+        children![text(label, 16.0, true, INK)],
     ));
 }
 

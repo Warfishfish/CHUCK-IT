@@ -145,7 +145,7 @@ fn motion_mode() -> Option<&'static str> {
     MODE.get_or_init(|| {
         let a: Vec<String> = std::env::args().collect();
         if !a.iter().any(|v|v=="--shot") || !a.iter().any(|v|v=="--review") { return None; }
-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie"].contains(&v.as_str())).cloned()
+        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie", "race-carry", "race-tug", "race-grass"].contains(&v.as_str())).cloned()
     }).as_deref()
 }
 
@@ -155,6 +155,29 @@ pub fn is_scripted_walk_review() -> bool { matches!(motion_mode(),Some("water-ba
 fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut wanted: ResMut<crate::player::Wanted>, mut frame: Local<u32>) {
     let Some(mode) = motion_mode() else { return };
     if mode=="race" {return;}
+    if matches!(mode,"race-carry"|"race-tug"|"race-grass") {
+        *frame+=1;
+        if *frame==140 {
+            game.attract=false;game.options.bots_on=false;game.rules.phase=bbq_core::scoring::Phase::Play;game.round.time_left=180.0;
+            game.world.clear();game.dummies.truncate(2);game.race.throwers.clear();game.race.racers.clear();game.smoko=Default::default();
+            player.mover=bbq_core::movement::Mover::new(2.0,-24.0);player.yaw=std::f32::consts::PI;
+            for (i,d) in game.dummies.iter_mut().enumerate(){d.mover=bbq_core::movement::Mover::new(4.0+i as f32*1.5,-24.0);d.body=Default::default();d.face=std::f32::consts::FRAC_PI_2;d.bot.slots.clear();}
+            for (id,at) in [(1,(2.,-24.)),(100,(4.,-24.)),(101,(5.5,-24.))] {game.race.racers.insert(id,crate::race::Progress::new(at));}
+        }
+        if mode=="race-carry" {
+            if *frame==190 || *frame==270 {crate::smoko_mode::input(&mut game,&mut player,100,true);}
+            if *frame==295 {crate::smoko_mode::input(&mut game,&mut player,100,false);}
+        } else if mode=="race-tug" {
+            if *frame==190 {crate::race::tug(&mut game,&mut player,100);}
+        } else {
+            wanted.wish=if (180..270).contains(&*frame){(0.,1.)}else if (270..450).contains(&*frame){(0.,-1.)}else{(0.,0.)};
+        }
+        if *frame>=180 && *frame%10==0 {
+            let r=&game.race.racers[&1];
+            println!("RACE_SOCIAL frame={} mode={} carries={} victim_pos={:?} victim_tug={:.3} player=({:.2},{:.2}) speed={:.3} return={:?}",*frame,mode,game.smoko.carries.len(),game.dummies.get(1).map(|d|(d.mover.x,d.mover.y,d.mover.z)),game.race.racers[&101].tug_until-game.now,player.mover.x,player.mover.z,player.mover.speed(),r.return_to);
+        }
+        return;
+    }
     if mode=="magpie" {
         *frame+=1;game.options.bots_on=false;
         if *frame==120 {
