@@ -351,6 +351,7 @@ pub struct SlapAnim {
 /// Per-character animation state.
 #[derive(Clone, Debug)]
 pub struct Animator {
+    charge_return: crate::feel::ReturnSpring,
     pub feel: crate::feel::Feel,
     cached_pose: Option<Pose>,
     pub tilt: f32,
@@ -374,6 +375,7 @@ pub struct Animator {
 impl Animator {
     pub fn new(phase: f32) -> Self {
         Self {
+            charge_return: Default::default(),
             feel: Default::default(),
             cached_pose: None,
             tilt: 0.0,
@@ -480,17 +482,18 @@ impl Animator {
             0.0
         };
 
-        // State-driven charge lean: every viewer reconstructs from replicated charge.
-        if i.charging && i.down_t <= 0.0 && !i.fallen && i.dragged_by.is_none() {
-            let c=i.charge.clamp(0.0,1.0);
-            let warning=((c-crate::feel::CHARGE_WARNING)/(1.0-crate::feel::CHARGE_WARNING)).clamp(0.0,1.0);
-            let lean=(crate::feel::CHARGE_LEAN+crate::feel::CHARGE_HEAVY_LEAN*i.item_weight.clamp(0.0,1.0))*c*c;
+        // Keep spring momentum after release, so charge never disappears in one frame.
+        let upright=i.down_t<=0.0 && !i.fallen && i.dragged_by.is_none();
+        let target=if i.charging && upright {i.charge.clamp(0.0,1.0)} else {0.0};
+        let wind=self.charge_return.step(target,dt);
+        if upright {
+            let warning=((target-crate::feel::CHARGE_WARNING)/(1.0-crate::feel::CHARGE_WARNING)).clamp(0.0,1.0);
+            let lean=(crate::feel::CHARGE_LEAN+crate::feel::CHARGE_HEAVY_LEAN*i.item_weight.clamp(0.0,1.0))*wind;
             p.body_rot=p.body_rot.mul(Quat::from_euler_xyz(-lean,0.0,(t*34.0+ph).sin()*warning*crate::feel::CHARGE_TREMBLE));
-            p.body_z -= lean*0.18;
+            p.body_z-=lean*0.18;
         }
 
-        // the throwing hand winds up
-        let wind = if i.charging { i.charge } else { 0.0 };
+        // The throwing hand follows the same settling motion.
         p.hand_r = V3::new(
             -0.47 - da * 0.12 * (t * 2.3 + ph).sin().abs(),
             0.88 + wind * 0.75 + da * (t * 3.1 + ph).sin() * 0.22,
@@ -802,6 +805,7 @@ mod tests {
         let base = a.tick(DT, &i).hand_r;
         i.charging = true;
         i.charge = 1.0;
+        for _ in 0..120 {a.tick(DT, &i);}
         let up = a.tick(DT, &i).hand_r;
         assert!((up.y - base.y - 0.75).abs() < 1e-4);
         assert!((base.z - up.z - 0.35).abs() < 1e-4);

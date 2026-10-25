@@ -1,3 +1,15 @@
+# Publication approval — 25 October 2026
+
+User approved committing and pushing the charged-throw recovery and optional Backyard graphics preview, including rebuilt browser files. Source hashes match the verified builds (669 tests passed). Earlier review statuses below are historical.
+
+# Backyard graphics preview — ready for review (25 October 2026)
+
+[Checkpoint](2026-10-25-backyard-finish/CHECKPOINT.md). Verified backup; first switchable lighting/materials pass. [Actual before/after and motion](2026-10-25-backyard-finish/review.html). 669 tests and native/browser builds pass; matched mean frame times +0.4% / +2.8%. Use --backyard-finish or ?backyard_finish=1. Default look and pending throw work preserved. No commit/push.
+
+# Charge trajectory and smooth recovery — ready for review (25 October 2026)
+
+[Checkpoint](2026-10-25-throw-recovery/CHECKPOINT.md). Higher charge arcs, smooth character return and gentle camera lean. 669 tests and native/browser builds pass. [Actual clips](2026-10-25-throw-recovery/review.html). Starting from committed c720bf2; no commit/push.
+
 # Animation, magpies and cartoon finish — approved for publication (25 October 2026)
 
 [Checkpoint](2026-10-25-animation-graphics/CHECKPOINT.md) · [Actual clips and comparison](2026-10-25-animation-graphics/review.html). Verified full backup; 668 tests, native/web builds pass. Charge lean/fall/recovery, belly/walk polish, Backyard/Teams magpie rescues and flock, subtle graphics/UI finish. Matched mean frame time 8.859 → 8.890 ms. Browser menu/game loads; automated pointer-lock limitation documented. User approved committing and pushing, including the rebuilt browser version and With mates settings relocation. Previous shirt/Race and menu updates were committed and pushed as b7f8b44.

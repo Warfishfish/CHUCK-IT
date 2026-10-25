@@ -48,6 +48,10 @@ impl LookMode {
 
     /// The lights for this look.
     pub fn rig(self) -> Rig {
+        if self==LookMode::Polished && crate::style::current()==crate::style::Style::Pop && crate::backyard_finish::enabled() {
+            return Rig {sky:0xc1d6ee,ground:0xb0b8a5,hemi:0.90,sun:0xffe3bc,sun_intensity:0.87,
+                grade:Grade{saturation:0.97,warmth:0.009,contrast:1.008,vignette:0.025}};
+        }
         match self {
             LookMode::Browser => Rig {
                 sky: SKY,
@@ -319,9 +323,9 @@ pub fn spawn_afternoon_sky(
     if let Some(VertexAttributeValues::Float32x3(positions)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
         let colours: Vec<[f32; 4]> = positions.iter().map(|p| {
             let height = (p[1] / 180.0).max(0.0);
-            let t = (height / 0.7).clamp(0.0, 1.0).sqrt();
-            let horizon = Vec3::new(0.73, 0.86, 0.94);
-            let zenith = Vec3::new(0.24, 0.47, 0.76);
+            let t = (height / 0.7).clamp(0.0, 1.0).powf(if crate::backyard_finish::enabled(){0.65}else{0.5});
+            let horizon = if crate::backyard_finish::enabled(){crate::backyard_finish::SKY_HORIZON}else{Vec3::new(0.73, 0.86, 0.94)};
+            let zenith = if crate::backyard_finish::enabled(){crate::backyard_finish::SKY_ZENITH}else{Vec3::new(0.24, 0.47, 0.76)};
             let direction=Vec3::from(*p).normalize();
             let toward_sun=direction.dot(Vec3::new(24.0,20.8,20.0).normalize()).max(0.0);
             let haze=toward_sun.powf(12.0)*0.16;

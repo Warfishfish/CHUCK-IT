@@ -108,6 +108,10 @@ fn build_yard(
     let cover=cache.spawn_parts(&mut commands,&looks_yard::backyard_cover(),&mut meshes,&mut mats,Transform::default());
     commands.entity(cover).insert(BackyardCover);commands.entity(yard_root).add_child(cover);
 
+    if crate::backyard_finish::enabled() {
+        let trim=cache.spawn_parts(&mut commands,&crate::backyard_finish::house_trim(),&mut meshes,&mut mats,Transform::default());
+        commands.entity(yard_root).add_child(trim);
+    }
     // everything that is always there (lawn, fence, house, trees, pool, props)
     let (world_root, kids) = cache.spawn_parts_with_children(
         &mut commands,

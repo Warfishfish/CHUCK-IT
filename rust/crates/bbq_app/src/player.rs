@@ -311,8 +311,11 @@ pub fn update_camera(
     mut cam: Single<(&mut Transform, &mut Projection), With<EyeCamera>>,
     mut stop: Local<VisualHitStop>,
     mut walk_blend: Local<f32>,
+    mut charge_lean: Local<bbq_core::feel::ReturnSpring>,
 ) {
     let dt = time.delta_secs();
+    let target=if game.wind.charging && !game.me.body.is_down() {game.wind.charge.clamp(0.0,1.0)}else{0.0};
+    let charge_pitch=charge_lean.step(target,dt)*bbq_core::feel::CAMERA_CHARGE_LEAN;
     let p = &mut *player;
     let status=(game.me.body.stun,game.me.body.wet_t,game.me.body.down_t);
     if status.0>stop.previous.0+0.1 || status.1>stop.previous.1+0.2 || status.2>stop.previous.2+0.1 {
@@ -357,7 +360,7 @@ pub fn update_camera(
     tf.rotation = Quat::from_euler(
         EulerRot::YXZ,
         p.yaw + sx * 0.2 + fx.yaw,
-        p.pitch + sy * 0.2 + fx.pitch,
+        p.pitch + sy * 0.2 + fx.pitch + charge_pitch,
         fx.roll,
     );
 

@@ -2,6 +2,21 @@
 use crate::{items::ItemKind, pose::Pose, vec::{Quat, V3}};
 
 // Animation tuning: seconds, metres and radians. Weight is an artistic 0..1 value.
+pub const RETURN_STIFFNESS: f32 = 150.0;
+pub const RETURN_DAMPING: f32 = 12.0;
+pub const CAMERA_CHARGE_LEAN: f32 = 0.07; // four degrees, visual only
+
+/// Stable damped spring shared by third-person lean and the local camera.
+#[derive(Clone, Debug, Default)]
+pub struct ReturnSpring { pub value: f32, velocity: f32 }
+impl ReturnSpring {
+    pub fn step(&mut self, target:f32, dt:f32) -> f32 {
+        let dt=dt.clamp(0.0,0.1);
+        let n=(dt/0.008).ceil().max(1.0) as usize;
+        for _ in 0..n {let h=dt/n as f32;self.velocity+=((target-self.value)*RETURN_STIFFNESS-self.velocity*RETURN_DAMPING)*h;self.value+=self.velocity*h;}
+        self.value
+    }
+}
 pub const CHARGE_LEAN: f32 = 0.42;
 pub const CHARGE_HEAVY_LEAN: f32 = 0.12;
 pub const CHARGE_WARNING: f32 = 0.82;
@@ -46,7 +61,7 @@ pub struct Feel {
     impact: Option<(f32, f32, V3)>,
 }
 impl Feel {
-    pub fn release(&mut self) { self.release=Some(0.0); self.wind=0.0; }
+    pub fn release(&mut self) { self.release=Some(0.0); }
     pub fn hit(&mut self, dir: V3, knock: f32) {
         self.impact=Some((0.0,strength(knock),dir.normalised()));
         self.release=None;
@@ -54,10 +69,10 @@ impl Feel {
     pub fn frozen(&self) -> bool { self.impact.is_some_and(|(t,_,_)| t < HIT_STOP) }
     pub fn tick(&mut self, dt: f32, charging: bool, weight: f32, enabled: bool, p: &mut Pose) {
         let dt=dt.clamp(0.0,0.1);
-        if charging {self.weight=weight.clamp(0.0,1.0); self.wind+=dt;} else {self.wind=0.0;}
+        if charging {self.weight=weight.clamp(0.0,1.0); self.wind+=dt;} else {self.wind*=(-20.0*dt).exp();}
         let w=self.weight;
         if enabled {
-            if charging && self.release.is_none() {
+            if self.wind > 0.0001 {
                 let u=(self.wind/(WINDUP_LIGHT+(WINDUP_HEAVY-WINDUP_LIGHT)*w)).min(1.0);
                 let s=WIND_SQUASH*(0.65+0.7*w)*u*u*(3.0-2.0*u);
                 p.body_scale=(1.0+s*0.5,1.0-s);
@@ -65,8 +80,9 @@ impl Feel {
             }
             if let Some(t)=self.release {
                 let u=t/THROW_SETTLE;
-                let s=RELEASE_STRETCH*(0.65+0.7*w)*(-5.0*u).exp()*(u*std::f32::consts::TAU*WOBBLE_CYCLES).cos();
-                p.body_scale=(1.0-s*0.4,1.0+s);
+                let onset=(t/0.08).clamp(0.0,1.0);
+                let s=onset*onset*(3.0-2.0*onset)*RELEASE_STRETCH*(0.65+0.7*w)*(-5.0*u).exp()*(u*std::f32::consts::TAU*WOBBLE_CYCLES).cos();
+                p.body_scale.0*=1.0-s*0.4; p.body_scale.1*=1.0+s;
                 p.body_rot=p.body_rot.mul(Quat::from_euler_xyz(s,0.0,0.0));
                 let reach=(std::f32::consts::PI*(t/0.24).clamp(0.0,1.0)).sin()*(0.7+0.3*w);
                 p.body_z+=s*0.15+reach*THROW_FOLLOW_THROUGH;
@@ -95,14 +111,24 @@ impl Feel {
 
 #[cfg(test)] mod tests {
     use super::*;
+    #[test] fn charge_return_is_continuous_overshoots_then_settles() {
+        let mut s=ReturnSpring::default();
+        for _ in 0..120 {s.step(1.0,1.0/60.0);}
+        let before=s.value;s.step(0.0,1.0/60.0);
+        assert!((before-s.value).abs()<0.04,"no one-frame reset");
+        let mut crossed=false;
+        for _ in 0..180 {crossed|=s.step(0.0,1.0/60.0)< -0.01;}
+        assert!(crossed);assert!(s.value.abs()<0.0001);
+    }
     #[test] fn heavy_winds_slower_and_releases_bigger() {
         let mut light=Feel::default();let mut heavy=Feel::default();
         let mut a=Pose::default();let mut b=Pose::default();
         light.tick(0.1,true,0.0,true,&mut a);heavy.tick(0.1,true,1.0,true,&mut b);
         assert!(a.body_scale.1 < 1.0 && b.body_scale.1 < 1.0);
         light.release();heavy.release();a=Pose::default();b=Pose::default();
-        light.tick(0.016,false,0.0,true,&mut a);heavy.tick(0.016,false,0.0,true,&mut b);
-        assert!(b.body_scale.1>a.body_scale.1);
+        let(mut lp,mut hp)=(1.0_f32,1.0_f32);
+        for _ in 0..60 { a=Pose::default();b=Pose::default();light.tick(0.016,false,0.0,true,&mut a);heavy.tick(0.016,false,0.0,true,&mut b);lp=lp.max(a.body_scale.1);hp=hp.max(b.body_scale.1); }
+        assert!(hp>lp,"heavy peak {hp}, light peak {lp}");
     }
     #[test] fn directional_impact_freezes_briefly_then_settles() {
         let mut f=Feel::default();f.hit(V3::new(1.0,0.0,0.0),8.0);

@@ -1,0 +1,10 @@
+rust/crates/bbq_app/src/backyard_finish.rs
+rust/crates/bbq_app/src/main.rs
+rust/crates/bbq_app/src/lighting.rs
+rust/crates/bbq_app/src/grass.rs
+rust/crates/bbq_app/src/models.rs
+rust/crates/bbq_app/src/style.rs
+rust/crates/bbq_app/src/yard_scene.rs
+public/rust/bbq.js
+public/rust/bbq_bg.wasm
+public/rust/bbq_bg.wasm.gz

@@ -67,14 +67,17 @@ fn tile_mesh(cx: f32, cz: f32, mode: GameMode, yard: &Yard, tufts: usize) -> Opt
         if !on_lawn(wx, wz, mode, yard) { continue; }
         // Slow variation breaks up the carpet; short height leaves pickups visible.
         let lush = 0.5 + 0.25 * (wx * 0.48).sin() + 0.25 * (wz * 0.63).cos();
-        let h = rng.range(0.06, 0.125) * (0.8 + lush * 0.5);
-        let tint = rng.range(0.86, 1.12);
+        let preview=crate::backyard_finish::enabled();
+        let edge=if preview {0.78+0.22*(wx*0.19+wz*0.12).sin()}else{1.0};
+        let worn=if preview {1.0-0.32*(-(wx/1.8).powi(2)).exp()}else{1.0};
+        let h = rng.range(0.06, 0.125) * (0.8 + lush * 0.5)*edge*worn;
+        let tint = if preview {rng.range(0.94,1.06)*(0.92+lush*0.12)}else{rng.range(0.86, 1.12)};
         for _ in 0..3 {
             let angle = rng.range(0.0, std::f32::consts::TAU);
             let side = Vec3::new(angle.cos(), 0.0, angle.sin());
             let bend = Vec3::new(-angle.sin(), 0.0, angle.cos()) * rng.range(0.012, 0.045);
             let at = Vec3::new(x + rng.range(-0.09, 0.09), 0.008, z + rng.range(-0.09, 0.09));
-            let width = rng.range(0.006, 0.013);
+            let width = if preview {rng.range(0.008,0.014)}else{rng.range(0.006, 0.013)};
             let mid = at + Vec3::Y * h * 0.55 + bend * 0.35;
             let tip = at + Vec3::Y * h + bend;
             let first = positions.len() as u32;
@@ -83,7 +86,7 @@ fn tile_mesh(cx: f32, cz: f32, mode: GameMode, yard: &Yard, tufts: usize) -> Opt
                 positions.push(p.to_array());
                 // Upward shading normals blend with the lawn; no black back-facing stripes.
                 normals.push([0.0, 1.0, 0.0]);
-                let colour = ROOT_COLOUR.lerp(TIP_COLOUR, t) * tint;
+                let colour = if preview {crate::backyard_finish::ROOT.lerp(crate::backyard_finish::TIP,t)*tint}else{ROOT_COLOUR.lerp(TIP_COLOUR, t) * tint};
                 colours.push([colour.x, colour.y, colour.z, 1.0]);
                 uv.push([0.0, t]);
             }

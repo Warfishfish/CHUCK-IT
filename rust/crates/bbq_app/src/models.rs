@@ -374,8 +374,10 @@ fn add_mipmaps(mut events: MessageReader<AssetEvent<Image>>, mut images: ResMut<
             cache.textures.iter().find_map(|(tex, handle)| {
                 if handle.id() != *id { return None; }
                 match tex {
-                    Tex::Wood => Some(WOOD_DETAIL_CONTRAST),
-                    Tex::Paling | Tex::Corrugated => Some(BUILDING_DETAIL_CONTRAST),
+                    Tex::Wood => Some(if crate::backyard_finish::enabled(){crate::backyard_finish::WOOD_CONTRAST}else{WOOD_DETAIL_CONTRAST}),
+                    Tex::Paling | Tex::Corrugated => Some(if crate::backyard_finish::enabled(){crate::backyard_finish::ROOF_CONTRAST}else{BUILDING_DETAIL_CONTRAST}),
+                    Tex::Weatherboard if crate::backyard_finish::enabled()=>Some(crate::backyard_finish::PAINT_CONTRAST),
+                    Tex::Lawn if crate::backyard_finish::enabled()=>Some(0.65),
                     _ => None,
                 }
             })
@@ -426,10 +428,11 @@ pub fn material(s: &Surface, cache: &ModelCache) -> StandardMaterial {
         && crate::style::current() == crate::style::Style::Pop
         && s.tex == Some(Tex::Lawn);
     let repeat = if afternoon_lawn { 2.3 } else { 1.0 };
+    let lawn_tint=if crate::backyard_finish::enabled(){crate::backyard_finish::LAWN_TINT}else{LAWN_TINT};
     StandardMaterial {
         base_color: if afternoon_lawn {
             let c = hex(s.color).to_linear();
-            Color::linear_rgba(c.red * LAWN_TINT.x, c.green * LAWN_TINT.y, c.blue * LAWN_TINT.z, s.alpha)
+            Color::linear_rgba(c.red * lawn_tint.x, c.green * lawn_tint.y, c.blue * lawn_tint.z, s.alpha)
         } else {
             hex(s.color).with_alpha(s.alpha)
         },

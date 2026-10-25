@@ -977,7 +977,7 @@ mod tests {
             mover: Mover::new(8.0, 0.0),
             prev: Vec3::ZERO,
             yaw: std::f32::consts::PI, // looking along +z
-            pitch: 0.05,
+            pitch: 0.05 - hands::CHARGE_ARC_RADIANS,
             walk: 0.0,
             shake: 0.0,
             fov_base: FOV_DEFAULT,
@@ -2509,7 +2509,7 @@ mod tests {
             put_player(&mut app, 2.0, 0.0);
             give_teddy_at(&mut app, 2.0, 0.0);
             app.world_mut().resource_mut::<Player>().yaw = std::f32::consts::PI; // looking along +z, at bot 0
-            app.world_mut().resource_mut::<Player>().pitch = 0.05;
+            app.world_mut().resource_mut::<Player>().pitch = 0.05 - hands::CHARGE_ARC_RADIANS;
             app.world_mut().resource_mut::<Wanted>().throw_down = true;
             ticks(&mut app, 40);
             app.world_mut().resource_mut::<Wanted>().throw_up = true;
@@ -2880,7 +2880,7 @@ mod tests {
         put_player(&mut app, 8.0, 0.0);
         give_teddy_at(&mut app, 8.0, 0.0);
         app.world_mut().resource_mut::<Player>().yaw = std::f32::consts::PI;
-        app.world_mut().resource_mut::<Player>().pitch = 0.05;
+        app.world_mut().resource_mut::<Player>().pitch = 0.05 - hands::CHARGE_ARC_RADIANS;
         app.world_mut().resource_mut::<Wanted>().throw_down = true;
         ticks(&mut app, 40);
         app.world_mut().resource_mut::<Wanted>().throw_up = true;

@@ -29,8 +29,14 @@ pub fn is_power(charge: f32) -> bool {
 
 /// Launch velocity: aim direction (lifted a touch) times `speed * (0.42 + 0.58 * charge)`,
 /// plus 30% of the thrower's own horizontal velocity.
+pub const CHARGE_ARC_RADIANS: f32 = 0.21; // up to twelve degrees extra elevation
+
 pub fn throw_velocity(aim: V3, item_speed: f32, charge: f32, thrower_vel: V3) -> V3 {
-    let mut dir = aim;
+    let charge=charge.clamp(0.0,1.0);
+    let aim=aim.normalised();
+    let horizontal=aim.horiz_len();
+    let elevation=(aim.y.atan2(horizontal)+CHARGE_ARC_RADIANS*charge).min(std::f32::consts::FRAC_PI_2-0.01);
+    let mut dir=if horizontal>0.0001 { V3::new(aim.x/horizontal*elevation.cos(),elevation.sin(),aim.z/horizontal*elevation.cos()) } else {aim};
     dir.y += AIM_LIFT;
     let dir = dir.normalised();
     dir * (item_speed * (0.42 + 0.58 * charge))
@@ -410,7 +416,10 @@ mod tests {
         let v1 = throw_velocity(aim, 24.0, 1.0, V3::ZERO);
         assert!((v0.len() - 24.0 * 0.42).abs() < 1e-3);
         assert!((v1.len() - 24.0).abs() < 1e-3);
-        assert!(v1.y > 0.0, "lifted a touch");
+        assert!(v1.y.atan2(v1.horiz_len()) > v0.y.atan2(v0.horiz_len()) + 0.19);
+        let mut last=-1.0;
+        for n in 0..=10 {let v=throw_velocity(aim,24.0,n as f32/10.0,V3::ZERO);let angle=v.y.atan2(v.horiz_len());assert!(angle>last);last=angle;}
+        assert_eq!(throw_velocity(aim,24.0,10.0,V3::ZERO),v1);
         let running = throw_velocity(aim, 24.0, 1.0, V3::new(0.0, 0.0, -10.0));
         assert!((running.z - (v1.z - 3.0)).abs() < 1e-3);
     }

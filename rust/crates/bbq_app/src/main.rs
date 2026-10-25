@@ -10,6 +10,7 @@
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
 mod charge;
+mod backyard_finish;
 mod bots_app;
 mod characters;
 mod decals;

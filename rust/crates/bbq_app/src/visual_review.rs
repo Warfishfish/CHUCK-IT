@@ -145,17 +145,17 @@ fn motion_mode() -> Option<&'static str> {
     MODE.get_or_init(|| {
         let a: Vec<String> = std::env::args().collect();
         if !a.iter().any(|v|v=="--shot") || !a.iter().any(|v|v=="--review") { return None; }
-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie", "race-carry", "race-tug", "race-grass", "charge-fall", "magpie-flock"].contains(&v.as_str())).cloned()
+        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie", "race-carry", "race-tug", "race-grass", "charge-fall", "charge-release", "charge-camera", "magpie-flock"].contains(&v.as_str())).cloned()
     }).as_deref()
 }
 
 pub fn is_water_review() -> bool { motion_mode()==Some("water-balloon") }
-pub fn is_scripted_walk_review() -> bool { matches!(motion_mode(),Some("water-balloon"|"height"|"charge-fall"|"magpie-flock")) }
+pub fn is_scripted_walk_review() -> bool { matches!(motion_mode(),Some("water-balloon"|"height"|"charge-fall"|"charge-release"|"charge-camera"|"magpie-flock")) }
 
 fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut wanted: ResMut<crate::player::Wanted>, mut frame: Local<u32>) {
     let Some(mode) = motion_mode() else { return };
     if mode=="race" {return;}
-    if mode=="charge-fall" {
+    if mode=="charge-fall" || mode=="charge-release" {
         *frame+=1;
         if *frame>=140 { for d in &mut game.dummies { d.bot.wish=(0.0,0.0); } }
         if *frame==140 {
@@ -166,7 +166,26 @@ fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate:
             let mut rng=bbq_core::rng::Rng::new(44);let item=game.world.spawn(bbq_core::items::ItemKind::Teddy,0.0,10.0,false,&mut rng);game.world.give(item,100);game.dummies[0].bot.slots.add(item);
         }
         if *frame==185 {let item=game.dummies[0].bot.slots.selected().unwrap();crate::charge::request(&mut game,100,item,true);}
+        if mode=="charge-release" && *frame==245 {
+            let item=game.dummies[0].bot.slots.selected().unwrap();
+            let vel=bbq_core::hands::throw_velocity(crate::game::aim_dir(std::f32::consts::PI,0.0),game.world.items[&item].kind.def().speed,1.0,bbq_core::vec::V3::ZERO);
+            game.world.throw(item,100,bbq_core::vec::V3::new(0.0,1.3,10.0),vel,1.0,true);
+            game.dummies[0].bot.slots.remove(item);game.dummies[0].anim.start_swing();
+            crate::charge::request(&mut game,100,item,false);
+        }
         if *frame>=180 && *frame%15==0 {let d=&game.dummies[0];println!("CHARGE_REVIEW frame={} charge={:.3} down={:.3} held={}",*frame,d.bot.wind_progress,d.body.down_t,d.bot.slots.len());}
+        return;
+    }
+    if mode=="charge-camera" {
+        *frame+=1;
+        if *frame==140 {
+            game.attract=false;game.options.bots_on=false;game.rules.phase=bbq_core::scoring::Phase::Play;game.round.time_left=180.0;
+            game.dummies.clear();game.world.clear();game.slots.clear();game.magpie.timer=1000.0;
+            game.me.body=Default::default();player.mover=bbq_core::movement::Mover::new(0.0,18.0);player.yaw=0.0;player.pitch=0.0;
+            let mut rng=bbq_core::rng::Rng::new(44);let item=game.world.spawn(bbq_core::items::ItemKind::Teddy,0.0,18.0,false,&mut rng);game.world.give(item,crate::player::PLAYER_ID);game.slots.add(item);
+        }
+        if *frame==185 {wanted.throw_down=true;}
+        if *frame==245 {wanted.throw_up=true;}
         return;
     }
     if mode=="magpie-flock" {
