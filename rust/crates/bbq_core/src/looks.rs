@@ -86,6 +86,9 @@ pub enum Shape {
 /// Pictures drawn in code by the browser game, saved as PNG files for the Rust version.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Tex {
+    ServoDirt,
+    ServoRoad,
+    SignServo,
     /// The VP can's green label.
     VpLabel,
     /// Fish scales.
@@ -143,6 +146,9 @@ impl Tex {
     /// The PNG file (in `assets/textures/`) exported from the browser game.
     pub fn file(self) -> &'static str {
         match self {
+            Tex::ServoDirt => "servo_dirt.png",
+            Tex::ServoRoad => "servo_road.png",
+            Tex::SignServo => "sign_servo.png",
             Tex::VpLabel => "vp_label.png",
             Tex::Fish => "fish.png",
             Tex::Lawn => "lawn.png",
@@ -175,7 +181,8 @@ impl Tex {
         }
     }
 
-    pub const ALL: [Tex; 29] = [
+    pub const ALL: [Tex; 32] = [
+        Tex::ServoDirt, Tex::ServoRoad, Tex::SignServo,
         Tex::VpLabel,
         Tex::Fish,
         Tex::Lawn,
@@ -234,6 +241,7 @@ impl Tex {
     /// matt; plastic is in between; metal is the shiniest. Any roughness map multiplies this.
     pub fn finish(self) -> (f32, f32) {
         match self {
+            Tex::ServoDirt | Tex::ServoRoad => (1.0, 0.02),
             Tex::Wood => (1.0, 0.06),
             Tex::Metal => (1.0, 0.45),
             Tex::Plastic => (0.55, 0.3),

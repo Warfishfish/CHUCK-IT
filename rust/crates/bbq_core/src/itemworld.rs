@@ -390,7 +390,7 @@ impl ItemWorld {
                         removed = true;
                     } else if smashed_by_hit {
                         let puddle =
-                            it.pos.y < 1.4 && !crate::yard::in_pool_rect(it.pos.x, it.pos.z);
+                            it.pos.y < 1.4 && (yard.race || yard.features.smoko || !crate::yard::in_pool_rect(it.pos.x, it.pos.z));
                         fl.push(FlightEvent::Smash {
                             pos: it.pos,
                             puddle,

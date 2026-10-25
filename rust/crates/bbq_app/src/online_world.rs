@@ -785,6 +785,8 @@ mod tests {
         apply_world(&mut g,&mut y,&snap,2,"Host");
         assert_eq!(g.rules.mode,GameMode::Smoko);assert!(y.features.smoko);
         assert_eq!(g.board.score(PLAYER_ID),100);
+        let expected=Yard::smoko(y.features,y.chest_spot);
+        assert_eq!(y.colliders,expected.colliders);
     }
 
     #[test]

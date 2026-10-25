@@ -923,7 +923,7 @@ fn look_marks(settings: Res<Settings>, mut q: Query<(&LookChoice, &mut Backgroun
 /// Maps and their supported modes share the existing round setup, so every entry point
 /// edits the same saved choice. Heist is solo-only until its online rules are supported.
 fn map_controls(p: &mut ChildSpawnerCommands) {
-    seg(p, SegId::Map, "Map", &[("Backyard", 0), ("Smoko yard", 3), ("Race oval", 4)]);
+    seg(p, SegId::Map, "Map", &[("Backyard", 0), ("Bush Servo", 3), ("Race oval", 4)]);
     p.spawn((column(0.0), ShowWhen::Offline)).with_children(|h| {
         seg(h, SegId::Map, "Solo map", &[("Teddy Heist", 2)]);
     });
@@ -973,7 +973,7 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
         p.spawn((
             Node { display: Display::None, ..default() },
             ShowWhen::SmokoNote,
-            children![text("SMOKO YARD — Knock someone down, press F to pick them up, then carry or throw them into the marked pad. Tap F to drop; hold F and release to throw. +100 per delivery. Hits alone score nothing. Delivered players respawn away from the pad.", 13.0, false, MUTED)],
+            children![text("SMOKO · BUSH SERVO — Knock someone down, press F to pick them up, then carry or throw them into the marked pad. Tap F to drop; hold F and release to throw. +100 per delivery. Hits alone score nothing. Delivered players respawn away from the pad.", 13.0, false, MUTED)],
         ));
         p.spawn((column(6.0), ShowWhen::RaceNote)).with_children(|r| {
             seg(r,SegId::RaceRole,"Your role",&[("Racer",0),("Sideline Thrower",1)]);
@@ -1878,7 +1878,7 @@ fn paint_widgets(
     }
     let label = match settings.mode {
         GameMode::Heist => "Play Teddy Heist",
-        GameMode::Smoko => "Play Smoko",
+        GameMode::Smoko => "Play Smoko — Bush Servo",
         GameMode::Race => "Race & throw",
         GameMode::Teams => "Play Teams",
         GameMode::FreeForAll => "Play",

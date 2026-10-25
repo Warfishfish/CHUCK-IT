@@ -30,6 +30,7 @@ pub struct GrassState {
 }
 
 fn on_lawn(x: f32, z: f32, mode: GameMode, yard: &Yard) -> bool {
+    if mode == GameMode::Smoko { return false; } // Dry red-earth map; no inherited lawn.
     if mode == GameMode::Race {
         // Leave the racing lane and spectator terrace clear.
         if (x / 49.0).powi(2) + (z / 34.0).powi(2) > 1.0

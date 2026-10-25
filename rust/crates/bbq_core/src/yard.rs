@@ -310,6 +310,8 @@ impl Yard {
     pub fn smoko(features: Features, chest_spot: usize) -> Self {
         let mut y = Self::new(features, chest_spot);
         y.features.smoko = true;
+        y.colliders.retain(|c|matches!(c.kind,Kind::Bar|Kind::Grill|Kind::MeatTable|Kind::Chest|Kind::Esky));
+        y.colliders.extend(crate::bush_servo::colliders());
         y
     }
 

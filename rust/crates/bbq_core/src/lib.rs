@@ -40,6 +40,7 @@ pub mod stun;
 pub mod teams;
 pub mod vec;
 pub mod yard;
+pub mod bush_servo;
 
 /// Who someone is. Players and bots share one id space.
 pub type PlayerId = u32;

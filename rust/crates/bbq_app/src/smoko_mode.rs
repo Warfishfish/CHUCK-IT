@@ -10,8 +10,8 @@ use bbq_core::vec::V3;
 use bbq_core::{GameMode, PlayerId};
 use std::collections::BTreeMap;
 
-pub const CENTRE: (f32, f32) = (0.0, 10.0);
-pub const RADIUS: f32 = 3.5;
+pub const CENTRE: (f32, f32) = bbq_core::bush_servo::CENTRE;
+pub const RADIUS: f32 = bbq_core::bush_servo::SCORE_RADIUS;
 /// Minimum fresh combat knockdown in the delivery mode.
 pub const KNOCKDOWN_TIME: f32 = 8.0;
 pub fn knockdown_time(mode: GameMode, seconds: f32) -> f32 {

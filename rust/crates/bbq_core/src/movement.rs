@@ -270,7 +270,7 @@ impl Mover {
             }
         }
 
-        if !yard.race { self.resolve_overhead(crate::yard::clothesline_beams()); }
+        if !yard.race && !yard.features.smoko { self.resolve_overhead(crate::yard::clothesline_beams()); }
     }
 
     pub fn resolve_overhead(&mut self, beams:&[crate::yard::Beam]) {
@@ -349,7 +349,7 @@ impl Mover {
         let mut ev = MoveEvents::default();
 
         // pool
-        self.in_pool = !yard.race && in_pool_rect(self.x, self.z) && self.y < 0.1;
+        self.in_pool = !yard.race && !yard.features.smoko && in_pool_rect(self.x, self.z) && self.y < 0.1;
         if self.in_pool && !self.was_in_pool {
             ev.splash = true;
         }
@@ -463,7 +463,7 @@ impl Mover {
         // floor, trampoline and landing
         let floor = yard.floor_at(self.x, self.z, self.y, self.prev_y);
         let (tdx, tdz) = (self.x - TRAMP_X, self.z - TRAMP_Z);
-        if !yard.race && tdx * tdx + tdz * tdz < TRAMP_R * TRAMP_R && self.y <= TRAMP_H + 0.02 && self.vy <= 0.0 {
+        if !yard.race && !yard.features.smoko && tdx * tdx + tdz * tdz < TRAMP_R * TRAMP_R && self.y <= TRAMP_H + 0.02 && self.vy <= 0.0 {
             let n = if self.tramp_chain {
                 (self.tramp_n + 1).min(TRAMP_MAX)
             } else {
@@ -797,6 +797,16 @@ mod tests {
         settle(&mut m, &yard);
         walk(&mut m, &yard, (1.0, 0.0), 3.0, &Modifiers::default());
         assert!((m.x - (YARD_HALF_X - 0.45)).abs() < 1e-4);
+    }
+
+    #[test]
+    fn servo_removes_invisible_backyard_hazards() {
+        let yard=Yard::smoko(Default::default(),0);
+        for (x,z) in [(-20.,10.),(TRAMP_X,TRAMP_Z),(0.,3.)] {
+            let mut m=Mover::new(x,z);settle(&mut m,&yard);
+            assert!(!m.in_pool);assert_eq!(m.sink,0.);assert!(!m.tramp_chain);
+            assert!(m.y.abs()<0.01);
+        }
     }
 
     #[test]

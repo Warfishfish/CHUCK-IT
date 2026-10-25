@@ -1,3 +1,11 @@
+# Bush Servo publication approval — 25 October 2026
+
+User approved commit and push of the reviewed first pass, including browser artifacts. Source/build hashes match the verified state. Earlier review statuses below are historical.
+
+# Bush Servo Smoko — first section ready for review (25 October 2026)
+
+[Checkpoint](2026-10-25-bush-servo/CHECKPOINT.md). Verified 4,969-file backup. Separate Bush Servo scene and browser selector, unchanged delivery rules; 673 tests and native/browser builds pass. [Actual captures and motion](2026-10-25-bush-servo/review.html). Mean native frame time 7.4–7.5 ms. First section only; richer scenery/detail remains pending review. No commit/push.
+
 # Publication approval — 25 October 2026
 
 User approved committing and pushing the charged-throw recovery and optional Backyard graphics preview, including rebuilt browser files. Source hashes match the verified builds (669 tests passed). Earlier review statuses below are historical.

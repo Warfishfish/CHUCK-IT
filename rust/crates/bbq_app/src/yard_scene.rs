@@ -27,6 +27,8 @@ pub struct CheekyOnly(pub bool);
 #[derive(Component)]
 struct NormalYard;
 #[derive(Component)]
+struct SharedSupplies;
+#[derive(Component)]
 struct BackyardCover;
 #[derive(Component)]
 struct RaceMap;
@@ -100,6 +102,7 @@ fn build_yard(
     mode: Res<crate::lighting::LookMode>,
 ) {
     let yard_root=commands.spawn((Transform::default(),Visibility::default(),NormalYard)).id();
+    let supply_root=commands.spawn((Transform::default(),Visibility::default(),SharedSupplies)).id();
     let look = looks_yard::yard_styled(LOOK_SEED, *mode == crate::lighting::LookMode::Polished);
     if *mode == crate::lighting::LookMode::Polished && crate::style::current() == crate::style::Style::Pop {
         crate::lighting::spawn_afternoon_sky(&mut commands, &mut meshes, &mut mats);
@@ -141,13 +144,13 @@ fn build_yard(
             Transform::default(),
         );
         commands.entity(e).insert(FeatureTag(feature));
-        commands.entity(yard_root).add_child(e);
+        commands.entity(supply_root).add_child(e);
     }
     // what is on the bar depends on the mode: grog in Cheeky mode, soft drinks in family mode
     for (parts, cheeky) in [(&look.bar_grog, true), (&look.bar_soft, false)] {
         let e = cache.spawn_parts(&mut commands, parts, &mut meshes, &mut mats, Transform::default());
         commands.entity(e).insert((FeatureTag(Feature::Bar), CheekyOnly(cheeky), Visibility::Hidden));
-        commands.entity(yard_root).add_child(e);
+        commands.entity(supply_root).add_child(e);
     }
     let e = cache.spawn_parts(&mut commands, &look.litter, &mut meshes, &mut mats, Transform::default());
     commands.entity(e).insert((CheekyOnly(true), Visibility::Hidden));
@@ -202,7 +205,7 @@ fn build_yard(
         Transform::from_xyz(look.chest_pivot.x, look.chest_pivot.y, look.chest_pivot.z),
     );
     commands.entity(lid).insert(ChestLid);
-    commands.entity(yard_root).add_child(root);
+    commands.entity(supply_root).add_child(root);
     commands.entity(root).add_children(&[base, lid]);
     for k in 0..bbq_core::chest::MAX_STOCK as usize {
         let (at, rot, scale) = looks_yard::chest_toy_place(k);
@@ -274,7 +277,7 @@ fn build_yard(
                 .with_rotation(Quat::from_rotation_x(-0.08)),
         );
         commands.entity(lid).insert(DecorLid(i));
-        commands.entity(yard_root).add_child(root);
+        commands.entity(supply_root).add_child(root);
     commands.entity(root).add_children(&[base, lid]);
     }
 
@@ -513,29 +516,20 @@ fn sync_smoko_map(
     let active=game.rules.mode==bbq_core::GameMode::Smoko;
     if !active { for e in &roots {commands.entity(e).despawn();} return; }
     if !roots.is_empty(){return;}
-    let polished=*mode==crate::lighting::LookMode::Polished;
-    let mut parts=looks_yard::yard_styled(LOOK_SEED,polished).smoko;
-    parts.push(looks_yard::smoko_pad(crate::smoko_mode::RADIUS));
-    parts.push(Part::new(bbq_core::looks::Shape::Ring { inner: crate::smoko_mode::RADIUS-0.16, outer: crate::smoko_mode::RADIUS, seg:64 },
-        bbq_core::looks::Surface::matt(0xffd84a).no_shadow())
-        .at(bbq_core::yard::SMOKO_X,0.035,bbq_core::yard::SMOKO_Z).turn(-std::f32::consts::FRAC_PI_2,0.0,0.0));
-    // Chairs surround the boundary, leaving four wide entry lanes and the centre clear.
-    for i in 0..4 {
-        let a=std::f32::consts::FRAC_PI_4+i as f32*std::f32::consts::FRAC_PI_2;
-        let chair=if polished {looks_yard::chair_styled(i)} else {looks_yard::chair()};
-        parts.extend(looks_yard::place(chair,bbq_core::vec::V3::new(bbq_core::yard::SMOKO_X+a.cos()*4.3,0.0,bbq_core::yard::SMOKO_Z+a.sin()*4.3),bbq_core::vec::Quat::IDENTITY,1.0));
-    }
-    let delta=Vec3::new(crate::smoko_mode::CENTRE.0-bbq_core::yard::SMOKO_X,0.0,crate::smoko_mode::CENTRE.1-bbq_core::yard::SMOKO_Z);
-    let e=cache.spawn_parts(&mut commands,&parts,&mut meshes,&mut mats,Transform::from_translation(delta));
+    let _=mode;
+    let parts=bbq_core::bush_servo::parts();
+    let e=cache.spawn_parts(&mut commands,&parts,&mut meshes,&mut mats,Transform::default());
     commands.entity(e).insert(SmokoMap);
 }
 
 fn sync_race_map(
- mut commands:Commands,game:Res<Game>,mut normal:Query<&mut Visibility,With<NormalYard>>,
+ mut commands:Commands,game:Res<Game>,mut normal:Query<&mut Visibility,(With<NormalYard>,Without<SharedSupplies>)>,
+ mut supplies:Query<&mut Visibility,(With<SharedSupplies>,Without<NormalYard>)>,
  roots:Query<Entity,With<RaceMap>>,mut meshes:ResMut<Assets<Mesh>>,mut mats:ResMut<Assets<StandardMaterial>>,mut cache:ResMut<ModelCache>,
 ) {
  let active=game.rules.mode==bbq_core::GameMode::Race;
- for mut v in &mut normal {*v=if active{Visibility::Hidden}else{Visibility::Inherited};}
+ for mut v in &mut normal {*v=if active || game.rules.mode==bbq_core::GameMode::Smoko {Visibility::Hidden}else{Visibility::Inherited};}
+ for mut v in &mut supplies {*v=if active{Visibility::Hidden}else{Visibility::Inherited};}
  if !active {for e in &roots{commands.entity(e).despawn();}return;}
  if !roots.is_empty(){return;}
  use bbq_core::looks::{Shape,Surface};
