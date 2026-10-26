@@ -1,3 +1,7 @@
+# Bush Servo browser updated — 27 October 2026
+
+Ground-and-road browser build published at https://carpet-venture-charlotte-temple.trycloudflare.com/rust/ . Public files match built artifacts; WebSocket relay verified. Temporary Cloudflare link requires the Mac/server/tunnel running. [Details](2026-10-26-servo-ground/CHECKPOINT.md).
+
 # Bush Servo ground and road — commit approved (27 October 2026)
 
 User approved committing and pushing the reviewed stage 1 update. All reviewed hashes match. Browser bundle/publication remains unchanged; earlier review statuses below are historical.

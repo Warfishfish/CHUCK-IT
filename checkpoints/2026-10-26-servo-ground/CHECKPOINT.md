@@ -20,3 +20,6 @@ Limits: this is a stylised surface pass, not a complete concept match. Broader l
 
 ## Commit approval — 27 October 2026
 User approved commit and push after testing. All seven reviewed source/asset/generator hashes match. Native release, browser wasm compilation and focused checks remain valid; no code changes since review. This approval packages the source, native assets and review evidence. Published public/rust browser bundle remains unchanged. Earlier review statuses are historical.
+
+## Browser publication — 27 October 2026
+User requested browser update after source commit 5fa52f5. Rebuilt with rust/tools/build_web.sh; web build passed. Restarted existing Node server (PID 20189) and Cloudflare quick tunnel (PID 20644). New temporary URL: https://carpet-venture-charlotte-temple.trycloudflare.com/rust/ . Public HTML, JS, both ground textures and compressed WASM byte-for-byte match local browser artifacts. Public WebSocket join and broadcast verified using two temporary peers. No new rendered-browser playtest; previous native visual validation remains applicable to source/assets. Mac/server/tunnel must remain running. Logs: /tmp/australian-bbq-online-server-2026-10-27.log and /tmp/australian-bbq-cloudflare-2026-10-27.log. Earlier browser-pending notes are historical.
