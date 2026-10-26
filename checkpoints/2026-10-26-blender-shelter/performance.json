@@ -1,0 +1,26 @@
+{
+  "before-overview": {
+    "mean_ms": 8.046,
+    "p95_ms": 13.966
+  },
+  "before-gameplay": {
+    "mean_ms": 8.525,
+    "p95_ms": 14.331
+  },
+  "before-close": {
+    "mean_ms": 8.156,
+    "p95_ms": 14.169
+  },
+  "after-overview": {
+    "mean_ms": 8.788,
+    "p95_ms": 14.492
+  },
+  "after-gameplay": {
+    "mean_ms": 8.774,
+    "p95_ms": 14.674
+  },
+  "after-close": {
+    "mean_ms": 8.768,
+    "p95_ms": 14.584
+  }
+}

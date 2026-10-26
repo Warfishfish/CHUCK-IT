@@ -31,7 +31,9 @@ fn timber(w:f32,h:f32,d:f32,x:f32,y:f32,z:f32)->Part {
 fn ground(r:f32,x:f32,z:f32,y:f32,c:u32,tex:Tex)->Part {
     Part::new(Shape::Disc{r,seg:96},Surface::matt(c).textured(tex).repeating(5.,5.).no_shadow()).at(x,y,z).turn(-FRAC_PI_2,0.,0.)
 }
-pub fn parts()->Vec<Part> {
+pub fn parts()->Vec<Part> { parts_with_shelter(true) }
+/// Imported Blender shelter replaces only the shelter visuals; physics stays shared.
+pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
     let mut p=vec![Part::new(Shape::Quad{w:260.,h:260.},Surface::matt(DIRT).textured(Tex::ServoDirt).repeating(32.,32.).no_shadow()).at(0.,-0.018,0.).turn(-FRAC_PI_2,0.,0.)];
     // Single annular mesh: no overlapping strip seams or coplanar flicker.
     let mut road=Part::new(Shape::Ring{inner:18.,outer:26.,seg:ROAD_SEGMENTS as u32},Surface::matt(0xaaa69e).textured(Tex::ServoRoad).repeating(8.,8.).no_shadow()).at(0.,0.008,6.).turn(-FRAC_PI_2,0.,0.);
@@ -46,6 +48,7 @@ pub fn parts()->Vec<Part> {
     // Level delivery pad: visual ground only, never obstructs throws or carried victims.
     p.push(ground(5.6,0.,10.,0.022,0xdac39a,Tex::ServoDirt));
     p.push(Part::new(Shape::Ring{inner:SCORE_RADIUS-0.12,outer:SCORE_RADIUS,seg:96},Surface::matt(0xf5ce69).no_shadow()).at(0.,0.035,10.).turn(-FRAC_PI_2,0.,0.));
+    if procedural_shelter {
     for (i,&(x,z,w,d,h)) in SOLIDS.iter().enumerate() {
         p.push(if i==6 {block(w,h,d,x,h/2.,z,TEAL)}else{timber(w,h,d,x,h/2.,z)});
         if i<4 {p.push(block(0.28,0.10,0.28,x,0.05,z,0xaca492));}
@@ -64,6 +67,11 @@ pub fn parts()->Vec<Part> {
     for (z,yaw) in [(5.86, std::f32::consts::PI),(14.14,0.)] {
         p.push(block(3.5,0.95,0.10,0.,3.05,z,TEAL));
         p.push(Part::new(Shape::Quad{w:3.2,h:0.8},Surface::matt(0xffffff).textured(Tex::SignSmoko).no_shadow()).at(0.,3.05,z+if yaw==0. {0.06}else{-0.06}).turn(0.,yaw,0.));
+    }
+    } else {
+        // Keep the existing solid esky and lid; Blender supplies posts and rear benches.
+        p.push(block(1.3,0.72,0.75,5.6,0.36,15.9,TEAL));
+        p.push(block(1.34,0.08,0.79,5.6,0.76,15.9,CREAM));
     }
     // Servo facade beyond the northern arena fence: no unreachable fake interaction points.
     p.push(block(23.,4.6,7.,-8.,2.3,-29.,CREAM));

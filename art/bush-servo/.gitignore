@@ -1,0 +1,3 @@
+# Local Blender recovery copies; the final .blend is versioned.
+*.blend1
+pre-shelter.blend

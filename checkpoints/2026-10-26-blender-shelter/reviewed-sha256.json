@@ -1,0 +1,11 @@
+{
+  "rust/crates/bbq_app/src/yard_scene.rs": "f7de8621d7615080cdbaf7f86bc359edfa9149e5a73792990c2323fc7162b5c6",
+  "rust/crates/bbq_core/src/bush_servo.rs": "4c3756a2ac9138674af7a22db88c3c2dc1622d4503854b0d29270c83a027f046",
+  "rust/crates/bbq_app/assets/models/smoko_shelter.glb": "c7898cbf81e556ed52cf89b999b350be68057a6878775f88d07f53070594fe62",
+  "art/bush-servo/build_shelter.py": "39ff6f8fda860774f3044089860d575ff77c14bc5a9f060a28cdc1942f4ea8ca",
+  "art/bush-servo/smoko-shelter.blend": "0d91930e09e30440e428791ff588fa046f25c14251f8e7ba510434871e4a58cf",
+  "public/rust/bbq.js": "76a2ced5b7efcbb5cb63a3b1516c6e37f9758e47c04d1f390c2927f6c0befaac",
+  "public/rust/bbq_bg.wasm": "457b9356585ee99859e274c0f225289f0ffb79b461fad0d92561b2090a3bdf69",
+  "public/rust/bbq_bg.wasm.gz": "907f67e832049647dd88bd36cdbfe87f24bab9a55a049581d1bdcbea97e0c311",
+  "public/rust/assets/models/smoko_shelter.glb": "c7898cbf81e556ed52cf89b999b350be68057a6878775f88d07f53070594fe62"
+}

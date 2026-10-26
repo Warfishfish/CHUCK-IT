@@ -1,3 +1,11 @@
+# Blender shelter publication approval — 26 October 2026
+
+User approved committing and pushing the reviewed shelter and rebuilt browser assets. Earlier review statuses below are historical.
+
+# Blender Smoko shelter — ready for review (26 October 2026)
+
+[Checkpoint](2026-10-26-blender-shelter/CHECKPOINT.md) · [Actual game comparisons and delivery sequence](2026-10-26-blender-shelter/review.html). Live Blender shelter imported into Smoko; verified starting archive, focused tests, native/browser builds and +100 delivery fixture. Model-only upgrade; other scenery and game rules preserved. No commit/push/publication.
+
 # Bush Servo publication approval — 25 October 2026
 
 User approved commit and push of the reviewed first pass, including browser artifacts. Source/build hashes match the verified state. Earlier review statuses below are historical.

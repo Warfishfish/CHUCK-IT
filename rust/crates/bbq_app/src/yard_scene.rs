@@ -511,15 +511,19 @@ struct SmokoMap;
 fn sync_smoko_map(
     mut commands: Commands, game: Res<Game>, roots: Query<Entity, With<SmokoMap>>,
     mut meshes: ResMut<Assets<Mesh>>, mut mats: ResMut<Assets<StandardMaterial>>,
-    mut cache: ResMut<ModelCache>, mode: Res<crate::lighting::LookMode>,
+    mut cache: ResMut<ModelCache>, mode: Res<crate::lighting::LookMode>, assets: Res<AssetServer>,
 ) {
     let active=game.rules.mode==bbq_core::GameMode::Smoko;
     if !active { for e in &roots {commands.entity(e).despawn();} return; }
     if !roots.is_empty(){return;}
     let _=mode;
-    let parts=bbq_core::bush_servo::parts();
+    let parts=bbq_core::bush_servo::parts_with_shelter(false);
     let e=cache.spawn_parts(&mut commands,&parts,&mut meshes,&mut mats,Transform::default());
     commands.entity(e).insert(SmokoMap);
+    commands.spawn((
+        WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_shelter.glb"))),
+        Transform::from_xyz(0.,0.,10.), ChildOf(e),
+    ));
 }
 
 fn sync_race_map(
