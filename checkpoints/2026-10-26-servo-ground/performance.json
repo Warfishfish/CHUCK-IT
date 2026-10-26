@@ -1,0 +1,50 @@
+{
+  "before-overview": {
+    "mean_ms": 7.434,
+    "p95_ms": 12.459,
+    "meshes": 2777.0,
+    "materials": 825.0,
+    "mesh_entities": 7331.0,
+    "image_cpu_bytes": 47473916.0
+  },
+  "before-gameplay": {
+    "mean_ms": 8.261,
+    "p95_ms": 13.96,
+    "meshes": 2777.0,
+    "materials": 825.0,
+    "mesh_entities": 7331.0,
+    "image_cpu_bytes": 47473916.0
+  },
+  "before-close": {
+    "mean_ms": 8.18,
+    "p95_ms": 13.36,
+    "meshes": 2777.0,
+    "materials": 825.0,
+    "mesh_entities": 7331.0,
+    "image_cpu_bytes": 47473916.0
+  },
+  "after-overview": {
+    "mean_ms": 7.04,
+    "p95_ms": 9.678,
+    "meshes": 2780.0,
+    "materials": 826.0,
+    "mesh_entities": 7426.0,
+    "image_cpu_bytes": 51668220.0
+  },
+  "after-gameplay": {
+    "mean_ms": 7.349,
+    "p95_ms": 11.968,
+    "meshes": 2780.0,
+    "materials": 826.0,
+    "mesh_entities": 7426.0,
+    "image_cpu_bytes": 51668220.0
+  },
+  "after-close": {
+    "mean_ms": 7.213,
+    "p95_ms": 11.336,
+    "meshes": 2780.0,
+    "materials": 826.0,
+    "mesh_entities": 7426.0,
+    "image_cpu_bytes": 51668220.0
+  }
+}

@@ -1,3 +1,11 @@
+# Bush Servo ground and road — commit approved (27 October 2026)
+
+User approved committing and pushing the reviewed stage 1 update. All reviewed hashes match. Browser bundle/publication remains unchanged; earlier review statuses below are historical.
+
+# Bush Servo ground and road — ready for review (27 October 2026)
+
+[Checkpoint](2026-10-26-servo-ground/CHECKPOINT.md) · [Actual comparisons and moving capture](2026-10-26-servo-ground/review.html). Stage 1: red earth, worn asphalt, dusty uneven shoulders, cracks and small stones. Native release, browser wasm compilation and focused tests passed; +100 delivery fixture verified. No measured performance regression in local samples. Published browser files unchanged; no commit/push.
+
 # Blender shelter publication approval — 26 October 2026
 
 User approved committing and pushing the reviewed shelter and rebuilt browser assets. Earlier review statuses below are historical.

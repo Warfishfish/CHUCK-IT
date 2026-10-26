@@ -1,0 +1,9 @@
+{
+  "rust/crates/bbq_app/assets/textures/servo_dirt.png": "ac10abb12af7017ebecb91c8192d9f75bd134383135b656d4c6050090c562449",
+  "rust/crates/bbq_app/assets/textures/servo_road.png": "07ba49e2499442107ed1d13e0f6a4b619bcf6c90bb2ba85fbc1ec9d4b3388545",
+  "rust/crates/bbq_app/src/models.rs": "dfdc72ef2cb4c62630c89818098861480776953f7974896c7c4b918c84caa90a",
+  "rust/crates/bbq_app/src/shapes.rs": "809872a1e670705d423a002b613c4e0935c4bf4ae5ee8a07c53b32d1b9f1c981",
+  "rust/crates/bbq_core/src/bush_servo.rs": "12049f4bca9d0752ea7f8dc86b649be6ab2b2fe24c01d1cbad42f6f9fcb31e30",
+  "rust/tools/make_servo_textures.py": "7b2e9a0ec845b3bcef69104b48d1019635590fcd48da25c44629d8f9f6efaedb",
+  "rust/tools/make_servo_ground.py": "e8a8c58520b8a52284ae7514e413dd8f9ee11015f7e106a62deb8ef84bc9b249"
+}

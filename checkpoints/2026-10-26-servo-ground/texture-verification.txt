@@ -1,0 +1,1 @@
+Final road: 1024x1024 opaque RGBA; mapped to an irregular annular mesh. Dirt: 512x512. Existing mipmap generator reused. No new runtime shader. Initial transparent-plane version rejected after visual inspection (shadow/edge artifacts).

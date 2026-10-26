@@ -376,6 +376,20 @@ fn ring(inner: f32, outer: f32, seg: u32) -> Buf {
     b
 }
 
+/// Bush Servo road only: chipped shoulders and world-aligned baked surface UVs.
+pub fn servo_road_mesh() -> Mesh {
+    let mut b=ring(18.,26.,96);
+    for (p,uv) in b.pos.iter_mut().zip(b.uv.iter_mut()) {
+        let a=p[1].atan2(p[0]);
+        let r=p[0].hypot(p[1]);
+        let edge=(17.*a).sin()*0.18+(39.*a+1.2).sin()*0.11;
+        let new_r=r+edge*if r>22. {1.4}else{1.};
+        p[0]=new_r*a.cos();p[1]=new_r*a.sin();
+        *uv=[p[0]/58.+0.5,p[1]/58.+0.5];
+    }
+    b.into_mesh()
+}
+
 /// `CapsuleGeometry(r, len, cap, radial)`: a sausage along y.
 fn capsule(r: f32, len: f32, cap: u32, radial: u32) -> Buf {
     let mut b = Buf::default();

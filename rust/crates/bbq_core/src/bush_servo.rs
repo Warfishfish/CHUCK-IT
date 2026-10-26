@@ -7,7 +7,10 @@ use std::f32::consts::{TAU, FRAC_PI_2};
 pub const CENTRE: (f32, f32) = (0., 10.);
 pub const SCORE_RADIUS: f32 = 3.5;
 pub const ROAD_SEGMENTS: usize = 96;
-const DIRT: u32 = 0xc68c65;
+// Ground tuning: the baked colour maps carry the palette.
+const DIRT: u32 = 0xffffff;
+const ROAD_Z_SCALE: f32 = 0.65;
+const GROUND_STONES: usize = 96;
 const TIMBER: u32 = 0x956b43;
 const CREAM: u32 = 0xe7d3ac;
 const TEAL: u32 = 0x4d7770;
@@ -28,25 +31,36 @@ fn block(w:f32,h:f32,d:f32,x:f32,y:f32,z:f32,c:u32)->Part {
 fn timber(w:f32,h:f32,d:f32,x:f32,y:f32,z:f32)->Part {
     let mut p=block(w,h,d,x,y,z,TIMBER);p.surface=p.surface.textured(Tex::Wood);p
 }
-fn ground(r:f32,x:f32,z:f32,y:f32,c:u32,tex:Tex)->Part {
-    Part::new(Shape::Disc{r,seg:96},Surface::matt(c).textured(tex).repeating(5.,5.).no_shadow()).at(x,y,z).turn(-FRAC_PI_2,0.,0.)
-}
 pub fn parts()->Vec<Part> { parts_with_shelter(true) }
 /// Imported Blender shelter replaces only the shelter visuals; physics stays shared.
 pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
     let mut p=vec![Part::new(Shape::Quad{w:260.,h:260.},Surface::matt(DIRT).textured(Tex::ServoDirt).repeating(32.,32.).no_shadow()).at(0.,-0.018,0.).turn(-FRAC_PI_2,0.,0.)];
-    // Single annular mesh: no overlapping strip seams or coplanar flicker.
-    let mut road=Part::new(Shape::Ring{inner:18.,outer:26.,seg:ROAD_SEGMENTS as u32},Surface::matt(0xaaa69e).textured(Tex::ServoRoad).repeating(8.,8.).no_shadow()).at(0.,0.008,6.).turn(-FRAC_PI_2,0.,0.);
-    road.scale=V3::new(1.,0.65,1.);p.push(road);
+    // One opaque irregular annulus: worn asphalt receives normal ground shadows.
+    // Purely visual; movement and projectile collision remain the shared flat ground.
+    let mut road=Part::new(Shape::Ring{inner:18.,outer:26.,seg:ROAD_SEGMENTS as u32},
+        Surface::matt(0xffffff).textured(Tex::ServoRoad).no_shadow())
+        .at(0.,0.008,6.).turn(-FRAC_PI_2,0.,0.);
+    road.scale=V3::new(1.,ROAD_Z_SCALE,1.);p.push(road);
+    // Low embedded stones at shoulders: below boot height, never an implied obstacle.
+    for i in 0..GROUND_STONES {
+        let a=i as f32*2.399963;
+        let r=if i%2==0 {26.4+(i%7) as f32*0.17} else {17.4-(i%5) as f32*0.13};
+        let x=r*a.cos();let z=6.+r*a.sin()*ROAD_Z_SCALE;
+        if x*x+(z-10.)*(z-10.)<45. {continue;}
+        let size=0.045+(i%4) as f32*0.014;
+        let mut stone=Part::new(Shape::Ico{r:size,detail:0},Surface::matt(if i%3==0{0xa97750}else{0xc19362}))
+            .at(x,0.008,z).turn(0.,a,0.);
+        stone.scale=V3::new(1.5,0.45,1.);p.push(stone);
+    }
     for i in 0..ROAD_SEGMENTS {
         if i%3!=0 {continue;}
         let a=i as f32*TAU/ROAD_SEGMENTS as f32;
         let x=18.5*a.sin();let z=6.+12.025*a.cos();
         let yaw=(18.5*a.cos()).atan2(-12.025*a.sin());
-        p.push(block(0.10,0.008,0.75,x,0.016,z,0xcdbd99).turn(0.,yaw,0.));
+        p.push(block(0.10,0.008,0.75,x,0.016,z,0x9f9179).turn(0.,yaw,0.));
     }
     // Level delivery pad: visual ground only, never obstructs throws or carried victims.
-    p.push(ground(5.6,0.,10.,0.022,0xdac39a,Tex::ServoDirt));
+    // Existing scoring ring remains legible; earth continues naturally beneath the shelter.
     p.push(Part::new(Shape::Ring{inner:SCORE_RADIUS-0.12,outer:SCORE_RADIUS,seg:96},Surface::matt(0xf5ce69).no_shadow()).at(0.,0.035,10.).turn(-FRAC_PI_2,0.,0.));
     if procedural_shelter {
     for (i,&(x,z,w,d,h)) in SOLIDS.iter().enumerate() {
