@@ -215,7 +215,10 @@ fn channels(c: u32) -> [f32; 3] {
 /// We give the average everywhere and add half the difference from above, which is exact for
 /// anything facing up or sideways (undersides come out a little bright).
 pub fn hemisphere(look: LookMode) -> (AmbientLight, DirectionalLight, Transform) {
-    let r = look.rig();
+    hemisphere_from_rig(look.rig())
+}
+
+pub fn hemisphere_from_rig(r: Rig) -> (AmbientLight, DirectionalLight, Transform) {
     let (s, g) = (channels(r.sky), channels(r.ground));
     let avg = [0, 1, 2].map(|i| (s[i] + g[i]) / 2.0 * r.hemi);
     let up = [0, 1, 2].map(|i| (s[i] - g[i]) / 2.0 * r.hemi);

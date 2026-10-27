@@ -44,6 +44,7 @@ mod round;
 mod shapes;
 mod silicone;
 mod smoko_mode;
+mod servo_finish;
 mod race;
 mod shirt;
 mod shot;
@@ -127,7 +128,7 @@ fn main() {
             >::default(),
         ),
     );
-    app.add_plugins(wet::WetPlugin);
+    app.add_plugins((wet::WetPlugin, servo_finish::ServoFinishPlugin));
     app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin, online::OnlinePlugin, face::FacePlugin, lobby::LobbyPlugin, legs::LegsPlugin, shirt::ShirtPlugin));
     if let Some(cfg) = shot {
         app.add_plugins(shot::ShotPlugin(cfg));

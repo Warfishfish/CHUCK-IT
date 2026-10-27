@@ -282,7 +282,7 @@ fn build_yard(
     }
 
     // the sun, with shadows, and the soft light from the sky
-    let sun = commands.spawn(crate::lighting::sun(*mode)).id();
+    let sun = commands.spawn((crate::lighting::sun(*mode),crate::servo_finish::YardLight::Sun)).id();
     if *mode == crate::lighting::LookMode::Polished {
         commands.entity(sun).insert(crate::lighting::sun_cascades());
     }
@@ -292,7 +292,7 @@ fn build_yard(
         commands.spawn(crate::lighting::rim_light());
     }
     let (_, sky, sky_at) = crate::lighting::hemisphere(*mode);
-    commands.spawn((sky, sky_at));
+    commands.spawn((sky, sky_at,crate::servo_finish::YardLight::Fill));
 }
 
 /// The pool water slides and clouds drift; the clothesline stays aligned with collision.

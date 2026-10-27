@@ -1,0 +1,66 @@
+{
+  "overview": {
+    "before": {
+      "mean_ms": 7.751,
+      "p95_ms": 10.832,
+      "materials": 847.0,
+      "mesh_entities": 7037.0,
+      "image_cpu_bytes": 78144756.0
+    },
+    "after": {
+      "mean_ms": 7.204,
+      "p95_ms": 8.478,
+      "materials": 847.0,
+      "mesh_entities": 7032.0,
+      "image_cpu_bytes": 81465268.0
+    }
+  },
+  "gameplay": {
+    "before": {
+      "mean_ms": 7.927,
+      "p95_ms": 11.027,
+      "materials": 847.0,
+      "mesh_entities": 7037.0,
+      "image_cpu_bytes": 78144756.0
+    },
+    "after": {
+      "mean_ms": 7.444,
+      "p95_ms": 8.887,
+      "materials": 847.0,
+      "mesh_entities": 7032.0,
+      "image_cpu_bytes": 81465268.0
+    }
+  },
+  "close": {
+    "before": {
+      "mean_ms": 7.877,
+      "p95_ms": 11.737,
+      "materials": 847.0,
+      "mesh_entities": 7037.0,
+      "image_cpu_bytes": 78144756.0
+    },
+    "after": {
+      "mean_ms": 7.648,
+      "p95_ms": 9.043,
+      "materials": 847.0,
+      "mesh_entities": 7032.0,
+      "image_cpu_bytes": 81465268.0
+    }
+  },
+  "servo": {
+    "before": {
+      "mean_ms": 8.075,
+      "p95_ms": 12.415,
+      "materials": 847.0,
+      "mesh_entities": 7037.0,
+      "image_cpu_bytes": 78144756.0
+    },
+    "after": {
+      "mean_ms": 7.308,
+      "p95_ms": 8.722,
+      "materials": 847.0,
+      "mesh_entities": 7032.0,
+      "image_cpu_bytes": 81465268.0
+    }
+  }
+}

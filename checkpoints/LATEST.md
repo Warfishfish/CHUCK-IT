@@ -1,3 +1,7 @@
+# Bush Servo Stage 5 — approved for commit and push
+
+[Actual before/after and motion](2026-10-27-servo-lighting/review.html) · [Recovery checkpoint](2026-10-27-servo-lighting/CHECKPOINT.md). Warm scoped Smoko lighting, brighter shade and imported-texture distance filtering. 239 app tests and 439 core tests pass; native/browser builds pass; four matched captures and Smoko delivery verified. No measured frame-time regression, +3.3 MB texture memory. User approved commit and push; public browser remains Stage 4. Browser publication and Stage 6 await a further request.
+
 # Bush Servo Stage 4 — browser published (27 October 2026)
 
 User explicitly approved commit/push and browser publication. [Actual before/after and motion](2026-10-27-servo-building/review.html) · [Checkpoint and publication verification](2026-10-27-servo-building/CHECKPOINT.md). Stage 4 building, veranda, library timber/pumps, freezer, signage and ute are included. 439 core tests, native and browser builds pass. Live files matched the bundle; two-way public relay passed. Current browser: https://carpet-venture-charlotte-temple.trycloudflare.com/rust/ . Refresh and choose Smoko Yard. The usage-threshold reminder is paused. Stage 5 has not started.
