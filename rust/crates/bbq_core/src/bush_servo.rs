@@ -22,8 +22,33 @@ pub const SOLIDS: [(f32,f32,f32,f32,f32); 7] = [
     (-2.3,15.2,3.2,0.5,0.46),(2.3,15.2,3.2,0.5,0.46),
     (5.6,15.9,1.3,0.75,0.72),
 ];
+// x,z,width,depth,height; matches Blender export bounds (surroundings-layout.json).
+pub const LANDSCAPE_SOLIDS: [(f32,f32,f32,f32,f32); 22] = [
+    (6.157,13.003,1.040,0.880,0.340),
+    (5.542,14.026,1.040,0.880,0.375),
+    (4.758,14.927,1.040,0.880,0.410),
+    (3.830,15.679,1.040,0.880,0.340),
+    (2.786,16.258,1.040,0.880,0.375),
+    (-3.003,16.157,1.040,0.880,0.375),
+    (-4.026,15.542,1.040,0.880,0.410),
+    (-4.927,14.758,1.040,0.880,0.340),
+    (-5.679,13.830,1.040,0.880,0.375),
+    (-6.258,12.786,1.040,0.880,0.410),
+    (-6.157,6.997,1.040,0.880,0.410),
+    (-5.542,5.974,1.040,0.880,0.340),
+    (-4.758,5.073,1.040,0.880,0.375),
+    (-3.830,4.321,1.040,0.880,0.410),
+    (-2.786,3.742,1.040,0.880,0.340),
+    (3.003,3.843,1.040,0.880,0.340),
+    (4.026,4.458,1.040,0.880,0.375),
+    (4.927,5.242,1.040,0.880,0.410),
+    (5.679,6.170,1.040,0.880,0.340),
+    (6.258,7.214,1.040,0.880,0.375),
+    (-10.000,0.500,1.600,1.150,0.620),
+    (10.500,1.000,1.450,1.100,0.580),
+];
 pub fn colliders()->Vec<Collider> {
-    SOLIDS.iter().map(|&(x,z,w,d,h)|Collider::centred(x,z,w,d,h).of(Kind::Plain)).collect()
+    SOLIDS.iter().chain(LANDSCAPE_SOLIDS.iter()).map(|&(x,z,w,d,h)|Collider::centred(x,z,w,d,h).of(Kind::Plain)).collect()
 }
 fn block(w:f32,h:f32,d:f32,x:f32,y:f32,z:f32,c:u32)->Part {
     Part::new(Shape::Cuboid{w,h,d},Surface::matt(c)).at(x,y,z)
@@ -63,6 +88,7 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
     // Existing scoring ring remains legible; earth continues naturally beneath the shelter.
     p.push(Part::new(Shape::Ring{inner:SCORE_RADIUS-0.12,outer:SCORE_RADIUS,seg:96},Surface::matt(0xf5ce69).no_shadow()).at(0.,0.035,10.).turn(-FRAC_PI_2,0.,0.));
     if procedural_shelter {
+    for &(x,z,w,d,h) in &LANDSCAPE_SOLIDS {p.push(block(w,h,d,x,h/2.,z,0xb98555));}
     for (i,&(x,z,w,d,h)) in SOLIDS.iter().enumerate() {
         p.push(if i==6 {block(w,h,d,x,h/2.,z,TEAL)}else{timber(w,h,d,x,h/2.,z)});
         if i<4 {p.push(block(0.28,0.10,0.28,x,0.05,z,0xaca492));}
@@ -146,6 +172,21 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
  #[test] fn delivery_centre_and_lanes_are_clear(){
   for (x,z) in [(0.,10.),(0.,4.),(0.,16.),(-6.,10.),(6.,10.)] {
    assert!(!colliders().iter().any(|c|x>c.x0-0.45&&x<c.x1+0.45&&z>c.z0-0.45&&z<c.z1+0.45));
+  }
+ }
+ #[test] fn landscaped_approaches_allow_carried_players(){
+  // Four broad approach corridors, sampled with 1.4m half-width for a carried body.
+  for i in -24..=24 {
+   let t=i as f32*0.5;
+   for (x,z) in [(t,10.),(0.,10.+t)] {
+    assert!(!LANDSCAPE_SOLIDS.iter().any(|&(cx,cz,w,d,_)| (x-cx).abs()<w/2.+1.4&&(z-cz).abs()<d/2.+1.4));
+   }
+  }
+ }
+ #[test] fn landscaping_is_clear_of_delivery_circle(){
+  for &(x,z,w,d,h) in &LANDSCAPE_SOLIDS {
+   let dx=(x.abs()-w/2.).max(0.);let dz=((z-10.).abs()-d/2.).max(0.);
+   assert!(dx.hypot(dz)>SCORE_RADIUS+1.0);assert!(h>0. && h<0.7);
   }
  }
  #[test] fn solid_dimensions_match_visuals(){let p=parts();for c in colliders(){assert!(p.iter().any(|p|matches!(p.shape,Shape::Cuboid{w,h,d} if (w-(c.x1-c.x0)).abs()<0.001&&(d-(c.z1-c.z0)).abs()<0.001&&(h-c.h).abs()<0.001)&&(p.pos.x-(c.x0+c.x1)/2.).abs()<0.001&&(p.pos.z-(c.z0+c.z1)/2.).abs()<0.001));}}

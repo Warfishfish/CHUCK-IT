@@ -1,0 +1,16 @@
+{
+  "rust/crates/bbq_core/src/bush_servo.rs": "10325801fb21606d5208c5c66155c1cd73e66a5f003edf5af0c875751b7a3727",
+  "rust/crates/bbq_core/src/net.rs": "048d7adcdb2897922aef89739286d8accbd9518c7fa81a010fd1ef7f2b4987c0",
+  "rust/crates/bbq_app/src/yard_scene.rs": "71ac575b2f022b8101cfd3db062cca095651863a5d271320b9a9544b3fe87a4c",
+  "rust/crates/bbq_app/assets/models/smoko_surroundings.glb": "0ca9fe96b576c847642740652e6c76173dcf55c686075e2992bb6755fb433ef8",
+  "art/bush-servo/build_surroundings.py": "867137607cfe091dacd5d7738ee29822f3b4564f4c2cc8df80b8efb1561e3dd6",
+  "art/bush-servo/make_sandstone.py": "71d592770b3a04f8028a075abb3208a39d510c0cffb0e708ce6d60ccee8be4e9",
+  "art/bush-servo/SURROUNDINGS.md": "c317672492abd90c4566342f5169910c02b9489e19e325ced493e1fb44d24567",
+  "art/bush-servo/surroundings-layout.json": "0713a34cb21af9a247f52edbddd48d11dc0b836ca77e96fe5402322daae4fbe0",
+  "art/bush-servo/surroundings-bounds.json": "8e39bb3bd8e2b8899dc3bdb9d0b000bde1ec487350e0184616328c10d236fa88",
+  "art/bush-servo/smoko-surroundings.blend": "3d0cbde620029fb618eda8a8f49a339b3d9ab75eed0531e4eec0e7882067fec1",
+  "art/bush-servo/sandstone-grain-2.png": "33a363292283817b430d6ba1fa2126f15d03bd6d245b475fa0ab6d5d71dfbb4f",
+  "art/bush-servo/sandstone-grain-3.png": "22c979dbc17b55950015d90f3f9ef9b3cec914e4b466620fee8ad9231e8e2b7d",
+  "art/bush-servo/sandstone-grain-1.png": "89ce364689f8fd916f0f4d9d2b8a03035a75643fa10f9d52c0098127123eb54b",
+  "art/bush-servo/sandstone-grain-0.png": "f461ebfe51fbdaa08a5e7de4aa252342a45bc2fa3674c50d583193276219f7ea"
+}

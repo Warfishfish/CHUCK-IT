@@ -1,3 +1,7 @@
+# Bush Servo surroundings — ready for review (27 October 2026)
+
+[Checkpoint](2026-10-27-servo-surroundings/CHECKPOINT.md) · [Actual before/after and motion](2026-10-27-servo-surroundings/review.html). Stage 2 sandstone edging and native planting; four clear approaches. 438 core tests and native/browser builds pass. Matched mean frame time within 2.3% of baseline. Protocol 18 for new shared stone colliders. No commit/push/publication; live browser remains Stage 1.
+
 # Bush Servo browser updated — 27 October 2026
 
 Ground-and-road browser build published at https://carpet-venture-charlotte-temple.trycloudflare.com/rust/ . Public files match built artifacts; WebSocket relay verified. Temporary Cloudflare link requires the Mac/server/tunnel running. [Details](2026-10-26-servo-ground/CHECKPOINT.md).

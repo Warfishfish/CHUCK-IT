@@ -13,7 +13,7 @@
 
 /// Bump this whenever a message changes, so old and new copies of the game refuse each other
 /// politely instead of misreading each other.
-pub const PROTOCOL: u16 = 17; // Bush Servo replaces Smoko collision layout; reject older clients.
+pub const PROTOCOL: u16 = 18; // Bush Servo sandstone edging adds shared solid collision bounds.
 /// The most people in one yard (the browser game's limit).
 pub const MAX_PLAYERS: usize = 16;
 /// How often each player reports where they are.
