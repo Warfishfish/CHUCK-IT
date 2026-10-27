@@ -1,6 +1,6 @@
-# Bush Servo Stage 5 — approved for commit and push
+# Bush Servo Stage 5 — browser published
 
-[Actual before/after and motion](2026-10-27-servo-lighting/review.html) · [Recovery checkpoint](2026-10-27-servo-lighting/CHECKPOINT.md). Warm scoped Smoko lighting, brighter shade and imported-texture distance filtering. 239 app tests and 439 core tests pass; native/browser builds pass; four matched captures and Smoko delivery verified. No measured frame-time regression, +3.3 MB texture memory. User approved commit and push; public browser remains Stage 4. Browser publication and Stage 6 await a further request.
+[Actual before/after and motion](2026-10-27-servo-lighting/review.html) · [Recovery checkpoint](2026-10-27-servo-lighting/CHECKPOINT.md). Warm scoped Smoko lighting, brighter shade and imported-texture distance filtering. 239 app tests and 439 core tests pass; native/browser builds pass; four matched captures and Smoko delivery verified. No measured frame-time regression, +3.3 MB texture memory. Source committed as 643a58c. Browser publication subsequently approved and completed; public files verified against build, two-way relay passed. Live: https://carpet-venture-charlotte-temple.trycloudflare.com/rust/ . Refresh to load Stage 5. Stage 6 awaits a further request.
 
 # Bush Servo Stage 4 — browser published (27 October 2026)
 

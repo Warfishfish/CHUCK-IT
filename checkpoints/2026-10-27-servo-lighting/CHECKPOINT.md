@@ -56,3 +56,8 @@ Review `review.html`, test locally, and await user approval before commit, push,
 
 ## Commit approval
 User approved committing and pushing Stage 5. Reviewed source hashes reverified unchanged before commit. Public browser deployment is not part of this request; browser remains Stage 4. Stage 6 has not started.
+
+## Browser publication
+User requested browser update after source commit 643a58c. Rebuilt public/rust successfully. Public HTML, JavaScript, WebAssembly and servo model matched local files byte-for-byte over verified HTTPS; hashes saved in evidence/publication-http.json. Public two-way WebSocket relay passed in an isolated temporary room. This verifies delivery and transport, not a fresh human multiplayer playtest.
+
+Live Stage 5: https://carpet-venture-charlotte-temple.trycloudflare.com/rust/ . Refresh existing tabs. The temporary tunnel requires the Mac, server and cloudflared to remain running. Stage 6 has not started.

@@ -1,0 +1,18 @@
+{
+  "index.html": {
+    "bytes": 1920,
+    "sha256": "db5441b9a32e0cb781a94ca29eea524e75d4fb4481562ca3b02989387107309a"
+  },
+  "bbq.js": {
+    "bytes": 183627,
+    "sha256": "37090fdb308451d3e3596f825ebc7809195538def046e852d909a91b01828462"
+  },
+  "bbq_bg.wasm": {
+    "bytes": 63830995,
+    "sha256": "96696bd02a260aa5b2633a7d5be3ded6c16d338f35b1f65027ee729e0bf56273"
+  },
+  "assets/models/smoko_servo.glb": {
+    "bytes": 8183164,
+    "sha256": "09758aa8b5f6ee9c890519ab176d094e79b26f02b5ca5e723030921661b9af71"
+  }
+}
