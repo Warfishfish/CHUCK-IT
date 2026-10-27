@@ -47,8 +47,19 @@ pub const LANDSCAPE_SOLIDS: [(f32,f32,f32,f32,f32); 22] = [
     (-10.000,0.500,1.600,1.150,0.620),
     (10.500,1.000,1.450,1.100,0.580),
 ];
+// Perimeter cover, matching landscape-layout.json and Blender export bounds.
+pub const NATURE_SOLIDS: [(f32,f32,f32,f32,f32);8] = [
+    (-29.000,-17.000,1.800,1.300,1.000),
+    (-29.000,-3.000,1.600,1.250,0.850),
+    (-29.000,14.000,2.000,1.400,1.150),
+    (29.000,-16.000,1.900,1.400,1.100),
+    (29.000,2.000,1.700,1.300,0.900),
+    (29.000,18.000,1.900,1.300,1.050),
+    (-15.000,21.500,1.800,1.300,0.850),
+    (15.000,21.500,1.700,1.200,0.800),
+];
 pub fn colliders()->Vec<Collider> {
-    SOLIDS.iter().chain(LANDSCAPE_SOLIDS.iter()).map(|&(x,z,w,d,h)|Collider::centred(x,z,w,d,h).of(Kind::Plain)).collect()
+    SOLIDS.iter().chain(LANDSCAPE_SOLIDS.iter()).chain(NATURE_SOLIDS.iter()).map(|&(x,z,w,d,h)|Collider::centred(x,z,w,d,h).of(Kind::Plain)).collect()
 }
 fn block(w:f32,h:f32,d:f32,x:f32,y:f32,z:f32,c:u32)->Part {
     Part::new(Shape::Cuboid{w,h,d},Surface::matt(c)).at(x,y,z)
@@ -88,7 +99,7 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
     // Existing scoring ring remains legible; earth continues naturally beneath the shelter.
     p.push(Part::new(Shape::Ring{inner:SCORE_RADIUS-0.12,outer:SCORE_RADIUS,seg:96},Surface::matt(0xf5ce69).no_shadow()).at(0.,0.035,10.).turn(-FRAC_PI_2,0.,0.));
     if procedural_shelter {
-    for &(x,z,w,d,h) in &LANDSCAPE_SOLIDS {p.push(block(w,h,d,x,h/2.,z,0xb98555));}
+    for &(x,z,w,d,h) in LANDSCAPE_SOLIDS.iter().chain(NATURE_SOLIDS.iter()) {p.push(block(w,h,d,x,h/2.,z,0xb98555));}
     for (i,&(x,z,w,d,h)) in SOLIDS.iter().enumerate() {
         p.push(if i==6 {block(w,h,d,x,h/2.,z,TEAL)}else{timber(w,h,d,x,h/2.,z)});
         if i<4 {p.push(block(0.28,0.10,0.28,x,0.05,z,0xaca492));}
@@ -144,6 +155,8 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
         for y in [0.55,1.25] {p.push(timber(66.,0.12,0.12,0.,y,z));}}
     for x in [-33.,33.] {for i in 0..17 {let z=-24.+i as f32*3.;p.push(timber(0.16,1.8,0.16,x,0.9,z));}
         for y in [0.55,1.25] {p.push(timber(0.12,0.12,48.,x,y,0.));}}
+    // Native runtime uses the Blender landscape; lightweight fallback for other renderers.
+    if procedural_shelter {
     // Branching gums, patchy low scrub and distant ochre ridges outside the play boundary.
     for i in 0..24 {
         let a=i as f32*TAU/24.;let x=43.*a.sin();let z=36.*a.cos();let h=4.5+(i%4) as f32*0.6;
@@ -165,6 +178,8 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
         let a=i as f32*TAU/12.;let mut hill=Part::new(Shape::Ico{r:1.,detail:2},Surface::matt(if i%2==0{0xb9997e}else{0xc5a485})).at(90.*a.sin(),-2.,90.*a.cos());
         hill.scale=V3::new(22.,7.+(i%3) as f32*2.,18.);p.push(hill);
     }
+    }
+
     p
 }
 #[cfg(test)] mod tests {
@@ -179,14 +194,23 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
   for i in -24..=24 {
    let t=i as f32*0.5;
    for (x,z) in [(t,10.),(0.,10.+t)] {
-    assert!(!LANDSCAPE_SOLIDS.iter().any(|&(cx,cz,w,d,_)| (x-cx).abs()<w/2.+1.4&&(z-cz).abs()<d/2.+1.4));
+    assert!(!LANDSCAPE_SOLIDS.iter().chain(NATURE_SOLIDS.iter()).any(|&(cx,cz,w,d,_)| (x-cx).abs()<w/2.+1.4&&(z-cz).abs()<d/2.+1.4));
    }
   }
  }
  #[test] fn landscaping_is_clear_of_delivery_circle(){
-  for &(x,z,w,d,h) in &LANDSCAPE_SOLIDS {
+  for &(x,z,w,d,h) in LANDSCAPE_SOLIDS.iter().chain(NATURE_SOLIDS.iter()) {
    let dx=(x.abs()-w/2.).max(0.);let dz=((z-10.).abs()-d/2.).max(0.);
-   assert!(dx.hypot(dz)>SCORE_RADIUS+1.0);assert!(h>0. && h<0.7);
+   assert!(dx.hypot(dz)>SCORE_RADIUS+1.0);assert!(h>0. && h<1.2);
+  }
+ }
+ #[test] fn perimeter_cover_leaves_circuit_and_fence_clear(){
+  for &(x,z,w,d,_) in &NATURE_SOLIDS {
+   assert!(x.abs()+w/2.<32. && z.abs()+d/2.<23.);
+   // Entire boulder stays beyond the irregular outer asphalt shoulder.
+   let near_x=(x.abs()-w/2.).max(0.);
+   let near_z=((z-6.).abs()-d/2.).max(0.)/ROAD_Z_SCALE;
+   assert!(near_x.hypot(near_z)>26.5);
   }
  }
  #[test] fn solid_dimensions_match_visuals(){let p=parts();for c in colliders(){assert!(p.iter().any(|p|matches!(p.shape,Shape::Cuboid{w,h,d} if (w-(c.x1-c.x0)).abs()<0.001&&(d-(c.z1-c.z0)).abs()<0.001&&(h-c.h).abs()<0.001)&&(p.pos.x-(c.x0+c.x1)/2.).abs()<0.001&&(p.pos.z-(c.z0+c.z1)/2.).abs()<0.001));}}

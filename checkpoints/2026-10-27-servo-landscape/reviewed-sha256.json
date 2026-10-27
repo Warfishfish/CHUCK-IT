@@ -1,0 +1,12 @@
+{
+  "rust/crates/bbq_core/src/bush_servo.rs": "5454672e4798d253744f7cbca172f8ba964eb6974f2c8e7844062cc8d6feb052",
+  "rust/crates/bbq_core/src/net.rs": "6c4c157a5819760258f046c27fb75b64cb539ff4e4c27d893b1230247b14b92c",
+  "rust/crates/bbq_app/src/yard_scene.rs": "9f3984ae98d890670bf2f1d0a4012f77df02dc2169a623e93b82e3a3952a99b1",
+  "rust/crates/bbq_app/assets/models/smoko_landscape.glb": "9ac742c43eb61501c3fe5feb4052854e15793be8964e829a5e5b10eb82fd49a0",
+  "art/bush-servo/build_landscape.py": "afc694e2d0ffebe90326cc183ebaaf3fbf6ccec0c1ed6960745d8f9a9d76247a",
+  "art/bush-servo/validate_landscape.py": "cada59d0c28f002ca3f4418bab69a98bd9bd70dae08fd09b1c3d5fac6497afcd",
+  "art/bush-servo/LANDSCAPE.md": "fa0572d136e83edae89beb7bed5d694b93d9ed360f28126513c4e86f5c7048af",
+  "art/bush-servo/landscape-layout.json": "b4852114ace253e1d5071e7bb66e091460c163704665055e80ea90998c64fbfa",
+  "art/bush-servo/landscape-bounds.json": "f7792ead76930a632b01394ef55d9fd48a451b1467a79019b79d2c93f2dba320",
+  "art/bush-servo/smoko-landscape.blend": "f8b01fa363750f5579e40b42e087bcd04ea160a3225c721bd377b9183ebbe547"
+}

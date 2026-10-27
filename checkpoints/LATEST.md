@@ -1,3 +1,11 @@
+# Bush Servo Stage 3 — browser published (27 October 2026)
+
+User approved commit/push and browser publication. Stages 2–3 now included in the live browser at https://carpet-venture-charlotte-temple.trycloudflare.com/rust/ . Built files verified against public responses, two-peer relay verified. [Checkpoint](2026-10-27-servo-landscape/CHECKPOINT.md). Refresh all peers for protocol 19. Stage 4 not started. Earlier review statuses below are historical.
+
+# Bush Servo landscape — ready for review (27 October 2026)
+
+Stage 2 committed and pushed as 058ed37. Stage 3 gum trees, ridges, scrub and eight perimeter boulders are implemented; native release and 439 core tests pass. [Review](2026-10-27-servo-landscape/review.html) · [Recovery checkpoint](2026-10-27-servo-landscape/CHECKPOINT.md). Browser wasm compilation passed. Stage 3 uncommitted; public browser unchanged.
+
 # Bush Servo surroundings — ready for review (27 October 2026)
 
 [Checkpoint](2026-10-27-servo-surroundings/CHECKPOINT.md) · [Actual before/after and motion](2026-10-27-servo-surroundings/review.html). Stage 2 sandstone edging and native planting; four clear approaches. 438 core tests and native/browser builds pass. Matched mean frame time within 2.3% of baseline. Protocol 18 for new shared stone colliders. No commit/push/publication; live browser remains Stage 1.

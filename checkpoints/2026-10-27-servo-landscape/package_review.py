@@ -1,0 +1,20 @@
+from pathlib import Path
+import re,json
+from PIL import Image,ImageStat
+p=Path(__file__).resolve().parent;e=p/'evidence'
+frames=sorted(e.glob('moving-[0-9][0-9][0-9].png'));images=[Image.open(f).convert('RGB') for f in frames]
+assert len(images)==75
+assert all(max(ImageStat.Stat(im.resize((64,40))).mean)>1 for im in images)
+images[0].save(e/'moving.webp',save_all=True,append_images=images[1:],duration=67,loop=0,quality=78,method=4)
+rows=[]
+for view in ['overview','gameplay','close']:
+ vals=[]
+ for phase in ['before','after']:
+  im=Image.open(e/f'{phase}-{view}.png').convert('RGB');assert max(ImageStat.Stat(im.resize((64,40))).mean)>1
+  s=(e/f'{phase}-{view}.metrics.txt').read_text();vals.append({k:float(re.search(k+r'=([\d.]+)',s)[1]) for k in ['mean_ms','p95_ms']})
+ b,a=vals;rows.append(f"<tr><td>{view}</td><td>{b['mean_ms']:.3f} → {a['mean_ms']:.3f}</td><td>{100*(a['mean_ms']/b['mean_ms']-1):+.1f}%</td><td>{b['p95_ms']:.3f} → {a['p95_ms']:.3f}</td></tr>")
+html='''<!doctype html><meta charset="utf-8"><title>Bush Servo — trees and scenery</title><style>body{background:#20291f;color:#eee;font:17px system-ui;max-width:1200px;margin:40px auto;padding:20px}h1,h2{color:#ffd28b}img{width:100%;border-radius:10px}section{margin:35px 0}.pair{display:grid;grid-template-columns:1fr 1fr;gap:14px}td,th{padding:12px;text-align:left;border-bottom:1px solid #52645a}a{color:#9ed9ff}</style><h1>Bush Servo: trees and distant scenery</h1><p>Stage 3 · 27 October 2026 · Actual native gameplay, awaiting review</p><p>40 branching gums with irregular soft crowns and tapered leaves; ten terraced ochre ridges; scattered scrub and eight solid perimeter boulders. Background trees stay beyond the fence. Perimeter cover stays clear of the circuit and delivery lanes.</p><p>Stage 2 was committed and pushed as 058ed37. This Stage 3 is uncommitted and unpublished. The live browser still has the earlier published version.</p>'''
+for view in ['overview','close','gameplay']:
+ html+=f'<section><h2>{view.title()}</h2><div class="pair"><div>Before — Stage 2<img src="evidence/before-{view}.png"></div><div>After — Stage 3<img src="evidence/after-{view}.png"></div></div></section>'
+html+='<h2>Actual movement and delivery</h2><img src="evidence/moving.webp"><p>75-frame local scripted delivery: +100 awarded, carried player released. Not a new human multiplayer recording.</p><h2>Performance</h2><table><tr><th>View</th><th>Mean ms before → after</th><th>Change</th><th>p95 ms</th></tr>'+''.join(rows)+'</table><p>600 wall-clock intervals per camera at 1280×800, same settings after warmup; no concurrent build. Final average 114–117 FPS. The additional scenery has a modest cost (up to 0.48ms / 5.7% here). These are local samples, not GPU timings or a browser performance guarantee.</p><h2>Concept direction and remaining work</h2><p>This is a stylised landscape step, not an exact match to the concept render. The building, furniture, tyre stacks, bins, eskies, finer surface detail and final lighting remain in their planned stages. <a href="CONCEPT-PLAN.md">Density and obstacle plan</a> records the reference-based targets; it does not claim a precise count from occluded objects.</p><h2>Checks and limits</h2><p>439 core tests pass; native release passes. Browser compilation status is recorded in the checkpoint. Matching solid bounds verified. New boulders require protocol 19 on both peers. Backyard smoke capture passes; no new human online session or browser runtime performance measurement. <a href="evidence/ffa.png">Backyard capture</a>.</p><p>Final asset: 98,036 triangles, 11 material batches, 5,036,596 bytes; no textures, transparency or vegetation simulation. It replaces the old procedural trees/hills only in the Smoko application scene.</p><p><a href="CHECKPOINT.md">Checkpoint and recovery instructions</a></p><h2>Test locally</h2><pre>cd /Users/marcus/Claude/australian-bbq/rust\n~/.cargo/bin/cargo run -p bbq_app --release -- --menu</pre>'
+(p/'review.html').write_text(html)

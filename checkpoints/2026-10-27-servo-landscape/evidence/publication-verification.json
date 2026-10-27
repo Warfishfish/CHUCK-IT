@@ -1,0 +1,32 @@
+{
+  "index.html": {
+    "bytes": 1920,
+    "sha256": "db5441b9a32e0cb781a94ca29eea524e75d4fb4481562ca3b02989387107309a",
+    "public_matches_local": true
+  },
+  "bbq.js": {
+    "bytes": 183627,
+    "sha256": "645753b76228376d7da178db30074cad93516461838a2421c0ab9d5d64f3291e",
+    "public_matches_local": true
+  },
+  "bbq_bg.wasm.gz": {
+    "bytes": 14399452,
+    "sha256": "53b97937507d96f5fb6f8d5de223a82fb8db22b6d1daaf00435a8b7fd03757f3",
+    "public_matches_local": true
+  },
+  "assets/models/smoko_landscape.glb": {
+    "bytes": 5036596,
+    "sha256": "9ac742c43eb61501c3fe5feb4052854e15793be8964e829a5e5b10eb82fd49a0",
+    "public_matches_local": true
+  },
+  "assets/models/smoko_surroundings.glb": {
+    "bytes": 424856,
+    "sha256": "0ca9fe96b576c847642740652e6c76173dcf55c686075e2992bb6755fb433ef8",
+    "public_matches_local": true
+  },
+  "assets/models/smoko_shelter.glb": {
+    "bytes": 1672392,
+    "sha256": "c7898cbf81e556ed52cf89b999b350be68057a6878775f88d07f53070594fe62",
+    "public_matches_local": true
+  }
+}
