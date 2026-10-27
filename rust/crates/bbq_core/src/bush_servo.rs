@@ -124,6 +124,8 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
         p.push(block(1.3,0.72,0.75,5.6,0.36,15.9,TEAL));
         p.push(block(1.34,0.08,0.79,5.6,0.76,15.9,CREAM));
     }
+    if procedural_shelter {
+    // Runtime uses the detailed Blender servo; keep the lightweight renderer fallback.
     // Servo facade beyond the northern arena fence: no unreachable fake interaction points.
     p.push(block(23.,4.6,7.,-8.,2.3,-29.,CREAM));
     let mut roof=block(25.,0.22,9.,-8.,4.7,-29.,RUST).turn(0.04,0.,0.);roof.surface=roof.surface.textured(Tex::Corrugated).repeating(5.,2.);p.push(roof);
@@ -149,6 +151,7 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
         p.push(block(0.55,0.3,0.02,x,1.65,-25.67,0x384e4d));
         p.push(block(0.36,0.08,0.03,x,1.65,-25.65,0xc8d4bc));
         p.push(block(0.07,1.,0.07,x+0.48,1.1,-26.,0x45483f));
+    }
     }
     // Continuous stock fence marks the actual rectangular play limits; curved route is inside.
     for z in [-24.,24.] {for i in 0..23 {let x=-33.+i as f32*3.;p.push(timber(0.16,1.8,0.16,x,0.9,z));}

@@ -1,3 +1,7 @@
+# Bush Servo Stage 4 — browser published (27 October 2026)
+
+User explicitly approved commit/push and browser publication. [Actual before/after and motion](2026-10-27-servo-building/review.html) · [Checkpoint and publication verification](2026-10-27-servo-building/CHECKPOINT.md). Stage 4 building, veranda, library timber/pumps, freezer, signage and ute are included. 439 core tests, native and browser builds pass. Live files matched the bundle; two-way public relay passed. Current browser: https://carpet-venture-charlotte-temple.trycloudflare.com/rust/ . Refresh and choose Smoko Yard. The usage-threshold reminder is paused. Stage 5 has not started.
+
 # Bush Servo Stage 3 — browser published (27 October 2026)
 
 User approved commit/push and browser publication. Stages 2–3 now included in the live browser at https://carpet-venture-charlotte-temple.trycloudflare.com/rust/ . Built files verified against public responses, two-peer relay verified. [Checkpoint](2026-10-27-servo-landscape/CHECKPOINT.md). Refresh all peers for protocol 19. Stage 4 not started. Earlier review statuses below are historical.

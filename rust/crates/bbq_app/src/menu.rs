@@ -1179,6 +1179,8 @@ fn how_panel(c: &mut ChildSpawnerCommands) {
                     }
                 }
             });
+        p.spawn(legend("Asset credits"));
+        p.spawn(text(include_str!("../assets/CREDITS.txt"), 11.5, false, MUTED));
     });
 }
 

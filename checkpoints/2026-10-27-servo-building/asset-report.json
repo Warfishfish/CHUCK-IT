@@ -1,0 +1,71 @@
+{
+  "asset_bytes": 8183164,
+  "vertices": 41068,
+  "polygons": 36029,
+  "materials": 16,
+  "minimum_blender_y": 24.020000457763672,
+  "images": {
+    "servo-runtime-distressed_painted_planks_Diffuse.014.png": [
+      512,
+      512
+    ],
+    "servo-runtime-distressed_painted_planks_Displacement.014.png": [
+      512,
+      512
+    ],
+    "servo-runtime-distressed_painted_planks_nor_gl.014.png": [
+      512,
+      512
+    ],
+    "servo-runtime-distressed_painted_planks_Rough.014.png": [
+      512,
+      512
+    ],
+    "servo-runtime-GasDispenser_Main_baseColor.png.014.png": [
+      1024,
+      1024
+    ],
+    "servo-runtime-GasDispenser_Main_metallicRoughness.png.014.png": [
+      1024,
+      1024
+    ],
+    "servo-runtime-GasDispenser_Main_normal.png.014.png": [
+      1024,
+      1024
+    ],
+    "servo-runtime-GasDispenser_Emission_emissive.png.014.png": [
+      512,
+      512
+    ],
+    "servo-runtime-GasDispenser_Emission_baseColor.png.014.png": [
+      512,
+      512
+    ],
+    "servo-runtime-GasDispenser_Emission_metallicRoughness.png.014.png": [
+      512,
+      512
+    ],
+    "servo-runtime-GasDispenser_Emission_normal.png.014.png": [
+      512,
+      512
+    ],
+    "servo-runtime-GasDispenser_Alpha_baseColor.png.014.png": [
+      512,
+      512
+    ]
+  },
+  "triangles": 47662,
+  "runtime_images": 11,
+  "bounds": {
+    "min": [
+      -23.75,
+      0,
+      -33
+    ],
+    "max": [
+      11.665000915527344,
+      7.300000190734863,
+      -24.020000457763672
+    ]
+  }
+}

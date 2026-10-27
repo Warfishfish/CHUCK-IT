@@ -1,0 +1,20 @@
+AUSTRALIAN BBQ — THIRD-PARTY SERVO ASSET CREDITS
+
+Vintage Gas Pump — Rescue3D Assets (rescue3d), via Sketchfab
+https://sketchfab.com/3d-models/vintage-gas-pump-0096f206ce1a4381bea58f9f94fc6b1c
+Creator: https://sketchfab.com/rescue3d
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+Modified for Australian BBQ: scaled to 2.3m, reduced texture resolution,
+softened normal mapping, disabled emissive glow, merged into servo scene.
+No endorsement by the original creator is implied.
+
+Distressed Painted Planks — Rob Tuytel, via Poly Haven
+https://polyhaven.com/a/distressed_painted_planks
+License: CC0 1.0 Universal
+https://creativecommons.org/publicdomain/zero/1.0/
+Used at 1K resolution; reduced normal strength; displacement omitted.
+
+Servo facade, veranda, lettering, roof, freezer, pylon and ute geometry:
+authored for Australian BBQ. Existing Bowlby One font used for signage.
+The building and forecourt are decorative outside the playable fence.

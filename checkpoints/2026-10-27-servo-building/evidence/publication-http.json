@@ -1,0 +1,32 @@
+[
+  {
+    "path": "index.html",
+    "matched": true,
+    "bytes": 1920,
+    "sha256": "db5441b9a32e0cb781a94ca29eea524e75d4fb4481562ca3b02989387107309a"
+  },
+  {
+    "path": "bbq.js",
+    "matched": true,
+    "bytes": 183627,
+    "sha256": "645753b76228376d7da178db30074cad93516461838a2421c0ab9d5d64f3291e"
+  },
+  {
+    "path": "bbq_bg.wasm",
+    "matched": true,
+    "bytes": 63791860,
+    "sha256": "8941767868e83b51ca2f8a0e1226a178eca1eb399d3b16882d9af165f511d4be"
+  },
+  {
+    "path": "assets/models/smoko_servo.glb",
+    "matched": true,
+    "bytes": 8183164,
+    "sha256": "09758aa8b5f6ee9c890519ab176d094e79b26f02b5ca5e723030921661b9af71"
+  },
+  {
+    "path": "assets/CREDITS.txt",
+    "matched": true,
+    "bytes": 1020,
+    "sha256": "35004a6cda176dfc39b3761e8450e92f91bbfece8cbb1506bbebf3436d92b6ea"
+  }
+]
