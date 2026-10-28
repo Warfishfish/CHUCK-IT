@@ -13,7 +13,7 @@
 
 /// Bump this whenever a message changes, so old and new copies of the game refuse each other
 /// politely instead of misreading each other.
-pub const PROTOCOL: u16 = 19; // Bush Servo perimeter boulders add shared solid collision bounds.
+pub const PROTOCOL: u16 = 21; // Movement acknowledgements plus Bush Servo small-prop collision.
 /// The most people in one yard (the browser game's limit).
 pub const MAX_PLAYERS: usize = 16;
 /// How often each player reports where they are.
@@ -57,6 +57,7 @@ impl Member {
 /// Where a player is and what they are doing, enough to draw them (not to run the rules).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PlayerState {
+    pub seq: u32,
     pub id: u32,
     pub pos: (f32, f32, f32),
     /// Which way they face, radians (the game's `yaw`).
@@ -81,6 +82,7 @@ pub struct PlayerState {
 impl PlayerState {
     pub fn new(id: u32) -> Self {
         PlayerState {
+            seq: 0,
             id,
             pos: (0.0, 0.0, 0.0),
             yaw: 0.0,
@@ -330,6 +332,7 @@ impl Msg {
             Msg::State(s) => {
                 w.u8(K_STATE);
                 w.u32(s.id);
+                w.u32(s.seq);
                 w.f32(s.pos.0);
                 w.f32(s.pos.1);
                 w.f32(s.pos.2);
@@ -390,12 +393,14 @@ impl Msg {
             K_ROSTER => Msg::Roster { members: r.members()?, start_in: r.u8()? },
             K_STATE => {
                 let id = r.u32()?;
+                let seq = r.u32()?;
                 let pos = (r.f32()?, r.f32()?, r.f32()?);
                 let yaw = r.f32()?;
                 let vel = (r.f32()?, r.f32()?);
                 let walk = r.f32()?;
                 let f = r.u16()?;
                 Msg::State(PlayerState {
+                    seq,
                     id,
                     pos,
                     yaw,
@@ -550,6 +555,7 @@ mod tests {
 
     fn state() -> PlayerState {
         PlayerState {
+            seq: 42,
             id: 7,
             pos: (12.5, 0.25, -9.75),
             yaw: 1.5,
@@ -601,7 +607,7 @@ mod tests {
     #[test]
     fn a_state_message_is_small() {
         // about 20 of these a second from each of 16 people
-        assert!(Msg::State(state()).encode().len() <= 42);
+        assert!(Msg::State(state()).encode().len() <= 46);
     }
 
     #[test]

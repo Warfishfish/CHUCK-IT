@@ -1,0 +1,82 @@
+{
+  "overview": {
+    "before": {
+      "mean_ms": 7.158,
+      "p95_ms": 8.436,
+      "materials": 847.0,
+      "mesh_entities": 7032.0,
+      "image_cpu_bytes": 81465268.0
+    },
+    "after": {
+      "mean_ms": 7.557,
+      "p95_ms": 12.765,
+      "materials": 854.0,
+      "mesh_entities": 7078.0,
+      "image_cpu_bytes": 82513864.0
+    }
+  },
+  "gameplay": {
+    "before": {
+      "mean_ms": 7.439,
+      "p95_ms": 8.792,
+      "materials": 847.0,
+      "mesh_entities": 7032.0,
+      "image_cpu_bytes": 81465268.0
+    },
+    "after": {
+      "mean_ms": 7.69,
+      "p95_ms": 11.436,
+      "materials": 854.0,
+      "mesh_entities": 7078.0,
+      "image_cpu_bytes": 82513864.0
+    }
+  },
+  "close": {
+    "before": {
+      "mean_ms": 7.469,
+      "p95_ms": 8.738,
+      "materials": 847.0,
+      "mesh_entities": 7032.0,
+      "image_cpu_bytes": 81465268.0
+    },
+    "after": {
+      "mean_ms": 7.697,
+      "p95_ms": 12.094,
+      "materials": 854.0,
+      "mesh_entities": 7078.0,
+      "image_cpu_bytes": 82513864.0
+    }
+  },
+  "servo": {
+    "before": {
+      "mean_ms": 7.267,
+      "p95_ms": 8.848,
+      "materials": 847.0,
+      "mesh_entities": 7032.0,
+      "image_cpu_bytes": 81465268.0
+    },
+    "after": {
+      "mean_ms": 7.755,
+      "p95_ms": 11.05,
+      "materials": 854.0,
+      "mesh_entities": 7078.0,
+      "image_cpu_bytes": 82513864.0
+    }
+  },
+  "props": {
+    "before": {
+      "mean_ms": 7.771,
+      "p95_ms": 11.16,
+      "materials": 847.0,
+      "mesh_entities": 7032.0,
+      "image_cpu_bytes": 81465268.0
+    },
+    "after": {
+      "mean_ms": 7.878,
+      "p95_ms": 12.592,
+      "materials": 854.0,
+      "mesh_entities": 7078.0,
+      "image_cpu_bytes": 82513864.0
+    }
+  }
+}

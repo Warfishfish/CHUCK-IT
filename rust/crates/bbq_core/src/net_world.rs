@@ -141,6 +141,8 @@ pub struct FxSnap {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct WetSnap {
+    /// Last movement report consumed by the host (zero before the first report).
+    pub ack: u32,
     pub id: u32,
     pub remaining: f32,
     pub pos: (f32, f32, f32),
@@ -187,7 +189,7 @@ impl WorldSnap {
         w.u8(self.magpie.0);w.u32(self.magpie.1);w.triple(self.magpie.2);
         w.u8(self.wet.len().min(MAX_BOARD) as u8);
         for s in self.wet.iter().take(MAX_BOARD) {
-            w.u32(s.id); w.f32(s.remaining); w.triple(s.pos);
+            w.u32(s.id); w.u32(s.ack); w.f32(s.remaining); w.triple(s.pos);
         }
         w.u8(self.race.len().min(MAX_BOARD) as u8);
         for s in self.race.iter().take(MAX_BOARD) {w.u32(s.id);w.u8(s.thrower as u8);w.u8(s.passed);w.f32(s.finish);w.u32(s.score);w.u32(s.streak);w.u32(s.hits);w.u8(s.disconnected as u8);w.triple(s.return_to);w.f32(s.tug_remaining);w.u32(s.carried_by);w.f32(s.protected_remaining);}
@@ -289,7 +291,7 @@ impl WorldSnap {
         let n = count(r, MAX_BOARD)?;
         let mut wet = Vec::with_capacity(n);
         for _ in 0..n {
-            wet.push(WetSnap { id: r.u32()?, remaining: r.f32()?.clamp(0.0, crate::stun::WET_DURATION), pos: r.triple()? });
+            wet.push(WetSnap { id: r.u32()?, ack: r.u32()?, remaining: r.f32()?.clamp(0.0, crate::stun::WET_DURATION), pos: r.triple()? });
         }
         let n=count(r,MAX_BOARD)?;let mut race=Vec::with_capacity(n);
         for _ in 0..n {race.push(RaceSnap{id:r.u32()?,thrower:r.u8()?!=0,passed:r.u8()?.min(24),finish:r.f32()?,score:r.u32()?,streak:r.u32()?,hits:r.u32()?,disconnected:r.u8()?!=0,return_to:r.triple()?,tug_remaining:r.f32()?.clamp(0.0,2.0),carried_by:r.u32()?,protected_remaining:r.f32()?.clamp(0.0,6.0)});}
@@ -399,7 +401,7 @@ mod tests {
             charges:vec![(2,0.7,1.5)],flock:vec![(4,2,(1.0,2.0,3.0))],
             magpie:(0,0,(14.0,2.2,23.05)),
             race:vec![],
-            wet: vec![WetSnap { id: 2, remaining: 3.75, pos: (1.0, 0.0, 2.0) }],
+            wet: vec![WetSnap { id: 2, ack: 42, remaining: 3.75, pos: (1.0, 0.0, 2.0) }],
             seq: 42,
             now: 123.5,
             round: RoundSnap {

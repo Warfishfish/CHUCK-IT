@@ -60,3 +60,5 @@ pub enum GameMode {
 }
 
 pub mod magpie;
+
+pub mod reconcile;

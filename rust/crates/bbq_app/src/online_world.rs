@@ -248,8 +248,8 @@ pub fn build_world(g: &Game, yard: &Yard, seq: u32, feed_after: f32, fx: &[FxEve
         .rev()
         .collect();
     let fx = fx.iter().take(MAX_FX).map(|e| FxSnap { scale:e.scale,kind: e.kind.index(), at: (e.at.x, e.at.y, e.at.z) }).collect();
-    let mut wet = vec![WetSnap { id: 1, remaining: g.me.body.wet_t, pos: (0.0, 0.0, 0.0) }];
-    wet.extend(g.dummies.iter().map(|d| WetSnap { id: net(d.id), remaining: d.body.wet_t, pos: (d.mover.x, d.mover.y, d.mover.z) }));
+    let mut wet = vec![WetSnap { ack: 0, id: 1, remaining: g.me.body.wet_t, pos: (0.0, 0.0, 0.0) }];
+    wet.extend(g.dummies.iter().map(|d| WetSnap { ack: 0, id: net(d.id), remaining: d.body.wet_t, pos: (d.mover.x, d.mover.y, d.mover.z) }));
     let mut race=Vec::new();
     if g.rules.mode==GameMode::Race {
         for (id,r) in &g.race.racers {race.push(RaceSnap{id:net(*id),thrower:false,passed:r.passed as u8,finish:r.finish.unwrap_or(-1.),score:0,streak:0,hits:0,disconnected:r.disconnected,return_to:r.return_to.map_or((0.,0.,0.),|(x,z)|(x,1.,z)),tug_remaining:(r.tug_until-g.now).max(0.),carried_by:g.smoko.carries.iter().find(|(_,c)|c.victim==*id).map_or(0,|(o,_)|net(*o)),protected_remaining:(r.protected_until-g.race.elapsed).max(0.)});}

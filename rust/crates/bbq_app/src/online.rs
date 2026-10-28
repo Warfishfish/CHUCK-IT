@@ -37,12 +37,14 @@ pub enum Do {
 /// Somebody else's latest word on where they are.
 #[derive(Clone, Copy, Debug)]
 pub struct Heard {
+    pub applied_seq: u32,
     pub state: PlayerState,
     /// Game clock when it arrived.
     pub at: f32,
 }
 
 pub struct Session {
+    movement: bbq_core::reconcile::MovementHistory,
     pub role: Role,
     pub room: String,
     name: String,
@@ -103,6 +105,7 @@ impl Session {
             heard: HashMap::new(),
             world: None,
             world_seq: 0,
+            movement: Default::default(),
             acts: Vec::new(),
             hits: Vec::new(),
             status: "Connecting...".into(),
@@ -130,6 +133,7 @@ impl Session {
             heard: HashMap::new(),
             world: None,
             world_seq: 0,
+            movement: Default::default(),
             acts: Vec::new(),
             hits: Vec::new(),
             status: "Connecting...".into(),
@@ -357,7 +361,7 @@ impl Session {
             (Role::Host, Msg::State(s)) => {
                 // a guest may only speak for themselves
                 if self.peers.get(&from) == Some(&s.id) {
-                    self.heard.insert(s.id, Heard { state: s, at: now });
+                    self.heard.insert(s.id, Heard { applied_seq: self.heard.get(&s.id).map_or(0,|h|h.applied_seq), state: s, at: now });
                 }
                 Vec::new()
             }
@@ -429,7 +433,7 @@ impl Session {
             }
             (Role::Guest, Msg::State(s)) => {
                 if self.my_id != 0 && s.id != self.my_id && self.members.iter().any(|m| m.id == s.id) {
-                    self.heard.insert(s.id, Heard { state: s, at: now });
+                    self.heard.insert(s.id, Heard { applied_seq: self.heard.get(&s.id).map_or(0,|h|h.applied_seq), state: s, at: now });
                 }
                 Vec::new()
             }
@@ -717,7 +721,7 @@ fn online_poll(mut online: ResMut<Online>, game: Res<Game>) {
 /// Say where we are, 20 times a second.
 fn online_send(time: Res<Time>, mut online: ResMut<Online>, player: Res<Player>, game: Res<Game>, settings: Res<crate::menu::Settings>) {
     let Online { link, session, send_in, .. } = &mut *online;
-    let (Some(link), Some(session)) = (link.as_ref(), session.as_ref()) else {
+    let (Some(link), Some(session)) = (link.as_ref(), session.as_mut()) else {
         return;
     };
     if !session.joined() {
@@ -735,6 +739,7 @@ fn online_send(time: Res<Time>, mut online: ResMut<Online>, player: Res<Player>,
         .map_or((0, 0), |it| (item_code(it.kind), it.variant.map_or(0, variant_code)));
     let m = &player.mover;
     let state = PlayerState {
+        seq: session.movement.record((m.x,m.z)),
         id: session.my_id,
         pos: (m.x, m.y, m.z),
         yaw: player.yaw,
@@ -917,6 +922,7 @@ fn online_world_send(
     *seq = seq.wrapping_add(1);
     let fx = std::mem::take(&mut game.fx_out);
     let mut snap = crate::online_world::build_world(&game, &yard.0, *seq, *feed_sent, &fx);
+    for state in &mut snap.wet {state.ack=session.heard.get(&state.id).map_or(0,|h|h.applied_seq);}
     if let Some(host) = snap.wet.first_mut() { host.pos = (player.mover.x, player.mover.y, player.mover.z); }
     if let Some((_, t)) = game.feed.last() {
         *feed_sent = *t;
@@ -929,11 +935,14 @@ fn online_world_apply(mut player: ResMut<Player>, mut online: ResMut<Online>, mu
     let Some(session) = online.session.as_mut().filter(|s| s.role == Role::Guest && s.joined()) else { return };
     let Some(snap) = session.world.take() else { return };
     let (my_id, host) = (session.my_id, session.host_name());
+    let old_phase=game.rules.phase; let old_mode=game.rules.mode;
     crate::online_world::apply_world(&mut game, &mut yard.0, &snap, my_id, &host);
+    if old_phase!=game.rules.phase || old_mode!=game.rules.mode {session.movement.clear();}
     if let Some(s) = snap.wet.iter().find(|s| s.id == my_id) {
-        if (player.mover.x-s.pos.0).hypot(player.mover.z-s.pos.2) > 0.6 {
-            player.mover.x = s.pos.0; player.mover.z = s.pos.2;
-        }
+        let (dx,dz)=session.movement.correction(s.ack,(s.pos.0,s.pos.2));
+        player.mover.x+=dx;player.mover.z+=dz;
+        // Both interpolation endpoints move together; no one-frame camera snap backwards.
+        player.prev.x+=dx;player.prev.z+=dz;
     }
 }
 
@@ -1090,7 +1099,9 @@ fn online_hits(mut online: ResMut<Online>, mut game: ResMut<Game>, mut player: R
         Role::Guest => {
             game.net_hits.clear();
             for hit in std::mem::take(&mut session.hits) {
+                let before=(player.mover.x,player.mover.z);
                 crate::online_world::apply_hit(&mut game, &mut player, &hit);
+                if (player.mover.x-before.0).hypot(player.mover.z-before.1)>0.5 {session.movement.clear();}
             }
         }
     }
@@ -1098,8 +1109,8 @@ fn online_hits(mut online: ResMut<Online>, mut game: ResMut<Game>, mut player: R
 
 /// Move each puppet to where its person says they are (a little ahead, by their speed, and
 /// smoothed so 20 reports a second look like 60 frames).
-fn online_puppets(online: Res<Online>, mut game: ResMut<Game>, yard: Res<crate::yard_scene::YardRes>) {
-    let Some(session) = online.session.as_ref().filter(|s| !s.ended) else {
+fn online_puppets(mut online: ResMut<Online>, mut game: ResMut<Game>, yard: Res<crate::yard_scene::YardRes>) {
+    let Some(session) = online.session.as_mut().filter(|s| !s.ended) else {
         return;
     };
     let now = game.now;
@@ -1110,6 +1121,8 @@ fn online_puppets(online: Res<Online>, mut game: ResMut<Game>, yard: Res<crate::
     let speeds: std::collections::BTreeMap<_,_> = game.dummies.iter().map(|d|(d.id,crate::race::speed(&game,d.id,(d.mover.x,d.mover.z)))).collect();
     let carriers: Vec<_> = game.smoko.carries.keys().copied().collect();
     for d in game.dummies.iter_mut() {
+        // Acknowledge only in the fixed simulation, after the host has advanced this body.
+        if !mirror {if let Some(r)=&d.remote {if let Some(h)=session.heard.get_mut(&r.net_id) {h.applied_seq=h.state.seq;}}}
         // While stunned, the host simulates physical knockback; client positions cannot cancel it.
         if d.body.down_t>0.0 || (race && mirror) || controlled.contains(&d.id) || (d.body.wet_t > 0.0 && (mirror || d.body.stun > 0.0)) {continue;}
         let Some(r) = &d.remote else { continue };
@@ -1205,6 +1218,20 @@ mod tests {
                 self.to_guest(e);
             }
         }
+    }
+
+    #[test]
+    fn movement_ack_waits_for_simulation_and_survives_new_reports() {
+        let mut p=Pair::new();
+        let mut state=PlayerState::new(p.guest.my_id);
+        state.seq=10;
+        p.host.on_event(msg_in("G",&Msg::State(state)),1.0);
+        assert_eq!(p.host.heard[&state.id].applied_seq,0);
+        p.host.heard.get_mut(&state.id).unwrap().applied_seq=10;
+        state.seq=11;state.pos.0=1.0;
+        p.host.on_event(msg_in("G",&Msg::State(state)),1.05);
+        assert_eq!(p.host.heard[&state.id].applied_seq,10);
+        assert_eq!(p.host.heard[&state.id].state.seq,11);
     }
 
     #[test]

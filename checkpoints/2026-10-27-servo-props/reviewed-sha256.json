@@ -1,0 +1,12 @@
+{
+  "rust/crates/bbq_app/src/yard_scene.rs": "d0a8026e0feb04d62c599e0ab5199b9ac31445075deb77b631066d9ff2d6fbff",
+  "rust/crates/bbq_app/src/servo_finish.rs": "2bea1778e647caa4b55d6e47a72395fb2dd6db1fbd2a238ea6eac7a6d93a5103",
+  "rust/crates/bbq_core/src/bush_servo.rs": "c9dfb5b48e54a02ebc9ee47051ebf013264ef140d0eed76c535916394e3ed49f",
+  "rust/crates/bbq_core/src/net.rs": "b10ca62041d8c6d288d1731e1539a65c90cf71f24cb553cfebefd8ac26a971ed",
+  "rust/crates/bbq_app/assets/models/smoko_props.glb": "829e1b0cd20d6c741880e70deda2c73064092cc7992350802429b5cc7be429e1",
+  "art/bush-servo/build_props.py": "c89427098dd41c5249264e1d34f895c7b43862d4ae956afeb44ad3c9029448d1",
+  "art/bush-servo/props-layout.json": "09661a7ae84c89e4f2965284787db7a0804a92a1884927ffa368137b78978039",
+  "art/bush-servo/props-bounds.json": "d2057f27f67d6866d1bbd00764786fa1fce96ecabac71774cd60acae88ff65ba",
+  "art/bush-servo/validate_props.py": "28a57efa31e75261e6bcf30364e7782a4795391253124bf8201eefdc941b7082",
+  "art/bush-servo/smoko-props.blend": "b0628087e04b8efcedb3a41eb7041938e49bb63145e4a244bab31041ef09205d"
+}

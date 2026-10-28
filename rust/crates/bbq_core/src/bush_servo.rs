@@ -58,8 +58,31 @@ pub const NATURE_SOLIDS: [(f32,f32,f32,f32,f32);8] = [
     (-15.000,21.500,1.800,1.300,0.850),
     (15.000,21.500,1.700,1.200,0.800),
 ];
+// Stage 6 prop bounds, verified against props-layout.json and the Blender export.
+pub const PROP_SOLIDS: [(f32,f32,f32,f32,f32);20] = [
+    (-11.000,-1.500,1.300,0.750,0.720),
+    (11.000,-1.500,1.300,0.750,0.720),
+    (-25.000,20.000,1.300,0.750,0.720),
+    (-7.200,14.800,0.720,0.720,1.100),
+    (7.200,14.800,0.720,0.720,1.100),
+    (-12.500,4.000,0.720,0.720,1.100),
+    (12.500,4.000,0.720,0.720,1.100),
+    (27.000,-20.000,0.720,0.720,1.100),
+    (-28.000,-12.000,1.200,1.200,0.720),
+    (-28.000,7.000,1.200,1.200,1.080),
+    (30.000,-13.000,1.200,1.200,0.720),
+    (28.000,12.000,1.200,1.200,1.080),
+    (-21.000,21.000,1.200,1.200,0.720),
+    (22.000,21.000,1.200,1.200,0.720),
+    (-8.500,-2.500,2.400,0.900,0.950),
+    (-8.500,-3.450,2.400,0.350,0.480),
+    (-8.500,-1.550,2.400,0.350,0.480),
+    (8.500,-2.500,2.400,0.900,0.950),
+    (8.500,-3.450,2.400,0.350,0.480),
+    (8.500,-1.550,2.400,0.350,0.480),
+];
 pub fn colliders()->Vec<Collider> {
-    SOLIDS.iter().chain(LANDSCAPE_SOLIDS.iter()).chain(NATURE_SOLIDS.iter()).map(|&(x,z,w,d,h)|Collider::centred(x,z,w,d,h).of(Kind::Plain)).collect()
+    SOLIDS.iter().chain(LANDSCAPE_SOLIDS.iter()).chain(NATURE_SOLIDS.iter()).chain(PROP_SOLIDS.iter()).map(|&(x,z,w,d,h)|Collider::centred(x,z,w,d,h).of(Kind::Plain)).collect()
 }
 fn block(w:f32,h:f32,d:f32,x:f32,y:f32,z:f32,c:u32)->Part {
     Part::new(Shape::Cuboid{w,h,d},Surface::matt(c)).at(x,y,z)
@@ -99,7 +122,7 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
     // Existing scoring ring remains legible; earth continues naturally beneath the shelter.
     p.push(Part::new(Shape::Ring{inner:SCORE_RADIUS-0.12,outer:SCORE_RADIUS,seg:96},Surface::matt(0xf5ce69).no_shadow()).at(0.,0.035,10.).turn(-FRAC_PI_2,0.,0.));
     if procedural_shelter {
-    for &(x,z,w,d,h) in LANDSCAPE_SOLIDS.iter().chain(NATURE_SOLIDS.iter()) {p.push(block(w,h,d,x,h/2.,z,0xb98555));}
+    for &(x,z,w,d,h) in LANDSCAPE_SOLIDS.iter().chain(NATURE_SOLIDS.iter()).chain(PROP_SOLIDS.iter()) {p.push(block(w,h,d,x,h/2.,z,0xb98555));}
     for (i,&(x,z,w,d,h)) in SOLIDS.iter().enumerate() {
         p.push(if i==6 {block(w,h,d,x,h/2.,z,TEAL)}else{timber(w,h,d,x,h/2.,z)});
         if i<4 {p.push(block(0.28,0.10,0.28,x,0.05,z,0xaca492));}
@@ -119,11 +142,7 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
         p.push(block(3.5,0.95,0.10,0.,3.05,z,TEAL));
         p.push(Part::new(Shape::Quad{w:3.2,h:0.8},Surface::matt(0xffffff).textured(Tex::SignSmoko).no_shadow()).at(0.,3.05,z+if yaw==0. {0.06}else{-0.06}).turn(0.,yaw,0.));
     }
-    } else {
-        // Keep the existing solid esky and lid; Blender supplies posts and rear benches.
-        p.push(block(1.3,0.72,0.75,5.6,0.36,15.9,TEAL));
-        p.push(block(1.34,0.08,0.79,5.6,0.76,15.9,CREAM));
-    }
+    } // Imported prop kit supplies the detailed esky within the existing SOLIDS bounds.
     if procedural_shelter {
     // Runtime uses the detailed Blender servo; keep the lightweight renderer fallback.
     // Servo facade beyond the northern arena fence: no unreachable fake interaction points.
@@ -214,6 +233,34 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
    let near_x=(x.abs()-w/2.).max(0.);
    let near_z=((z-6.).abs()-d/2.).max(0.)/ROAD_Z_SCALE;
    assert!(near_x.hypot(near_z)>26.5);
+  }
+ }
+ #[test] fn small_props_leave_scoring_spawns_and_approaches_clear(){
+  for &(x,z,w,d,h) in &PROP_SOLIDS {
+   assert!(w>0. && d>0. && h>0. && h<1.2);
+   assert!(x.abs()+w/2.<32. && z.abs()+d/2.<23.);
+   assert!((x.abs()-w/2.).max(0.).hypot(((z-10.).abs()-d/2.).max(0.))>SCORE_RADIUS+1.0);
+   for &(sx,sz) in &crate::yard::CHAR_SPAWNS {
+    assert!((sx-x).abs()>w/2.+0.6 || (sz-z).abs()>d/2.+0.6,"spawn {sx},{sz} blocked by {x},{z}");
+   }
+   for i in -24..=24 {let t=i as f32*0.5;for (sx,sz) in [(t,10.),(0.,10.+t)] {
+    assert!((sx-x).abs()>w/2.+1.4 || (sz-z).abs()>d/2.+1.4,"delivery lane blocked by {x},{z}");
+   }}
+  }
+ }
+ #[test] fn small_props_do_not_overlap_existing_solids(){
+  for (i,&(x,z,w,d,_)) in PROP_SOLIDS.iter().enumerate(){
+   for &(a,b,c,e,_) in SOLIDS.iter().chain(LANDSCAPE_SOLIDS.iter()).chain(NATURE_SOLIDS.iter()).chain(PROP_SOLIDS[..i].iter()) {
+    assert!((x-a).abs()>=(w+c)/2. || (z-b).abs()>=(d+e)/2.,"overlap at {x},{z} and {a},{b}");
+   }
+  }
+ }
+ #[test] fn small_props_keep_asphalt_clear(){
+  // Conservative ellipse envelope around every prop; the playable annulus is 18..26m.
+  for &(x,z,w,d,_) in &PROP_SOLIDS {
+   let near=(x.abs()-w/2.).max(0.).hypot(((z-6.).abs()-d/2.).max(0.)/ROAD_Z_SCALE);
+   let far=(x.abs()+w/2.).hypot(((z-6.).abs()+d/2.)/ROAD_Z_SCALE);
+   assert!(far<17.8 || near>26.5,"prop at {x},{z} intrudes on road: {near}..{far}");
   }
  }
  #[test] fn solid_dimensions_match_visuals(){let p=parts();for c in colliders(){assert!(p.iter().any(|p|matches!(p.shape,Shape::Cuboid{w,h,d} if (w-(c.x1-c.x0)).abs()<0.001&&(d-(c.z1-c.z0)).abs()<0.001&&(h-c.h).abs()<0.001)&&(p.pos.x-(c.x0+c.x1)/2.).abs()<0.001&&(p.pos.z-(c.z0+c.z1)/2.).abs()<0.001));}}

@@ -521,6 +521,7 @@ fn sync_smoko_map(
     let e=cache.spawn_parts(&mut commands,&parts,&mut meshes,&mut mats,Transform::default());
     commands.entity(e).insert(SmokoMap);
     commands.spawn((WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_servo.glb"))), Transform::default(), ChildOf(e)));
+    commands.spawn((WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_props.glb"))), Transform::default(), ChildOf(e)));
     commands.spawn((WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_surroundings.glb"))), Transform::default(), ChildOf(e)));
     commands.spawn((WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_landscape.glb"))), Transform::default(), ChildOf(e)));
     commands.spawn((

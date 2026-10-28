@@ -69,7 +69,7 @@ fn sync_lighting(
 
 fn is_servo_asset(path: &std::path::Path) -> bool {
     matches!(path.file_name().and_then(|n|n.to_str()),
-        Some("smoko_servo.glb" | "smoko_shelter.glb" | "smoko_surroundings.glb" | "smoko_landscape.glb"))
+        Some("smoko_servo.glb" | "smoko_shelter.glb" | "smoko_surroundings.glb" | "smoko_landscape.glb" | "smoko_props.glb"))
 }
 fn filter_imported_textures(
     mut events: MessageReader<AssetEvent<Image>>, assets: Res<AssetServer>, mut images: ResMut<Assets<Image>>,

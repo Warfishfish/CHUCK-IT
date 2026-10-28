@@ -1,3 +1,7 @@
+# Stage 6 and browser movement fix — published (28 October 2026)
+
+[Stage 6 visual review](2026-10-27-servo-props/review.html) · [Props checkpoint](2026-10-27-servo-props/CHECKPOINT.md) · [Movement fix](2026-10-28-browser-movement/CHECKPOINT.md). User approved commit/push/browser publication; joining-player stutter report led to acknowledged-position reconciliation instead of snapping to delayed host positions. Protocol 21: refresh every peer, create a fresh yard. Native/browser builds pass, 445 core and 240 app tests pass. Public file hashes and two-way relay verified. Live: https://carpet-venture-charlotte-temple.trycloudflare.com/rust/ . Human browser symptom retest remains requested; device/frame-rate diagnosis not established. Unrelated concept art/ preserved and excluded.
+
 # Bush Servo Stage 5 — browser published
 
 [Actual before/after and motion](2026-10-27-servo-lighting/review.html) · [Recovery checkpoint](2026-10-27-servo-lighting/CHECKPOINT.md). Warm scoped Smoko lighting, brighter shade and imported-texture distance filtering. 239 app tests and 439 core tests pass; native/browser builds pass; four matched captures and Smoko delivery verified. No measured frame-time regression, +3.3 MB texture memory. Source committed as 643a58c. Browser publication subsequently approved and completed; public files verified against build, two-way relay passed. Live: https://carpet-venture-charlotte-temple.trycloudflare.com/rust/ . Refresh to load Stage 5. Stage 6 awaits a further request.
