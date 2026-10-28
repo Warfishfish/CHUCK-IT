@@ -165,9 +165,18 @@ pub fn read_input(
     cursor: Single<&CursorOptions, With<PrimaryWindow>>,
     mut player: ResMut<Player>,
     mut wanted: ResMut<Wanted>,
-    game: Res<crate::game::Game>,
+    mut game: ResMut<crate::game::Game>,
 ) {
+    #[cfg(target_arch = "wasm32")]
+    let grabbed = crate::browser_pointer::locked();
+    #[cfg(not(target_arch = "wasm32"))]
     let grabbed = cursor.grab_mode != CursorGrabMode::None;
+    #[cfg(target_arch = "wasm32")]
+    if !grabbed {
+        *wanted = Wanted::default();
+        game.wind.cancel();
+        return;
+    }
     if grabbed {
         let (y, p) = movement::look(player.yaw, player.pitch, motion.delta.x, motion.delta.y);
         player.yaw = y;

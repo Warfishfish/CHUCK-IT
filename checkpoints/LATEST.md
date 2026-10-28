@@ -1,3 +1,7 @@
+# Browser mouse capture — publication approved (28 October 2026)
+
+[Checkpoint](2026-10-28-browser-mouse/CHECKPOINT.md). Explicit click-to-capture/recover, actual pointer-lock state checks, safe release on menus/focus loss, input/charge clearing while unlocked. 242 app tests and JS lifecycle tests pass; browser build and public file hashes pass. Updated menu loaded in Chrome; actual mouse-lock gameplay check remains unverified because the browser window closed during testing. User approved commit/push including browser bundle; live file hashes reverified. Live browser updated: https://carpet-venture-charlotte-temple.trycloudflare.com/rust/ . Refresh, start a game, click capture prompt; Escape releases the mouse.
+
 # Browser rendering budget — 28 October 2026
 
 [Checkpoint](2026-10-28-browser-performance/CHECKPOINT.md). Browser Balanced defaults reduce shadow-map and ambient-occlusion work; native graphics unchanged. Existing delayed-position reconciliation fix retained. App and focused network tests pass, browser build/public file hashes and two-way relay verified. Chrome menu loads without captured errors. Guest-device performance retest still needed; no measured FPS claim. Refresh both peers and create a fresh yard. Live: https://carpet-venture-charlotte-temple.trycloudflare.com/rust/ . Use ?quality=high to compare previous rendering settings.

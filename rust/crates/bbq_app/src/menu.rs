@@ -2095,8 +2095,18 @@ fn sync_cursor(screen: Res<Screen>, mut cursor: Single<&mut CursorOptions, With<
         return;
     }
     let play = *screen == Screen::Playing;
-    cursor.grab_mode = if play { CursorGrabMode::Locked } else { CursorGrabMode::None };
-    cursor.visible = !play;
+    #[cfg(target_arch = "wasm32")]
+    {
+        crate::browser_pointer::set_playing(play);
+        // JavaScript handles trusted-click capture and observes actual browser lock loss.
+        cursor.grab_mode = CursorGrabMode::None;
+        cursor.visible = true;
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        cursor.grab_mode = if play { CursorGrabMode::Locked } else { CursorGrabMode::None };
+        cursor.visible = !play;
+    }
 }
 
 /// The camera drifts round the yard behind the menu: radius 40, height 17, 0.05 rad/s.

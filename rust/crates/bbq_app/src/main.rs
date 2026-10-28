@@ -9,6 +9,8 @@
 // Bevy systems take many parameters by design.
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
+#[cfg(target_arch = "wasm32")]
+mod browser_pointer;
 mod browser_quality;
 mod charge;
 mod backyard_finish;

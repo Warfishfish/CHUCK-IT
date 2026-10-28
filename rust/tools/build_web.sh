@@ -12,7 +12,7 @@ rm -rf $OUT
 mkdir -p $OUT
 wasm-bindgen --target web --no-typescript --out-dir $OUT --out-name bbq \
   target/wasm32-unknown-unknown/web/bbq_app.wasm
-cp web/index.html $OUT/
+cp web/index.html web/pointer-lock.js $OUT/
 # a squeezed copy of the big file: the server sends it to browsers that accept it (most do)
 gzip -k -9 $OUT/bbq_bg.wasm
 cp -R crates/bbq_app/assets $OUT/assets

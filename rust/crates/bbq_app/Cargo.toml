@@ -26,5 +26,5 @@ tungstenite = { version = "0.30.0", default-features = false, features = ["hands
 bevy = { version = "=0.19.1", features = ["web", "webgpu"] }
 wasm-bindgen = "=0.2.129"
 js-sys = "0.3"
-web-sys = { version = "0.3", features = ["WebSocket", "MessageEvent", "CloseEvent", "ErrorEvent", "BinaryType", "Window", "Storage", "Location"] }
+web-sys = { version = "0.3", features = ["WebSocket", "MessageEvent", "CloseEvent", "ErrorEvent", "BinaryType", "Window", "Storage", "Location", "Document", "Element"] }
 getrandom = { version = "0.3", features = ["wasm_js"] }
