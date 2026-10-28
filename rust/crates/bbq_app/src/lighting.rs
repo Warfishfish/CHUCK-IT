@@ -305,7 +305,11 @@ pub fn post_fx() -> impl Bundle {
         Smaa::default(),
         bevy::light::ShadowFilteringMethod::Gaussian,
         ScreenSpaceAmbientOcclusion {
-            quality_level: ScreenSpaceAmbientOcclusionQualityLevel::High,
+            quality_level: if crate::browser_quality::balanced() {
+                ScreenSpaceAmbientOcclusionQualityLevel::Medium
+            } else {
+                ScreenSpaceAmbientOcclusionQualityLevel::High
+            },
             constant_object_thickness: 0.25,
         },
     )

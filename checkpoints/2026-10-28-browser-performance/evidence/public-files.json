@@ -1,0 +1,17 @@
+{
+  "index.html": {
+    "bytes": 1920,
+    "sha256": "db5441b9a32e0cb781a94ca29eea524e75d4fb4481562ca3b02989387107309a",
+    "matches": true
+  },
+  "bbq.js": {
+    "bytes": 183627,
+    "sha256": "fcc74c2b242e32f0f4e3f36fb921d7e23bc0ac8f3d5cdbe18001f58aa4b4f4b3",
+    "matches": true
+  },
+  "bbq_bg.wasm": {
+    "bytes": 63835202,
+    "sha256": "5fae5b33c2797b2e259938b30b8b235f26a5d8f93e2aee711f722db1e86ebf12",
+    "matches": true
+  }
+}

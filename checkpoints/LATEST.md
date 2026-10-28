@@ -1,3 +1,7 @@
+# Browser rendering budget — 28 October 2026
+
+[Checkpoint](2026-10-28-browser-performance/CHECKPOINT.md). Browser Balanced defaults reduce shadow-map and ambient-occlusion work; native graphics unchanged. Existing delayed-position reconciliation fix retained. App and focused network tests pass, browser build/public file hashes and two-way relay verified. Chrome menu loads without captured errors. Guest-device performance retest still needed; no measured FPS claim. Refresh both peers and create a fresh yard. Live: https://carpet-venture-charlotte-temple.trycloudflare.com/rust/ . Use ?quality=high to compare previous rendering settings.
+
 # Stage 6 and browser movement fix — published (28 October 2026)
 
 [Stage 6 visual review](2026-10-27-servo-props/review.html) · [Props checkpoint](2026-10-27-servo-props/CHECKPOINT.md) · [Movement fix](2026-10-28-browser-movement/CHECKPOINT.md). User approved commit/push/browser publication; joining-player stutter report led to acknowledged-position reconciliation instead of snapping to delayed host positions. Protocol 21: refresh every peer, create a fresh yard. Native/browser builds pass, 445 core and 240 app tests pass. Public file hashes and two-way relay verified. Live: https://carpet-venture-charlotte-temple.trycloudflare.com/rust/ . Human browser symptom retest remains requested; device/frame-rate diagnosis not established. Unrelated concept art/ preserved and excluded.

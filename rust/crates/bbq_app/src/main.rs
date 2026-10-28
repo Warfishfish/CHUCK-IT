@@ -9,6 +9,7 @@
 // Bevy systems take many parameters by design.
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
+mod browser_quality;
 mod charge;
 mod backyard_finish;
 mod bots_app;
@@ -104,7 +105,7 @@ fn main() {
     .insert_resource(lighting::LookMode::from_args(&args))
     .insert_resource(bevy::light::DirectionalLightShadowMap {
         // crisper, steadier shadows in the polished look
-        size: if lighting::LookMode::from_args(&args) == lighting::LookMode::Polished { 4096 } else { 2048 },
+        size: if browser_quality::balanced() { browser_quality::BALANCED_SHADOW_SIZE } else if lighting::LookMode::from_args(&args) == lighting::LookMode::Polished { 4096 } else { 2048 },
     })
     .insert_resource(ClearColor(models::hex(if style::current() != style::Style::Current { 0x88b4f4 } else { 0x9fd8f2 })))
     .add_plugins(
