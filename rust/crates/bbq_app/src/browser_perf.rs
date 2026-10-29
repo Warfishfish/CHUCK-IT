@@ -1,7 +1,6 @@
 //! Opt-in local browser frame diagnostics. No telemetry is sent over the game connection.
 use bevy::prelude::*;
 use std::collections::VecDeque;
-use std::time::Instant;
 
 pub fn enabled() -> bool {
     web_sys::window()
@@ -11,13 +10,13 @@ pub fn enabled() -> bool {
 
 #[derive(Resource)]
 struct Samples {
-    previous: Option<Instant>,
-    frame_ms: VecDeque<(Instant, f64, f64)>,
+    previous_ms: Option<f64>,
+    frame_ms: VecDeque<(f64, f64, f64)>,
 }
 impl Default for Samples {
     fn default() -> Self {
         Self {
-            previous: None,
+            previous_ms: None,
             frame_ms: VecDeque::new(),
         }
     }
@@ -45,6 +44,7 @@ fn spawn_panel(mut commands: Commands) {
             border_radius: BorderRadius::all(Val::Px(8.0)),
             ..default()
         },
+        GlobalZIndex(20),
         BackgroundColor(Color::srgba(0.055, 0.075, 0.09, 0.88)),
         Text::new("SMOKO PERF · collecting local frame timings…"),
         TextFont {
@@ -52,6 +52,7 @@ fn spawn_panel(mut commands: Commands) {
             ..default()
         },
         TextColor(Color::WHITE),
+        Visibility::Hidden,
         PerfPanel,
     ));
 }
@@ -63,29 +64,38 @@ fn sample_frames(
     mut samples: ResMut<Samples>,
 ) {
     if *screen != crate::menu::Screen::Playing || game.rules.mode != bbq_core::GameMode::Smoko {
-        samples.previous = None;
+        samples.previous_ms = None;
         samples.frame_ms.clear();
         return;
     }
-    let now = Instant::now();
-    if let Some(previous) = samples.previous {
-        let dt = now.duration_since(previous).as_secs_f64();
+    let Some(now_ms) = web_sys::window()
+        .and_then(|window| window.performance())
+        .map(|performance| performance.now())
+        .filter(|now| now.is_finite())
+    else {
+        samples.previous_ms = None;
+        return;
+    };
+    if let Some(previous_ms) = samples.previous_ms {
+        let dt = (now_ms - previous_ms) / 1000.0;
         if dt.is_finite() && dt > 0.0 {
-            samples
-                .frame_ms
-                .push_back((now, dt * 1000.0, fixed.overstep().as_secs_f64() * 1000.0));
+            samples.frame_ms.push_back((
+                now_ms,
+                dt * 1000.0,
+                fixed.overstep().as_secs_f64() * 1000.0,
+            ));
             // A bounded five-second rolling window: expire old entries, cap for 240 Hz.
             while samples
                 .frame_ms
                 .front()
-                .is_some_and(|(at, _, _)| now.duration_since(*at).as_secs_f32() > 5.0)
+                .is_some_and(|(at_ms, _, _)| now_ms - at_ms > 5000.0)
                 || samples.frame_ms.len() > 1200
             {
                 samples.frame_ms.pop_front();
             }
         }
     }
-    samples.previous = Some(now);
+    samples.previous_ms = Some(now_ms);
 }
 
 fn paint_panel(

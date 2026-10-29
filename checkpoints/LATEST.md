@@ -1,6 +1,6 @@
-# Smoko browser frame profiler — ready for review (29 October 2026)
+# Smoko browser frame profiler — live for testing (29 October 2026)
 
-[Review and host/guest testing instructions](2026-10-29-smoko-browser-profile/review.html) · [Recovery checkpoint](2026-10-29-smoko-browser-profile/CHECKPOINT.md). Added an opt-in local-only browser overlay for Smoko: rolling FPS, average/p95 frame interval, long frames and fixed-step backlog, labelled HOST/GUEST/SOLO. WebAssembly release-profile build passes; 19 existing warnings, no profiler-specific warnings. Not published, committed or pushed. The live browser still reflects commit 4a8d070.
+[Review and host/guest testing instructions](2026-10-29-smoko-browser-profile/review.html) · [Recovery checkpoint and saved capture](2026-10-29-smoko-browser-profile/CHECKPOINT.md). Optional local-only Smoko overlay shows rolling FPS, average/p95 frame interval, long frames and fixed-step backlog, labelled HOST/GUEST/SOLO. Fixed the wasm timer panic using browser `performance.now()` and placed the panel above the HUD. WebAssembly release-profile build passes; live Chrome Smoko gameplay and overlay verified. Solo samples observed: ~75 FPS, avg 13.3 ms, p95 13.9 ms; later saved paused-overlay sample 60 FPS, avg 16.7 ms, p95 23.3 ms, zero long frames/backlog. Neither is a host/guest comparison; collect active-play samples on both devices. Public `bbq.js` and `.wasm` hashes match the live Cloudflare response (HTTP 200). Live opt-in: https://carpet-venture-charlotte-temple.trycloudflare.com/rust/?perf=1 . Source fix, bundle and checkpoint are ready to commit/push. Active-play host/guest measurements can be collected when both players are available.
 
 # Smoko-first polish — committed and pushed (29 October 2026)
 
