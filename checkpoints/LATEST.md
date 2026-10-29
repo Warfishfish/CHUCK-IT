@@ -1,6 +1,6 @@
-# Bush Servo outer ground cover — approved for commit and browser (29 October 2026)
+# Bush Servo outer ground cover — committed, pushed and browser published (29 October 2026)
 
-[Actual in-game overview and comparison](2026-10-29-servo-groundcover/review.html) · [Checkpoint and rollback](2026-10-29-servo-groundcover/CHECKPOINT.md). Added static spinifex fans and grouped ochre stones outside the play fence; routes and shared bounds are unchanged. Blender export: 61,577 polygons, 12 materials, 8.43 MB GLB. User approved commit, push and browser publication; the bundle is rebuilt and live at https://carpet-venture-charlotte-temple.trycloudflare.com/rust/. Live JS, wasm and both Smoko GLBs match the local build; the browser menu and Smoko game screen loaded. Prior landscape source/asset files are saved under the checkpoint's `recovery/` directory.
+[Actual in-game overview and comparison](2026-10-29-servo-groundcover/review.html) · [Checkpoint and rollback](2026-10-29-servo-groundcover/CHECKPOINT.md). Added static spinifex fans and grouped ochre stones outside the play fence; routes and shared bounds are unchanged. Blender export: 61,577 polygons, 12 materials, 8.43 MB GLB. Art and browser bundle committed as `b8ec090` and pushed to `origin/main`; the live page is https://carpet-venture-charlotte-temple.trycloudflare.com/rust/. Live JS, wasm and both Smoko GLBs match the local build; the browser menu and Smoko game screen loaded. The recovery assets are saved under the checkpoint's `recovery/` directory.
 
 # Bush Servo concept-style detail — ready for review (29 October 2026)
 

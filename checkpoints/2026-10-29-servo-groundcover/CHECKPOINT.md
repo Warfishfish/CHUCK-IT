@@ -48,8 +48,8 @@ step; the builder deterministically rewrites it during export.
 
 ## Recovery and remaining work
 
-The user approved committing and pushing the broader art pass, including this
-browser bundle. Preserve the unrelated `concept art/` directory. A pre-pass
+The broader art pass and browser bundle were committed as `b8ec090` and pushed
+to `origin/main`. Preserve the unrelated `concept art/` directory. A pre-pass
 landscape builder, Blender scene and GLB are saved under `recovery/`; the GLB
 matches the preceding checkpoint's SHA-256 exactly. To return to the preceding
 detail pass, copy those three files back to their corresponding project paths,
