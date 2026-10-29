@@ -1,0 +1,11 @@
+Smoko gameplay view, identical camera and window (1280x800), native Mac, 600 wall-clock intervals after warmup. CPU-observed intervals, not GPU timestamps or browser peer-device measurements. The initial build run and the final refreshed run are both recorded to show run-to-run variation.
+
+Metric                    Before       After (initial)   After (final)
+Mean frame interval        7.588 ms     7.521 ms          7.514 ms
+Median                     7.425 ms     7.400 ms          7.365 ms
+95th percentile            9.017 ms     9.135 ms          9.004 ms
+Frames >16.67 ms           3            0                 3
+Meshes/materials/entities  2753/854/7078 unchanged
+Image CPU bytes            82,513,864 unchanged
+
+Final mean delta: -1.0%. Across repeated runs, changes are small and mixed; treat them as run-to-run variability. No clear FPS gain or regression established. GPU and browser host/guest pacing were not directly measured. Visual asset, draw-count and memory costs are unchanged.

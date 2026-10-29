@@ -400,6 +400,28 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted) {
     };
 }
 
+/// Presentation only. Guests use replicated carry state; never predict points or recovery timers.
+pub fn hud_prompt(g: &Game, p: &Player) -> String {
+    if player_locked(g) {
+        return "Being carried — another player can knock your carrier down to free you".into();
+    }
+    let carry = g.smoko.carries.get(&PLAYER_ID);
+    if carry.is_some() || (g.mirror && g.smoko.guest_carrying) {
+        let distance = (p.mover.x - CENTRE.0).hypot(p.mover.z - CENTRE.1);
+        let remaining = carry.filter(|_| !g.mirror)
+            .map(|c| format!(" • {:.0}s left", (MAX_CARRY - (g.now - c.since)).max(0.0).ceil()))
+            .unwrap_or_default();
+        return format!("SMOKO shelter: {:.0}m{} • Tap F: drop • Hold F, release: throw", distance.ceil(), remaining);
+    }
+    if !g.mirror && let Some(until) = g.smoko.immune.get(&PLAYER_ID).filter(|t| **t > g.now) {
+        return format!("Back in play • Pickup protection: {:.0}s • Deliver opponents to SMOKO (+100)", (until-g.now).ceil());
+    }
+    if let Some(victim) = pickup_target(g, p, PLAYER_ID) {
+        return format!("F: pick up {} • Carry or throw them into SMOKO (+100)", crate::round::name_of(g, victim));
+    }
+    "SMOKO: knock someone down → move close and press F → deliver to the shelter (+100)".into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -426,6 +448,30 @@ mod tests {
         };
         (a, p)
     }
+    #[test]
+    fn contextual_hints_follow_eligibility_carry_and_guest_authority() {
+        let (mut app, mut p) = fixture();
+        let mut g = app.world_mut().resource_mut::<Game>();
+        g.rules.phase = bbq_core::scoring::Phase::Play;
+        assert!(hud_prompt(&g, &p).starts_with("F: pick up"));
+        p.mover.x = 20.0;
+        assert!(!hud_prompt(&g, &p).starts_with("F: pick up"));
+        p.mover.x = 0.0;
+        grab(&mut g, &mut p, PLAYER_ID);
+        assert!(hud_prompt(&g, &p).contains("8s left"));
+        g.now += 3.2;
+        assert!(hud_prompt(&g, &p).contains("5s left"));
+        g.mirror = true;
+        g.smoko.carries.clear();
+        g.smoko.guest_carrying = true;
+        let hint = hud_prompt(&g, &p);
+        assert!(hint.contains("SMOKO shelter:"));
+        assert!(!hint.contains("s left"));
+        g.smoko.guest_carrying = false;
+        g.smoko.guest_until = g.now + 1.0;
+        assert!(hud_prompt(&g, &p).starts_with("Being carried"));
+    }
+
     fn race_fixture()->(App,Player) {
         let (mut a,p)=fixture();
         {let mut g=a.world_mut().resource_mut::<Game>();g.rules.mode=GameMode::Race;g.dummies[0].body=Body::default();

@@ -297,6 +297,7 @@ fn build_yard(
 
 /// The pool water slides and clouds drift; the clothesline stays aligned with collision.
 fn animate_yard(
+    game: Res<Game>,
     mode: Res<crate::lighting::LookMode>,
     time: Res<Time>,
     mut drift: ResMut<Drift>,
@@ -309,6 +310,7 @@ fn animate_yard(
     let dt = time.delta_secs();
     let t = time.elapsed_secs();
     for mut tf in &mut head {
+        if game.rules.mode == bbq_core::GameMode::Smoko { continue; }
         if *mode == crate::lighting::LookMode::Polished {
             // Fixed frame: no visual-only rotation past its colliders.
             let q = looks_yard::hoist_lean().0;
@@ -326,6 +328,8 @@ fn animate_yard(
             tf.translation.x = -110.0;
         }
     }
+    // Smoko hides the Backyard pool: do not invalidate its GPU materials each frame.
+    if game.rules.mode == bbq_core::GameMode::Smoko { return; }
     drift.water += Vec2::new(dt * 0.02, dt * 0.013);
     drift.shimmer_y += dt * 0.018;
     for h in &water {
@@ -399,6 +403,7 @@ fn sync_decor_eskies(
     time: Res<Time>,
     mut lids: Query<(&DecorLid, &mut Transform)>,
 ) {
+    if game.rules.mode == bbq_core::GameMode::Smoko { return; }
     let k = 1.0 - (-6.0 * time.delta_secs()).exp();
     for (l, mut tf) in &mut lids {
         let want = if game.life.decor_open.get(l.0).copied().unwrap_or(0.0) > 0.0 { -1.15 } else { -0.08 };
@@ -416,6 +421,8 @@ fn animate_magpies(
     mut bodies: Query<(&MagpieBody, &mut Transform, &mut Visibility), (Without<MagpieHead>,Without<MagpieWing>)>,
     mut wings:Query<(&MagpieWing,&mut Transform),(Without<MagpieBody>,Without<MagpieHead>)>,
 ) {
+    // These perched Backyard birds belong to the hidden NormalYard hierarchy.
+    if game.rules.mode == bbq_core::GameMode::Smoko { return; }
     let t = time.elapsed_secs();
     let k = 1.0 - (-7.0 * time.delta_secs()).exp();
     for (mut h, mut tf, gt) in &mut heads {
@@ -536,8 +543,8 @@ fn sync_race_map(
  roots:Query<Entity,With<RaceMap>>,mut meshes:ResMut<Assets<Mesh>>,mut mats:ResMut<Assets<StandardMaterial>>,mut cache:ResMut<ModelCache>,
 ) {
  let active=game.rules.mode==bbq_core::GameMode::Race;
- for mut v in &mut normal {*v=if active || game.rules.mode==bbq_core::GameMode::Smoko {Visibility::Hidden}else{Visibility::Inherited};}
- for mut v in &mut supplies {*v=if active{Visibility::Hidden}else{Visibility::Inherited};}
+ for mut v in &mut normal {v.set_if_neq(if active || game.rules.mode==bbq_core::GameMode::Smoko {Visibility::Hidden}else{Visibility::Inherited});}
+ for mut v in &mut supplies {v.set_if_neq(if active{Visibility::Hidden}else{Visibility::Inherited});}
  if !active {for e in &roots{commands.entity(e).despawn();}return;}
  if !roots.is_empty(){return;}
  use bbq_core::looks::{Shape,Surface};
@@ -614,7 +621,7 @@ fn sync_race_map(
 }
 
 fn sync_backyard_cover(game:Res<Game>,mut q:Query<&mut Visibility,With<BackyardCover>>) {
- for mut v in &mut q {*v=if matches!(game.rules.mode,bbq_core::GameMode::FreeForAll|bbq_core::GameMode::Teams) {Visibility::Inherited}else{Visibility::Hidden};}
+ for mut v in &mut q {v.set_if_neq(if matches!(game.rules.mode,bbq_core::GameMode::FreeForAll|bbq_core::GameMode::Teams) {Visibility::Inherited}else{Visibility::Hidden});}
 }
 
 #[derive(Component)]
@@ -624,4 +631,28 @@ fn sync_race_return_marker(mut commands:Commands,game:Res<Game>,mut q:Query<(Ent
     let Some((x,z))=target else {for (e,_) in &q {commands.entity(e).despawn();}return;};
     if let Ok((_,mut tf))=q.single_mut() {tf.translation=Vec3::new(x,0.14,z);return;}
     commands.spawn((RaceReturnMarker,Mesh3d(meshes.add(Torus::new(0.8,1.0))),MeshMaterial3d(mats.add(StandardMaterial{base_color:Color::srgb(1.0,0.84,0.2),unlit:true,..default()})),Transform::from_xyz(x,0.14,z),bevy::light::NotShadowCaster));
+}
+
+#[cfg(test)]
+mod smoko_polish_tests {
+    use super::*;
+    use bevy::ecs::system::RunSystemOnce;
+    #[test]
+    fn smoko_leaves_hidden_water_unchanged_but_clouds_move_and_backyard_resumes() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).add_plugins(crate::game::GamePlugin);
+        app.insert_resource(crate::lighting::LookMode::Polished)
+            .init_resource::<Drift>().init_resource::<Assets<StandardMaterial>>();
+        app.world_mut().resource_mut::<Game>().rules.mode = bbq_core::GameMode::Smoko;
+        app.world_mut().resource_mut::<Time>().advance_by(std::time::Duration::from_millis(100));
+        let mat = app.world_mut().resource_mut::<Assets<StandardMaterial>>().add(StandardMaterial::default());
+        app.world_mut().spawn((PoolWater, MeshMaterial3d(mat.clone())));
+        let cloud = app.world_mut().spawn((Cloud, Transform::default())).id();
+        app.world_mut().run_system_once(animate_yard).unwrap();
+        assert_eq!(app.world().resource::<Assets<StandardMaterial>>().get(&mat).unwrap().uv_transform, bevy::math::Affine2::IDENTITY);
+        assert!(app.world().get::<Transform>(cloud).unwrap().translation.x > 0.0);
+        app.world_mut().resource_mut::<Game>().rules.mode = bbq_core::GameMode::FreeForAll;
+        app.world_mut().run_system_once(animate_yard).unwrap();
+        assert_ne!(app.world().resource::<Assets<StandardMaterial>>().get(&mat).unwrap().uv_transform, bevy::math::Affine2::IDENTITY);
+    }
 }

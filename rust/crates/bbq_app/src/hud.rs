@@ -1185,7 +1185,7 @@ fn update_hint(
     if hints.secs > 0.0 {
         hints.secs -= dt;
     }
-    let want = if g.rules.mode==GameMode::Race {String::new()} else if hints.secs > 0.0 { hints.text.clone() } else { String::new() };
+    let want = if matches!(g.rules.mode, GameMode::Race | GameMode::Smoko) {String::new()} else if hints.secs > 0.0 { hints.text.clone() } else { String::new() };
     if *shown != want {
         *shown = want.clone();
         pill(&mut commands, e, &want, 14.0);
@@ -1196,14 +1196,25 @@ fn update_hint(
 fn update_prompt(
     mut commands: Commands,
     game: Res<Game>,
+    player: Res<crate::player::Player>,
     holder: Single<(Entity, &mut Visibility), With<PromptBox>>,
+    children: Query<&Children>,
+    mut spans: Query<&mut TextSpan>,
     mut shown: Local<String>,
 ) {
     let (e, mut vis) = holder.into_inner();
-    let want = if game.magpie.target==crate::player::PLAYER_ID && matches!(game.magpie.phase,1|2) && game.rules.mode==GameMode::FreeForAll {"MAGPIE SWOOP! Move aside, right-click catch, or hit it with a throw".to_string()}else{game.prompt.clone()};
+    let want = if game.rules.mode == GameMode::Smoko {crate::smoko_mode::hud_prompt(&game, &player)} else if game.magpie.target==crate::player::PLAYER_ID && matches!(game.magpie.phase,1|2) && game.rules.mode==GameMode::FreeForAll {"MAGPIE SWOOP! Move aside, right-click catch, or hit it with a throw".to_string()}else{game.prompt.clone()};
     if *shown != want {
         *shown = want.clone();
-        pill(&mut commands, e, &want, 15.0);
+        // Reuse Smoko's text entity for carry distance/time updates.
+        let span = children.get(e).ok().filter(|c| c.len()==1)
+            .and_then(|c| children.get(c[0]).ok()).filter(|c| c.len()==1)
+            .and_then(|c| spans.get_mut(c[0]).ok());
+        if game.rules.mode == GameMode::Smoko && let Some(mut span) = span {
+            span.0 = want.clone();
+        } else {
+            pill(&mut commands, e, &want, 15.0);
+        }
     }
     *vis = if want.is_empty() { Visibility::Hidden } else { Visibility::Inherited };
 }
