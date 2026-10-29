@@ -1,3 +1,7 @@
+# Smoko browser frame profiler — ready for review (29 October 2026)
+
+[Review and host/guest testing instructions](2026-10-29-smoko-browser-profile/review.html) · [Recovery checkpoint](2026-10-29-smoko-browser-profile/CHECKPOINT.md). Added an opt-in local-only browser overlay for Smoko: rolling FPS, average/p95 frame interval, long frames and fixed-step backlog, labelled HOST/GUEST/SOLO. WebAssembly release-profile build passes; 19 existing warnings, no profiler-specific warnings. Not published, committed or pushed. The live browser still reflects commit 4a8d070.
+
 # Smoko-first polish — committed and pushed (29 October 2026)
 
 Smoko / Bush Servo is the reference map for staged performance and gameplay polish; proven improvements can transfer to other maps after review. [Actual before/after captures, delivery sequence and comparison](2026-10-28-smoko-polish/review.html) · [Checkpoint](2026-10-28-smoko-polish/CHECKPOINT.md) · [Development direction](2026-10-28-smoko-polish/SMOKO-ROADMAP.md). Contextual carry prompts and reduced hidden-yard update work. 244 app tests pass; native and browser builds pass. Delivery fixture awarded +100 once with no remaining carry. Matched native timing is within run-to-run variation; browser multiplayer pacing still needs host/guest device measurement. Committed and pushed as recorded in this commit. Not published to the live browser.

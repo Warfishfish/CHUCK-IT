@@ -11,6 +11,8 @@
 
 #[cfg(target_arch = "wasm32")]
 mod browser_pointer;
+#[cfg(target_arch = "wasm32")]
+mod browser_perf;
 mod browser_quality;
 mod charge;
 mod backyard_finish;
@@ -133,6 +135,10 @@ fn main() {
     );
     app.add_plugins((wet::WetPlugin, servo_finish::ServoFinishPlugin));
     app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin, online::OnlinePlugin, face::FacePlugin, lobby::LobbyPlugin, legs::LegsPlugin, shirt::ShirtPlugin));
+    #[cfg(target_arch = "wasm32")]
+    if browser_perf::enabled() {
+        app.add_plugins(browser_perf::BrowserPerfPlugin);
+    }
     if let Some(cfg) = shot {
         app.add_plugins(shot::ShotPlugin(cfg));
         if args.iter().any(|a| a == "--review") {
