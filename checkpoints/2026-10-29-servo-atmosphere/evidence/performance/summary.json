@@ -1,0 +1,100 @@
+{
+  "conditions": {
+    "before": {
+      "runs": [
+        {
+          "run": 1,
+          "samples": 600,
+          "mean_ms": 7.796,
+          "median_ms": 7.373,
+          "p95_ms": 9.106,
+          "mean_fps": 128.27,
+          "frames_over_16_67ms": 2
+        },
+        {
+          "run": 2,
+          "samples": 600,
+          "mean_ms": 7.592,
+          "median_ms": 7.411,
+          "p95_ms": 9.23,
+          "mean_fps": 131.72,
+          "frames_over_16_67ms": 1
+        },
+        {
+          "run": 3,
+          "samples": 600,
+          "mean_ms": 7.621,
+          "median_ms": 7.457,
+          "p95_ms": 9.178,
+          "mean_fps": 131.21,
+          "frames_over_16_67ms": 2
+        }
+      ],
+      "mean_ms": 7.67,
+      "median_run_p95_ms": 9.178,
+      "mean_fps": 130.4,
+      "run_mean_ms_range": [
+        7.592,
+        7.796
+      ],
+      "run_p95_ms_range": [
+        9.106,
+        9.23
+      ],
+      "frames_over_16_67ms_total": 5
+    },
+    "after": {
+      "runs": [
+        {
+          "run": 1,
+          "samples": 600,
+          "mean_ms": 7.552,
+          "median_ms": 7.385,
+          "p95_ms": 9.203,
+          "mean_fps": 132.41,
+          "frames_over_16_67ms": 1
+        },
+        {
+          "run": 2,
+          "samples": 600,
+          "mean_ms": 7.633,
+          "median_ms": 7.399,
+          "p95_ms": 9.404,
+          "mean_fps": 131.01,
+          "frames_over_16_67ms": 2
+        },
+        {
+          "run": 3,
+          "samples": 600,
+          "mean_ms": 7.601,
+          "median_ms": 7.34,
+          "p95_ms": 9.939,
+          "mean_fps": 131.56,
+          "frames_over_16_67ms": 1
+        }
+      ],
+      "mean_ms": 7.595,
+      "median_run_p95_ms": 9.404,
+      "mean_fps": 131.66,
+      "run_mean_ms_range": [
+        7.552,
+        7.633
+      ],
+      "run_p95_ms_range": [
+        9.203,
+        9.939
+      ],
+      "frames_over_16_67ms_total": 4
+    }
+  },
+  "paired_order": [
+    "before-1",
+    "after-1",
+    "after-2",
+    "before-2",
+    "before-3",
+    "after-3"
+  ],
+  "sampling": "3 alternating release-native captures per setting; 300 warmup frames then 600 wall-clock intervals per run; 1280x800; same overview camera, assets, machine and AutoNoVsync",
+  "interpretation": "Differences are within run-to-run variation; no measurable frame-time regression observed. Native results only; not GPU timestamps or browser/device claims."
+}

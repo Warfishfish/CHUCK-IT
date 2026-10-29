@@ -8,6 +8,10 @@ import numpy as np
 import random, math
 OUT=Path(__file__).resolve().parents[1]/'crates/bbq_app/assets/textures'
 SEED=260126
+# Warm dust encroaches unevenly; preserve dark readable racing/combat surface.
+SHOULDER_WIDTH=1.65
+PATCH_STRENGTH=.24
+AGGREGATE_STRENGTH=2.4
 DIRT=(189,113,65)
 ROAD=(89,85,77)
 rng=np.random.default_rng(SEED)
@@ -34,10 +38,11 @@ radius=np.hypot(xx,zz);a=np.arctan2(zz,xx)
 jag=.18*np.sin(a*17)+.11*np.sin(a*39+1.2)+.08*mid
 inner=18+jag;outer=26+jag*1.4
 inside=np.minimum(radius-inner,outer-radius)
-shoulder=np.clip(1-inside/.95,0,1)
-dust=np.clip(.06+.13*coarse+shoulder*(.91+.08*mid),0,1)
+shoulder=np.clip(1-inside/(SHOULDER_WIDTH+.45*coarse),0,1)
+patch=np.clip((coarse+.16*mid-.08)*2.4,0,1)
+dust=np.clip(.07+PATCH_STRENGTH*patch+shoulder*(.85+.15*mid),0,1)
 ruts=np.exp(-((radius-21.0)/.65)**2)+np.exp(-((radius-23.0)/.65)**2)
-base=np.array(ROAD)[None,None,:]+(8*coarse+5*mid+2*grain-4*ruts)[:,:,None]
+base=np.array(ROAD)[None,None,:]+(7*coarse+4*mid+AGGREGATE_STRENGTH*grain-3*ruts)[:,:,None]
 colour=np.clip(base*(1-dust[:,:,None])+np.array(DIRT)[None,None,:]*dust[:,:,None],0,255).astype('uint8')
 im=Image.fromarray(colour);d=ImageDraw.Draw(im)
 # Sparse hairline branching cracks, not a dense noise overlay.

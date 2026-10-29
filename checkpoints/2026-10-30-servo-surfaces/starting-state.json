@@ -1,0 +1,6 @@
+{
+  "commit": "952efd2a05c1ff589c9944c4b409e3361cb4cf35",
+  "backup": "/Users/marcus/Claude/australian-bbq-before-surfaces-2026-10-30.tar.gz",
+  "files_verified": 1763,
+  "status": " M checkpoints/LATEST.md\n M rust/crates/bbq_app/src/servo_finish.rs\n?? checkpoints/2026-10-29-servo-atmosphere/\n?? \"concept art/\"\n"
+}

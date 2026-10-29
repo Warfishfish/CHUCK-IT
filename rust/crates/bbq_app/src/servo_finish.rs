@@ -12,7 +12,9 @@ pub const SERVO_RIG: Rig = Rig {
     grade: Grade { saturation: 0.98, warmth: 0.003, contrast: 0.995, vignette: 0.025 },
 };
 pub const SUN_POSITION: Vec3 = Vec3::new(24.0, 24.0, 16.0);
-pub const DISTANT_HAZE: u32 = 0xc9cfd0;
+pub const DISTANT_HAZE: u32 = 0xd1d2cc;
+pub const HAZE_START: f32 = 55.0;
+pub const HAZE_END: f32 = 150.0;
 pub const TEXTURE_ANISOTROPY: u16 = 8;
 
 #[derive(Component, Clone, Copy)]
@@ -53,7 +55,9 @@ fn sync_lighting(
         }
         for (id,mut amb,mut fog,mut grade) in &mut cameras {
             saved.cameras.push((id,amb.clone(),fog.clone(),*grade));
-            *amb=ambient.clone();fog.color=crate::models::hex(DISTANT_HAZE);
+            *amb=ambient.clone();
+            fog.color=crate::models::hex(DISTANT_HAZE);
+            fog.falloff=bevy::pbr::FogFalloff::Linear {start:HAZE_START,end:HAZE_END};
             *grade=DisplayRaw::with_grade(SERVO_RIG.grade);
         }
     } else {

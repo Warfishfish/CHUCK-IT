@@ -1,0 +1,7 @@
+{
+  "art/bush-servo/build_surroundings.py": "24fc010a177af1d24279c1cd10c3bce4331fbd68ad0a50b9f44e68ad0faa092a",
+  "art/bush-servo/smoko-surroundings.blend": "607e5d399429137eb2bd2d1627f0b991c430a227343ebb3a5f3d972b4aed1295",
+  "rust/crates/bbq_app/assets/models/smoko_surroundings.glb": "94db228597197bf2cf997e47f2cdb1ab0f50d7503b1c288d5966a682bed32cda",
+  "rust/crates/bbq_app/assets/textures/servo_road.png": "17f093934484a6b991a3eaf7f56d3d7a2754596254834eaadb6e2ffe68f00469",
+  "rust/tools/make_servo_ground.py": "cc37902a3e57d82fc3633ced4806ff9099d6b8101bf35548cd625d159a516de0"
+}

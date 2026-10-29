@@ -1,0 +1,13 @@
+{
+  "bounds_match": true,
+  "before": {
+    "bytes": 424856,
+    "triangles": 4978,
+    "batches": 9
+  },
+  "after": {
+    "bytes": 553696,
+    "triangles": 6904,
+    "batches": 9
+  }
+}

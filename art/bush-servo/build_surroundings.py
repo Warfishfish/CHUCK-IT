@@ -7,6 +7,10 @@ rng=random.Random(layout['seed'])
 scene=bpy.data.scenes.new('Servo Surroundings')
 bpy.context.window.scene=scene
 materials=[]
+# Restrained static detail: no extra collision bodies or transparent cards.
+STONE_BEVEL=.105
+PLANT_CLUSTERS=210
+GRASS_HEIGHT=(.15,.48)
 def material(name,color):
  m=bpy.data.materials.new(name); m.use_nodes=True
  n=next(n for n in m.node_tree.nodes if n.type=='BSDF_PRINCIPLED')
@@ -25,24 +29,44 @@ for i,(x,z,w,d,h) in enumerate(layout['rocks']):
  bpy.ops.mesh.primitive_cube_add(size=1,location=(x,-z,h/2))
  o=bpy.context.object; o.name=f'Sandstone_{i:02}'
  o.dimensions=(w,d,h); bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
- bevel=o.modifiers.new('Worn edges','BEVEL'); bevel.width=.045; bevel.segments=2
+ bevel=o.modifiers.new('Worn edges','BEVEL'); bevel.width=STONE_BEVEL*(.8+.4*rng.random()); bevel.segments=2
  bpy.context.view_layer.objects.active=o; bpy.ops.object.modifier_apply(modifier=bevel.name)
+ # Chip bevel vertices inward only; broad flat surfaces and collider extents remain.
+ for v in o.data.vertices:
+  near=sum(abs(v.co[k])>dim*.5-STONE_BEVEL*1.7 for k,dim in enumerate((w,d,h)))
+  if near>=2:
+   v.co.x*=rng.uniform(.90,1); v.co.y*=rng.uniform(.90,1)
+ # Restore exact extents for the existing shared collider bounds.
+ for axis,dim in enumerate((w,d,h)):
+  lo=min(v.co[axis] for v in o.data.vertices);hi=max(v.co[axis] for v in o.data.vertices)
+  for v in o.data.vertices:v.co[axis]=(v.co[axis]-lo)/(hi-lo)*dim-dim/2
+ o.data.update()
  o.data.materials.append(sand[i%4]); objects.append(o)
  coords=[o.matrix_world@Vector(c) for c in o.bound_box]
  actual=[max(v[k] for v in coords)-min(v[k] for v in coords) for k in range(3)]
  assert all(abs(a-b)<.001 for a,b in zip(actual,[w,d,h]))
  report.append({'stone':i,'dimensions':actual,'collision':[w,d,h]})
+# Low gravel at the planted border, clear of the four approach corridors.
+for i in range(96):
+ a=rng.uniform(0,math.tau); r=rng.uniform(7.1,8.8)
+ x=math.cos(a)*r; z=10+math.sin(a)*r
+ if abs(x)<layout['clear_lane_half_width'] or abs(z-10)<layout['clear_lane_half_width']: continue
+ if abs(x-5.6)<1.2 and abs(z-15.9)<1.2: continue
+ bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1,radius=1,location=(x,-z,.012))
+ o=bpy.context.object; o.name=f'Border gravel {i:02}'
+ o.scale=(rng.uniform(.035,.095),rng.uniform(.035,.09),rng.uniform(.018,.035))
+ o.data.materials.append(sand[i%4]); objects.append(o)
 verts=[]; faces=[]; mids=[]
 def quad(points,mi):
  start=len(verts); verts.extend(points); faces.append(tuple(range(start,start+len(points)))); mids.append(mi)
 # Plants stay outside the scoring circle and four broad approach lanes.
-for i in range(145):
- a=rng.uniform(0,math.tau); r=rng.uniform(6.9,8.8)
+for i in range(PLANT_CLUSTERS):
+ a=rng.uniform(0,math.tau); r=rng.uniform(6.9,8.65)
  x=math.cos(a)*r; z=10+math.sin(a)*r
  if abs(x)<layout['clear_lane_half_width'] or abs(z-10)<layout['clear_lane_half_width']: continue
  if abs(x-5.6)<1.2 and abs(z-15.9)<1.2: continue
  for j in range(rng.randint(7,11)):
-  ang=rng.uniform(0,math.tau); h=rng.uniform(.13,.42); w=rng.uniform(.012,.025)
+  ang=rng.uniform(0,math.tau); h=rng.uniform(*GRASS_HEIGHT); w=rng.uniform(.012,.025)
   px=x+rng.uniform(-.13,.13); py=-z+rng.uniform(-.13,.13)
   dx,dy=math.cos(ang),math.sin(ang); sx,sy=-dy*w,dx*w
   quad([(px+sx,py+sy,.015),(px-sx,py-sy,.015),(px+dx*h*.16-sx*.5,py+dy*h*.16-sy*.5,h*.6),(px+dx*h*.34,py+dy*h*.34,h)],rng.randrange(3))
@@ -64,7 +88,9 @@ for o in objects:o.select_set(True)
 bpy.context.view_layer.objects.active=objects[0]
 # Join stones and planting to minimize scene overhead; material batches remain separate.
 bpy.ops.object.join(); asset=bpy.context.object; asset.name='Smoko sandstone and native planting'
-bpy.ops.wm.save_as_mainfile(filepath=str(ROOT/'art/bush-servo/smoko-surroundings.blend'))
+bpy.data.libraries.write(str(ROOT/'art/bush-servo/smoko-surroundings.blend'),{scene},fake_user=True)
 bpy.ops.export_scene.gltf(filepath=str(ROOT/'rust/crates/bbq_app/assets/models/smoko_surroundings.glb'),use_selection=True,use_active_scene=True,export_apply=True)
+import runpy
+runpy.run_path(str(ROOT/'art/bush-servo/compact_glb.py'))['compact'](ROOT/'rust/crates/bbq_app/assets/models/smoko_surroundings.glb')
 (ROOT/'art/bush-servo/surroundings-bounds.json').write_text(json.dumps(report,indent=2)+'\n')
 print({'stones':len(report),'polygons':len(asset.data.polygons),'materials':len(asset.data.materials)})

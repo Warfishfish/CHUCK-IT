@@ -1,3 +1,15 @@
+# Smoko surfaces and atmosphere — approved for commit/push (30 October 2026)
+
+User approved the reviewed shelter surfaces and pending haze pass. Reviewed asset hashes and whitespace checks verified. Browser bundle remains unchanged; publication was not requested in this step. Historical review entries follow.
+
+# Smoko shelter surfaces — ready for review (30 October 2026)
+
+[Actual before/after and motion](2026-10-30-servo-surfaces/review.html) · [Checkpoint and verified backup](2026-10-30-servo-surfaces/CHECKPOINT.md). Dusty asphalt transitions, Blender chipped stone borders, gravel and fuller planting. Shared collision bounds unchanged, Smoko delivery and Backyard smoke pass. Native mean +0.03–0.05 ms; browser not updated. Preserves pending haze. No commit or push.
+
+# Bush Servo atmospheric depth — ready for review (29 October 2026)
+
+[Actual before/after native captures](2026-10-29-servo-atmosphere/review.html) · [Checkpoint and recovery](2026-10-29-servo-atmosphere/CHECKPOINT.md). Smoko polished Pop only: warm haze colour `#d1d2cc`, fog range 55–150 m (was 60–160 m). Three alternating native-release runs per setting found mean frame time 7.670 → 7.595 ms and median run p95 9.178 → 9.404 ms; within run-to-run variation, with no measurable regression. Distant mesas blend more softly while retaining their shape. Browser/device performance remains unmeasured. Local review only; no browser build, commit or push.
+
 # Bush Servo outer ground cover — committed, pushed and browser published (29 October 2026)
 
 [Actual in-game overview and comparison](2026-10-29-servo-groundcover/review.html) · [Checkpoint and rollback](2026-10-29-servo-groundcover/CHECKPOINT.md). Added static spinifex fans and grouped ochre stones outside the play fence; routes and shared bounds are unchanged. Blender export: 61,577 polygons, 12 materials, 8.43 MB GLB. Art and browser bundle committed as `b8ec090` and pushed to `origin/main`; the live page is https://carpet-venture-charlotte-temple.trycloudflare.com/rust/. Live JS, wasm and both Smoko GLBs match the local build; the browser menu and Smoko game screen loaded. The recovery assets are saved under the checkpoint's `recovery/` directory.
