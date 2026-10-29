@@ -12,6 +12,8 @@ Delivery status: profiler source was committed as 9555e74; this checkpoint recor
 
 Verification: optimized WebAssembly build completed with 19 pre-existing warnings and no profiler-specific warnings. Public `bbq.js` and `bbq_bg.wasm` SHA-256 hashes match the live Cloudflare responses. The temporary Cloudflare URL returned HTTP 200. Runtime smoke check reached the Smoko game-over screen in Chrome without a panic; the overlay was active during play. No mode/gameplay source was changed. Active-play host/guest measurements still require the second player/device.
 
+Publication: source fix, review page, saved capture and browser bundle committed as `3d71308` and pushed to `origin/main` on 29 October 2026. The browser bundle was rebuilt locally and live files were hash-checked before commit. `concept art/` remains untracked and was excluded.
+
 For an active-play baseline, start a fresh Smoko round, keep the tab focused, leave pointer capture active, and read the rolling panel after five seconds. Host and guest should separately record still, moving/carrying, and busy-fight samples. This helps distinguish local frame pacing from network/movement issues but does not measure network latency or GPU execution time.
 
 To roll back only the source feature, remove `browser_perf.rs` and its wasm-only module/plugin registration from `main.rs`. Restore the previous online bundle from `/Users/marcus/Claude/australian-bbq-browser-before-profiler-2026-10-29.tar.gz` if needed; do not reset the tree.
