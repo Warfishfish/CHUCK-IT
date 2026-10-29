@@ -1,0 +1,14 @@
+{
+  "smoko_servo": {
+    "bytes": 7945520,
+    "triangles": 57298,
+    "material_batches": 16,
+    "embedded_pngs": 11
+  },
+  "smoko_landscape": {
+    "bytes": 7701360,
+    "triangles": 115188,
+    "material_batches": 10,
+    "embedded_pngs": 7
+  }
+}

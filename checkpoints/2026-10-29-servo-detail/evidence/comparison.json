@@ -1,0 +1,50 @@
+{
+  "overview": {
+    "before": {
+      "mean_ms": 8.206,
+      "p95_ms": 9.815,
+      "materials": 854.0,
+      "mesh_entities": 7078.0,
+      "image_cpu_bytes": 82513864.0
+    },
+    "after": {
+      "mean_ms": 8.751,
+      "p95_ms": 10.883,
+      "materials": 853.0,
+      "mesh_entities": 7077.0,
+      "image_cpu_bytes": 87057684.0
+    }
+  },
+  "servo": {
+    "before": {
+      "mean_ms": 8.491,
+      "p95_ms": 10.696,
+      "materials": 854.0,
+      "mesh_entities": 7078.0,
+      "image_cpu_bytes": 82513864.0
+    },
+    "after": {
+      "mean_ms": 8.572,
+      "p95_ms": 10.881,
+      "materials": 853.0,
+      "mesh_entities": 7077.0,
+      "image_cpu_bytes": 87057684.0
+    }
+  },
+  "frontage": {
+    "before": {
+      "mean_ms": 7.804,
+      "p95_ms": 12.321,
+      "materials": 854.0,
+      "mesh_entities": 7078.0,
+      "image_cpu_bytes": 79368136.0
+    },
+    "after": {
+      "mean_ms": 7.975,
+      "p95_ms": 9.795,
+      "materials": 853.0,
+      "mesh_entities": 7077.0,
+      "image_cpu_bytes": 83911956.0
+    }
+  }
+}

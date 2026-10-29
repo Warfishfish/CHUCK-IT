@@ -18,3 +18,11 @@ Used at 1K resolution; reduced normal strength; displacement omitted.
 Servo facade, veranda, lettering, roof, freezer, pylon and ute geometry:
 authored for Australian BBQ. Existing Bowlby One font used for signage.
 The building and forecourt are decorative outside the playable fence.
+
+Eucalyptus Bark — Charlotte Baglioni, via Poly Haven
+https://polyhaven.com/a/eucalyptus_bark
+License: CC0 1.0 Universal
+https://creativecommons.org/publicdomain/zero/1.0/
+Imported through Blender MCP at 1K; runtime colour/normal maps reduced to
+512px. Colour lightened and desaturated for pale gum bark; normal strength
+baked down to 20%. Roughness/displacement maps omitted from runtime.

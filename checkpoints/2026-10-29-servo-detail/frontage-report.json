@@ -1,0 +1,15 @@
+{
+  "added_objects": 301,
+  "added_triangles": 9636,
+  "base_triangles": 47662,
+  "minimum_added_y": 24.000999450683594,
+  "new_textures": 0,
+  "asset_bytes": 7945520,
+  "material_slots": 16,
+  "before_compaction_bytes": 9039992,
+  "compact": {
+    "unused_uv_streams_removed": 24,
+    "bytes_saved": 1094472,
+    "final_bytes": 7945520
+  }
+}

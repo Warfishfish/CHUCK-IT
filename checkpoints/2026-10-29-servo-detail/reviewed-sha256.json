@@ -1,0 +1,18 @@
+{
+  "art/bush-servo/build_landscape.py": "0a7b8f1163e7339f3ca3d3b44e6e6108fd2261b64842448e941f59f475cd3509",
+  "art/bush-servo/build_frontage_detail.py": "6cb26c73d9a256f3c8a7cc2ce2c5c4f18eff2b4caa5e077ef9b79249ac18d283",
+  "art/bush-servo/compact_glb.py": "4aba13376e3108b75e62c6ac908ae123d3cff3f5ce36bd188f049f3a4d90864c",
+  "art/bush-servo/smoko-landscape.blend": "a4b0943537dc1f10ca983479e3e1495171a9d2b63f6831bb3d0080bf814de52f",
+  "art/bush-servo/smoko-frontage-detail.blend": "42f086285a7ecb5e528953c461d88cd4dd588bb347c0731c19494e4e7ec7ed08",
+  "art/bush-servo/library/eucalyptus-bark.blend": "729aaa86e28f30ee52599f4010e03607bf7e9bc3d292eca66265407f1f8f5813",
+  "rust/crates/bbq_app/assets/models/smoko_landscape.glb": "cb50405e8772749e9faef56eefa34327ca320fec682d318bbea6b84cff78f557",
+  "rust/crates/bbq_app/assets/models/smoko_servo.glb": "71d8c92730d3421629f4b739cc398b9bf8a4380919642fba14c72b8dbfc517ab",
+  "rust/crates/bbq_app/assets/CREDITS.txt": "d311673c2d34b0bc6c07ea380e91dfed7e3ab6f7616e5db823ff13405f3190b8",
+  "art/bush-servo/detail-textures/ochre-rock-8.png": "c41df8eea2b50a81a60fc9b2a9436e739083246d1125b2d9c538ba1bf84f0a86",
+  "art/bush-servo/detail-textures/ochre-rock-9.png": "7453dc033259f9222ea3215c7cfcc546267a03d4fc0bae0036cc7bb0648326e0",
+  "art/bush-servo/detail-textures/gum-bark-normal-512.png": "91a29107980224aad837718b45eb12a0668430617f5981d65d6e9e49983b7889",
+  "art/bush-servo/detail-textures/warm-rock-grain.png": "17c822db1133c49f4147258983e55bda3c6d2f46b1350e2bd2d714cd407ddedc",
+  "art/bush-servo/detail-textures/gum-bark-pale-512.png": "e809f2c6293c4f7ac577f3a3f431017530f13636227454dc4cf352c0dcf2bd50",
+  "art/bush-servo/detail-textures/ochre-rock-7.png": "193c80bde349e8609cf37bef0aef4b8834d8e3eeeaa31e4d3351386028eec06b",
+  "art/bush-servo/detail-textures/ochre-rock-6.png": "50baad3f4fa69a851271870dacbea4005955cb6a8bec6af95b5292caac4225ce"
+}

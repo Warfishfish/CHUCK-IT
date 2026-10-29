@@ -1,0 +1,12 @@
+{
+  "smoko_servo": {
+    "unused_uv_streams_removed": 24,
+    "bytes_saved": 1094472,
+    "final_bytes": 7945520
+  },
+  "smoko_landscape": {
+    "unused_uv_streams_removed": 4,
+    "bytes_saved": 1534432,
+    "final_bytes": 7701360
+  }
+}
