@@ -1,0 +1,26 @@
+{
+  "after-overview.metrics": {
+    "mean_ms": 7.821,
+    "p95_ms": 12.308,
+    "mean_fps": 127.87,
+    "image_cpu_bytes": 89154828.0
+  },
+  "after-props.metrics": {
+    "mean_ms": 7.757,
+    "p95_ms": 12.136,
+    "mean_fps": 128.92,
+    "image_cpu_bytes": 89154828.0
+  },
+  "before-overview.metrics": {
+    "mean_ms": 7.921,
+    "p95_ms": 11.358,
+    "mean_fps": 126.25,
+    "image_cpu_bytes": 87407208.0
+  },
+  "before-props.metrics": {
+    "mean_ms": 7.844,
+    "p95_ms": 11.6,
+    "mean_fps": 127.48,
+    "image_cpu_bytes": 87407208.0
+  }
+}

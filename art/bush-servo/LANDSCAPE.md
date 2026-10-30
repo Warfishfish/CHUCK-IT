@@ -31,3 +31,6 @@ One new tree at game x=12, z=1.5, 8.4m tall, grows inside the road loop. Existin
 
 ## Two arena gums — 30 October 2026
 A second 7.7m specimen at (-11.5, 2) balances the original 8.4m tree at (12, 1.5). Heights are now per-tree values in arena-trees.json, and local seeds vary canopy shape without changing existing scenery. Both trunks have shared 0.7m × 0.7m × 4m collision, with no standing surface on top. Protocol 23 prevents mixed collision versions. The arena remains the focus; no distant scenery edits.
+
+## Eastern gum planting slice — 31 October 2026
+Three small saltbush/dry grass/gravel groups wrap the existing eastern gum and adjacent sandstone. ARENA_CLUSTER_CENTRES is the tuning list in build_landscape.py. All new vertices are inside the inner road ellipse, bounded in arena-cluster-bounds.json. Gravel is under 6cm high and non-blocking decoration; no new obstacles or collision tables. Existing scenery is preserved; one extra dry-grass material batch, no new textures.

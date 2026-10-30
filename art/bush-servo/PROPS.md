@@ -21,3 +21,6 @@ Twenty new shared static collision boxes; existing esky collider retained. Clear
 Protocol 21 prevents mismatched Stage 5 clients playing with Stage 6 collision layouts. Refresh/rebuild every peer together after publication. Other maps retain their existing layout.
 
 Review evidence and rollback instructions: `checkpoints/2026-10-27-servo-props/`. The directory retains its original start date; completion and authoring occurred on 28 October local time.
+
+## Arena detail refinement — 31 October 2026
+Five compact 256px colour maps add dust and fine scuffs to plastic, ivory, rubber and steel; timber keeps the existing shelter materials with face-projected UVs. Each picnic table gains a supply crate and bucket underneath, plus a thermos, plate and extra mug on top. Floor additions are verified inside existing table collision boxes in prop-decoration-bounds.json. Tabletop clutter is decorative, like the existing mugs. No new pickups, objectives or collision bodies. Runtime now 51,608 triangles, 10 material batches and 2,701,828 bytes; ten new recognisable props across the two tables.

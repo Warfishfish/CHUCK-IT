@@ -1,0 +1,19 @@
+{
+  "detailed_existing_esky": 1,
+  "eskies": 4,
+  "bins": 5,
+  "tyre_stacks": 6,
+  "picnic_tables": 2,
+  "roadside_signs": 2,
+  "triangles": 51608,
+  "material_batches": 10,
+  "glb_bytes": 2701828,
+  "images": 8,
+  "existing_shared_prop_colliders": 20,
+  "new_colliders_added": 0,
+  "before": {
+    "bytes": 2191376,
+    "triangles": 42272,
+    "materials": 10
+  }
+}

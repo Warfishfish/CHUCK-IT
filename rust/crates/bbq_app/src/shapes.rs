@@ -376,6 +376,62 @@ fn ring(inner: f32, outer: f32, seg: u32) -> Buf {
     b
 }
 
+// Arena ground paint: one picnic area and its approach to the shelter only.
+// Vertex colours reuse the existing repeating dirt texture and material.
+const SERVO_GROUND_STEP: f32 = 0.20;
+const SERVO_PATH_WIDTH: f32 = 0.72;
+const SERVO_WEAR_STRENGTH: f32 = 0.18;
+const SERVO_DUST_STRENGTH: f32 = 0.065;
+const SERVO_GRIT_STRENGTH: f32 = 0.10;
+const SERVO_FOOTPATH: [(f32,f32);5] = [(8.5,-2.5),(7.,-0.5),(5.,1.),(3.,3.),(0.,4.9)];
+fn servo_ground_colour(x:f32,z:f32)->[f32;4] {
+    // Exact neutral boundary prevents colour spreading into the rest of the map.
+    if x<=-2. || x>=12. || z<=-5. || z>=7. {return [1.;4];}
+    let mut distance=f32::MAX;
+    for pair in SERVO_FOOTPATH.windows(2) {
+        let (a,b)=(Vec2::from(pair[0]),Vec2::from(pair[1]));
+        let p=Vec2::new(x,z);let ab=b-a;
+        let t=((p-a).dot(ab)/ab.length_squared()).clamp(0.,1.);
+        distance=distance.min((p-(a+ab*t)).length());
+    }
+    let noise=((x*1.37+z*0.63).sin()+(z*2.13-x*0.51).sin())*0.5;
+    let width=SERVO_PATH_WIDTH*(1.+noise*0.17);
+    let path=(-((distance/width).powi(2))*1.5).exp();
+    let picnic=(-(((x-8.5)/2.25).powi(2)+((z+2.5)/1.55).powi(2))*1.4).exp();
+    let wear=path.max(picnic)*(0.86+0.14*noise);
+    let fringe=(-((distance/1.45).powi(2))).exp()*(1.-path);
+    let border=((x+2.)/0.8).min((12.-x)/0.8).min((z+5.)/0.8).min((7.-z)/0.8).clamp(0.,1.);
+    let fade=border*border*(3.-2.*border);
+    // Quiet, irregular aggregate flecks soften into the existing grit at distance.
+    let fleck=((x*19.1+z*7.3).sin()*(z*23.7-x*11.9).sin()).max(0.).powi(4);
+    let grit=fleck*SERVO_GRIT_STRENGTH*(picnic+fringe).min(1.);
+    let dust=SERVO_DUST_STRENGTH*fringe;
+    [1.+fade*(-SERVO_WEAR_STRENGTH*wear+dust-grit),
+     1.+fade*(-SERVO_WEAR_STRENGTH*0.30*wear+dust*1.1-grit),
+     1.+fade*(SERVO_WEAR_STRENGTH*0.30*wear+dust*1.2-grit*0.8),1.]
+}
+/// Same flat 260m ground and original UVs, with a finely sampled local paint patch.
+/// Outside the patch, coarse neutral strips retain the original appearance.
+pub fn servo_ground_mesh()->Mesh {
+    let mut xs=vec![-130.];
+    for i in 0..=70 {xs.push(-2.+i as f32*SERVO_GROUND_STEP);}
+    xs.push(130.);
+    let mut zs=vec![-130.];
+    for i in 0..=60 {zs.push(-5.+i as f32*SERVO_GROUND_STEP);}
+    zs.push(130.);
+    let mut b=Buf::default();
+    for &z in &zs {for &x in &xs {
+        b.vert([x,-z,0.],[0.,0.,1.],[x/260.+0.5,0.5-z/260.]);
+        b.col.push(servo_ground_colour(x,z));
+    }}
+    let n=xs.len() as u32;
+    for j in 0..zs.len()-1 {for i in 0..xs.len()-1 {
+        let a=j as u32*n+i as u32;let bb=a+n;let c=bb+1;let d=a+1;
+        b.tri(a,bb,d);b.tri(bb,c,d);
+    }}
+    b.into_mesh()
+}
+
 /// Bush Servo road only: chipped shoulders and world-aligned baked surface UVs.
 pub fn servo_road_mesh() -> Mesh {
     let mut b=ring(18.,26.,96);
@@ -963,6 +1019,25 @@ mod tests {
         }
         for p in bbq_core::looks::bum_crack() {
             assert!(build_mesh(&p.shape).count_vertices() > 0);
+        }
+    }
+}
+
+#[cfg(test)] mod servo_ground_tests {
+    use super::*;
+    #[test] fn ground_paint_is_local_finite_and_flat() {
+        for (x,z) in [(-30.,0.),(30.,0.),(0.,10.),(0.,-20.),(-2.,3.),(12.,3.),(4.,-5.),(4.,7.)] {
+            assert_eq!(servo_ground_colour(x,z),[1.;4]);
+        }
+        assert_ne!(servo_ground_colour(8.5,-2.5),[1.;4]);
+        let mesh=servo_ground_mesh();
+        let bevy::mesh::VertexAttributeValues::Float32x3(pos)=mesh.attribute(Mesh::ATTRIBUTE_POSITION).unwrap() else {panic!()};
+        let bevy::mesh::VertexAttributeValues::Float32x2(uv)=mesh.attribute(Mesh::ATTRIBUTE_UV_0).unwrap() else {panic!()};
+        let bevy::mesh::VertexAttributeValues::Float32x4(col)=mesh.attribute(Mesh::ATTRIBUTE_COLOR).unwrap() else {panic!()};
+        for ((p,u),c) in pos.iter().zip(uv).zip(col) {
+            assert_eq!(p[2],0.);assert!((u[0]-(p[0]/260.+0.5)).abs()<0.00001);
+            assert!((u[1]-(0.5-p[1]/260.)).abs()<0.00001);
+            assert!(c.iter().all(|v|v.is_finite() && *v>=0.7 && *v<=1.15));
         }
     }
 }

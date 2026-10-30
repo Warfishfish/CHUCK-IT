@@ -1,0 +1,22 @@
+{
+  "after-ground.metrics": {
+    "mean_ms": 7.819,
+    "p95_ms": 9.654,
+    "mean_fps": 127.89
+  },
+  "after-overview.metrics": {
+    "mean_ms": 7.616,
+    "p95_ms": 9.229,
+    "mean_fps": 131.3
+  },
+  "before-ground.metrics": {
+    "mean_ms": 7.885,
+    "p95_ms": 9.514,
+    "mean_fps": 126.83
+  },
+  "before-overview.metrics": {
+    "mean_ms": 7.7,
+    "p95_ms": 9.449,
+    "mean_fps": 129.88
+  }
+}

@@ -35,6 +35,7 @@ groundcover=leaves
 mesa=[mat('Ochre strata '+str(i),c) for i,c in enumerate([(.28,.075,.025),(.36,.115,.045),(.43,.16,.065),(.32,.09,.035)])]
 rockmat=mat('Sun warmed rock',(.52,.36,.23))
 pebblemat=mat('Desert stone edges',(.48,.31,.19))
+straw=mat('Arena dry grass',(.43,.35,.18))
 def surface_map(mi,name):
  # Small baked colour variation; existing runtime mip filtering prevents shimmer.
  # No procedural shader work or new material batches at runtime.
@@ -158,6 +159,40 @@ def arena_gum(x,z,h,seed):
 for i,(x,z,w,d,trunk_h) in enumerate(arena_layout['trunks']):
  assert (w,d,trunk_h)==(.7,.7,4.)
  arena_gum(x,z,arena_layout.get('heights',[ARENA_TREE_HEIGHT]*len(arena_layout['trunks']))[i],3200+i)
+
+# One deliberately grouped planting slice at the eastern arena gum.
+# Low gravel is decoration (under 6cm), not an unrepresented gameplay obstacle.
+ARENA_CLUSTER_CENTRES=[(10.5,1.95),(11.45,2.65),(12.85,1.85)]
+cluster_first=len(verts);patch_rng=random.Random(311031)
+for cx,cz in ARENA_CLUSTER_CENTRES:
+ for j in range(11):
+  a=patch_rng.uniform(0,math.tau);r=patch_rng.uniform(.20,.68)
+  x=cx+math.cos(a)*r;z=cz+math.sin(a)*r
+  sx=patch_rng.uniform(.055,.13);sy=patch_rng.uniform(.04,.10);height=patch_rng.uniform(.025,.055)
+  lower=[];upper=[]
+  for k in range(7):
+   aa=k*math.tau/7;f=patch_rng.uniform(.85,1.12)
+   lower.append(Vector((x+math.cos(aa)*sx*f,-z+math.sin(aa)*sy*f,.006)))
+   upper.append(Vector((x+math.cos(aa)*sx*f*.65,-z+math.sin(aa)*sy*f*.65,height)))
+  for k in range(7):face([lower[k],lower[(k+1)%7],upper[(k+1)%7],upper[k]],rockmat)
+  face(upper,rockmat)
+ # Several small fans wrap the gravel, leaving open soil between groups.
+ for j in range(9):
+  a=patch_rng.uniform(0,math.tau);r=patch_rng.uniform(.18,.60)
+  centre=Vector((cx+math.cos(a)*r,-cz+math.sin(a)*r,.025))
+  for k in range(11):
+   aa=patch_rng.uniform(0,math.tau)
+   leaf(centre+Vector((patch_rng.uniform(-.06,.06),patch_rng.uniform(-.06,.06),0)),aa,patch_rng.uniform(.22,.45),straw,-patch_rng.uniform(.65,1.8))
+ # Compact saltbush: grey-olive leaves, low open crown, no opaque blob.
+ for j in range(85):
+  a=j*2.399963;r=patch_rng.uniform(.06,.34)
+  q=Vector((cx+math.cos(a)*r,-cz+math.sin(a)*r,patch_rng.uniform(.12,.42)*(1-r*.4)))
+  leaf(q,a,patch_rng.uniform(.14,.25),leaves[2 if j%3 else 1],patch_rng.uniform(-.4,.5))
+new_points=verts[cluster_first:]
+assert all(9.5<x<14 and -3.6<y<-.8 and 0<=z<.6 for x,y,z in new_points)
+# Ellipse check keeps every decorative vertex inside the road's inner edge.
+assert all(math.hypot(x,(-y-6)/.65)<17.8 for x,y,z in new_points)
+(ROOT/'art/bush-servo/arena-cluster-bounds.json').write_text(json.dumps({'centres':ARENA_CLUSTER_CENTRES,'min':[min(v[k] for v in new_points) for k in range(3)],'max':[max(v[k] for v in new_points) for k in range(3)],'clear_of_road':True,'new_colliders':0},indent=2)+'\n')
 
 # Frame the arena without a uniform ring or blocking the servo facade.
 trees=[(-36,-19,9),(-37,1,10),(-35,20,11),(-22,27,9),(-6,30,8),(14,29,10),(33,26,11),(36,7,11),(36,-16,10),(24,-30,9),(7,-35,8),(-30,-33,9)]

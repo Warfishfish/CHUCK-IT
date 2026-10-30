@@ -1,3 +1,15 @@
+# Arena planting, ground and props — commit/push approved (31 October 2026)
+
+[Actual planting comparisons](2026-10-31-arena-clusters/review.html) · [Checkpoint](2026-10-31-arena-clusters/CHECKPOINT.md). Three compact groups at the eastern gum; road/carry routes and existing geometry preserved. Actual Smoko delivery and Backyard smoke pass; native timing close to baseline. Includes reviewed pending ground variation and prop-detail work under user authorization. Browser bundle remains unchanged.
+
+# Arena prop detail — ready for review (31 October 2026)
+
+[Actual before/after and motion](2026-10-30-arena-props/review.html) · [Checkpoint and verified backup](2026-10-30-arena-props/CHECKPOINT.md). Blender prop weathering and ten new picnic decorations; existing collision bounds and pending ground work preserved. Actual Smoko delivery and Backyard smoke pass. Mean native timings close to baseline, p95 +0.54–0.95 ms. No commit, push or browser publication.
+
+# Picnic ground variation — ready for review (30 October 2026)
+
+[Actual before/after and motion](2026-10-30-arena-ground/review.html) · [Checkpoint and verified backup](2026-10-30-arena-ground/CHECKPOINT.md). East picnic area and shelter approach: worn soil, dusty fringe and subtle aggregate colour. Existing flat ground/UVs preserved; no new texture, obstacles or outside work. 245 app tests and native/browser builds pass, actual Smoko delivery and Backyard smoke pass. Mean native timings close to baseline; close-view p95 +0.965 ms. No commit, push or publication.
+
 # Arena gums and browser update — publication approved (30 October 2026)
 
 User approved commit, push and browser update. Both arena gums, reviewed ground/surroundings and haze are included. Native and browser builds pass; reviewed source hashes and six live file hashes match. Public two-way relay passes; browser menu and Smoko assets loaded. New temporary link: https://planners-stripes-proved-suspension.trycloudflare.com/rust/ . Previous tunnel expired. All players must refresh and use protocol 23; create a fresh yard. Mac, server and tunnel must stay running. Untracked concept art preserved.

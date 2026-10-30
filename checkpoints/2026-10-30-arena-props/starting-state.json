@@ -1,0 +1,6 @@
+{
+  "commit": "e47700accd4997ca2caec668cd5df746b05b5514",
+  "backup": "/Users/marcus/Claude/australian-bbq-before-arena-props-2026-10-30.tar.gz",
+  "files_verified": 1845,
+  "pending": " M checkpoints/LATEST.md\n M rust/crates/bbq_app/src/models.rs\n M rust/crates/bbq_app/src/shapes.rs\n?? checkpoints/2026-10-30-arena-ground/\n?? \"concept art/\"\n"
+}

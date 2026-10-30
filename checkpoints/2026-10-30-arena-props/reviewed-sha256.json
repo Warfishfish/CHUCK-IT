@@ -1,0 +1,12 @@
+{
+  "art/bush-servo/build_props.py": "ac1a6881b7f34d2f43af329cb06d84443813d33fbbadef4cba14a6ec6166e8eb",
+  "art/bush-servo/smoko-props.blend": "88bcb7c800b0671347c36e36fa3cd92f932155ca597333ce8e75d8fea77b5f4f",
+  "art/bush-servo/prop-decoration-bounds.json": "ffe5226be1e47791d5024709429e6d5c3e8c6bff9ee4f148a6cce585e9b83c93",
+  "art/bush-servo/PROPS.md": "4484367a84933706c14d881a803483c2b80ecc843a5c153b4a06674ba108bc3c",
+  "rust/crates/bbq_app/assets/models/smoko_props.glb": "37031589d5d9de14e59ce616edcb2ff173a931e22bc2f5caebcba8a951157599",
+  "art/bush-servo/prop-textures/weather-3010.png": "616ed2e4cfcf3350c6acc54b49446044decfc713cd553d43fb6f6964f956c9ed",
+  "art/bush-servo/prop-textures/weather-3011.png": "2eb499b7c15914b29bfe06aac7031787959d345e662d1fe9b6eaf077cc924acb",
+  "art/bush-servo/prop-textures/weather-3012.png": "431e1c72b9d80886d396fbdd9d0d34628751614788e1e8019e9cd0eb84f9908d",
+  "art/bush-servo/prop-textures/weather-3013.png": "7ef061bca124a0616febec0c5a5de40181a843112382513cf468b24ea0e476d9",
+  "art/bush-servo/prop-textures/weather-3014.png": "70e9aaab5690f11a49bf57d405d46a62ae9b9dbfa4acb458c9bf28f71cd3005b"
+}

@@ -1,7 +1,8 @@
 """Stage 6 prop kit. New scene only; preserves other open Blender scenes.
 Layout uses game x,z; Blender (x,-z,height). Shared solid bounds exported for verification.
 """
-import bpy, math, json, random
+import bpy, math, json, random, struct, zlib
+import numpy as np
 from pathlib import Path
 from mathutils import Vector
 ROOT=Path('/Users/marcus/Claude/australian-bbq')
@@ -9,6 +10,10 @@ layout=json.loads((ROOT/'art/bush-servo/props-layout.json').read_text())
 scene=bpy.data.scenes.new('Bush Servo Small Props')
 bpy.context.window.scene=scene
 objects=[];report=[];rng=random.Random(6028)
+# Baked once, shared by every prop: restrained age rather than noisy damage.
+WEAR_SIZE=256
+DUST_AMOUNT=.10
+SCUFF_AMOUNT=.13
 def mat(name,c,rough=.8,metal=0):
  m=bpy.data.materials.new('Servo props '+name);m.use_nodes=True
  n=next(n for n in m.node_tree.nodes if n.type=='BSDF_PRINCIPLED')
@@ -28,11 +33,43 @@ with bpy.data.libraries.load(str(ROOT/'art/bush-servo/smoko-shelter.blend'),link
  dst.materials=names
 for i,m in enumerate(dst.materials):
  if m:wood[i]=m
+def weather(material,seed):
+ bs=next(n for n in material.node_tree.nodes if n.type=='BSDF_PRINCIPLED')
+ c=np.array(bs.inputs['Base Color'].default_value[:3]);rr=np.random.default_rng(seed)
+ yy,xx=np.mgrid[0:WEAR_SIZE,0:WEAR_SIZE]/(WEAR_SIZE-1)
+ # Image rows run bottom-up in Blender; soft dirt collects toward object bases.
+ dust=DUST_AMOUNT*(1-yy)**3
+ variation=.018*np.sin(xx*math.tau*4+np.sin(yy*8))+.012*rr.uniform(-1,1,xx.shape)
+ wear=np.zeros(xx.shape)
+ for i in range(35):
+  cx,cy=rr.uniform(.04,.96,2);length=rr.uniform(.012,.10)
+  mark=np.exp(-((xx-cx)/length)**2-((yy-cy)/.0025)**2)
+  wear=np.maximum(wear,mark*SCUFF_AMOUNT)
+ colour=np.clip(c[None,None,:]*(1+variation[:,:,None])*(1-dust[:,:,None]-wear[:,:,None])+np.array([.38,.27,.16])*dust[:,:,None]+np.array([.55,.53,.43])*wear[:,:,None],0,1)
+ srgb=np.where(colour<=.0031308,colour*12.92,1.055*np.power(colour,1/2.4)-.055)
+ rgba=np.empty((WEAR_SIZE,WEAR_SIZE,4),dtype=np.uint8);rgba[:,:,:3]=(srgb*255+.5).astype(np.uint8);rgba[:,:,3]=255
+ # PNG top row is Blender's highest v.
+ raw=b''.join(b'\0'+row.tobytes() for row in rgba[::-1])
+ def chunk(k,v):return struct.pack('>I',len(v))+k+v+struct.pack('>I',zlib.crc32(k+v)&0xffffffff)
+ folder=ROOT/'art/bush-servo/prop-textures';folder.mkdir(exist_ok=True)
+ path=folder/f'weather-{seed}.png';path.write_bytes(b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',WEAR_SIZE,WEAR_SIZE,8,6,0,0,0))+chunk(b'IDAT',zlib.compress(raw,8))+chunk(b'IEND',b''))
+ im=bpy.data.images.load(str(path),check_existing=False);im.pack()
+ node=material.node_tree.nodes.new('ShaderNodeTexImage');node.image=im
+ material.node_tree.links.new(node.outputs['Color'],bs.inputs['Base Color'])
+for i,m in enumerate([blue,teal,cream,rubber,steel]):weather(m,3010+i)
+
 def box(name,x,z,y,w,d,h,m,bevel=.025):
  bpy.ops.mesh.primitive_cube_add(size=1,location=(x,-z,y));o=bpy.context.object;o.name=name;o.dimensions=(w,d,h)
  bpy.ops.object.transform_apply(location=False,rotation=False,scale=True);o.data.materials.append(m)
  if bevel:
   b=o.modifiers.new('Rounded edges','BEVEL');b.width=min(bevel,min(w,d,h)*.3);b.segments=2;bpy.ops.object.modifier_apply(modifier=b.name)
+ # Project each face using its two dominant axes, with vertical sides bottom-up.
+ uv=o.data.uv_layers.active or o.data.uv_layers.new(name='Prop surface')
+ for f in o.data.polygons:
+  axis=max(range(3),key=lambda k:abs(f.normal[k]))
+  for li in f.loop_indices:
+   v=o.data.vertices[o.data.loops[li].vertex_index].co
+   uv.data[li].uv=((v.y/d+.5,v.z/h+.5) if axis==0 else ((v.x/w+.5,v.z/h+.5) if axis==1 else (v.x/w+.5,v.y/d+.5)))
  objects.append(o);return o
 def cylinder(name,x,z,y,r,depth,m):
  bpy.ops.mesh.primitive_cylinder_add(vertices=20,radius=r,depth=depth,location=(x,-z,y));o=bpy.context.object;o.name=name;o.data.materials.append(m);objects.append(o);return o
@@ -104,6 +141,43 @@ for i,(x,z,w,d,h) in enumerate(layout['tables']):
   torus('Mug lip',cx,cz,h+.18,.068,.009,steel)
   torus('Mug handle',cx+.095,cz,h+.1,.042,.011,cream,(math.pi/2,0,0))
  box('Napkin tray',x,z+.1,h+.018,.33,.19,.036,steel,.015)
+# Concept-inspired picnic clutter. Floor props fit inside the existing table solid.
+decorative_floor_bounds=[]
+for i,(x,z,w,d,h) in enumerate(layout['tables']):
+ floor_start=len(objects)
+ cx=x-.30;cz=z
+ box('Supply crate interior',cx,cz,.15,.57,.43,.25,wood[0],.015)
+ for level in [.08,.19,.30]:
+  for side in [-1,1]:
+   box('Crate side slat',cx,cz+side*.25,level,.65,.04,.075,wood[1],.008)
+   box('Crate end slat',cx+side*.305,cz,level,.04,.46,.075,wood[2],.008)
+ for dx in [-.29,.29]:
+  for dz in [-.23,.23]:box('Crate corner',cx+dx,cz+dz,.17,.055,.055,.34,wood[0],.005)
+ # Hollow galvanised bucket and raised wire handle under the table.
+ bx=x+.48;bz=z
+ cylinder('Bucket shell',bx,bz,.16,.16,.30,steel)
+ cylinder('Bucket dark opening',bx,bz,.312,.144,.004,dark)
+ torus('Bucket rolled lip',bx,bz,.315,.15,.012,steel)
+ torus('Bucket wire handle',bx,bz,.36,.16,.006,steel,(math.pi/2,0,0))
+ bpy.context.view_layer.update()
+ coords=[o.matrix_world@Vector(v) for o in objects[floor_start:] for v in o.bound_box]
+ lo=[min(v[k] for v in coords) for k in range(3)];hi=[max(v[k] for v in coords) for k in range(3)]
+ assert lo[0]>=x-w/2 and hi[0]<=x+w/2 and lo[1]>=-z-d/2 and hi[1]<=-z+d/2 and lo[2]>=-.001 and hi[2]<h
+ decorative_floor_bounds.append({'table':i,'min':lo,'max':hi,'within_existing_solid':True})
+ # Thermos, enamel side plate and an extra mug form a readable tabletop grouping.
+ tx=x-.10;tz=z-.20
+ cylinder('Smoko thermos',tx,tz,h+.18,.085,.36,teal)
+ cylinder('Thermos collar',tx,tz,h+.35,.087,.025,steel)
+ cylinder('Thermos cup lid',tx,tz,h+.395,.09,.075,cream)
+ cylinder('Enamel plate',x+.18,z+.12,h+.012,.145,.024,cream)
+ torus('Plate rim',x+.18,z+.12,h+.026,.135,.01,steel)
+ cylinder('Extra enamel mug',x-.85,z+.18,h+.085,.07,.17,cream)
+ cylinder('Extra mug tea',x-.85,z+.18,h+.173,.055,.004,dark)
+ torus('Extra mug handle',x-.76,z+.18,h+.09,.04,.01,cream,(math.pi/2,0,0))
+ # Countersunk fasteners and quiet worn edges, still within the tabletop bounds.
+ for dx in [-.80,.80]:
+  for dz in [-.30,.30]:cylinder('Table fastener',x+dx,z+dz,h+.001,.012,.002,dark)
+
 for i,(x,z) in enumerate(layout['signs']):
  box('Roadside sign post',x,z,1.15,.16,.16,2.3,wood[0],.02)
  box('Roadside sign board',x,z,1.85,1.8,.10,.85,teal,.035)
@@ -118,5 +192,8 @@ bpy.context.view_layer.objects.active=objects[0]
 bpy.data.libraries.write(str(ROOT/'art/bush-servo/smoko-props.blend'), {scene}, fake_user=True, compress=True)
 bpy.ops.object.duplicate();bpy.ops.object.join();asset=bpy.context.object;asset.name='Smoko Small Props Runtime'
 bpy.ops.export_scene.gltf(filepath=str(ROOT/'rust/crates/bbq_app/assets/models/smoko_props.glb'),use_selection=True,use_active_scene=True,export_apply=True)
+import runpy
+print(runpy.run_path(str(ROOT/'art/bush-servo/compact_glb.py'))['compact'](ROOT/'rust/crates/bbq_app/assets/models/smoko_props.glb'))
 (ROOT/'art/bush-servo/props-bounds.json').write_text(json.dumps(report,indent=2)+'\n')
+(ROOT/'art/bush-servo/prop-decoration-bounds.json').write_text(json.dumps(decorative_floor_bounds,indent=2)+'\n')
 print({'solids':len(report),'objects':len(objects),'polygons':len(asset.data.polygons),'materials':len(asset.data.materials)})
