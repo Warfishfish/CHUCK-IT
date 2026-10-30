@@ -16,6 +16,10 @@ BARK_RESOLUTION=512
 BARK_NORMAL_STRENGTH=.20
 BARK_VALUE_RANGE=(.61,.84)
 STONE_TEXTURE_RESOLUTION=256
+# Arena specimens only; exterior trees and mesas intentionally unchanged.
+ARENA_TREE_HEIGHT=8.4
+ARENA_SPRAY_LEAVES=100
+arena_layout=json.loads((ROOT/'art/bush-servo/arena-trees.json').read_text())
 scene=bpy.data.scenes.new('Bush Servo Landscape');bpy.context.window.scene=scene
 verts=[];faces=[];mids=[];materials=[]
 def mat(name,c):
@@ -120,6 +124,41 @@ def tree(x,z,h,seed):
    end=tip+Vector((math.cos(aa)*h*.20,math.sin(aa)*h*.20,h*rr.uniform(-.06,.15)))
    rod(tip,end,h*.008,.012,bark,5)
    crown(tip.lerp(end,.65),seed*20+j*4+k,h>=8)
+def arena_gum(x,z,h,seed):
+ # Broad asymmetric boughs and hanging foliage with gaps between crowns.
+ # Straight lower trunk matches shared collision; bending starts above head height.
+ rr=random.Random(seed);base=Vector((x,-z,0));fork=base+Vector((0,0,4.0))
+ rod(base,base+Vector((0,0,2.3)),.35,.31,bark,12)
+ rod(base+Vector((0,0,2.3)),fork,.31,.27,bark,12)
+ for j in range(7):
+  a=j*2.399963+rr.uniform(-.3,.3);reach=rr.uniform(2.1,3.25)
+  tip=base+Vector((math.cos(a)*reach,math.sin(a)*reach,h*rr.uniform(.66,.88)))
+  elbow=fork.lerp(tip,.42)+Vector((rr.uniform(-.22,.22),rr.uniform(-.22,.22),.25))
+  rod(fork,elbow,.19 if j<3 else .14,.10,bark,9)
+  rod(elbow,tip,.10,.035,bark,7)
+  for k in range(3):
+   aa=a+(k-1)*.62;end=tip+Vector((math.cos(aa)*rr.uniform(.6,1.25),math.sin(aa)*rr.uniform(.6,1.25),rr.uniform(-.12,.65)))
+   rod(tip,end,.035,.009,bark,5)
+   centre=tip.lerp(end,.8)
+   for i in range(ARENA_SPRAY_LEAVES):
+    theta=i*2.399963+rr.uniform(-.35,.35);radius=math.sqrt(rr.random())
+    q=centre+Vector((math.cos(theta)*radius*1.05,math.sin(theta)*radius*.8,rr.uniform(-.75,.5)))
+    leaf(q,theta,rr.uniform(.48,.78),leaves[rr.choices(range(4),[1,4,3,2])[0]],rr.uniform(.15,1.1))
+ # A little exposed root flare; stays inside the .7m shared trunk footprint.
+ for j in range(5):
+  a=j*math.tau/5
+  rod(base+Vector((0,0,.38)),base+Vector((math.cos(a)*.25,math.sin(a)*.25,.04)),.12,.045,bark,5)
+ # Clustered dry grasses and saltbush, kept compact and outside walking corridors.
+ for cluster in range(9):
+  a=rr.uniform(0,math.tau);rad=rr.uniform(.55,1.6)
+  centre=base+Vector((math.cos(a)*rad,math.sin(a)*rad,.035))
+  for j in range(25):
+   q=centre+Vector((rr.uniform(-.22,.22),rr.uniform(-.22,.22),rr.uniform(0,.08)))
+   leaf(q,rr.uniform(0,math.tau),rr.uniform(.22,.5),leaves[rr.randrange(1,4)],-.9)
+for i,(x,z,w,d,trunk_h) in enumerate(arena_layout['trunks']):
+ assert (w,d,trunk_h)==(.7,.7,4.)
+ arena_gum(x,z,arena_layout.get('heights',[ARENA_TREE_HEIGHT]*len(arena_layout['trunks']))[i],3200+i)
+
 # Frame the arena without a uniform ring or blocking the servo facade.
 trees=[(-36,-19,9),(-37,1,10),(-35,20,11),(-22,27,9),(-6,30,8),(14,29,10),(33,26,11),(36,7,11),(36,-16,10),(24,-30,9),(7,-35,8),(-30,-33,9)]
 for i,(x,z,h) in enumerate(trees):tree(x,z,h,500+i)
@@ -212,4 +251,4 @@ bpy.ops.export_scene.gltf(filepath=str(ROOT/'rust/crates/bbq_app/assets/models/s
 import runpy
 print(runpy.run_path(str(ROOT/'art/bush-servo/compact_glb.py'))['compact'](ROOT/'rust/crates/bbq_app/assets/models/smoko_landscape.glb'))
 (ROOT/'art/bush-servo/landscape-bounds.json').write_text(json.dumps(bounds,indent=2)+'\n')
-print({'trees':len(trees)+28,'perimeter_cover':len(bounds),'polygons':len(obj.data.polygons),'materials':len(obj.data.materials)})
+print({'trees':len(trees)+28+len(arena_layout['trunks']),'perimeter_cover':len(bounds),'polygons':len(obj.data.polygons),'materials':len(obj.data.materials)})

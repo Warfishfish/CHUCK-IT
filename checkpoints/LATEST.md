@@ -1,3 +1,15 @@
+# Arena gums and browser update — publication approved (30 October 2026)
+
+User approved commit, push and browser update. Both arena gums, reviewed ground/surroundings and haze are included. Native and browser builds pass; reviewed source hashes and six live file hashes match. Public two-way relay passes; browser menu and Smoko assets loaded. New temporary link: https://planners-stripes-proved-suspension.trycloudflare.com/rust/ . Previous tunnel expired. All players must refresh and use protocol 23; create a fresh yard. Mac, server and tunnel must stay running. Untracked concept art preserved.
+
+# Two gums inside Smoko arena — ready for review (30 October 2026)
+
+[Actual before/after and motion](2026-10-30-arena-gums/review.html) · [Checkpoint and verified backup](2026-10-30-arena-gums/CHECKPOINT.md). Second, shorter gum at (-11.5,2); first specimen and exterior scenery preserved. Two shared solid trunks, clear routes, protocol 23. 446 core + 244 app tests, native/browser builds and actual Smoko delivery pass. Near-view cost ~0.3 ms in repeat checks; browser/device measurement pending. No commit, push or browser publication.
+
+# First gum inside the Smoko arena — ready for review (30 October 2026)
+
+[Actual before/after and motion](2026-10-30-servo-tree-slice/review.html) · [Checkpoint and verified backup](2026-10-30-servo-tree-slice/CHECKPOINT.md). One fuller gum and planted base inside the road loop; exterior scenery unchanged per user correction. Shared solid trunk, clear routes, protocol 22. 446 core and 244 app tests pass; native build and actual Smoko delivery pass. Native frame times essentially unchanged. Local only; no commit/push/publication.
+
 # Smoko surfaces and atmosphere — approved for commit/push (30 October 2026)
 
 User approved the reviewed shelter surfaces and pending haze pass. Reviewed asset hashes and whitespace checks verified. Browser bundle remains unchanged; publication was not requested in this step. Historical review entries follow.

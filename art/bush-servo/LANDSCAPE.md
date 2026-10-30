@@ -25,3 +25,9 @@ fence; no collision, route, road or gameplay data changes. `build_landscape.py`
 keeps the additions deterministic and combines them into the existing landscape
 mesh/material batches. See `checkpoints/2026-10-29-servo-groundcover/` for an
 actual in-game overview and review notes.
+
+## First playable-arena gum — 30 October 2026
+One new tree at game x=12, z=1.5, 8.4m tall, grows inside the road loop. Existing exterior scenery is unchanged. `arena-trees.json` defines the shared 0.7m-wide, 4m-high solid lower trunk; core collision matches it and marks it no-top. High branches and foliage are visual only. Local seeded branching and 21 hanging sprays use existing Poly Haven bark and foliage materials; nine small grass/saltbush clusters surround its base. `ARENA_TREE_HEIGHT` and `ARENA_SPRAY_LEAVES` tune this specimen. Do not expand outside the arena for the current stage.
+
+## Two arena gums — 30 October 2026
+A second 7.7m specimen at (-11.5, 2) balances the original 8.4m tree at (12, 1.5). Heights are now per-tree values in arena-trees.json, and local seeds vary canopy shape without changing existing scenery. Both trunks have shared 0.7m × 0.7m × 4m collision, with no standing surface on top. Protocol 23 prevents mixed collision versions. The arena remains the focus; no distant scenery edits.

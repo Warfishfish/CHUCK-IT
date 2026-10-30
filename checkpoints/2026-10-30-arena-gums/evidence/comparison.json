@@ -1,0 +1,42 @@
+{
+  "after-overview.metrics": {
+    "mean_ms": 7.88,
+    "p95_ms": 11.44,
+    "mean_fps": 126.9
+  },
+  "after-repeat-overview.metrics": {
+    "mean_ms": 7.939,
+    "p95_ms": 12.441,
+    "mean_fps": 125.96
+  },
+  "after-repeat-tree.metrics": {
+    "mean_ms": 8.497,
+    "p95_ms": 12.628,
+    "mean_fps": 117.7
+  },
+  "after-tree.metrics": {
+    "mean_ms": 8.225,
+    "p95_ms": 11.469,
+    "mean_fps": 121.58
+  },
+  "before-overview.metrics": {
+    "mean_ms": 7.649,
+    "p95_ms": 9.344,
+    "mean_fps": 130.74
+  },
+  "before-repeat-overview.metrics": {
+    "mean_ms": 8.001,
+    "p95_ms": 12.696,
+    "mean_fps": 124.98
+  },
+  "before-repeat-tree.metrics": {
+    "mean_ms": 8.172,
+    "p95_ms": 11.95,
+    "mean_fps": 122.37
+  },
+  "before-tree.metrics": {
+    "mean_ms": 7.955,
+    "p95_ms": 9.734,
+    "mean_fps": 125.7
+  }
+}

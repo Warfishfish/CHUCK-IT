@@ -81,8 +81,13 @@ pub const PROP_SOLIDS: [(f32,f32,f32,f32,f32);20] = [
     (8.500,-3.450,2.400,0.350,0.480),
     (8.500,-1.550,2.400,0.350,0.480),
 ];
+// In-arena gums: match art/bush-servo/arena-trees.json.
+// Narrow lower trunk is solid, high foliage remains visual; not a standing surface.
+pub const ARENA_TREE_TRUNKS: [(f32,f32,f32,f32,f32);2] = [(12.,1.5,0.7,0.7,4.),(-11.5,2.,0.7,0.7,4.)];
 pub fn colliders()->Vec<Collider> {
-    SOLIDS.iter().chain(LANDSCAPE_SOLIDS.iter()).chain(NATURE_SOLIDS.iter()).chain(PROP_SOLIDS.iter()).map(|&(x,z,w,d,h)|Collider::centred(x,z,w,d,h).of(Kind::Plain)).collect()
+    SOLIDS.iter().chain(LANDSCAPE_SOLIDS.iter()).chain(NATURE_SOLIDS.iter()).chain(PROP_SOLIDS.iter()).map(|&(x,z,w,d,h)|Collider::centred(x,z,w,d,h).of(Kind::Plain)).chain(ARENA_TREE_TRUNKS.iter().map(|&(x,z,w,d,h)| {
+        let mut c=Collider::centred(x,z,w,d,h).of(Kind::Plain);c.no_top=true;c
+    })).collect()
 }
 fn block(w:f32,h:f32,d:f32,x:f32,y:f32,z:f32,c:u32)->Part {
     Part::new(Shape::Cuboid{w,h,d},Surface::matt(c)).at(x,y,z)
@@ -122,6 +127,11 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
     // Existing scoring ring remains legible; earth continues naturally beneath the shelter.
     p.push(Part::new(Shape::Ring{inner:SCORE_RADIUS-0.12,outer:SCORE_RADIUS,seg:96},Surface::matt(0xf5ce69).no_shadow()).at(0.,0.035,10.).turn(-FRAC_PI_2,0.,0.));
     if procedural_shelter {
+    for &(x,z,w,d,h) in &ARENA_TREE_TRUNKS {
+        p.push(block(w,h,d,x,h/2.,z,0xc0b69d));
+        let mut crown=Part::new(Shape::Ico{r:1.,detail:2},Surface::matt(0x637543)).at(x,6.2,z);
+        crown.scale=V3::new(3.5,1.5,3.);p.push(crown);
+    }
     for &(x,z,w,d,h) in LANDSCAPE_SOLIDS.iter().chain(NATURE_SOLIDS.iter()).chain(PROP_SOLIDS.iter()) {p.push(block(w,h,d,x,h/2.,z,0xb98555));}
     for (i,&(x,z,w,d,h)) in SOLIDS.iter().enumerate() {
         p.push(if i==6 {block(w,h,d,x,h/2.,z,TEAL)}else{timber(w,h,d,x,h/2.,z)});
@@ -206,6 +216,24 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
 }
 #[cfg(test)] mod tests {
  use super::*;
+ #[test] fn arena_tree_is_solid_and_leaves_routes_clear(){
+  for &(x,z,w,d,h) in &ARENA_TREE_TRUNKS {
+   assert!(x.abs()+w/2.<32. && z.abs()+d/2.<23.);
+   let c=colliders().into_iter().find(|c|(c.x0-(x-w/2.)).abs()<0.001 && (c.z0-(z-d/2.)).abs()<0.001).unwrap();
+   assert!(c.no_top && (c.h-h).abs()<0.001);
+   // Trunk and 1.7m planting island stay within the inner road edge.
+   assert!((x.abs()+1.7).hypot(((z-6.).abs()+1.7)/ROAD_Z_SCALE)<18.);
+   for &(sx,sz) in &crate::yard::CHAR_SPAWNS {
+    assert!((sx-x).abs()>w/2.+0.6 || (sz-z).abs()>d/2.+0.6);
+   }
+   for i in -24..=24 {let t=i as f32*0.5;for (sx,sz) in [(t,10.),(0.,10.+t)] {
+    assert!((sx-x).abs()>w/2.+1.4 || (sz-z).abs()>d/2.+1.4);
+   }}
+   for &(a,b,c,e,_) in SOLIDS.iter().chain(LANDSCAPE_SOLIDS.iter()).chain(NATURE_SOLIDS.iter()).chain(PROP_SOLIDS.iter()) {
+    assert!((x-a).abs()>=(w+c)/2. || (z-b).abs()>=(d+e)/2.);
+   }
+  }
+ }
  #[test] fn delivery_centre_and_lanes_are_clear(){
   for (x,z) in [(0.,10.),(0.,4.),(0.,16.),(-6.,10.),(6.,10.)] {
    assert!(!colliders().iter().any(|c|x>c.x0-0.45&&x<c.x1+0.45&&z>c.z0-0.45&&z<c.z1+0.45));

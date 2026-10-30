@@ -13,7 +13,7 @@
 
 /// Bump this whenever a message changes, so old and new copies of the game refuse each other
 /// politely instead of misreading each other.
-pub const PROTOCOL: u16 = 21; // Movement acknowledgements plus Bush Servo small-prop collision.
+pub const PROTOCOL: u16 = 23; // Two shared in-arena Bush Servo gum trunks.
 /// The most people in one yard (the browser game's limit).
 pub const MAX_PLAYERS: usize = 16;
 /// How often each player reports where they are.

@@ -1,0 +1,6 @@
+{
+  "commit": "4b188db1b640b102d0c683a0c4f0019571dffde2",
+  "backup": "/Users/marcus/Claude/australian-bbq-before-arena-gums-2026-10-30.tar.gz",
+  "files_verified": 1799,
+  "pending": " M art/bush-servo/LANDSCAPE.md\n M art/bush-servo/build_landscape.py\n M art/bush-servo/smoko-landscape.blend\n M checkpoints/LATEST.md\n M rust/crates/bbq_app/assets/models/smoko_landscape.glb\n M rust/crates/bbq_core/src/bush_servo.rs\n M rust/crates/bbq_core/src/net.rs\n?? art/bush-servo/arena-trees.json\n?? checkpoints/2026-10-30-servo-tree-slice/\n?? \"concept art/\"\n"
+}

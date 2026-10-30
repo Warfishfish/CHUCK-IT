@@ -1,0 +1,15 @@
+{
+  "before": {
+    "bytes": 8733372,
+    "triangles": 131380,
+    "batches": 11
+  },
+  "after": {
+    "bytes": 9036288,
+    "triangles": 136744,
+    "batches": 11
+  },
+  "previous_vertices_preserved_within_0_02mm": true,
+  "new_vertices_inside_arena": 9820,
+  "shared_trunks_match": true
+}

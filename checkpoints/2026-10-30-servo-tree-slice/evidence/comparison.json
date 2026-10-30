@@ -1,0 +1,22 @@
+{
+  "before-overview": {
+    "mean_ms": 7.608,
+    "p95_ms": 9.502,
+    "mean_fps": 131.43
+  },
+  "before-tree": {
+    "mean_ms": 7.753,
+    "p95_ms": 9.569,
+    "mean_fps": 128.98
+  },
+  "after-overview": {
+    "mean_ms": 7.529,
+    "p95_ms": 9.466,
+    "mean_fps": 132.82
+  },
+  "after-tree": {
+    "mean_ms": 7.782,
+    "p95_ms": 9.764,
+    "mean_fps": 128.5
+  }
+}
