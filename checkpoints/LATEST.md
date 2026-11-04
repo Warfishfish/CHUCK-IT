@@ -1,3 +1,7 @@
+# Browser updated — 4 November 2026
+
+Approved graphics source f39a806 rebuilt and published. New temporary link: https://recognised-studying-analysis-lives.trycloudflare.com/rust/ . Previous tunnel was no longer running. Web build passed; live file hashes and two-way public relay verified. Mac, server and Cloudflare tunnel must stay running. Previous browser bundle retained outside repo for rollback.
+
 # Shelter and picnic depth — commit/push approved (4 November 2026)
 
 User approved the reviewed local graphics pass for commit and push. Reviewed source hashes and whitespace checks verified. Browser publication was not requested; live browser files remain unchanged.

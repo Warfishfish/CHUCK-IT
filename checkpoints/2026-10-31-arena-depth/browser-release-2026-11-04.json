@@ -1,0 +1,16 @@
+{
+  "url": "https://recognised-studying-analysis-lives.trycloudflare.com/rust/",
+  "source_commit": "f39a80641d0159a0cae37e9bf93dab2c5e8a4908",
+  "backup": "/Users/marcus/Claude/australian-bbq-browser-before-depth-20261104",
+  "checks": "Web build passed; eight live file hashes matched; public relay passed in both directions; menu loaded. Smoko arena loaded with bots, shelter and landscape.",
+  "sha256": {
+    "index.html": "86fe7db3acc34c13772b44843b11911b079c564da1f582882f9f29c9271a045c",
+    "release.json": "46aec7c4ff82b502844f900465cf4edf899ad5e5c4a9c0dbf3b85b1f368fa3a8",
+    "bbq.js": "f5c7954ec7d3d59a123bd20e579a0a4f73c6b0fec8e3b622ff20cbdd4bcc32dd",
+    "bbq_bg.wasm": "e5a1427fd872b68a46fd48c13bdf433deb1ba687a8634865a22cc1883209a083",
+    "assets/models/smoko_shelter.glb": "4e504ab19ecd29da4d077d588e103c370e4d5bdee93270d0f5fa46c04f644880",
+    "assets/models/smoko_props.glb": "116591ffade4a5576bf9ca35f4c244ce1c48942ff889114b11d993f0734c51a4",
+    "assets/models/smoko_landscape.glb": "49a2b9170c087c608c1073c1db7e0efe9251c90ab1962f772a169eaed9cf23bc",
+    "assets/models/smoko_surroundings.glb": "dcb9c9e4986caccaf1cc0d74aec8b30f39f757f74d8f9b7fab56ef74ff742ff6"
+  }
+}
