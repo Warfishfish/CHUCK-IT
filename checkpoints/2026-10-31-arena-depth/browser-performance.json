@@ -1,0 +1,27 @@
+{
+  "conditions": "Same Mac, in-app browser 666x864, default Balanced quality, same stationary Smoko spawn/camera, zero bots, 5-second rolling panel; pointer-lock overlay present, simulation/rendering active. Not multiplayer or movement validation.",
+  "before": [
+    {
+      "mean_ms": 13.4,
+      "p95_ms": 14.6,
+      "fps": 74
+    },
+    {
+      "mean_ms": 13.3,
+      "p95_ms": 14.3,
+      "fps": 75
+    }
+  ],
+  "after": [
+    {
+      "mean_ms": 13.4,
+      "p95_ms": 14.6,
+      "fps": 74
+    },
+    {
+      "mean_ms": 13.4,
+      "p95_ms": 14.6,
+      "fps": 74
+    }
+  ]
+}

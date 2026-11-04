@@ -1,0 +1,7 @@
+{
+  "commit": "d2a91fd956f06d39d8137fdfe5f32087ba9b539e",
+  "backup": "/Users/marcus/Claude/australian-bbq-before-arena-depth-2026-10-31.tar.gz",
+  "verified_files": 1890,
+  "status": "?? \"concept art/\"\n",
+  "launch": "cd /Users/marcus/Claude/australian-bbq/rust && ~/.cargo/bin/cargo run -p bbq_app --release -- --menu"
+}

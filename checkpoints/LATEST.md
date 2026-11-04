@@ -1,3 +1,11 @@
+# Shelter and picnic depth — commit/push approved (4 November 2026)
+
+User approved the reviewed local graphics pass for commit and push. Reviewed source hashes and whitespace checks verified. Browser publication was not requested; live browser files remain unchanged.
+
+# Shelter and picnic depth — ready for review (31 October 2026)
+
+[Actual comparisons and motion](2026-10-31-arena-depth/review.html) · [Recovery checkpoint](2026-10-31-arena-depth/CHECKPOINT.md). Local bounce/contact shading and consistent timber/stone/dirt tones; outside scenery and gameplay preserved. 246 app tests, native/browser builds, Smoko delivery and Backyard smoke pass. Native timing essentially unchanged; stationary browser ~74–75 FPS before/after (mouse capture blocked; not a movement/network test). Verified backup retained. No commit, push or publication.
+
 # Arena planting, ground and props — commit/push approved (31 October 2026)
 
 [Actual planting comparisons](2026-10-31-arena-clusters/review.html) · [Checkpoint](2026-10-31-arena-clusters/CHECKPOINT.md). Three compact groups at the eastern gum; road/carry routes and existing geometry preserved. Actual Smoko delivery and Backyard smoke pass; native timing close to baseline. Includes reviewed pending ground variation and prop-detail work under user authorization. Browser bundle remains unchanged.

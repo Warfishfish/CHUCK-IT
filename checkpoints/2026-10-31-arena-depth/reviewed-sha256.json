@@ -1,0 +1,9 @@
+{
+  "rust/crates/bbq_app/src/arena_depth.rs": "a04054e6cd50e18769d7da3cb7cf5e72b09e20972a8d85380c4751a51a0a2e74",
+  "rust/crates/bbq_app/src/main.rs": "38b24e84da7c3436a163e41b52589805cb1efc93e833fbc5e0053a36bf61bb66",
+  "rust/crates/bbq_app/src/shapes.rs": "ca85aaf874615ae760cbf906fff252a8a55c25b6824c26de7a27db28ee6ab690",
+  "art/bush-servo/finish_arena_depth.py": "f17cfc3f862e719f3a70f5224a9b6e5924dcbfb2ce5e06268273d56da269fb35",
+  "rust/crates/bbq_app/assets/models/smoko_shelter.glb": "4e504ab19ecd29da4d077d588e103c370e4d5bdee93270d0f5fa46c04f644880",
+  "rust/crates/bbq_app/assets/models/smoko_props.glb": "116591ffade4a5576bf9ca35f4c244ce1c48942ff889114b11d993f0734c51a4",
+  "rust/crates/bbq_app/assets/models/smoko_surroundings.glb": "dcb9c9e4986caccaf1cc0d74aec8b30f39f757f74d8f9b7fab56ef74ff742ff6"
+}

@@ -50,6 +50,7 @@ mod shapes;
 mod silicone;
 mod smoko_mode;
 mod servo_finish;
+mod arena_depth;
 mod race;
 mod shirt;
 mod shot;
@@ -133,7 +134,7 @@ fn main() {
             >::default(),
         ),
     );
-    app.add_plugins((wet::WetPlugin, servo_finish::ServoFinishPlugin));
+    app.add_plugins((wet::WetPlugin, servo_finish::ServoFinishPlugin, arena_depth::ArenaDepthPlugin));
     app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin, online::OnlinePlugin, face::FacePlugin, lobby::LobbyPlugin, legs::LegsPlugin, shirt::ShirtPlugin));
     #[cfg(target_arch = "wasm32")]
     if browser_perf::enabled() {

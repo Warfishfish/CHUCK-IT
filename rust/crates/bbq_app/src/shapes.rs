@@ -384,6 +384,7 @@ const SERVO_WEAR_STRENGTH: f32 = 0.18;
 const SERVO_DUST_STRENGTH: f32 = 0.065;
 const SERVO_GRIT_STRENGTH: f32 = 0.10;
 const SERVO_FOOTPATH: [(f32,f32);5] = [(8.5,-2.5),(7.,-0.5),(5.,1.),(3.,3.),(0.,4.9)];
+const SERVO_PICNIC_EARTH_TINT: [f32;3] = [0.96, 0.985, 1.0];
 fn servo_ground_colour(x:f32,z:f32)->[f32;4] {
     // Exact neutral boundary prevents colour spreading into the rest of the map.
     if x<=-2. || x>=12. || z<=-5. || z>=7. {return [1.;4];}
@@ -406,9 +407,10 @@ fn servo_ground_colour(x:f32,z:f32)->[f32;4] {
     let fleck=((x*19.1+z*7.3).sin()*(z*23.7-x*11.9).sin()).max(0.).powi(4);
     let grit=fleck*SERVO_GRIT_STRENGTH*(picnic+fringe).min(1.);
     let dust=SERVO_DUST_STRENGTH*fringe;
-    [1.+fade*(-SERVO_WEAR_STRENGTH*wear+dust-grit),
-     1.+fade*(-SERVO_WEAR_STRENGTH*0.30*wear+dust*1.1-grit),
-     1.+fade*(SERVO_WEAR_STRENGTH*0.30*wear+dust*1.2-grit*0.8),1.]
+    let earth=SERVO_PICNIC_EARTH_TINT.map(|t|1.+(t-1.)*fade*picnic);
+    [earth[0]*(1.+fade*(-SERVO_WEAR_STRENGTH*wear+dust-grit)),
+     earth[1]*(1.+fade*(-SERVO_WEAR_STRENGTH*0.30*wear+dust*1.1-grit)),
+     earth[2]*(1.+fade*(SERVO_WEAR_STRENGTH*0.30*wear+dust*1.2-grit*0.8)),1.]
 }
 /// Same flat 260m ground and original UVs, with a finely sampled local paint patch.
 /// Outside the patch, coarse neutral strips retain the original appearance.

@@ -1,0 +1,20 @@
+{
+  "shelter": {
+    "tinted_vertices": 9504,
+    "neutral_vertices": 0,
+    "added_bytes": 152796,
+    "original_binary_unchanged": true
+  },
+  "props": {
+    "tinted_vertices": 15552,
+    "neutral_vertices": 432,
+    "added_bytes": 256188,
+    "original_binary_unchanged": true
+  },
+  "surroundings": {
+    "tinted_vertices": 4655,
+    "neutral_vertices": 4297,
+    "added_bytes": 143816,
+    "original_binary_unchanged": true
+  }
+}
