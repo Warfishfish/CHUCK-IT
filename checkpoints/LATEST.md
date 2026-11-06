@@ -1,3 +1,7 @@
+# Browser publication — 7 November 2026
+
+Completed shelter and prop graphics source committed/pushed as455dbfa. Browser assets updated; six public hashes and two-way relay verified. New temporary URL: https://wooden-cinema-worship-menu.trycloudflare.com/rust/ . Mac/server/tunnel must stay running. [Publication and rollback](2026-11-07-browser-publication/CHECKPOINT.md).
+
 # Graphics publication approved — 7 November 2026
 
 User authorised committing and pushing the completed shelter, both picnic settings and shelter-side esky/bin, including browser publication. Latest reviewed asset hashes verified. Asset-only update; existing tested browser code retained. Publication results will follow.

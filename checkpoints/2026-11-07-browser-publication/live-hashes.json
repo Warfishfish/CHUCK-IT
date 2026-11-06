@@ -1,0 +1,11 @@
+{
+  "url": "https://wooden-cinema-worship-menu.trycloudflare.com/rust/",
+  "files": {
+    "rust/index.html": "86fe7db3acc34c13772b44843b11911b079c564da1f582882f9f29c9271a045c",
+    "rust/bbq.js": "f5c7954ec7d3d59a123bd20e579a0a4f73c6b0fec8e3b622ff20cbdd4bcc32dd",
+    "rust/bbq_bg.wasm": "e5a1427fd872b68a46fd48c13bdf433deb1ba687a8634865a22cc1883209a083",
+    "rust/assets/models/smoko_props.glb": "f00c7a73cb22150ce25257fe2c12a643d617ef92180987de124e18f5d8e2937d",
+    "rust/assets/models/smoko_shelter.glb": "7373c44d1881d6eb6da635d14da4db4444d1fc8a06d8cf1959d0c2e6d86efacb",
+    "rust/release.json": "24f607e4d717c0d6d2ea755d2987fea73d581e603539d8bb9e76a2d8ceafaa41"
+  }
+}
