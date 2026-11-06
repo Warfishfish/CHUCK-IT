@@ -1,0 +1,21 @@
+{
+  "art/bush-servo/build_shelter.py": "4ffba5b6a5b50987defee04a9c4105f2b636a879c249740af58c5931df7fb6bf",
+  "art/bush-servo/build_props.py": "1bf9479125e64deb1da0a1933f1782269fe2b5ccbd006a55811d351ba8da0aee",
+  "art/bush-servo/shelter_materials.py": "74c396dccc89de58e218f426781f3a758dc85f03f60322ceef49440f502987ae",
+  "art/bush-servo/shelter-detail-bounds.json": "d621c23deb0ab1f05fd453f7bf31d126c9b3be46970a145585c2519f5d120e5c",
+  "art/bush-servo/smoko-shelter.blend": "674aa0366118578ce65e27415b98a6f21e5fac721d6f7dbaaa6a98f0fc3cb038",
+  "rust/crates/bbq_app/assets/models/smoko_shelter.glb": "7373c44d1881d6eb6da635d14da4db4444d1fc8a06d8cf1959d0c2e6d86efacb",
+  "art/bush-servo/shelter-textures/endgrain.png": "2735fc9e826de7fa2ae25cf383276e044ecce9adc03cac91503e811d7172b7aa",
+  "art/bush-servo/shelter-textures/roof-0.png": "3cc7529ea97108d5bf389afacfffaeb2ba937a4f1bca3d91fe71a83c27cf80b2",
+  "art/bush-servo/shelter-textures/roof-1.png": "330fa6138a8e7e8087564bd220581b084b10d8fa6efac71a0a520994c7ac67e4",
+  "art/bush-servo/shelter-textures/roof-2.png": "e2d6ef66fb5770b817126abdb09c50b15b24e4a932eecd3b69989021764c4fe2",
+  "art/bush-servo/shelter-textures/roof-3.png": "b50d1db1519c29d666b74d725ef974bcb39970022ed4636c9c2de4360c898dff",
+  "art/bush-servo/shelter-textures/roof-4.png": "670f6e52474003622d9d945c5315774fe613fa5ea9d40e0a1c7249c662787982",
+  "art/bush-servo/shelter-textures/roof-5.png": "c3afe3604a595812aae2bfbd44bb687d8f8a27a1b542f266da4be548002517c7",
+  "art/bush-servo/shelter-textures/timber-0.png": "9991af8d82d9a2c5b0e84a71970cd480d990c41f020db46cf40bb0e937c943b3",
+  "art/bush-servo/shelter-textures/timber-1.png": "4cb0e69aa9d3d91812afe8b5c175094cdd092fee581a25ebcc04d23a967531bc",
+  "art/bush-servo/shelter-textures/timber-2.png": "07a932b0a4d64b84f06c3ec9624eecc847b50c27dfe6e2f160c0d1262a7d78fb",
+  "art/bush-servo/shelter-textures/timber-3.png": "59d315ef2c8ffc16d933c231939ddbf425edeeee6a8b9e1b414bf2e11c39977e",
+  "art/bush-servo/shelter-textures/timber-4.png": "0569ea58de0d3f085e82f5990583d78977f2790c74d82924b0e87c4f4da89386",
+  "art/bush-servo/shelter-textures/timber-normal.png": "9819c8fbe36c0b5369f782e6939e8ba2344200ade466576800da7c9a203067b1"
+}

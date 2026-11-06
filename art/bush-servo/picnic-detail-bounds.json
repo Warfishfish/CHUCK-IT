@@ -1,0 +1,20 @@
+{
+  "unchanged_objects": 529,
+  "table_bounds": [
+    7.3,
+    9.7,
+    2.05,
+    2.95,
+    0,
+    0.95
+  ],
+  "esky_bounds": [
+    10.35,
+    11.65,
+    1.125,
+    1.875,
+    0,
+    0.72
+  ],
+  "all_details_inside_existing_bounds": true
+}

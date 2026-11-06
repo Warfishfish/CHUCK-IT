@@ -1,7 +1,7 @@
 """Live Blender authoring script. Metres; origin at Smoko centre; Z-up export to glTF Y-up.
 Only the named shelter collection is exported. Existing scene objects are preserved.
 """
-import bpy, math, random
+import bpy, math, random, runpy, json
 from pathlib import Path
 from mathutils import Vector
 ROOT=Path('/Users/marcus/Claude/australian-bbq')
@@ -33,6 +33,8 @@ for k,m in enumerate(wood):
 end=mat('Timber endgrain',(.33,.21,.115));dark=mat('Wood cracks',(.085,.048,.025));steel=mat('Old galvanized steel',(.43,.45,.41),.62,.45)
 rust=[mat('Corrugated iron '+str(i),c,.78,.22) for i,c in enumerate([(.43,.19,.095),(.53,.29,.16),(.38,.36,.30),(.57,.51,.40),(.30,.31,.28),(.58,.27,.12)])]
 bolt=mat('Dark iron fasteners',(.10,.105,.09),.55,.65);teal=mat('Weathered teal sign',(.07,.19,.17));cream=mat('Warm sign lettering',(.88,.77,.53))
+runpy.run_path(str(ROOT/'art/bush-servo/shelter_materials.py'))['apply'](wood,rust,end,ROOT)
+
 def link(o):
  for c in list(o.users_collection):c.objects.unlink(o)
  collection.objects.link(o);objects.append(o);return o
@@ -43,6 +45,18 @@ def cube(name,loc,size,material,bevel=.02):
  if bevel:
   m=o.modifiers.new('Soft worn edges','BEVEL');m.width=bevel;m.segments=2
   bpy.context.view_layer.objects.active=o;bpy.ops.object.modifier_apply(modifier=m.name)
+ # Align grain with the longest axis; separate endgrain on exposed cut ends.
+ if material in wood:
+  axis=max(range(3),key=lambda a:size[a]);uv=o.data.uv_layers.active or o.data.uv_layers.new(name='Timber grain')
+  o.data.materials.append(end)
+  for face in o.data.polygons:
+   normal_axis=max(range(3),key=lambda a:abs(face.normal[a]))
+   is_end=normal_axis==axis and abs(face.normal[axis])>.95
+   face.material_index=1 if is_end else 0
+   across=next(a for a in range(3) if a!=axis and a!=normal_axis) if normal_axis!=axis else (axis+1)%3
+   for li in face.loop_indices:
+    v=o.data.vertices[o.data.loops[li].vertex_index].co
+    uv.data[li].uv=(v[across]/size[across]+.5,v[(axis+2)%3]/size[(axis+2)%3]+.5) if is_end else (v[across]/size[across]+.5,v[axis]/size[axis]+.5)
  return o
 def beam(name,a,b,width,depth,material):
  a,b=Vector(a),Vector(b);o=cube(name,(a+b)/2,(width,depth,(b-a).length),material,.012);o.rotation_euler=(b-a).to_track_quat('Z','Y').to_euler();return o
@@ -51,17 +65,17 @@ def screw(loc):
 # Exact existing collision footprints (24cm square, 3.8m high).
 for x in [-4,4]:
  for y in [-4,4]:
-  cube('Structural post',(x,y,1.9),(.24,.24,3.8),random.choice(wood),.018)
+  cube('Structural post',(x,y,1.9),(.24,.24,3.8),random.choice(wood),.027)
   cube('Galvanized post shoe',(x,y,.12),(.245,.245,.24),steel,.008)
   for h in [.2,3.48]:screw((x,y-.127,h))
   for n in range(6):
    z=random.uniform(.4,3.3);xx=x+random.uniform(-.08,.08)
    cube('Fine split in timber',(xx,y-.121,z),(.004,.001,random.uniform(.12,.42)),dark,0)
 # Beams, rafters and high diagonal braces: keep clear underneath.
-for y in [-4,4]:cube('Eave bearer',(0,y,3.66),(8.5,.20,.24),wood[2])
-for x in [-4,4]:cube('Side bearer',(x,0,3.66),(.20,8.5,.24),wood[1])
+for y in [-4,4]:cube('Eave bearer',(0,y,3.69),(8.5,.26,.30),wood[2])
+for x in [-4,4]:cube('Side bearer',(x,0,3.69),(.26,8.5,.30),wood[1])
 for x in [-4,-2,0,2,4]:
- for side in [-1,1]:beam('Roof rafter',(x,0,4.36),(x,side*4.5,3.82),.12,.16,wood[2])
+ for side in [-1,1]:beam('Roof rafter',(x,0,4.36),(x,side*4.5,3.82),.16,.18,wood[2])
 for x in [-4,4]:
  for y in [-4,4]:
   beam('Corner knee brace',(x,y,2.95),(x-math.copysign(.65,x),y,3.56),.105,.105,wood[1])
@@ -85,12 +99,18 @@ for side in [-1,1]:
   for m in rust:mesh.materials.append(m)
   base=random.choice([0,1,2,3,4])
   for f in mesh.polygons:f.material_index=base if random.random()>.14 else random.choice([0,1,5]);f.use_smooth=True
+  # Keep the same random sequence for subsequent sheets, but use one weathered material per sheet.
+  for f in mesh.polygons:f.material_index=base
+  uv=mesh.uv_layers.new(name='Sheet weathering')
+  for f in mesh.polygons:
+   for li in f.loop_indices:
+    v=mesh.vertices[mesh.loops[li].vertex_index].co;uv.data[li].uv=((v.x-x0)/1.1625,abs(v.y)/4.57)
   sol=o.modifiers.new('Iron thickness','SOLIDIFY');sol.thickness=.018
   bpy.context.view_layer.objects.active=o;o.select_set(True);bpy.ops.object.modifier_apply(modifier=sol.name);o.select_set(False)
   for xx in [x0+.18,x0+.96]:
    for yy in [side*.45,side*4.25]:screw((xx,yy,4.43-.12*abs(yy)))
 cube('Ridge cap',(0,0,4.45),(9.4,.20,.07),steel,.025)
-for y in [-4.58,4.58]:cube('Weathered fascia',(0,y,3.84),(9.4,.10,.16),wood[3])
+for y in [-4.58,4.58]:cube('Weathered fascia',(0,y,3.86),(9.4,.14,.20),wood[3])
 # Large framed sign on BOTH approaches; lower edge remains above character heads.
 for side in [-1,1]:
  y=side*4.70
@@ -109,9 +129,21 @@ for cx in [-2.3,2.3]:
  for x in [cx-1.20,cx+1.20]:
   cube('Bench trestle foot',(x,-5.2,.15),(.18,.46,.30),wood[1],.015)
  beam('Bench stretcher',(cx-1.2,-5.2,.2),(cx+1.2,-5.2,.2),.10,.10,wood[2])
+# Record fixed post bounds and overhead clearance; gameplay collision source is untouched.
+bpy.context.view_layer.update()
+posts=[o for o in objects if o.name.startswith('Structural post')]
+assert len(posts)==4
+for o in posts:assert max(abs(a-b) for a,b in zip(o.dimensions,(.24,.24,3.8)))<.0001
+report={'post_dimensions':list(posts[0].dimensions),'eave_lower_edge':3.69-.30/2,'prior_eave_lower_edge':3.66-.24/2,'outside_changes':False}
+(ROOT/'art/bush-servo/shelter-detail-bounds.json').write_text(json.dumps(report,indent=2))
+bpy.data.libraries.write(str(ROOT/'art/bush-servo/smoko-shelter.blend'),{scene},fake_user=True)
 # Reusable glTF: join by material to keep draw calls low. Apply all geometry first.
 bpy.ops.object.select_all(action='DESELECT')
-meshes=[o for o in objects if o.type=='MESH']
+meshes=[]
+for original in objects:
+ if original.type=='MESH':
+  copy=original.copy();copy.data=original.data.copy();collection.objects.link(copy);meshes.append(copy)
+for original in objects:original.hide_set(True)
 for o in meshes:o.select_set(True)
 bpy.context.view_layer.objects.active=meshes[0];bpy.ops.object.join();model=bpy.context.object;model.name='BushServo_SmokoShelter'
 bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
@@ -124,5 +156,6 @@ bpy.ops.object.camera_add(location=(13,-16,11));cam=bpy.context.object;cam.rotat
 scene.world=bpy.data.worlds.new('Warm preview world');scene.world.use_nodes=True
 next(n for n in scene.world.node_tree.nodes if n.type=='BACKGROUND').inputs[0].default_value=(.3,.38,.48,1)
 scene.render.resolution_x=1200;scene.render.resolution_y=900;scene.render.resolution_percentage=100
-bpy.ops.wm.save_as_mainfile(filepath=str(ROOT/'art/bush-servo/smoko-shelter.blend'))
+runpy.run_path(str(ROOT/'art/bush-servo/compact_glb.py'))['compact'](asset)
+finished,_=runpy.run_path(str(ROOT/'art/bush-servo/finish_arena_depth.py'))['finish'](asset.read_bytes(),'shelter');asset.write_bytes(finished)
 print('Exported',asset,'vertices',len(model.data.vertices),'polygons',len(model.data.polygons),'bytes',asset.stat().st_size)

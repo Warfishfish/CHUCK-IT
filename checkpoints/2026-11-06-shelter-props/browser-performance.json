@@ -1,0 +1,13 @@
+{
+  "before": {
+    "mean_ms": 13.3,
+    "p95_ms": 15.5,
+    "fps": 75
+  },
+  "after": {
+    "mean_ms": 13.5,
+    "p95_ms": 15.1,
+    "fps": 74
+  },
+  "conditions": "IAB1280x720 Balanced; no bots; stationary pointer-capture overlay; same apparent spawn view, independently started rounds; smoke test only"
+}

@@ -29,7 +29,7 @@ dark=mat('iron',(.055,.062,.056),.62,.35)
 wood=[mat('timber '+str(i),(.30+i*.022,.19+i*.017,.10+i*.012)) for i in range(3)]
 # Reuse already-authored shelter wood; no additional downloads or generators.
 with bpy.data.libraries.load(str(ROOT/'art/bush-servo/smoko-shelter.blend'),link=False) as (src,dst):
- names=[n for n in src.materials if n in ['Sun bleached timber 2.003','Sun bleached timber 3.003','Sun bleached timber 4.003']]
+ names=[next((n for n in sorted(src.materials) if n.startswith('Sun bleached timber '+str(i))),None) for i in [2,3,4]]
  dst.materials=names
 for i,m in enumerate(dst.materials):
  if m:wood[i]=m

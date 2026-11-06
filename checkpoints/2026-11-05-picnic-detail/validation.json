@@ -1,0 +1,19 @@
+{
+  "unchanged_outside_triangles": 41692,
+  "before": {
+    "bytes": 2958016,
+    "triangles": 51608,
+    "batches": 10,
+    "images": 8
+  },
+  "after": {
+    "bytes": 3406692,
+    "triangles": 53876,
+    "batches": 14,
+    "images": 13
+  },
+  "existing_files_changed": [
+    "checkpoints/LATEST.md",
+    "rust/crates/bbq_app/assets/models/smoko_props.glb"
+  ]
+}

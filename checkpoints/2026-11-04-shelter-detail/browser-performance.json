@@ -1,0 +1,24 @@
+{
+  "conditions": "Same Mac/IAB/default Balanced quality, 666x864, zero bots, stationary rendering with capture overlay. Spawn cameras differed across loads; smoke check only, not exact A/B or network/input benchmark. Native comparisons use identical cameras.",
+  "before": [
+    {
+      "mean_ms": 13.3,
+      "p95_ms": 14.6
+    },
+    {
+      "mean_ms": 13.3,
+      "p95_ms": 14.2
+    }
+  ],
+  "after": [
+    {
+      "mean_ms": 13.3,
+      "p95_ms": 14.7
+    },
+    {
+      "mean_ms": 13.3,
+      "p95_ms": 15.4
+    }
+  ],
+  "fps": "approximately 75 in all samples"
+}

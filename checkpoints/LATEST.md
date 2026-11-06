@@ -1,3 +1,23 @@
+# Graphics publication approved — 7 November 2026
+
+User authorised committing and pushing the completed shelter, both picnic settings and shelter-side esky/bin, including browser publication. Latest reviewed asset hashes verified. Asset-only update; existing tested browser code retained. Publication results will follow.
+
+# Shelter-side esky and bin — ready for review (6 November 2026)
+
+[Actual comparisons and motion](2026-11-06-shelter-props/review.html) · [Checkpoint and rollback](2026-11-06-shelter-props/CHECKPOINT.md). One small prop group refined in Blender with existing materials. Original bounds, scoring area and routes preserved. Native timings essentially unchanged; Smoko delivery and Backyard smoke pass. All earlier pending work retained. No commit, push or publication.
+
+# Both picnic settings — ready for review (6 November 2026)
+
+[Actual comparisons and motion](2026-11-06-picnic-pair/review.html) · [Checkpoint and rollback](2026-11-06-picnic-pair/CHECKPOINT.md). West setting now matches east, sharing existing materials/textures. Collision sizes/routes preserved; 550 other objects unchanged. Matched native timings essentially unchanged; browser smoke ~75 FPS (different cameras). Smoko delivery and Backyard smoke pass. Prior pending work preserved; no commit, push or publication.
+
+# East picnic table and esky — ready for review (6 November 2026)
+
+[Actual comparisons and motion](2026-11-05-picnic-detail/review.html) · [Checkpoint and rollback](2026-11-05-picnic-detail/CHECKPOINT.md). One Blender table/bench setting and adjacent esky refined. Bounds/routes preserved; 529 other authoring objects and 41,692 outside triangles unchanged. Native matched means +0.05–0.24 ms; browser smoke ~74–75 FPS with differing spawn cameras. Smoko delivery and Backyard smoke pass. Pending shelter work preserved. No commit, push or publication.
+
+# Shelter timber and roof — ready for review (5 November 2026)
+
+[Actual comparisons and motion](2026-11-04-shelter-detail/review.html) · [Checkpoint and rollback](2026-11-04-shelter-detail/CHECKPOINT.md). Blender shelter framing, aligned grain/endgrain, softened edges and coherent roof weathering. Fixed post footprint and eave clearance; other runtime assets and gameplay unchanged. Same triangles/batches; closest native repeat +0.48ms, browser smoke ~75 FPS (different spawn views). Verified recovery backup. No commit, push or publication.
+
 # Browser updated — 4 November 2026
 
 Approved graphics source f39a806 rebuilt and published. New temporary link: https://recognised-studying-analysis-lives.trycloudflare.com/rust/ . Previous tunnel was no longer running. Web build passed; live file hashes and two-way public relay verified. Mac, server and Cloudflare tunnel must stay running. Previous browser bundle retained outside repo for rollback.

@@ -1,0 +1,23 @@
+{
+  "before": [
+    {
+      "mean_ms": 13.3,
+      "p95_ms": 14.5
+    },
+    {
+      "mean_ms": 13.5,
+      "p95_ms": 14.4
+    }
+  ],
+  "after": [
+    {
+      "mean_ms": 13.5,
+      "p95_ms": 14.6
+    },
+    {
+      "mean_ms": 13.3,
+      "p95_ms": 14.2
+    }
+  ],
+  "conditions": "IAB 666x864 Balanced; zero bots; stationary capture overlay; spawn/camera differ; smoke comparison only"
+}

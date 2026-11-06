@@ -1,0 +1,50 @@
+{
+  "before-gameplay.metrics": {
+    "samples": "600",
+    "mean_ms": "8.901",
+    "median_ms": "8.688",
+    "p95_ms": "11.471",
+    "mean_fps": "112.35",
+    "frames_over_16_67ms": "1",
+    "meshes": "2759",
+    "materials": "861",
+    "mesh_entities": "7075",
+    "image_cpu_bytes": "95446404"
+  },
+  "after-gameplay.metrics": {
+    "samples": "600",
+    "mean_ms": "8.757",
+    "median_ms": "8.541",
+    "p95_ms": "11.124",
+    "mean_fps": "114.20",
+    "frames_over_16_67ms": "4",
+    "meshes": "2759",
+    "materials": "861",
+    "mesh_entities": "7075",
+    "image_cpu_bytes": "95446404"
+  },
+  "before-close.metrics": {
+    "samples": "600",
+    "mean_ms": "8.401",
+    "median_ms": "8.325",
+    "p95_ms": "10.633",
+    "mean_fps": "119.04",
+    "frames_over_16_67ms": "2",
+    "meshes": "2759",
+    "materials": "861",
+    "mesh_entities": "7075",
+    "image_cpu_bytes": "95446404"
+  },
+  "after-close.metrics": {
+    "samples": "600",
+    "mean_ms": "8.396",
+    "median_ms": "8.206",
+    "p95_ms": "10.624",
+    "mean_fps": "119.11",
+    "frames_over_16_67ms": "5",
+    "meshes": "2759",
+    "materials": "861",
+    "mesh_entities": "7075",
+    "image_cpu_bytes": "95446404"
+  }
+}
