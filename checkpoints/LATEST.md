@@ -1,3 +1,15 @@
+# Arena entrance commit and push authorised — 7 November 2026
+
+User approved committing and pushing the arena entrance, three supply crates, Blender sources, verification evidence and published protocol24 browser bundle. Reviewed source hashes and runtime/public models verified unchanged; prior tests/build results apply. Unrelated concept art excluded.
+
+# Arena entrance browser updated — 7 November 2026
+
+User authorised browser publication. Tested protocol24 bundle is live at https://wooden-cinema-worship-menu.trycloudflare.com/rust/ . Host and guests must reload. Six public file hashes and two-way relay verified. Source remains uncommitted. [Publication and rollback](2026-11-07-arena-entrance/browser-publication.md).
+
+# Arena entrance and supply crates — ready for review (7 November 2026)
+
+[Actual comparisons and motion](2026-11-07-arena-entrance/review.html) · [Checkpoint and recovery](2026-11-07-arena-entrance/CHECKPOINT.md). Five local sandstone blocks, gravel/dust transition and three Blender supply crates with shared collision. Tests and native/browser builds pass; matched native timings essentially unchanged. Protocol24; public browser remains23. No commit, push or publication.
+
 # Browser publication — 7 November 2026
 
 Completed shelter and prop graphics source committed/pushed as455dbfa. Browser assets updated; six public hashes and two-way relay verified. New temporary URL: https://wooden-cinema-worship-menu.trycloudflare.com/rust/ . Mac/server/tunnel must stay running. [Publication and rollback](2026-11-07-browser-publication/CHECKPOINT.md).

@@ -1,5 +1,7 @@
 {
-  "source_commit": "455dbfa5d5adc8ba153e23498418733cc307b4d3",
+  "source_commit": "1bbd6c3e9e3831c676b4259b30a26956014c3a8d",
+  "uncommitted_checkpoint": "2026-11-07-arena-entrance",
+  "protocol": 24,
   "release_date": "2026-11-07",
-  "description": "Detailed Smoko shelter, both picnic settings and shelter-side esky/bin; asset-only update"
+  "description": "Arena entrance detail and three supply crates with shared collision"
 }

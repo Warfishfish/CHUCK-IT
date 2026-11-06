@@ -1,0 +1,21 @@
+{
+  "unchanged_outside_triangles": 5488,
+  "before": {
+    "bytes": 697512,
+    "triangles": 6904,
+    "batches": 9,
+    "images": 4
+  },
+  "after": {
+    "bytes": 820844,
+    "triangles": 7984,
+    "batches": 10,
+    "images": 4
+  },
+  "existing_files_changed": [
+    "rust/crates/bbq_app/assets/models/smoko_props.glb",
+    "rust/crates/bbq_app/assets/models/smoko_surroundings.glb",
+    "rust/crates/bbq_core/src/bush_servo.rs",
+    "rust/crates/bbq_core/src/net.rs"
+  ]
+}

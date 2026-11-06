@@ -59,7 +59,7 @@ pub const NATURE_SOLIDS: [(f32,f32,f32,f32,f32);8] = [
     (15.000,21.500,1.700,1.200,0.800),
 ];
 // Stage 6 prop bounds, verified against props-layout.json and the Blender export.
-pub const PROP_SOLIDS: [(f32,f32,f32,f32,f32);20] = [
+pub const PROP_SOLIDS: [(f32,f32,f32,f32,f32);23] = [
     (-11.000,-1.500,1.300,0.750,0.720),
     (11.000,-1.500,1.300,0.750,0.720),
     (-25.000,20.000,1.300,0.750,0.720),
@@ -80,6 +80,10 @@ pub const PROP_SOLIDS: [(f32,f32,f32,f32,f32);20] = [
     (8.500,-2.500,2.400,0.900,0.950),
     (8.500,-3.450,2.400,0.350,0.480),
     (8.500,-1.550,2.400,0.350,0.480),
+    // Low supply crates inside the arena, clear of road and delivery lanes.
+    (-15.000,3.000,1.100,0.800,0.650),
+    (15.000,3.000,1.100,0.800,0.650),
+    (-10.000,12.500,1.100,0.800,0.650),
 ];
 // In-arena gums: match art/bush-servo/arena-trees.json.
 // Narrow lower trunk is solid, high foliage remains visual; not a standing surface.

@@ -1,0 +1,10 @@
+{
+  "art/bush-servo/refine_entrance.py": "8a0ed0e8bffb312615cbe905ad9a30721e97bdb4f271a59c7435f477f09a9a1e",
+  "art/bush-servo/arena-crates.blend": "245698c3f0f86f925a44433b58678709814775f459b108fb762b6d5459336f9c",
+  "art/bush-servo/arena-entrance.blend": "e91743e361394cd9935e90414c9b21b6b93f6fc123fca1deb03fcf813be9658e",
+  "art/bush-servo/arena-entrance-bounds.json": "df9304daa77450014741dbe03718ae994d90931b0b366bce3fe66fca5eac18da",
+  "rust/crates/bbq_app/assets/models/smoko_props.glb": "f955ed2581ee96b7b87014eba31cea716df735a181fac1a4186aa68a56a98df1",
+  "rust/crates/bbq_app/assets/models/smoko_surroundings.glb": "e8f246d57ebace0eb0b2362eb606a0c985da14b5252fca46e3d3520f28cf5c3d",
+  "rust/crates/bbq_core/src/bush_servo.rs": "9a3883907e96a59fd4877861e257606c7dc6a3575e7ac46b16911e1bd3657163",
+  "rust/crates/bbq_core/src/net.rs": "be26fea3d77ff23a82f7b94cac818a23c360fc13ada4a317d2a95a3ced637e8a"
+}
