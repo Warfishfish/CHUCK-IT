@@ -1,0 +1,8 @@
+{
+  "art/bush-servo/build_tyre_timber.py": "e86b24898e910dfa335a4c77aadc61a3f1d4792992d4282e8e447fe00ffba967",
+  "art/bush-servo/arena-tyre-timber.blend": "fb57d07c8ba25693f721114709b21209493ccd2cd5b215852328cdeff0742cb0",
+  "art/bush-servo/tyre-timber-bounds.json": "46b74469972275be0b1618ab46401dc95fb9071995f1d5f1f7d8d96bdae9f2a8",
+  "rust/crates/bbq_app/assets/models/smoko_props.glb": "ce75f4e8fd9efdf66ae58b46a4b591bfbc868e6695bf1e5cc30f8c9d4562eddd",
+  "rust/crates/bbq_core/src/bush_servo.rs": "3aca64d1d2613ae4e89ea2703b7ae41ea177fd58421418a1d7b45735eb74afd4",
+  "rust/crates/bbq_core/src/net.rs": "4d6615c37aa5ea2127028e10c94d42574e6ceb7a0c0ebebeb95707382d17028e"
+}

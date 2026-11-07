@@ -1,0 +1,13 @@
+{
+  "before": {
+    "fps": 75,
+    "avg_ms": 13.3,
+    "p95_ms": 14.3
+  },
+  "after": {
+    "fps": 75,
+    "avg_ms": 13.3,
+    "p95_ms": 14.5
+  },
+  "conditions": "stationary solo, zero bots, 1280x720, different spawn views"
+}

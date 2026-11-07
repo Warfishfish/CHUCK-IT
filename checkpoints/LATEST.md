@@ -1,3 +1,7 @@
+# Arena tyre and timber — ready for review (7 November 2026)
+
+[Actual comparisons and motion](2026-11-07-tyre-timber/review.html) · [Checkpoint and recovery](2026-11-07-tyre-timber/CHECKPOINT.md). One tyre stack and timber barrier beside eastern arena gum, with shared collision. Tests and native/browser builds passed. Protocol25; public browser remains24. No commit, push or publication.
+
 # Arena entrance commit and push authorised — 7 November 2026
 
 User approved committing and pushing the arena entrance, three supply crates, Blender sources, verification evidence and published protocol24 browser bundle. Reviewed source hashes and runtime/public models verified unchanged; prior tests/build results apply. Unrelated concept art excluded.

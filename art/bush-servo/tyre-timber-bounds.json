@@ -1,0 +1,22 @@
+{
+  "preserved_objects": 713,
+  "new_objects": 11,
+  "new_textures": 0,
+  "new_materials": 0,
+  "solids": [
+    [
+      13,
+      -0.3,
+      1.1,
+      1.1,
+      0.72
+    ],
+    [
+      14,
+      1.2,
+      2,
+      0.28,
+      0.8
+    ]
+  ]
+}
