@@ -1,3 +1,11 @@
+# Eastern prop footing — local review · 7 November 2026
+
+[Actual views](2026-11-07-prop-footing/review.html) · [Checkpoint](2026-11-07-prop-footing/CHECKPOINT.md). Local contact shading and dirt at the east tyre, barrier posts, esky and picnic feet. Includes the pending picnic drinks.
+
+# East picnic tabletop — local review · 7 November 2026
+
+[Compare in-game views](2026-11-07-picnic-drinks/review.html) · [Recovery and verification](2026-11-07-picnic-drinks/CHECKPOINT.md). Based on published tyre and timber release c9e1cf8.
+
 # Tyre and timber browser release — 7 November 2026
 
 Source 91189b6 and protocol 25 browser bundle. Verified public files and two-way multiplayer relay at https://off-ranked-vids-minus.trycloudflare.com/rust/. Previous bundle saved at /Users/marcus/Claude/australian-bbq-browser-before-tyre-publish-20261107.
