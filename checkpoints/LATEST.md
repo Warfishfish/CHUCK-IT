@@ -1,3 +1,7 @@
+# Eastern picnic and ground shading published · 7 November 2026
+
+Source 6df484e. Six live file hashes and both relay directions verified. Test at https://tribes-untitled-announces-insulin.trycloudflare.com/rust/. Previous browser bundle is recoverable from c9e1cf8.
+
 # Eastern prop footing — local review · 7 November 2026
 
 [Actual views](2026-11-07-prop-footing/review.html) · [Checkpoint](2026-11-07-prop-footing/CHECKPOINT.md). Local contact shading and dirt at the east tyre, barrier posts, esky and picnic feet. Includes the pending picnic drinks.
