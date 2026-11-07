@@ -1,3 +1,7 @@
+# Tyre and timber browser release — 7 November 2026
+
+Source 91189b6 and protocol 25 browser bundle. Verified public files and two-way multiplayer relay at https://off-ranked-vids-minus.trycloudflare.com/rust/. Previous bundle saved at /Users/marcus/Claude/australian-bbq-browser-before-tyre-publish-20261107.
+
 # Arena tyre and timber — ready for review (7 November 2026)
 
 [Actual comparisons and motion](2026-11-07-tyre-timber/review.html) · [Checkpoint and recovery](2026-11-07-tyre-timber/CHECKPOINT.md). One tyre stack and timber barrier beside eastern arena gum, with shared collision. Tests and native/browser builds passed. Protocol25; public browser remains24. No commit, push or publication.

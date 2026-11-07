@@ -1,7 +1,6 @@
 {
-  "source_commit": "1bbd6c3e9e3831c676b4259b30a26956014c3a8d",
-  "uncommitted_checkpoint": "2026-11-07-arena-entrance",
-  "protocol": 24,
+  "source_commit": "91189b6f5d02b4b33caf998815980ee2a3ca917c",
+  "protocol": 25,
   "release_date": "2026-11-07",
-  "description": "Arena entrance detail and three supply crates with shared collision"
+  "description": "Tyre stack and three-rail timber barrier at the eastern arena gum"
 }
