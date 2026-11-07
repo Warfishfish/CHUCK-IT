@@ -1,0 +1,47 @@
+[
+  {
+    "path": "index.html",
+    "bytes": 2293,
+    "sha256": "86fe7db3acc34c13772b44843b11911b079c564da1f582882f9f29c9271a045c"
+  },
+  {
+    "path": "bbq.js",
+    "bytes": 184775,
+    "sha256": "99f8ca6f3bdab6c88e678e8c58b17454b09dd285fa9aae91c157d9c6e8ada150"
+  },
+  {
+    "path": "bbq_bg.wasm",
+    "bytes": 63950425,
+    "sha256": "99a018fe06b1d3e316c80aa68f362091280f212f8cd28ff0dca8a9b1c6437fca"
+  },
+  {
+    "path": "release.json",
+    "bytes": 211,
+    "sha256": "e8b7b626694326e369c8f2ffd167bad2540b040745370c7309a7f8fc9c3609f5"
+  },
+  {
+    "path": "pointer-lock.js",
+    "bytes": 1659,
+    "sha256": "44822741589c2faa6d77e310f6ac44a9fb6ed056b26152f791a5fca4c0d84095"
+  },
+  {
+    "path": "assets/models/smoko_landscape.glb",
+    "bytes": 9138516,
+    "sha256": "361900e72ce5974b45f5a09a7fb003edba14e819a2abbc750560bf753008c748"
+  },
+  {
+    "path": "assets/models/smoko_surroundings.glb",
+    "bytes": 1600304,
+    "sha256": "46106911dee557eedb82e581be7a2127b64fd1a21da1f545c2b5748e5acbe021"
+  },
+  {
+    "path": "assets/textures/servo_road.png",
+    "bytes": 850950,
+    "sha256": "a1b1b51f0d1cccb3cf1a5c377a0eff82dacbf40653f03a2719ccbb1f11a6205d"
+  },
+  {
+    "path": "assets/textures/smoko_picnic_shade.png",
+    "bytes": 17472,
+    "sha256": "5f1c7dd25a4a85ec91d33ffd9b80f8bd35afce259f7bebfe6c6524b075571b03"
+  }
+]

@@ -1,3 +1,7 @@
+# Browser release · 8 November 2026
+
+Inside-fence servo, map previews, road and shade published from source dcdadbe. Protocol 26. [Play online](https://drum-patient-glucose-calcium.trycloudflare.com/rust/). Nine public hashes and two-way relay verified. [Publication and rollback](2026-11-08-servo-menu/PUBLICATION.md).
+
 # Publication approved · 8 November 2026
 
 User approved committing and pushing the pending road, shade, inside-fence servo and map-overview work, including the browser build. Existing 696-test result applies.
