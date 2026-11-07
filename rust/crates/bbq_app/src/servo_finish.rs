@@ -33,11 +33,12 @@ impl Plugin for ServoFinishPlugin {
     }
 }
 fn sync_lighting(
+    screen: Res<crate::menu::Screen>, settings: Res<crate::menu::Settings>,
     game: Res<crate::game::Game>, look: Res<LookMode>, mut saved: ResMut<SavedLook>,
     mut lights: Query<(Entity, &YardLight, &mut DirectionalLight, &mut Transform)>,
     mut cameras: Query<(Entity, &mut AmbientLight, &mut DistanceFog, &mut DisplayRaw), With<crate::player::EyeCamera>>,
 ) {
-    let active=game.rules.mode==bbq_core::GameMode::Smoko && *look==LookMode::Polished
+    let active=crate::menu::displayed_mode(*screen, &settings, &game)==bbq_core::GameMode::Smoko && *look==LookMode::Polished
         && crate::style::current()==crate::style::Style::Pop;
     if active==saved.active {return;}
     if active {

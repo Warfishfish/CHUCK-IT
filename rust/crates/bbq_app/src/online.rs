@@ -899,6 +899,7 @@ pub(crate) fn lobby_logic(
 
 /// The host tells everyone how the yard looks, 15 times a second.
 fn online_world_send(
+    screen: Res<crate::menu::Screen>, settings: Res<crate::menu::Settings>,
     player: Res<Player>,
     time: Res<Time>,
     mut online: ResMut<Online>,
@@ -922,6 +923,10 @@ fn online_world_send(
     *seq = seq.wrapping_add(1);
     let fx = std::mem::take(&mut game.fx_out);
     let mut snap = crate::online_world::build_world(&game, &yard.0, *seq, *feed_sent, &fx);
+    if *screen == crate::menu::Screen::Menu {
+        snap.round.mode = crate::online_world::mode_code(settings.mode);
+        snap.round.heist_teams = if settings.mode == bbq_core::GameMode::Heist { settings.heist_teams as u8 } else { 0 };
+    }
     for state in &mut snap.wet {state.ack=session.heard.get(&state.id).map_or(0,|h|h.applied_seq);}
     if let Some(host) = snap.wet.first_mut() { host.pos = (player.mover.x, player.mover.y, player.mover.z); }
     if let Some((_, t)) = game.feed.last() {
@@ -931,12 +936,15 @@ fn online_world_send(
 }
 
 /// A guest copies the host's picture of the yard.
-fn online_world_apply(mut player: ResMut<Player>, mut online: ResMut<Online>, mut game: ResMut<Game>, mut yard: ResMut<crate::yard_scene::YardRes>) {
+fn online_world_apply(screen: Res<crate::menu::Screen>, mut settings: ResMut<crate::menu::Settings>, mut player: ResMut<Player>, mut online: ResMut<Online>, mut game: ResMut<Game>, mut yard: ResMut<crate::yard_scene::YardRes>) {
     let Some(session) = online.session.as_mut().filter(|s| s.role == Role::Guest && s.joined()) else { return };
     let Some(snap) = session.world.take() else { return };
     let (my_id, host) = (session.my_id, session.host_name());
     let old_phase=game.rules.phase; let old_mode=game.rules.mode;
     crate::online_world::apply_world(&mut game, &mut yard.0, &snap, my_id, &host);
+    if *screen == crate::menu::Screen::Menu {
+        settings.mode = game.rules.mode;
+    }
     if old_phase!=game.rules.phase || old_mode!=game.rules.mode {session.movement.clear();}
     if let Some(s) = snap.wet.iter().find(|s| s.id == my_id) {
         let (dx,dz)=session.movement.correction(s.ack,(s.pos.0,s.pos.2));

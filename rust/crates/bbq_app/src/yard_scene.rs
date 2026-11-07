@@ -480,9 +480,15 @@ fn toggle_features(
     game: Res<crate::game::Game>,
     mut yard_res: ResMut<YardRes>,
     mut tags: Query<(Option<&FeatureTag>, Option<&CheekyOnly>, &mut Visibility), Or<(With<FeatureTag>, With<CheekyOnly>)>>,
+    mut supply: Query<(&FeatureTag, &mut Transform)>,
     mut last: Local<Option<(Features, bool)>>,
 ) {
     // the menu changes the features (and Cheeky mode) too, not only the F keys
+    for (tag,mut tf) in &mut supply {
+        if matches!(tag.0,Feature::Bbq) {
+            tf.translation.z = if yard_res.0.features.smoko { bbq_core::bush_servo::BBQ_OFFSET_Z } else { 0. };
+        }
+    }
     let cheeky = game.options.adult;
     let mut changed = *last != Some((yard_res.0.features, cheeky));
     for (key, f) in [
@@ -519,15 +525,22 @@ fn sync_smoko_map(
     mut commands: Commands, game: Res<Game>, roots: Query<Entity, With<SmokoMap>>,
     mut meshes: ResMut<Assets<Mesh>>, mut mats: ResMut<Assets<StandardMaterial>>,
     mut cache: ResMut<ModelCache>, mode: Res<crate::lighting::LookMode>, assets: Res<AssetServer>,
+    screen: Res<crate::menu::Screen>, settings: Res<crate::menu::Settings>,
 ) {
-    let active=game.rules.mode==bbq_core::GameMode::Smoko;
+    let active=crate::menu::displayed_mode(*screen, &settings, &game)==bbq_core::GameMode::Smoko;
     if !active { for e in &roots {commands.entity(e).despawn();} return; }
     if !roots.is_empty(){return;}
     let _=mode;
     let parts=bbq_core::bush_servo::parts_with_shelter(false);
     let e=cache.spawn_parts(&mut commands,&parts,&mut meshes,&mut mats,Transform::default());
     commands.entity(e).insert(SmokoMap);
-    commands.spawn((WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_servo.glb"))), Transform::default(), ChildOf(e)));
+    let offset = if std::env::args().any(|a| a == "--shot") && std::env::args().any(|a| a == "--servo-ne") {
+        (17., 9.5) // capture-only placement study
+    } else if std::env::args().any(|a| a == "--servo-nw") {
+        (-6., 9.5)
+    } else { bbq_core::bush_servo::SERVO_OFFSET };
+    commands.spawn((WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_servo.glb"))),
+        Transform::from_xyz(offset.0,0.,offset.1), ChildOf(e)));
     commands.spawn((WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_props.glb"))), Transform::default(), ChildOf(e)));
     commands.spawn((WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_surroundings.glb"))), Transform::default(), ChildOf(e)));
     commands.spawn((WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_landscape.glb"))), Transform::default(), ChildOf(e)));
@@ -538,12 +551,13 @@ fn sync_smoko_map(
 }
 
 fn sync_race_map(
- mut commands:Commands,game:Res<Game>,mut normal:Query<&mut Visibility,(With<NormalYard>,Without<SharedSupplies>)>,
+ mut commands:Commands,game:Res<Game>,screen:Res<crate::menu::Screen>,settings:Res<crate::menu::Settings>,mut normal:Query<&mut Visibility,(With<NormalYard>,Without<SharedSupplies>)>,
  mut supplies:Query<&mut Visibility,(With<SharedSupplies>,Without<NormalYard>)>,
  roots:Query<Entity,With<RaceMap>>,mut meshes:ResMut<Assets<Mesh>>,mut mats:ResMut<Assets<StandardMaterial>>,mut cache:ResMut<ModelCache>,
 ) {
- let active=game.rules.mode==bbq_core::GameMode::Race;
- for mut v in &mut normal {v.set_if_neq(if active || game.rules.mode==bbq_core::GameMode::Smoko {Visibility::Hidden}else{Visibility::Inherited});}
+ let displayed=crate::menu::displayed_mode(*screen, &settings, &game);
+ let active=displayed==bbq_core::GameMode::Race;
+ for mut v in &mut normal {v.set_if_neq(if active || displayed==bbq_core::GameMode::Smoko {Visibility::Hidden}else{Visibility::Inherited});}
  for mut v in &mut supplies {v.set_if_neq(if active{Visibility::Hidden}else{Visibility::Inherited});}
  if !active {for e in &roots{commands.entity(e).despawn();}return;}
  if !roots.is_empty(){return;}

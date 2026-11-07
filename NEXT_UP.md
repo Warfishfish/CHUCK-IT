@@ -2,6 +2,20 @@
 
 Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it with a friend. The focus now is graphics, gameplay, UI and character customization. One item at a time; screenshots and a yes before anything is committed.
 
+## Active backlog additions · 7 November 2026
+
+Update 8 November — items 1 and 2 implemented locally for review. The user chose the north-west servo site. [Implementation evidence](checkpoints/2026-11-08-servo-menu/review.html). Items 3–5 remain queued.
+
+[Five-feature coding plan and acceptance tests](DEVELOPMENT-PLAN.md)
+
+These are queued alongside the Smoko graphics roadmap. Work one item at a time and present it for review. The picnic bend and gum shade are ready for local review. Shelter roof, sign and timber materials are next in the graphics sequence.
+
+1. **Smoko — move the existing Bush Servo shop and pumps inside the fence.** Compare two temporary placements before moving the final assets. First try the north-west frontage, with the back wall parallel to the north fence and the pumps facing the oval. This best matches the shop-left, shelter-centre composition of the concept. Second try the north-east frontage facing south-west across the road. This gives the servo a visible corner and keeps the shelter central, but the eastern gum and perimeter props need clearance checks. These are candidate sites. Measure the entire frontage including awning, signs, pumps and parked props. Show identical playable views and a top-down footprint for both. Preserve the road, spawn access and at least two clear carrying approaches. Move shared collision and bot avoidance with the chosen site and remove its old exterior instance.
+2. **Menu — preview the selected map.** Keep the existing overview presentation. On opening setup, show the current selection immediately. When the map or mode changes, show the matching environment. Modes sharing one map may reuse its view. Rapid selection changes must end on the last selection, and launching must load that same map. Check Solo, With mates hosting, and the joining player's view of the host's selection.
+3. **Global inventory — enforce a two-item carry limit.** Use the same slot decision for ground pickups and successful catches. Empty-handed players equip the item. Players holding one keep it equipped and put the incoming item in reserve. At capacity, the proposed default is to leave a pickup in place or let a caught object fall at the player's feet, preserving both held items and existing catch scoring. Keep Q switching, throws and drops working. Have the host resolve simultaneous events and verify no duplication or lost items on a guest. Cover empty, one-slot and full cases through both entry points.
+4. **Race — follow runners for a full lap.** Working interpretation: a sideline thrower can physically move alongside the runners around both straights and both bends. Build or connect a continuous sideline route, keep sightlines onto the track, and preserve the separation from the racing lane. Verify a human thrower can follow a racer for a complete lap on host and guest without a forced reset. Keep checkpoints, standings and throw scoring intact.
+5. **Global character gaze — research with Astra Medium first.** Inspect the character rig and the view angles already available to multiplayer. Recommend the smallest approach that lets another player distinguish looking at their feet, straight ahead and overhead, plus left/right turns driven by existing controls. Include angle limits, smoothing, interaction with throw/hit poses, and whether any additional network data is needed. Use head or upper-body pose to retain the current blob design and aim. Scope is the existing camera controls, with no separate free-look control. Verify the eventual prototype from another player's view, including on the browser.
+
 ## Graphics (full list in GRAPHICS_2C.md)
 - A1.7 lawn debris and the four yard eskies (on hold)
 - A2.6 tree shadows, A2.7 darker under the shed and veranda, A2.8 afternoon feel

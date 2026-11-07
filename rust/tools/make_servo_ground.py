@@ -55,5 +55,35 @@ for _ in range(40):
  d.line(points,fill=(66,63,57),width=1)
  if r.random()<.5:
   px,py=points[len(points)//2];d.line([(px,py),(px+7,py+4),(px+11,py+12)],fill=(72,67,59),width=1)
-im=im.convert('RGBA');im.save(OUT/'servo_road.png')
+def picnic_shoulder(image):
+    """Bake the inner shoulder beside the east picnic table into the existing road UVs.
+
+    Local mesh coordinates are x and (6 - world_z) / 0.65. Fade the new
+    paint along the bend and across the lane into the original road.
+    """
+    def smooth(lo, hi, value):
+        t = np.clip((value - lo) / (hi - lo), 0, 1)
+        return t*t*(3-2*t)
+
+    angle = np.degrees(a)
+    sector = smooth(24, 39, angle) * (1 - smooth(77, 91, angle))
+    depth = radius-inner
+    coverage = sector * (1-smooth(3.8, 5.4, depth)) * smooth(-.4, .06, depth)
+    # Distort the dust front at three scales. Broken islands interrupt its edge.
+    broad, broken, grit = (noise(n, k) for k in (17, 66, 215))
+    front = 1.15 + .80*np.sin(9*a+.8) + .72*broad + .48*broken
+    deposit = front - depth + .62*broken + .37*grit
+    dust_cover = smooth(-.38, .24, deposit)
+    islands = smooth(.18, .73, broken+.52*grit) * (1-smooth(1.4, 3.6, depth))
+    dust_cover = np.maximum(dust_cover, .86*islands)
+    # Sparse embedded chips and muted warm aggregate. Grain fades into the mips.
+    aggregate = 5.3*grain + 7*mid + 6*broad + 9*smooth(.60, .88, grit)
+    tar = np.array([69, 66, 63]) + aggregate[:,:,None]
+    earth = np.array(DIRT) + (11*broad+8*broken+4*grain)[:,:,None]*[1,.82,.62]
+    paint = tar + (earth-tar)*dust_cover[:,:,None]
+    original = np.asarray(image.convert('RGB')).astype(float)
+    result = original + (paint-original)*coverage[:,:,None]
+    return Image.fromarray(np.clip(result.round(),0,255).astype('uint8'))
+
+im=picnic_shoulder(im).convert('RGBA');im.save(OUT/'servo_road.png')
 print('Saved 512px dirt and 1024px opaque road with dusty shoulders.')

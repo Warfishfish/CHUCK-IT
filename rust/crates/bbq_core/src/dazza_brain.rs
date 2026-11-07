@@ -59,7 +59,12 @@ pub fn stun_dur(level: u32) -> f32 {
 
 /// Where he walks to when he goes home: behind the grill, round the open right-hand side
 /// if he is out the front.
-pub fn home_route(pos: V3) -> V3 {
+pub fn home_route(pos: V3) -> V3 { home_route_at(pos, HOME) }
+fn home_route_at(pos: V3, home: V3) -> V3 {
+    let offset=home-HOME;
+    home_route_original(pos-offset)+offset
+}
+fn home_route_original(pos: V3) -> V3 {
     if pos.z < -18.75 {
         HOME
     } else if pos.x > -4.6 {
@@ -121,6 +126,7 @@ impl SlapResult {
 
 #[derive(Clone, Debug)]
 pub struct Brain {
+    pub home: V3,
     pub pos: V3,
     pub face: f32,
     pub state: DazzaState,
@@ -151,6 +157,7 @@ pub struct Brain {
 impl Default for Brain {
     fn default() -> Self {
         Brain {
+            home: HOME,
             pos: HOME,
             face: 0.0,
             state: DazzaState::Cook,
@@ -174,6 +181,13 @@ impl Default for Brain {
 }
 
 impl Brain {
+    pub fn set_home(&mut self, home: V3) {
+        if self.home != home {
+            self.pos = self.pos + (home-self.home);
+            self.home = home;
+        }
+    }
+
     /// Start of a round.
     pub fn reset(&mut self) {
         self.state = DazzaState::Return;
@@ -381,22 +395,22 @@ impl Brain {
             (DazzaState::Angry, Some(t)) => {
                 // a little slack once he has set off, so he does not dither at the edge
                 let reach = if self.approaching { 6.5 } else { 5.0 };
-                self.approaching = t.pos.horiz_dist(HOME) < reach;
+                self.approaching = t.pos.horiz_dist(self.home) < reach;
                 if self.approaching {
                     goal = Some(t.pos);
                     stop = STOP_DISTANCE;
                 } else {
-                    goal = Some(home_route(self.pos));
+                    goal = Some(home_route_at(self.pos,self.home));
                 }
                 speed = 3.4;
             }
             (DazzaState::Return, _) => {
-                goal = Some(home_route(self.pos));
+                goal = Some(home_route_at(self.pos,self.home));
                 speed = 4.0;
-                if self.pos.horiz_dist(HOME) < 0.25 {
+                if self.pos.horiz_dist(self.home) < 0.25 {
                     self.state = DazzaState::Cook;
-                    self.pos.x = HOME.x;
-                    self.pos.z = HOME.z;
+                    self.pos.x = self.home.x;
+                    self.pos.z = self.home.z;
                 }
             }
             _ => {
@@ -621,6 +635,18 @@ fn line(kind: Kind, adult: bool, rng: &mut Rng) -> &'static str {
 #[allow(clippy::field_reassign_with_default)]
 mod tests {
     use super::*;
+    #[test]
+    fn relocated_home_preserves_the_return_path_offset() {
+        let mut brain=Brain::default();
+        let offset=V3::new(0.,0.,6.);
+        brain.set_home(HOME+offset);
+        assert_eq!(brain.pos, HOME+offset);
+        let at=V3::new(-8.,0.,-10.);
+        assert_eq!(home_route_at(at+offset,brain.home),home_route(at)+offset);
+        brain.set_home(HOME);
+        assert_eq!(brain.pos,HOME);
+    }
+
     use crate::yard::Yard;
 
     const DT: f32 = 1.0 / 60.0;

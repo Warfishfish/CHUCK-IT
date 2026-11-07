@@ -311,12 +311,21 @@ impl Yard {
         let mut y = Self::new(features, chest_spot);
         y.features.smoko = true;
         y.colliders.retain(|c|matches!(c.kind,Kind::Bar|Kind::Grill|Kind::MeatTable|Kind::Chest|Kind::Esky));
+        for c in &mut y.colliders {
+            if matches!(c.kind,Kind::Grill|Kind::MeatTable) {
+                c.z0 += crate::bush_servo::BBQ_OFFSET_Z;
+                c.z1 += crate::bush_servo::BBQ_OFFSET_Z;
+            }
+        }
         y.colliders.extend(crate::bush_servo::colliders());
         y
     }
 
     /// True when `(x, z)` is at least `r` clear of every Heist wall, step and crate.
     pub fn heist_clear(&self, x: f32, z: f32, r: f32) -> bool {
+        if self.features.smoko {
+            return !self.colliders.iter().any(|c| x>c.x0-r && x<c.x1+r && z>c.z0-r && z<c.z1+r);
+        }
         !self.colliders.iter().any(|c| {
             matches!(c.kind, Kind::HeistWall | Kind::Steps | Kind::HeistCrate)
                 && x > c.x0 - r
@@ -359,6 +368,17 @@ pub fn inside_yard(x: f32, z: f32, margin: f32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn interior_servo_keeps_supply_and_spawn_queries_consistent() {
+        let yard=Yard::smoko(Features { bbq:true, ..Default::default() },0);
+        assert!(!yard.heist_clear(-24.,-19.5,0.65));
+        assert!(CHAR_SPAWNS.iter().filter(|&&(x,z)|yard.heist_clear(x,z,0.65)).count()>=8);
+        let meat=yard.colliders.iter().find(|c|c.kind==Kind::MeatTable).unwrap();
+        assert!(((meat.z0+meat.z1)/2.0 - (MEAT_TABLE.1+crate::bush_servo::BBQ_OFFSET_Z)).abs()<0.001);
+        let shop=crate::bush_servo::servo_colliders()[0];
+        assert!(meat.z0>shop.z1+2.0);
+    }
+
 
     #[test]
     fn current_maps_ignore_legacy_smoko_flags() {

@@ -95,7 +95,7 @@ fn look_code(it: &Item) -> u8 {
     }
 }
 
-fn mode_code(m: GameMode) -> u8 {
+pub(crate) fn mode_code(m: GameMode) -> u8 {
     match m {
         GameMode::FreeForAll => 0,
         GameMode::Teams => 1,

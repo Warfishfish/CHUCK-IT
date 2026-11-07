@@ -4,6 +4,26 @@ use crate::vec::V3;
 use crate::yard::{Collider, Kind};
 use std::f32::consts::{TAU, FRAC_PI_2};
 
+pub const SERVO_OFFSET: (f32,f32) = (-6.,9.5);
+pub const BBQ_OFFSET_Z: f32 = 6.;
+
+/// Closed shop and reachable forecourt solids in the original model's coordinates.
+pub fn servo_colliders() -> Vec<Collider> {
+    let mut boxes = vec![
+        (-8.,-29.,23.,7.,4.5), (-8.,-25.,24.1,1.85,0.24),
+        (-18.,-24.85,1.9,1.05,1.49),
+        (6.4,-31.4,1.8,2.05,2.33), (4.9,-31.4,1.65,2.12,1.41), (8.4,-31.4,2.3,2.12,1.37),
+        (-12.72,-24.77,0.92,0.62,1.34), (2.1,-24.77,1.0,0.62,1.2),
+    ];
+    for x in [-19.2,-12.4,-5.7,3.2] { boxes.push((x,-24.25,0.19,0.19,3.52)); }
+    for x in [-23.3,-21.4] { boxes.push((x,-27.9,0.15,0.15,7.2)); }
+    for x in [7.6,10.8] {
+        boxes.push((x,-26.15,1.6,1.7,0.2));
+        boxes.push((x,-26.15,0.62,0.55,1.85));
+        for dx in [-0.8,0.8] { boxes.push((x+dx,-25.32,0.13,0.13,0.68)); }
+    }
+    boxes.into_iter().map(|(x,z,w,d,h)| Collider::centred(x+SERVO_OFFSET.0,z+SERVO_OFFSET.1,w,d,h)).collect()
+}
 pub const CENTRE: (f32, f32) = (0., 10.);
 pub const SCORE_RADIUS: f32 = 3.5;
 pub const ROAD_SEGMENTS: usize = 96;
@@ -94,7 +114,7 @@ pub const ARENA_TREE_TRUNKS: [(f32,f32,f32,f32,f32);2] = [(12.,1.5,0.7,0.7,4.),(
 pub fn colliders()->Vec<Collider> {
     SOLIDS.iter().chain(LANDSCAPE_SOLIDS.iter()).chain(NATURE_SOLIDS.iter()).chain(PROP_SOLIDS.iter()).map(|&(x,z,w,d,h)|Collider::centred(x,z,w,d,h).of(Kind::Plain)).chain(ARENA_TREE_TRUNKS.iter().map(|&(x,z,w,d,h)| {
         let mut c=Collider::centred(x,z,w,d,h).of(Kind::Plain);c.no_top=true;c
-    })).collect()
+    })).chain(servo_colliders()).collect()
 }
 fn block(w:f32,h:f32,d:f32,x:f32,y:f32,z:f32,c:u32)->Part {
     Part::new(Shape::Cuboid{w,h,d},Surface::matt(c)).at(x,y,z)
@@ -162,7 +182,8 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
     } // Imported prop kit supplies the detailed esky within the existing SOLIDS bounds.
     if procedural_shelter {
     // Runtime uses the detailed Blender servo; keep the lightweight renderer fallback.
-    // Servo facade beyond the northern arena fence: no unreachable fake interaction points.
+    let frontage_start=p.len();
+    // Servo facade inside the northern arena fence: no unreachable fake interaction points.
     p.push(block(23.,4.6,7.,-8.,2.3,-29.,CREAM));
     let mut roof=block(25.,0.22,9.,-8.,4.7,-29.,RUST).turn(0.04,0.,0.);roof.surface=roof.surface.textured(Tex::Corrugated).repeating(5.,2.);p.push(roof);
     for x in [-16.,-10.,-3.] {
@@ -187,6 +208,10 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
         p.push(block(0.55,0.3,0.02,x,1.65,-25.67,0x384e4d));
         p.push(block(0.36,0.08,0.03,x,1.65,-25.65,0xc8d4bc));
         p.push(block(0.07,1.,0.07,x+0.48,1.1,-26.,0x45483f));
+    }
+    for part in &mut p[frontage_start..] {
+        part.pos.x += SERVO_OFFSET.0;
+        part.pos.z += SERVO_OFFSET.1;
     }
     }
     // Continuous stock fence marks the actual rectangular play limits; curved route is inside.
@@ -223,6 +248,13 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
 }
 #[cfg(test)] mod tests {
  use super::*;
+ #[test] fn servo_solids_fit_inside_fence() {
+    let solids=servo_colliders();
+    assert_eq!(solids.len(),22);
+    for c in solids {
+        assert!(c.x0 > -33. && c.x1 < 33. && c.z0 > -24. && c.z1 < -14.);
+    }
+ }
  #[test] fn arena_tree_is_solid_and_leaves_routes_clear(){
   for &(x,z,w,d,h) in &ARENA_TREE_TRUNKS {
    assert!(x.abs()+w/2.<32. && z.abs()+d/2.<23.);
@@ -298,5 +330,5 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
    assert!(far<17.8 || near>26.5,"prop at {x},{z} intrudes on road: {near}..{far}");
   }
  }
- #[test] fn solid_dimensions_match_visuals(){let p=parts();for c in colliders(){assert!(p.iter().any(|p|matches!(p.shape,Shape::Cuboid{w,h,d} if (w-(c.x1-c.x0)).abs()<0.001&&(d-(c.z1-c.z0)).abs()<0.001&&(h-c.h).abs()<0.001)&&(p.pos.x-(c.x0+c.x1)/2.).abs()<0.001&&(p.pos.z-(c.z0+c.z1)/2.).abs()<0.001));}}
+ #[test] fn solid_dimensions_match_visuals(){let p=parts();for c in colliders().into_iter().take(colliders().len()-servo_colliders().len()){assert!(p.iter().any(|p|matches!(p.shape,Shape::Cuboid{w,h,d} if (w-(c.x1-c.x0)).abs()<0.001&&(d-(c.z1-c.z0)).abs()<0.001&&(h-c.h).abs()<0.001)&&(p.pos.x-(c.x0+c.x1)/2.).abs()<0.001&&(p.pos.z-(c.z0+c.z1)/2.).abs()<0.001));}}
 }

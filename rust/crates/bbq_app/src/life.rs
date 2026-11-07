@@ -510,7 +510,7 @@ fn flip_grill(g: &mut Game) {
         } else {
             ItemKind::Fish
         };
-        let id = g.world.spawn(kind, -6.0, -18.0, false, &mut g.rng);
+        let id = g.world.spawn(kind, -6.0, -18.0 + if g.rules.mode==bbq_core::GameMode::Smoko {bbq_core::bush_servo::BBQ_OFFSET_Z}else{0.}, false, &mut g.rng);
         let an = g.rng.range(-0.3, std::f32::consts::PI + 0.3);
         let (sp1, sp2, up) = (
             g.rng.range(3.0, 7.0),
@@ -549,12 +549,12 @@ fn balloon_from_bum(g: &mut Game) {
 
 // ------------------------------------------------------------------ R: meat, chest, smoko
 
-fn meat_spot(p: &Player, bbq_on: bool) -> Option<ItemKind> {
+fn meat_spot(p: &Player, bbq_on: bool, mode: bbq_core::GameMode) -> Option<ItemKind> {
     if !bbq_on || p.mover.y > 0.5 {
         return None;
     }
     let (mx, mz, w, d, _) = MEAT_TABLE;
-    let (dx, dz) = (p.mover.x - mx, p.mover.z - mz);
+    let (dx, dz) = (p.mover.x - mx, p.mover.z - mz - if mode==bbq_core::GameMode::Smoko {bbq_core::bush_servo::BBQ_OFFSET_Z}else{0.});
     let ex = (dx.abs() - w / 2.0).max(0.0);
     let ez = (dz.abs() - d / 2.0).max(0.0);
     if ex.hypot(ez) > 1.3 {
@@ -614,7 +614,7 @@ pub fn prompt(g: &Game, p: &Player, f: &yard::Features, chest_spot: usize) -> St
             }
         };
     }
-    if let Some(k) = meat_spot(p, f.bbq) {
+    if let Some(k) = meat_spot(p, f.bbq, g.rules.mode) {
         return format!(
             "R: grab {} (Dazza won't like it)",
             item_name(k).to_lowercase()
@@ -661,7 +661,7 @@ pub fn interact(g: &mut Game, p: &mut Player, f: &yard::Features, chest_spot: us
         }
         return true;
     }
-    if let Some(kind) = meat_spot(p, f.bbq) {
+    if let Some(kind) = meat_spot(p, f.bbq, g.rules.mode) {
         if g.slots.len() >= 2 || g.now - g.life.meat_at < 0.8 {
             return true;
         }
@@ -1105,7 +1105,9 @@ pub fn step(g: &mut Game, p: &mut Player, wanted: &mut Wanted, yard: &yard::Yard
         d.smelly = d.smell_t > 0.0;
     }
 
-    // Dazza
+    // Match the mode-specific grill location, including his route back after a chase.
+    let offset=if yard.features.smoko {bbq_core::bush_servo::BBQ_OFFSET_Z}else{0.};
+    g.life.dazza.set_home(bbq_core::dazza::HOME + V3::new(0.,0.,offset));
     let mut people = vec![Person {
         id: PLAYER_ID,
         pos: me_pos(p),

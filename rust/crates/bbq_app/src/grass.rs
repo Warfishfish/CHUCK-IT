@@ -104,13 +104,14 @@ fn tile_mesh(cx: f32, cz: f32, mode: GameMode, yard: &Yard, tufts: usize) -> Opt
 }
 
 pub fn sync(
-    mut commands: Commands, g: Res<Game>, yard: Res<YardRes>, look: Res<LookMode>,
+    mut commands: Commands, g: Res<Game>, screen: Res<crate::menu::Screen>, settings: Res<crate::menu::Settings>, yard: Res<YardRes>, look: Res<LookMode>,
     mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>,
     tiles: Query<Entity, With<GrassTile>>, mut state: Local<GrassState>,
 ) {
     let enabled = *state.enabled.get_or_insert_with(|| !std::env::args().any(|a| a == "--grass-off"));
     if !enabled || *look != LookMode::Polished || crate::style::current() != crate::style::Style::Pop { return; }
-    let signature = (g.rules.mode, yard.0.features, yard.0.colliders.len());
+    let mode = crate::menu::displayed_mode(*screen, &settings, &g);
+    let signature = (mode, yard.0.features, yard.0.colliders.len());
     if state.signature == Some(signature) { return; }
     state.signature = Some(signature);
     for entity in &tiles { commands.entity(entity).despawn(); }
@@ -118,12 +119,12 @@ pub fn sync(
         base_color: Color::WHITE, perceptual_roughness: 1.0, reflectance: 0.0,
         cull_mode: None, ..default()
     })).clone();
-    let (nx, nz) = if g.rules.mode == GameMode::Race { (10, 7) } else { (7, 5) };
+    let (nx, nz) = if mode == GameMode::Race { (10, 7) } else { (7, 5) };
     for ix in -nx..=nx { for iz in -nz..=nz {
         let (x, z) = (ix as f32 * TILE, iz as f32 * TILE);
-        if let Some(mesh) = tile_mesh(x, z, g.rules.mode, &yard.0, NEAR_TUFTS) {
+        if let Some(mesh) = tile_mesh(x, z, mode, &yard.0, NEAR_TUFTS) {
             let detailed = meshes.add(mesh);
-            let distant = tile_mesh(x, z, g.rules.mode, &yard.0, FAR_TUFTS).map(|m| meshes.add(m)).unwrap_or_else(|| detailed.clone());
+            let distant = tile_mesh(x, z, mode, &yard.0, FAR_TUFTS).map(|m| meshes.add(m)).unwrap_or_else(|| detailed.clone());
             commands.spawn((GrassTile { detailed: detailed.clone(), distant, high: true }, Mesh3d(detailed), MeshMaterial3d(material.clone()),
                 Transform::from_xyz(x, 0.0, z), bevy::light::NotShadowCaster));
         }

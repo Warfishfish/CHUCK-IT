@@ -287,6 +287,9 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
 
     // everyone back to a sober start, in a shuffled spot
     let mut spots: Vec<(f32, f32)> = CHAR_SPAWNS.to_vec();
+    if setup.mode == GameMode::Smoko {
+        spots.retain(|&(x,z)| yard.0.heist_clear(x,z,0.65));
+    }
     g.rng.shuffle(&mut spots);
     let mut next = 0;
     let mut team_spawned: std::collections::BTreeMap<Team, usize> = Default::default();

@@ -70,13 +70,15 @@ fn material(alpha: f32) -> StandardMaterial {
 fn sync(
     mut commands: Commands,
     game: Res<Game>,
+    screen: Res<crate::menu::Screen>, settings: Res<crate::menu::Settings>,
     look: Res<LookMode>,
     roots: Query<Entity, With<DepthRoot>>,
     kit: Option<Res<Kit>>,
+    assets: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
 ) {
-    let active = game.rules.mode == bbq_core::GameMode::Smoko
+    let active = crate::menu::displayed_mode(*screen, &settings, &game) == bbq_core::GameMode::Smoko
         && *look == LookMode::Polished
         && crate::style::current() == crate::style::Style::Pop;
     if !active {
@@ -91,6 +93,28 @@ fn sync(
     let root = commands
         .spawn((DepthRoot, Transform::default(), Visibility::default()))
         .id();
+    // The bake in picnic_canopy.py covers x [-12,16], z [-12,16].
+    // Plane3d UV (0,0) is its +X,+Z corner in Bevy; set the UVs explicitly.
+    let mut shade_plane = Plane3d::default().mesh().size(28., 28.).build();
+    if let Some(bevy::mesh::VertexAttributeValues::Float32x3(points)) =
+        shade_plane.attribute(Mesh::ATTRIBUTE_POSITION)
+    {
+        let uv: Vec<[f32; 2]> = points.iter().map(|p| [0.5 + p[0]/28., 0.5 + p[2]/28.]).collect();
+        shade_plane.insert_attribute(Mesh::ATTRIBUTE_UV_0, uv);
+    }
+    commands.spawn((
+        Mesh3d(meshes.add(shade_plane)),
+        MeshMaterial3d(mats.add(StandardMaterial {
+            base_color_texture: Some(assets.load("textures/smoko_picnic_shade.png")),
+            unlit: true,
+            alpha_mode: AlphaMode::Blend,
+            // Draw after intersecting ground wear and before the player's effects.
+            depth_bias: 24.,
+            ..default()
+        })),
+        Transform::from_xyz(2., 0.024, 2.),
+        NotShadowCaster, NotShadowReceiver, ChildOf(root),
+    ));
     let (mesh, mat) = if let Some(k) = kit {
         (k.mesh.clone(), k.material.clone())
     } else {

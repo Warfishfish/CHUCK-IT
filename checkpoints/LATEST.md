@@ -1,3 +1,23 @@
+# Publication approved · 8 November 2026
+
+User approved committing and pushing the pending road, shade, inside-fence servo and map-overview work, including the browser build. Existing 696-test result applies.
+
+# Inside-fence servo and selected-map overview · 8 November 2026
+
+[Actual views and menu recording](2026-11-08-servo-menu/review.html) · [Recovery and verification](2026-11-08-servo-menu/CHECKPOINT.md). North-west site A selected and integrated. Local protocol 26. Pending road and shade work retained. Ready for review.
+
+# Picnic gum and shelter shade · 7 November 2026
+
+[Two matched views and Chrome walk](2026-11-07-gum-shade/review.html) · [Verification and recovery](2026-11-07-gum-shade/CHECKPOINT.md). Ready for local review alongside the pending road work.
+
+# Bush Servo reference road finish · 7 November 2026
+
+[Comparison and Chrome walk](2026-11-07-road-reference/review.html) · [Recovery and costs](2026-11-07-road-reference/CHECKPOINT.md). Local for visual review.
+
+# Picnic-side road shoulder · 7 November 2026
+
+[Matched images and browser clip](2026-11-07-road-shoulder/review.html) · [Recovery and measurements](2026-11-07-road-shoulder/CHECKPOINT.md). Local, ready for review.
+
 # Eastern picnic and ground shading published · 7 November 2026
 
 Source 6df484e. Six live file hashes and both relay directions verified. Test at https://tribes-untitled-announces-insulin.trycloudflare.com/rust/. Previous browser bundle is recoverable from c9e1cf8.

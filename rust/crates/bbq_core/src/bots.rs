@@ -658,7 +658,7 @@ impl BotBrain {
                 let sd = if rng.chance(0.5) { -1.0 } else { 1.0 };
                 let (mx, mz, mw, _, _) = MEAT_TABLE;
                 e.x = mx + sd * (mw / 2.0 + 0.9);
-                e.z = mz;
+                e.z = mz + if w.yard.features.smoko {crate::bush_servo::BBQ_OFFSET_Z}else{0.};
             }
         }
         Some(e)
@@ -741,7 +741,7 @@ impl BotBrain {
             ErrandKind::Meat => {
                 if e.t <= 0.0 {
                     out = Step::Done;
-                } else if let Some(kind) = meat_spot(me.pos.x, me.pos.y, me.pos.z) {
+                } else if let Some(kind) = meat_spot(me.pos.x, me.pos.y, me.pos.z - if w.yard.features.smoko {crate::bush_servo::BBQ_OFFSET_Z}else{0.}) {
                     cmd.act = Some(Act::TakeMeat(kind));
                     out = Step::Done;
                 } else {

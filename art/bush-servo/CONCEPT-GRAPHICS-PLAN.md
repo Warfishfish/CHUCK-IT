@@ -1,0 +1,23 @@
+# Bush Servo graphics plan · 7 November 2026
+
+Baseline 374f0db. Start with the playable view from the east picnic setting across the road toward the servo. Use the shelter entrance as a second angle. The concept's elevated camera is useful for judging composition, while the player camera decides whether an improvement ships.
+
+## What to change first
+
+In the [actual picnic capture](../../checkpoints/2026-11-07-prop-footing/evidence/after-picnic.png), the table, esky and frontage are already recognisable. The road fades into orange earth in a fairly even band. The strongest ground pattern is a sharp leaf shadow. In the [concept](../../concept%20art/exec-6ea4e9b3-70f7-4745-b24d-773f23cbe0ae.png), irregular islands of dust sit on dark asphalt, shade is broken into broad patches, and the shelter sign reads across the arena. Aim for those relationships from standing height. Keep the coloured players simple.
+
+## System
+
+Author a small shared set of stylised physically based materials in Blender. Export portable GLB assets and render them with the project's pinned Bevy 0.19.1 on desktop and WebGPU. Bake stable surface detail once. Let the existing sun cast directional shadows and players cast moving shadows. Keep dirt colour, cavity shading and direct sunlight separately adjustable to avoid permanently darkening a surface twice. Start with existing assets, texture filtering and materials. Inspect existing UVs, texture channels and colour space before adding any maps.
+
+[Blender glTF material export](https://docs.blender.org/manual/en/4.4/addons/import_export/scene_gltf2.html) documents base colour, normal and packed material channels. [Bevy StandardMaterial](https://docs.rs/bevy/0.19.1/bevy/pbr/struct.StandardMaterial.html) provides the matching inputs. Use base colour for painted dust; where warranted, store occlusion, roughness and metalness in R/G/B in a shared linear-data texture. Verify the exported result inside the game.
+
+## Implementation sequence
+
+1. **Baseline and recovery.** Verify a dated source and asset backup. Record current hashes and replay the fixed picnic and shelter cameras. Record a player-height walk carrying an opponent through the scoring entrance. Capture with mouse captured and pause overlay cleared. Use identical resolution, device, route, bots and warm-up for subsequent comparisons.
+2. **Road and shoulder pilot.** Trace who draws the visible road and surrounding dirt before editing. Modify one stretch at the east picnic approach. Use broad asymmetric dust patches, exposed asphalt and occasional gravel at the margin; retain a quiet throwing lane. Drive placement with a low-resolution painted mask or existing vertex colours according to mesh density. Start with one shared ground material and test the result at walking speed. Avoid coplanar layers that flicker. Preserve road width and every collider.
+3. **Canopy and shelter light.** Inspect the east gum's foliage mesh and shadow caster at gameplay scale. Test a simpler clustered caster or revised foliage alpha silhouette if the spiky pattern persists. Compare that change alone. Then adjust existing Smoko-only sun and fill in rust/crates/bbq_app/src/servo_finish.rs only if necessary. Retain the existing feet/contact shading. Check the sign, timber posts and carried players in shade.
+4. **Shelter materials.** Reuse art/bush-servo/shelter_materials.py and existing atlases. Give galvanised roof edges restrained highlights, weather the upper rim of the painted sign and keep lettering clean. Apply grain by board direction. Verify export through the current GLB compaction path and validate bounds. Expand to the frontage and existing prop groups only after the first scene is approved.
+5. **Acceptance per stage.** Compare actual A/B views and the moving route. Review whether the route, sign, throwable and carried player read at gameplay distance. Track native and browser median/p95 frame time, frames over 33 ms, model download bytes, texture dimensions/memory and material batches. Repeat three warmed runs. Flag a repeatable browser p95 increase exceeding 1 ms or 10%, whichever occurs first, for investigation. Test a browser host plus joining browser with bots; the archived 75 FPS stationary solo measurement is a separate reference. Run affected tests, native/browser release builds and a successful Smoko delivery before publication. Keep other modes and outside scenery as they are. Save exact inputs, changed files, images, metrics and rollback instructions at each checkpoint.
+
+First review deliverable: same-camera before/after of the road shoulder, short moving browser capture, measured costs and a reversible asset change. Decide on canopy work after seeing that comparison.

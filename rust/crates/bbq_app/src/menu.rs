@@ -352,7 +352,7 @@ pub enum ShowWhen {
     Panel(Tab),
     Subpage,
     NameEntry,
-    /// The blob preview card: on the Solo and Customise tabs.
+    /// The blob preview card on Main and Customise; setup leaves room for the map.
     Preview,
     /// Only the Solo and How to play tabs (the title and field of view make room for the
     /// Customise and With mates tabs).
@@ -1805,7 +1805,7 @@ fn paint_widgets(
             ShowWhen::Panel(t) => *t == ui.tab,
             ShowWhen::Subpage => ui.tab != Tab::Main,
             ShowWhen::NameEntry => matches!(ui.tab, Tab::Solo | Tab::Mates | Tab::Look) && !lobby.in_yard,
-            ShowWhen::Preview => matches!(ui.tab, Tab::Main | Tab::Solo | Tab::Look) && !lobby.active,
+            ShowWhen::Preview => matches!(ui.tab, Tab::Main | Tab::Look) && !lobby.active,
             ShowWhen::Lobby => lobby.active,
             ShowWhen::LobbyHost => lobby.active && lobby.host,
             ShowWhen::Offline => !lobby.in_yard,
@@ -2109,17 +2109,25 @@ fn sync_cursor(screen: Res<Screen>, mut cursor: Single<&mut CursorOptions, With<
     }
 }
 
+/// Local setup drives the overview; guests display the host's replicated selection.
+pub fn displayed_mode(screen: Screen, settings: &Settings, game: &crate::game::Game) -> GameMode {
+    if screen == Screen::Menu && !game.mirror { settings.mode } else { game.rules.mode }
+}
+
 /// The camera drifts round the yard behind the menu: radius 40, height 17, 0.05 rad/s.
 fn menu_camera(
     screen: Res<Screen>,
     time: Res<Time>,
     lobby: Res<crate::online::Lobby>,
+    settings: Res<Settings>,
+    game: Res<crate::game::Game>,
     mut cam: Query<&mut Transform, With<crate::player::EyeCamera>>,
 ) {
     if *screen != Screen::Menu {
         return;
     }
-    if lobby.active {
+    let mode = displayed_mode(*screen, &settings, &game);
+    if lobby.active && !matches!(mode, GameMode::Smoko | GameMode::Race) {
         // the online lobby: looking at everybody's blobs in a row on the lawn
         for mut tf in &mut cam {
             let (at, look) = crate::lobby::stage_camera(lobby.count);
@@ -2129,20 +2137,32 @@ fn menu_camera(
     }
     let a = time.elapsed_secs() * 0.05;
     for mut tf in &mut cam {
-        tf.translation = Vec3::new(a.sin() * 40.0, 17.0, a.cos() * 40.0);
-        tf.look_at(Vec3::new(0.0, 1.0, 0.0), Vec3::Y);
+        let (radius, height, centre) = match mode {
+            GameMode::Smoko => (46., 48., Vec3::new(0., 0., 3.)),
+            GameMode::Race => (62., 72., Vec3::ZERO),
+            _ => (40., 17., Vec3::ZERO),
+        };
+        tf.translation = centre + Vec3::new(a.sin() * radius, height, a.cos() * radius);
+        // The setup cards cover the left of the screen. Frame the arena in the open right side.
+        let right = Vec3::new(a.cos(), 0., -a.sin());
+        let offset = if matches!(mode, GameMode::Smoko | GameMode::Race) { 28. } else { 0. };
+        tf.look_at(centre + Vec3::Y - right * offset, Vec3::Y);
     }
 }
 
 /// The yard behind the menu shows what is ticked.
-fn menu_yard_preview(screen: Res<Screen>, settings: Res<Settings>, mut yard: ResMut<YardRes>) {
-    if *screen != Screen::Menu || !settings.is_changed() {
-        return;
-    }
-    if yard.0.features != settings.features {
-        let spot = yard.0.chest_spot;
-        yard.0 = bbq_core::yard::Yard::new(settings.features, spot);
-    }
+fn menu_yard_preview(screen: Res<Screen>, settings: Res<Settings>, game: Res<crate::game::Game>, mut yard: ResMut<YardRes>) {
+    if *screen != Screen::Menu || game.mirror { return; }
+    let want_heist = (settings.mode == GameMode::Heist).then_some(settings.heist_teams);
+    let mut features = settings.features;
+    features.smoko = settings.mode == GameMode::Smoko;
+    if yard.0.features == features && yard.0.heist == want_heist { return; }
+    let spot = yard.0.chest_spot;
+    yard.0 = match settings.mode {
+        GameMode::Smoko => bbq_core::yard::Yard::smoko(features, spot),
+        GameMode::Heist => bbq_core::yard::Yard::heist(features, spot, settings.heist_teams),
+        _ => bbq_core::yard::Yard::new(features, spot),
+    };
 }
 
 // ---------------------------------------------------------------- results
@@ -2255,6 +2275,24 @@ fn dev_hud(
 #[cfg(test)]
 mod menu_tests {
     use super::*;
+
+    #[test]
+    fn setup_preview_follows_selection_and_guests_follow_host() {
+        let mut app = App::new();
+        app.add_plugins(crate::game::GamePlugin);
+        let mut settings = Settings::default();
+        let mut game = app.world_mut().resource_mut::<crate::game::Game>();
+        for mode in [GameMode::Smoko, GameMode::Race, GameMode::Heist, GameMode::Teams, GameMode::FreeForAll] {
+            settings.mode = mode;
+            assert_eq!(displayed_mode(Screen::Menu, &settings, &game), mode);
+        }
+        settings.mode = GameMode::Race;
+        game.rules.mode = GameMode::Smoko;
+        game.mirror = true;
+        assert_eq!(displayed_mode(Screen::Menu, &settings, &game), GameMode::Smoko);
+        game.mirror = false;
+        assert_eq!(displayed_mode(Screen::Playing, &settings, &game), GameMode::Smoko);
+    }
 
     fn menu(lobby: crate::online::Lobby) -> App {
         NO_SAVE.store(true, std::sync::atomic::Ordering::Relaxed);
