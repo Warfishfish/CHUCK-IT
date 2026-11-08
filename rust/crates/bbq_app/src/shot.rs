@@ -78,10 +78,23 @@ pub fn parse(args: &[String]) -> Option<ShotConfig> {
 /// Where the line-up of items stands (the same numbers the browser page uses).
 pub fn gallery_places() -> Vec<(ModelKey, Vec3)> {
     let mut v = Vec::new();
+    if std::env::args().any(|a| a == "food") {
+        return [ItemKind::Snag, ItemKind::Steak, ItemKind::Fish]
+            .into_iter()
+            .enumerate()
+            .map(|(i, kind)| {
+                (
+                    ModelKey::item(kind, None, 0),
+                    Vec3::new((i as f32 - 1.0) * 1.2, 30.35, -1.0),
+                )
+            })
+            .collect();
+    }
     for (i, k) in [
         ItemKind::Teddy,
         ItemKind::Stubby,
         ItemKind::WaterBalloon,
+        ItemKind::Snag,
         ItemKind::Steak,
         ItemKind::Fish,
         ItemKind::Noodle,
@@ -92,7 +105,7 @@ pub fn gallery_places() -> Vec<(ModelKey, Vec3)> {
     {
         v.push((
             ModelKey::item(k, None, 0),
-            Vec3::new((i as f32 - 3.0) * 0.55, 30.35, -1.0),
+            Vec3::new((i as f32 - 3.5) * 0.45, 30.35, -1.0),
         ));
     }
     for (i, d) in [DildoVariant::Mini, DildoVariant::Jumbo, DildoVariant::Gold, DildoVariant::Quickie, DildoVariant::LongJohn]
@@ -154,7 +167,8 @@ fn showcase(mut game: ResMut<Game>, mut player: ResMut<crate::player::Player>, m
         {
             it.pos.y = 2.4;
             it.vel = bbq_core::vec::V3::new(0.0, v, 0.0);
-            it.live = false;
+            it.state = bbq_core::flight::ItemState::Flying;
+            it.live = true;
         }
         id
     };

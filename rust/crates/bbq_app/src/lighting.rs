@@ -68,10 +68,10 @@ impl LookMode {
                 crate::style::Style::Pop => Rig {
                     sky: 0xb5d0f5,
                     ground: 0xa4b2a6,
-                    hemi: 0.82,
-                    sun: 0xffe8c9,
-                    sun_intensity: 0.96,
-                    grade: Grade { saturation: 0.98, warmth: 0.006, contrast: 1.018, vignette: 0.035 },
+                    hemi: 0.78,
+                    sun: 0xffd9ad,
+                    sun_intensity: 1.04,
+                    grade: Grade { saturation: 1.04, warmth: 0.014, contrast: 1.045, vignette: 0.035 },
                 },
                 // clay: a strong, low, golden sun with a cool blue shade and warm bounce light
                 crate::style::Style::Clay => Rig {
@@ -283,12 +283,15 @@ pub fn sun_cascades() -> bevy::light::CascadeShadowConfig {
 /// on by default in the polished look; `--fx off` switches them off (to compare, or on a slow
 /// computer).
 pub fn post_fx_wanted(look: LookMode, args: &[String]) -> bool {
-    let off = args
+    look == LookMode::Polished && effects_enabled(args)
+}
+
+pub fn effects_enabled(args: &[String]) -> bool {
+    !args
         .iter()
         .position(|a| a == "--fx")
         .and_then(|i| args.get(i + 1))
-        .is_some_and(|v| v == "off");
-    look == LookMode::Polished && !off
+        .is_some_and(|v| v == "off")
 }
 
 /// The screen effects of the polished look (step 2c):

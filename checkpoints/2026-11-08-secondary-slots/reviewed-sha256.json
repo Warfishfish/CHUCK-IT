@@ -1,0 +1,6 @@
+{
+  "rust/crates/bbq_core/src/hands.rs": "abc81b361acafd69a1458804ec37b355969ebe9e17d23826a48954162523a56f",
+  "rust/crates/bbq_core/src/net.rs": "7d1917bc2e058bab2f5e2695ce4ade1ecb57959d0f3495199fdbe3cf3591e6fb",
+  "rust/crates/bbq_app/src/game.rs": "2682f14e1322c01111014169b10d61e63e71d482369ceacbdfde84a904ee4518",
+  "rust/crates/bbq_app/src/online_world.rs": "9392bbb8a67cf1d767cd7c4ad595eaef14f5c3813d2de8f821d59fcb5c2edc48"
+}

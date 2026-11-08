@@ -13,7 +13,7 @@
 
 /// Bump this whenever a message changes, so old and new copies of the game refuse each other
 /// politely instead of misreading each other.
-pub const PROTOCOL: u16 = 26; // Shared interior servo/supply collision and host-selected lobby map.
+pub const PROTOCOL: u16 = 27; // Pickups/catches preserve equipped item and full catches drop incoming.
 /// The most people in one yard (the browser game's limit).
 pub const MAX_PLAYERS: usize = 16;
 /// How often each player reports where they are.

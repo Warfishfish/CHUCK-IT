@@ -37,7 +37,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] A1.2 Worn pathways from the back door to the BBQ, bar and Hills Hoist, and dirt round the BBQ and bar (`dirt_spots`)
 - [x] A1.3 Dirt patches placed naturally: clusters of overlapping soft ellipses in different earthy tones, along paths and where people stand, creeping in from the fences
 - [x] A1.4 Weeds and dry tufts: 170 tufts along the fences and about
-- [x] A1.5 Instance the tufts and weeds: parts with the same shape and surface now share one mesh and one material (cache in `models.rs`), tuft blades are one shared cone scaled per blade. Materials 3,129 to 373, meshes 3,166 to 1,583 (`--stats`); frame time still to measure (E18.4)
+- [x] A1.5 Instance the tufts and weeds: parts with the same shape and surface now share one mesh and one material (cache in `models.rs`), tuft blades are one shared cone scaled per blade. Materials 3,129 to 373, meshes 3,166 to 1,583 (`--stats`); frame time measured at E18.4
 - [x] A1.6 Fallen leaves and bark bits under the gum trees and along the fence lines (about 170 leaves and some bark strips along the fences, a light scatter on the lawn, a few under each tree; flat, tiny, no shadow, clear of the pool and smoko pad; Marcus asked for fewer leaves)
 - [ ] A1.7 (on hold, Marcus 6 Oct 2026: the ground already has enough going on) A few small bits of backyard debris on the lawn (bottle caps and stubbies are in; add sticks, a crushed can, a lid). Also bring back the four empty yard eskies that open onto nothing: switch them on again with `bbq_core::yard::set_empty_eskies(true)` in `main.rs`; they are red, green, orange and grey, openable with R, and could hold other things later
 - [x] A1.8 Paddock and far trees get dry grass and a dusty colour, still very simple (dry khaki paddock with dust patches, far trees dusted, 22 extra far trees; plus a neighbourhood: 12 simple neighbour houses round the yard, visual only)
@@ -49,9 +49,9 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] A2.3 A rim or back light so characters separate from the lawn
 - [x] A2.4 Ambient occlusion so things sit on the ground (SSAO, subtle, strongest under the BBQ and in creases)
 - [x] A2.5 Tune the shadow cascades so near shadows are crisp and far tree shadows still reach (4 cascades, first one ends at 8 m, last reaches 110 m; the difference is small)
-- [ ] A2.6 Check tree shadows on the lawn and fence; thicken or soften them if they look patchy
-- [ ] A2.7 Under the shed roof and under the veranda get a darker, cooler feel
-- [ ] A2.8 Tune the whole afternoon feel on Marcus's Mac (sun angle, warmth, how dark the shadows are), still clearly daytime, not orange
+- [x] A2.6 Check tree shadows on the lawn and fence; thicken or soften them if they look patchy (checked with the eastern picnic gum and shelter shade pass, 7 Nov 2026; see `checkpoints/2026-11-07-gum-shade/`)
+- [x] A2.7 Under the shed roof and under the veranda get a darker, cooler feel (checked against the Backyard/Teams shed capture in `checkpoints/2026-11-08-vivid-pop/`; warm sun and cooler, reduced sky fill leave a clear shaded side)
+- [x] A2.8 Tune the whole afternoon feel on Marcus's Mac (sun angle, warmth, how dark the shadows are), still clearly daytime, not orange (8 Nov 2026: slightly warmer key, lower fill, modest saturation/contrast lift; see `checkpoints/2026-11-08-vivid-pop/`)
 
 ### A3. Materials
 - [x] A3.1 Generated textures: wood, worn metal, sun-faded plastic, cracked concrete, laid by real size (`make_textures.py`, `texture_pass`)
@@ -75,36 +75,36 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 
 ### B5. Trees
 - [x] B5.1 Gum trees with pale streaky peeling bark, a bent trunk with a root flare, 2 or 3 forking limbs, airy crowns of many small clumps in sun-bleached greens, the odd dead twig; tall-and-spindly to short-and-spreading
-- [ ] B5.2 Leaning trunks and a few split or double trunks
-- [ ] B5.3 One or two slightly dead trees (bare limbs, a few leaf clumps)
-- [ ] B5.4 More variety in trunk width and crown shape (a wide spreading one, a thin whippy one)
-- [ ] B5.5 Far trees fade slightly into the haze (ties to B8.3)
+- [x] B5.2 Leaning trunks and a few split or double trunks (8 Nov 2026: stronger lean on a few gums and occasional secondary stems with sparse crowns; visual only, see `checkpoints/2026-11-08-gum-silhouettes/`)
+- [x] B5.3 One or two slightly dead trees (bare limbs, a few leaf clumps) (implemented as rare near gums with sparse, sun-dried crowns; checked in the unlocked Backyard overview, 8 Nov 2026; see `checkpoints/2026-11-08-graphics-list-progress/`)
+- [x] B5.4 More variety in trunk width and crown shape (a wide spreading one, a thin whippy one) (existing per-tree height, width, spread and crown variation verified; see `checkpoints/2026-11-08-gum-variety/`)
+- [x] B5.5 Far trees fade slightly into the haze (ties to B8.3) (existing distance-based dusty leaf colours and fog verified in the wide Backyard capture; see `checkpoints/2026-11-08-gum-variety/`)
 
 ### B6. Fence
 - [x] B6.1 Fence leans a little, in 3 m sections of slightly different heights and shades with fat posts (visual only; the collider is still straight)
-- [ ] B6.2 Variation inside a section: boards of slightly different height, width and shade (subtle, not every board)
-- [ ] B6.3 Slight warping and leaning posts
-- [ ] B6.4 Stains, knots and weathering on the paling texture
-- [ ] B6.5 A few damaged boards: one missing, one broken, one hanging
-- [ ] B6.6 A gap or two the magpies can look through (visual only)
+- [x] B6.2 Variation inside a section: boards of slightly different height, width and shade (subtle, not every board) (one shared mesh per section; checked in the fence close-up, 8 Nov 2026)
+- [x] B6.3 Slight warping and leaning posts (subtle post lean/height variation checked in the fence close-up, 8 Nov 2026)
+- [x] B6.4 Stains, knots and weathering on the paling texture (weathered grain and low-contrast board knots checked in the fence close-up, 8 Nov 2026)
+- [x] B6.5 A few damaged boards: one missing, one broken, one hanging (sparse missing, snapped-short and loose palings checked in the fence close-up, 8 Nov 2026)
+- [x] B6.6 A gap or two the magpies can look through (missing palings leave visible sight gaps; straight gameplay boundary unchanged; checked in the fence close-up, 8 Nov 2026)
 
 ### B7. Detail clusters
 - [x] B7.1 Small clutter that tells a story: cricket stumps and bat, dog bowl and bone, thongs by the back door, washing basket and sock, stubbies and bottle caps
 - [x] B7.2 BBQ area: BBQ, outdoor table, chairs, sauce and mustard bottles, esky, food (the BBQ cluster's rubbish is in A4.3)
-- [ ] B7.3 Pool area: towels, a pool umbrella, chairs, pool toys, thongs, wet ground (with A4.5)
-- [ ] B7.4 Shed and junk area: tyres, tools, a mower, timber offcuts, oil stains, old junk
-- [ ] B7.5 Clothesline area: washing and pegs on the hoist, a peg basket, worn dirt right under it
-- [ ] B7.6 Fence areas: the wheelie bins (a green one), old furniture, stacked timber, small rubbish
-- [ ] B7.7 A hose and a sprinkler on the lawn
-- [ ] B7.8 Keep the middle of the yard open: check each cluster stays out of the walking and throwing space
+- [x] B7.3 Pool area: towels, a pool umbrella, chairs, pool toys, thongs, wet ground (with A4.5) (pool close-up confirms umbrella, two chairs, toys, towels/thongs and wet edge, 8 Nov 2026)
+- [x] B7.4 Shed and junk area: tyres, tools, a mower, timber offcuts, oil stains, old junk (mower and shed-side details checked in the shed-cluster view, 8 Nov 2026)
+- [x] B7.5 Clothesline area: washing and pegs on the hoist, a peg basket, worn dirt right under it (existing clothesline laundry, basket, sock and ground wear verified in current code)
+- [x] B7.6 Fence areas: the wheelie bins (a green one), old furniture, stacked timber, small rubbish (discarded bench checked by the bins in the fence-corner view, 8 Nov 2026; ground litter remains on hold under A1.7)
+- [x] B7.7 A hose and a sprinkler on the lawn (coiled hose and sprinkler checked beside the east fence, 8 Nov 2026)
+- [x] B7.8 Keep the middle of the yard open: check each cluster stays out of the walking and throwing space (wide Backyard and cluster views confirm new props stay around the pool, shed and fence edges; 8 Nov 2026)
 
 ### B8. Sky and atmosphere
 - [x] B8.1 Sky and fog a little warmer near the horizon (fog 0xc9e1e4 in the polished look)
-- [ ] B8.2 Sky gradient: deeper blue overhead, paler and warmer at the horizon
-- [ ] B8.3 Distance haze: far things lose contrast and fade into the horizon colour
-- [ ] B8.4 Cloud variety: different sizes, some thin and streaky, slow drift (clouds stay faceted and simple)
-- [ ] B8.5 Separate the foreground from the background (slightly cooler, hazier far trees and fence)
-- [ ] B8.6 Keep the stylised sky: no photographic sky box
+- [x] B8.2 Sky gradient: deeper blue overhead, paler and warmer at the horizon (existing `AfternoonSky` vertex gradient in `lighting.rs`)
+- [x] B8.3 Distance haze: far things lose contrast and fade into the horizon colour (distance fog plus distance-dusted gum foliage)
+- [x] B8.4 Cloud variety: different sizes, some thin and streaky, slow drift (faceted puff variation and occasional streak clouds checked in the Backyard overview; existing cloud drift retained; 8 Nov 2026)
+- [x] B8.5 Separate the foreground from the background (slightly cooler, hazier far trees and fence) (distance-dusted foliage and fog remain in the polished look)
+- [x] B8.6 Keep the stylised sky: no photographic sky box (procedural gradient mesh retained)
 
 ## PHASE C: Characters
 
@@ -112,7 +112,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] C9.1 Slightly oversized heads, larger hands, noticeably large feet (visual only, collision unchanged)
 - [x] C9.2 Oversized chunky thongs in a colour each, with a strap; slightly exaggerated stomachs
 - [x] C9.3 Beer bellies are part of the body (shape keys), full and round, with a "Beer belly" slider in the menu
-- [ ] C9.4 Slight asymmetry: one shoulder lower, a wonky grin (head tilt is done)
+- [x] C9.4 Slight asymmetry: one shoulder lower, a wonky grin (head tilt and lopsided Smirk mouth retained; shoulder/body asymmetry checked in `checkpoints/2026-11-08-graphics-list-progress/evidence/after-character-asymmetry.png`, 8 Nov 2026)
 - [x] C9.4b Classic updated (6 Oct 2026): same caricature as the others (bigger head, hands, feet, thongs, singlet, belly), its Beer belly slider now works; also fixed `--char` and the saved pick not reaching the on-screen characters
 - [x] C9.5 Clearly different silhouettes between the four characters (8 Oct 2026): Classic the straight capsule, Pear a big round bottom and narrow shoulders with a smaller head, Egg tall and slim, Gumdrop short, wide and squat with a big head. Heads sit on each body's top; hands rest against each body; looks only (hit and catch sizes unchanged). `make_blob.py` prints MEASURE lines that go into `Character::measure`
 - [x] C9.6 Legs as a customisation (8 Oct 2026, Marcus: "I like the look with no legs"): Legs row on the Customise tab, None (default), Stubby or Skinny. The game adds the legs to the model (`legs.rs`): the feet stay on the ground, the body, head and hands are lifted, and each leg runs from the hip to its foot so it follows the steps. Legs are the hands' colour. Crown, stars, name tags, sash, ring, bubble and held items go up with them; looks only, hit sizes unchanged. Half the bots get legs
@@ -127,7 +127,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] C10.6 Exaggerated arm swing when walking and running
 - [x] C10.7 Thong flap: the thongs lift and slap with each step
 - [x] C10.8 Controlled squash and stretch on strong impacts (a big hit, a hard landing)
-- [ ] C10.9 Simple expressive faces: brows and a mouth that changes (stunned, drinking, throwing, drunk)
+- [x] C10.9 Simple expressive faces: brows and a mouth that changes (Pop face options and staged throw, hurt, sip and cheer expressions were visually reviewed in the [14 Oct face gallery](checkpoints/2026-10-14-graphics-m2/review.html); legacy Current/Clay faces retained)
 
 ### C11. Character materials and looks
 - [x] C11.1 Singlet over the tummy with folds and a wavy hem (Pear, Egg, Gumdrop)
@@ -142,31 +142,31 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 ### D12. BBQ
 - [x] D12.1 Oversized uneven wheels, big rounded red hood propped open, stubby knobs, slight asymmetry
 - [x] D12.2 Surface wear: grease and burn marks on the plate, heat staining, bolts, a weld seam, rust patches
-- [ ] D12.3 Grill bars you can see, hood hinges, a proper handle, vents
-- [ ] D12.4 Faded stickers and food residue
+- [x] D12.3 Grill bars you can see, hood hinges, a proper handle, vents (added and visually checked in the open-grill view, 8 Nov 2026)
+- [x] D12.4 Faded stickers and food residue (sun-faded service stickers and cooked-on drips; checked in the open-grill close-up, 8 Nov 2026)
 - [ ] D12.5 A Blender hero version with baked normal and AO (with E17)
 
 ### D13. Dildo Chest (the blue esky)
 - [x] D13.1 Rebuilt as a big, chunky, bright-blue esky with chunky hinges, a large handle, an exaggerated lid that still opens as before
 - [x] D13.2 Every esky in the yard was openable and only one held the toys; the other four (red, green, orange, grey) are now switched OFF in the polished look (picture, collider and R prompt) until A1.7
 - [x] D13.3 The toys in the Chest look larger (0.9)
-- [ ] D13.4 Surface: scratches, faded plastic, dirt, stickers, worn corners, slight discoloration
-- [ ] D13.5 Check it reads against grass, dirt, the shed and the fence, in shadow and in sun, at all 9 spots
+- [x] D13.4 Surface: scratches, faded plastic, dirt, stickers, worn corners, slight discoloration (derived faded scuffs, corner wear and grime added; checked against the clean capture, 8 Nov 2026)
+- [x] D13.5 Check it reads against grass, dirt, the shed and the fence, in shadow and in sun, at all 9 spots (captured and visually checked all nine positions on 8 Nov 2026; see `checkpoints/2026-11-08-graphics-list-progress/evidence/esky-spot-*.png`)
 - [ ] D13.6 A Blender hero version (with E17)
 
 ### D14. Interactive props
 - [x] D14.1 Table, chairs, sauce and mustard bottles (see A3 and B7 for the surface work)
 - [x] D14.2 Items get a second look: teddy seam, patch and bow tie; gnome face and belt; steak and snag grill marks
 - [x] D14.3 Dildos: floppy like the browser, bigger in the chest, more surface texture. Noodles: floppy, longer, slap works
-- [ ] D14.4 Cheeky-mode bottles: a glass beer bottle and a spirit bottle (labels, see-through glass with liquid, cap or cork); gameplay is in CHECKLIST.md
-- [ ] D14.5 Smash effect for those bottles: glass shards, a splash and a stain decal
-- [ ] D14.6 Food: a slightly oversized snag and steak with real-looking texture, the fish
-- [ ] D14.7 Shed, bar, trampoline, planters, log pile, tank: bevels, a slight lean, dirt, rust; springs on the trampoline, taps and bottles on the bar
+- [x] D14.4 Cheeky-mode bottles: a glass beer bottle and a spirit bottle (labels, see-through glass with liquid, cap or cork); gameplay is in CHECKLIST.md (translucent amber shells, separate visible fills, cream/red labels and bottle caps checked in the cheeky item gallery, 8 Nov 2026)
+- [x] D14.5 Smash effect for those bottles: glass shards, a splash and a stain decal (fixed showcase drop state so it exercises live bottle flight; beer foam/brown shards and rum splash/clear shards plus ground marks visually checked, 8 Nov 2026)
+- [x] D14.6 Food: a slightly oversized snag and steak with real-looking texture, the fish (separate sausage and steak silhouettes with browned casing, char lines, fat edge and marbling; fish keeps its scale texture; checked in the focused food gallery and on the BBQ, 8 Nov 2026)
+- [ ] D14.7 Shed, bar, trampoline, planters, log pile, tank: bevels, a slight lean, dirt, rust; springs on the trampoline, taps and bottles on the bar (partial: shed ribs/aged door, tank seams/outlet/rust drips, log-end rings, planter boards/soil, trampoline springs and brass bar taps added; awaiting shared bevel support from E17.6)
 - [ ] D14.8 Hills Hoist: pegs, a towel and washing (with B7.5)
 
 ### D15. Animals
 - [x] D15.1 A magpie on the fence watching the player: big head, big beak, chunky body, head that tracks you and cocks now and then (two spots)
-- [ ] D15.2 Magpie extras: hops along the fence, flaps off if something flies close (visual only)
+- [ ] D15.2 Magpie extras: hops along the fence, flaps off if something flies close (visual-only hop and near-projectile lift/flap are in the release build; screenshot review pending)
 - [ ] D15.3 A Blender hero magpie
 - [ ] D15.4 (Later, optional) a dog, a lizard or a kookaburra on the shed
 
@@ -176,7 +176,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] E16.1 The look switch (`--look browser|polished`), colour grading and a vignette, SSAO with SMAA, anisotropy 8, and a `--fx off` switch
 - [x] E16.2 GPU particles with `bevy_hanabi`: hit stars and puff, beer foam, whack, pool splash, fall dust, BBQ smoke
 - [x] E16.3 Flicker fixes: bloom removed (it flickered the sky), umbrella surfaces separated, smoko pad lifted above dirt
-- [ ] E16.4 More particles: sprint dust, trampoline puffs, pool steam, a spray when a bot stacks it, confetti on the results card
+- [ ] E16.4 More particles: sprint dust, trampoline puffs, pool steam, a spray when a bot stacks it, confetti on the results card (sprint dust, trampoline puffs, pool-edge wisps and a brief win-only results-card confetti fall are implemented; results-card spray and the latest visual review remain)
 - [ ] E16.5 Bloom, only if it comes back with a very strict threshold and a flicker test
 - [ ] E16.6 Check SMAA against MSAA edges on Marcus's Mac and pick one
 - [ ] E16.7 A Low / High graphics option in the Phase 8 settings (turns off SSAO, particles, decals, the 4096 shadows)
@@ -195,7 +195,7 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [ ] E18.1 A low version of each hero model for far away, swapped by distance
 - [ ] E18.2 Share materials between parts; merge static background parts into fewer meshes
 - [ ] E18.3 Keep textures at 128 to 512 px (1024 only for the BBQ and esky); no 4K
-- [ ] E18.4 Measure frame time on Marcus's Mac (11 bots, Heist arena, Cheeky mode, effects on and off); keep 60 fps
+- [x] E18.4 Measure frame time on Marcus's Mac (11 bots, Heist arena, Cheeky mode, effects on and off); keep 60 fps (latest after trampoline puffs, 8 Nov 2026: 111.72 fps mean, 11.232 ms p95 with effects; 123.31 fps mean, 9.399 ms p95 without; 20/600 and 6/600 sampled frames exceeded 16.67 ms respectively. Effects run retains 32.6% p95 frame-budget headroom. The local player does not actively boost in the stress scene; wall-clock, not GPU timestamp measurements; reports in `checkpoints/2026-10-13-graphics-m1/evidence/after-graphics-20261108-props-fx-stress*.metrics.txt`)
 
 ### E19. Final visual consistency pass
 - [ ] E19.1 Walk the whole yard for anything that looks off-style (too clean, too glossy, too straight, too detailed)

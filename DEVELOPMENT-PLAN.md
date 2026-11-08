@@ -1,6 +1,6 @@
 # Australian BBQ · five-feature coding plan
 
-8 November — milestones 1 and 2 are implemented locally, awaiting final review. The user selected north-west site A. See checkpoints/2026-11-08-servo-menu/review.html.
+8 November — milestones 1 and 2 were published, with north-west site A selected. Milestone 3 is implemented locally for review at checkpoints/2026-11-08-secondary-slots/review.html. Milestones 4 and 5 remain queued.
 
 Work in /Users/marcus/Claude/australian-bbq. Scope is the five active backlog additions in NEXT_UP.md. Each milestone can ship independently. Suggested order follows the backlog so Smoko stays first. The two-slot work precedes Race so the full-lap playtest also exercises catching. Keep the shelter-material graphics pass as a separate review.
 

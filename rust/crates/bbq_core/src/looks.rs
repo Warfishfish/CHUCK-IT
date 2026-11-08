@@ -29,6 +29,11 @@ pub enum Shape {
     },
     /// `BoxGeometry(w, h, d)`.
     Cuboid { w: f32, h: f32, d: f32 },
+    /// One fence section made from closely spaced, slightly varied vertical palings. The boards
+    /// share one mesh so the visual detail does not add an entity or draw call per board.
+    /// One shared mesh of closely spaced, slightly varied vertical palings.
+    /// `damage` encodes an optional missing, broken, or loose board accent.
+    PalingPanel { w: f32, h: f32, d: f32, boards: u32, damage: u32 },
     /// `ConeGeometry(r, h, seg)`: point up, base at the bottom.
     Cone { r: f32, h: f32, seg: u32 },
     /// `TorusGeometry(r, tube, radial, tubular, arc)`: a ring in the XY plane, from the +x axis
@@ -391,6 +396,10 @@ impl Surface {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Part {
     pub shape: Shape,
+    /// Radius in local metres to soften box edges or the rims of closed cylinders.
+    pub bevel: f32,
+    /// Shade exposed upper edges and dirt along the foot of selected outdoor props.
+    pub weathered: bool,
     pub surface: Surface,
     pub pos: V3,
     pub rot: Quat,
@@ -409,6 +418,8 @@ impl Part {
     pub fn new(shape: Shape, surface: Surface) -> Self {
         Part {
             shape,
+            bevel: 0.0,
+            weathered: false,
             surface,
             pos: V3::ZERO,
             rot: Quat::IDENTITY,
@@ -417,6 +428,16 @@ impl Part {
             hero: false,
             soft: false,
         }
+    }
+
+    pub fn weathered(mut self) -> Self {
+        self.weathered = true;
+        self
+    }
+
+    pub fn bevel(mut self, radius: f32) -> Self {
+        self.bevel = radius.max(0.0);
+        self
     }
 
     /// Mark as a hero part (see `hero`).
@@ -598,7 +619,11 @@ pub fn lemonade_can() -> Vec<Part> {
 /// Cheeky mode's beer bottle: a squat brown-glass Aussie stubby with a gold crown cap and a
 /// cream label. About the size of the can, so it throws and holds the same.
 pub fn beer_bottle() -> Vec<Part> {
-    let glass = Surface::shiny(0x5a2f0e, 0xfff0d0, 90.0).glow(0x140700);
+    let glass = Surface::shiny(0x9a682b, 0xfff0d0, 90.0)
+        .both_sides()
+        .see_through(0.3)
+        .glow(0x100700);
+    let beer = Surface::shiny(0xb7731f, 0xe5a642, 45.0);
     let label = Surface::matt(0xf2e3b8);
     let cap = Surface::shiny(0xd8a62a, 0xffffff, 60.0);
     vec![
@@ -607,6 +632,8 @@ pub fn beer_bottle() -> Vec<Part> {
         Part::new(sphere(0.064, 18, 9), glass).at(0.0, 0.02, 0.0).stretch(1.0, 0.55, 1.0),
         Part::new(cyl(0.026, 0.034, 0.06, 14), glass).at(0.0, 0.075, 0.0),
         Part::new(cyl(0.029, 0.029, 0.018, 14), cap).at(0.0, 0.112, 0.0),
+        // The amber fill sits inside the transparent shell and stops below the shoulder.
+        Part::new(cyl(0.052, 0.055, 0.075, 18), beer).at(0.0, -0.073, 0.0),
         // the label round the middle, a red stripe across it
         Part::new(cyl(0.0655, 0.0655, 0.07, 18), label).at(0.0, -0.04, 0.0),
         Part::new(cyl(0.066, 0.066, 0.016, 18), Surface::matt(0xc2312a)).at(0.0, -0.035, 0.0),
@@ -616,16 +643,22 @@ pub fn beer_bottle() -> Vec<Part> {
 /// Cheeky mode's spirits: a taller, square-shouldered bottle of dark rum with a black cap and a
 /// cream label with a red band.
 pub fn spirit_bottle() -> Vec<Part> {
-    let glass = Surface::shiny(0x7a3a12, 0xfff0d0, 110.0).glow(0x1e0a02);
+    let glass = Surface::shiny(0xb17b42, 0xfff0d0, 110.0)
+        .both_sides()
+        .see_through(0.28)
+        .glow(0x120700);
     let label = Surface::matt(0xf0e6cc);
+    let rum = Surface::shiny(0x85400e, 0xd8923d, 50.0);
     vec![
         Part::new(Shape::Cuboid { w: 0.11, h: 0.17, d: 0.07 }, glass).at(0.0, -0.04, 0.0),
         Part::new(cyl(0.03, 0.05, 0.04, 14), glass).at(0.0, 0.065, 0.0),
         Part::new(cyl(0.022, 0.026, 0.06, 12), glass).at(0.0, 0.11, 0.0),
         Part::new(cyl(0.026, 0.026, 0.03, 12), Surface::matt(0x151515)).at(0.0, 0.15, 0.0),
-        // the label on the front and the back, with a red band
-        Part::new(Shape::Cuboid { w: 0.09, h: 0.09, d: 0.074 }, label).at(0.0, -0.045, 0.0),
-        Part::new(Shape::Cuboid { w: 0.092, h: 0.02, d: 0.076 }, Surface::matt(0xb3241c)).at(0.0, -0.02, 0.0),
+        // A square-shouldered rum fill shows through the glass above and below the label.
+        Part::new(Shape::Cuboid { w: 0.086, h: 0.13, d: 0.047 }, rum).at(0.0, -0.06, 0.0),
+        // The label on the front and the back, with a red band.
+        Part::new(Shape::Cuboid { w: 0.09, h: 0.078, d: 0.073 }, label).at(0.0, -0.045, 0.0),
+        Part::new(Shape::Cuboid { w: 0.092, h: 0.016, d: 0.075 }, Surface::matt(0xb3241c)).at(0.0, -0.02, 0.0),
     ]
 }
 
@@ -681,18 +714,42 @@ pub fn bum_crack() -> Vec<Part> {
     v
 }
 
-/// A raw steak. (The snag looks the same.)
+/// A raw steak with a broad cut face, a pale fat edge and fine marbling.
 pub fn steak() -> Vec<Part> {
     vec![
-        Part::new(cyl(0.15, 0.13, 0.05, 10), Surface::matt(0xc4455a)).stretch(1.25, 1.0, 0.9),
-        Part::new(torus(0.14, 0.018, 5, 14, PI * 1.1), Surface::matt(0xf2d2c8))
+        Part::new(cyl(0.15, 0.13, 0.05, 12), Surface::shiny(0xc4455a, 0x7b2937, 18.0)).stretch(1.38, 1.0, 1.0),
+        Part::new(torus(0.14, 0.018, 6, 16, PI * 1.1), Surface::matt(0xf2d2c8))
             .at(0.0, 0.012, 0.0)
             .turn(HALF_PI, 0.0, 0.0)
-            .stretch(1.25, 0.9, 1.0),
+            .stretch(1.38, 0.9, 1.0),
         Part::new(sphere(0.035, 8, 6), Surface::matt(0xf2d2c8))
             .at(0.05, 0.02, 0.02)
             .stretch(1.0, 0.4, 1.0),
     ]
+}
+
+/// A distinct plump snag: browned casing, rounded ends and narrow char lines.
+pub fn snag() -> Vec<Part> {
+    let casing = Surface::shiny(0xc75a32, 0x6c2e1b, 20.0);
+    let char = Surface::matt(0x52251a);
+    let mut v = vec![
+        Part::new(
+            Shape::Capsule { r: 0.052, len: 0.26, cap: 8, radial: 12 },
+            casing,
+        )
+        .turn(0.0, 0.0, HALF_PI)
+        .stretch(1.0, 0.9, 0.92),
+        Part::new(sphere(0.014, 8, 6), Surface::matt(0xe28a59)).at(-0.15, 0.028, 0.0),
+        Part::new(sphere(0.014, 8, 6), Surface::matt(0xe28a59)).at(0.15, 0.028, 0.0),
+    ];
+    for (x, angle) in [(-0.08f32, -0.22f32), (0.0, 0.18), (0.08, -0.2)] {
+        v.push(
+            Part::new(Shape::Cuboid { w: 0.014, h: 0.005, d: 0.06 }, char)
+                .at(x, 0.044, 0.0)
+                .turn(0.0, angle, 0.0),
+        );
+    }
+    v
 }
 
 const TAIL: &[(f32, f32)] = &[
@@ -1105,7 +1162,8 @@ pub fn item(kind: crate::items::ItemKind, id: u32, variant: Option<DildoVariant>
             _ => stubby(),
         },
         K::WaterBalloon => water_balloon(id),
-        K::Steak | K::Snag => steak(),
+        K::Steak => steak(),
+        K::Snag => snag(),
         K::Fish => fish(),
         K::Noodle => noodle(id),
         K::Dildo => dildo_skin(variant.unwrap_or(DildoVariant::Classic), DildoSkin::from_id(id)),
@@ -1176,7 +1234,7 @@ pub fn item_extras(kind: crate::items::ItemKind) -> Vec<Part> {
             v
         }
         K::WaterBalloon => Vec::new(),
-        K::Steak | K::Snag => {
+        K::Steak => {
             let mut v = Vec::new();
             // grill marks across the top and streaks of marbling
             for k in 0..3 {
@@ -1189,6 +1247,15 @@ pub fn item_extras(kind: crate::items::ItemKind) -> Vec<Part> {
             for (x, z, a) in [(-0.06f32, 0.04f32, 0.3f32), (0.07, -0.05, -0.5)] {
                 v.push(Part::new(Shape::Cuboid { w: 0.09, h: 0.005, d: 0.01 }, Surface::matt(0xf2d2c8)).at(x, 0.026, z).turn(0.0, a, 0.0));
             }
+            v
+        }
+        K::Snag => {
+            let mut v = Vec::new();
+            // Tiny beads of blistered casing and a warm highlight along the top.
+            for (x, z) in [(-0.11f32, 0.018f32), (-0.035, 0.025), (0.055, 0.02), (0.12, 0.014)] {
+                v.push(Part::new(sphere(0.008, 6, 4), Surface::matt(0x9b3c24)).at(x, 0.043, z));
+            }
+            v.push(Part::new(Shape::Cuboid { w: 0.18, h: 0.006, d: 0.008 }, Surface::matt(0xe69a69)).at(0.0, 0.046, -0.018));
             v
         }
         _ => Vec::new(),

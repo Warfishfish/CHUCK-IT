@@ -136,7 +136,13 @@ fn setup_camera_and_hud(mut commands: Commands, look: Res<crate::lighting::LookM
         .id();
     if crate::lighting::post_fx_wanted(*look, &args) {
         commands.entity(cam).insert(crate::lighting::post_fx());
-
+        if let Some(msaa) = crate::visual_review::comparison_aa(&args) {
+            let mut camera = commands.entity(cam);
+            camera.remove::<bevy::pbr::ScreenSpaceAmbientOcclusion>().insert(msaa);
+            if msaa != Msaa::Off {
+                camera.remove::<bevy::anti_alias::smaa::Smaa>();
+            }
+        }
     }
     if *look == crate::lighting::LookMode::Polished {
         // decals need the depth of the scene (SSAO already adds this when it is on)
@@ -300,6 +306,9 @@ fn step_player(
         g.fx(crate::fx::FxKind::Splash, bbq_core::vec::V3::new(p.mover.x, bbq_core::yard::WATER_Y, p.mover.z));
     } else if ev.hard_landing {
         g.fx(crate::fx::FxKind::Dust, bbq_core::vec::V3::new(p.mover.x, 0.1, p.mover.z));
+    }
+    if ev.bounce.is_some() {
+        g.fx(crate::fx::FxKind::Dust, bbq_core::vec::V3::new(p.mover.x, bbq_core::yard::TRAMP_H, p.mover.z));
     }
     p.walk = movement::advance_walk(
         p.walk,

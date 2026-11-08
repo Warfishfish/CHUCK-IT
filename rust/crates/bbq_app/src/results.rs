@@ -67,6 +67,16 @@ fn mine(g: &Game, k: Key) -> bool {
     }
 }
 
+pub fn local_won(g: &Game) -> bool {
+    let result = g.round.results.as_ref();
+    let winner = if g.rules.mode != GameMode::Race && g.round.mtch.len > 1 && g.round.mtch.over {
+        g.round.mtch.leader()
+    } else {
+        result.and_then(|round| round.winner)
+    };
+    winner.is_some_and(|w| mine(g, w))
+}
+
 fn standings(g: &Game) -> String {
     let mut w: Vec<_> = g.round.mtch.wins.iter().collect();
     w.sort_by_key(|x| std::cmp::Reverse(*x.1));

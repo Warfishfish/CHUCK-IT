@@ -400,6 +400,13 @@ struct PauseRoot;
 #[derive(Component)]
 struct ResultsRoot;
 #[derive(Component)]
+struct ResultsConfetti {
+    x: f32,
+    age: f32,
+    speed: f32,
+    phase: f32,
+}
+#[derive(Component)]
 struct NameText;
 #[derive(Component)]
 struct BlobName;
@@ -468,6 +475,7 @@ impl Plugin for MenuPlugin {
                     show_screens,
                     dev_hud,
                     open_results,
+                    animate_results_confetti,
                     menu_camera,
                     menu_yard_preview,
                 )
@@ -2172,6 +2180,7 @@ fn open_results(
     mut screen: ResMut<Screen>,
     game: Res<Game>,
     settings: Res<Settings>,
+    effects: Option<Res<crate::fx::Effects>>,
     online: Res<crate::online::Online>,
     old: Query<Entity, With<ResultsRoot>>,
 ) {
@@ -2196,6 +2205,7 @@ fn open_results(
         commands.entity(e).despawn();
     }
     let t = crate::results::build(g, &settings);
+    let celebrate = effects.is_some() && crate::results::local_won(g);
     commands
         .spawn((overlay(true), ResultsRoot))
         .with_children(|o| {
@@ -2237,10 +2247,60 @@ fn open_results(
                         });
                     }
                 }
+                if celebrate {
+                    let colours = [
+                        Color::srgb(0.95, 0.25, 0.19),
+                        Color::srgb(1.0, 0.73, 0.12),
+                        Color::srgb(0.12, 0.62, 0.95),
+                        Color::srgb(0.25, 0.78, 0.38),
+                        Color::srgb(0.81, 0.32, 0.76),
+                    ];
+                    for i in 0..18 {
+                        let x = 4.0 + ((i * 37) % 92) as f32;
+                        c.spawn((
+                            Node {
+                                position_type: PositionType::Absolute,
+                                left: Val::Percent(x),
+                                top: px(-24.0),
+                                width: px(if i % 3 == 0 { 8.0 } else { 5.0 }),
+                                height: px(if i % 3 == 0 { 12.0 } else { 8.0 }),
+                                border_radius: BorderRadius::all(px(2.0)),
+                                ..default()
+                            },
+                            BackgroundColor(colours[i % colours.len()]),
+                            ResultsConfetti {
+                                x,
+                                age: 0.0,
+                                speed: 58.0 + (i % 5) as f32 * 13.0,
+                                phase: i as f32 * 1.7,
+                            },
+                            UiTransform::default(),
+                            Pickable::IGNORE,
+                        ));
+                    }
+                }
             });
         });
     *screen = Screen::Results;
     let _ = TICK_DT;
+}
+
+/// A single brief shower of paper pieces inside the winning results card.
+fn animate_results_confetti(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut pieces: Query<(Entity, &mut ResultsConfetti, &mut Node, &mut UiTransform)>,
+) {
+    for (entity, mut piece, mut node, mut transform) in &mut pieces {
+        piece.age += time.delta_secs();
+        if piece.age > 2.5 {
+            commands.entity(entity).despawn();
+            continue;
+        }
+        node.left = Val::Percent(piece.x + (piece.age * 3.0 + piece.phase).sin() * 1.8);
+        node.top = px(-16.0 + piece.age * piece.speed);
+        transform.rotation = Rot2::radians((piece.age * 7.0 + piece.phase).sin() * 0.55);
+    }
 }
 
 /// Run conditions for the other plugins.

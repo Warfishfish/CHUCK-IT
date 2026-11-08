@@ -9,6 +9,19 @@ use bevy::window::{PresentMode, PrimaryWindow};
 
 pub struct VisualReviewPlugin;
 
+/// Keep scene grading, shadows, particles and camera prepasses identical when comparing edges.
+/// Both review views omit SSAO because its depth sampling requires single-sampled textures.
+pub fn comparison_aa(args: &[String]) -> Option<Msaa> {
+    if !args.iter().any(|arg| arg == "--shot") || !args.iter().any(|arg| arg == "--review") {
+        return None;
+    }
+    match args.windows(2).find(|pair| pair[0] == "--aa").map(|pair| pair[1].as_str()) {
+        Some("smaa") => Some(Msaa::Off),
+        Some("msaa4") => Some(Msaa::Sample4),
+        _ => None,
+    }
+}
+
 impl Plugin for VisualReviewPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
@@ -145,7 +158,7 @@ fn motion_mode() -> Option<&'static str> {
     MODE.get_or_init(|| {
         let a: Vec<String> = std::env::args().collect();
         if !a.iter().any(|v|v=="--shot") || !a.iter().any(|v|v=="--review") { return None; }
-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie", "race-carry", "race-tug", "race-grass", "charge-fall", "charge-release", "charge-camera", "magpie-flock"].contains(&v.as_str())).cloned()
+        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie", "magpie-perch", "race-carry", "race-tug", "race-grass", "charge-fall", "charge-release", "charge-camera", "magpie-flock"].contains(&v.as_str())).cloned()
     }).as_deref()
 }
 
@@ -219,6 +232,26 @@ fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate:
         if *frame>=180 && *frame%10==0 {
             let r=&game.race.racers[&1];
             println!("RACE_SOCIAL frame={} mode={} carries={} victim_pos={:?} victim_tug={:.3} player=({:.2},{:.2}) speed={:.3} return={:?}",*frame,mode,game.smoko.carries.len(),game.dummies.get(1).map(|d|(d.mover.x,d.mover.y,d.mover.z)),game.race.racers[&101].tug_until-game.now,player.mover.x,player.mover.z,player.mover.speed(),r.return_to);
+        }
+        return;
+    }
+    if mode == "magpie-perch" {
+        *frame += 1;
+        if *frame == 150 {
+            game.attract = false;
+            game.options.bots_on = false;
+            game.rules.phase = bbq_core::scoring::Phase::Play;
+            game.round.time_left = 180.0;
+            game.magpie.timer = 1000.0;
+            game.flock_next = game.now + 1000.0;
+        }
+        if *frame == 405 {
+            use bbq_core::{items::ItemKind, vec::V3};
+            let start = V3::new(10.0, 2.2, bbq_core::YARD_HALF_Z - 1.0);
+            let mut rng = game.rng.clone();
+            let item = game.world.spawn(ItemKind::WaterBalloon, start.x, start.z, false, &mut rng);
+            game.world.give(item, crate::player::PLAYER_ID);
+            game.world.throw(item, crate::player::PLAYER_ID, start, V3::new(10.0, 4.0, 0.0), 0.5, true);
         }
         return;
     }

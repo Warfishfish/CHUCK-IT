@@ -77,6 +77,41 @@ struct Drift {
     shimmer_y: f32,
 }
 
+/// The two sets of palings used by the resting bird. The feet sit forward of the
+/// model origin, so place the toes over the narrow fence top at either landing.
+#[derive(Resource)]
+struct MagpiePerch {
+    ends: [Vec3; 2],
+    startled_at: Option<f32>,
+    throw_was_near: bool,
+}
+
+impl MagpiePerch {
+    fn from_fence(parts: &[Part]) -> Self {
+        let (x, z, _) = looks_yard::MAGPIE_SPOTS[0];
+        let ends = [-0.36, 0.36].map(|offset| {
+            let x = x + offset;
+            let contact = parts.iter().filter(|part| (part.pos.z - z).abs() < 0.01)
+                .find_map(|part| {
+                    let top = crate::shapes::paling_perch(&part.shape, x - part.pos.x)?;
+                    Some(crate::models::transform_of(part).transform_point(top))
+                }).unwrap_or(Vec3::new(x, looks_yard::FENCE_H, z));
+            contact + Vec3::Z * (0.045 * 1.35)
+        });
+        Self { ends, startled_at: None, throw_was_near: false }
+    }
+
+    fn hop(&self, time: f32) -> Vec3 {
+        // Feet stay planted between hops. Alternate direction at each landing.
+        const PERIOD: f32 = 3.2;
+        const FLIGHT: f32 = 0.38;
+        let from = (time / PERIOD) as usize % 2;
+        let progress = ((time % PERIOD - (PERIOD - FLIGHT)) / FLIGHT).clamp(0.0, 1.0);
+        self.ends[from].lerp(self.ends[1 - from], progress)
+            + Vec3::Y * (0.24 * 4.0 * progress * (1.0 - progress))
+    }
+}
+
 pub struct YardScenePlugin;
 
 impl Plugin for YardScenePlugin {
@@ -96,6 +131,7 @@ fn find(parts: &[Part], tex: Tex) -> Option<usize> {
 
 fn build_yard(
     mut commands: Commands,
+    assets: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
     mut cache: ResMut<ModelCache>,
@@ -232,6 +268,8 @@ fn build_yard(
         commands.entity(root).add_child(toy);
     }
 
+    commands.insert_resource(MagpiePerch::from_fence(&look.world));
+
     // magpies on the fence, watching you
     for i in 0..look.magpies.len().max(bbq_core::magpie::MAX_FLOCK+1) {
         let (at,yaw)=look.magpies.get(i).copied().unwrap_or((bbq_core::magpie::PERCH,0.0));
@@ -254,9 +292,22 @@ fn build_yard(
             &mut mats,
             Transform::from_xyz(m.neck.x, m.neck.y, m.neck.z),
         );
-        commands.entity(head).insert(MagpieHead { body_yaw: yaw, seed: i as f32 * 3.7, yaw: 0.0, pitch: 0.0 });
+        let head_motion = move || MagpieHead { body_yaw: yaw, seed: i as f32 * 3.7, yaw: 0.0, pitch: 0.0 };
+        commands.entity(head).insert(head_motion());
         commands.entity(yard_root).add_child(root);
-    commands.entity(root).add_children(&[body, head]);
+        commands.entity(root).add_children(&[body, head]);
+        if *mode == crate::lighting::LookMode::Polished && crate::style::current() == crate::style::Style::Pop {
+            crate::hero_model::swap(
+                &mut commands, &assets, root, "models/magpie_pop.glb", vec![body, head],
+                ["MagpieBody", "MagpieHead", "MagpieWingL", "MagpieWingR"],
+                move |commands, [_, (neck, _), left, right]| {
+                    commands.entity(neck).insert(head_motion());
+                    for ((wing, base), side) in [(left, -1.0), (right, 1.0)] {
+                        commands.entity(wing).insert(MagpieWing { bird: i, side, base });
+                    }
+                },
+            );
+        }
     }
 
     // the yard's other eskies: they open, but hold nothing yet
@@ -417,6 +468,7 @@ fn animate_magpies(
     time: Res<Time>,
     game:Res<Game>,
     player: Res<crate::player::Player>,
+    mut perch: ResMut<MagpiePerch>,
     mut heads: Query<(&mut MagpieHead, &mut Transform, &GlobalTransform), (Without<MagpieBody>,Without<MagpieWing>)>,
     mut bodies: Query<(&MagpieBody, &mut Transform, &mut Visibility), (Without<MagpieHead>,Without<MagpieWing>)>,
     mut wings:Query<(&MagpieWing,&mut Transform),(Without<MagpieBody>,Without<MagpieHead>)>,
@@ -425,6 +477,24 @@ fn animate_magpies(
     if game.rules.mode == bbq_core::GameMode::Smoko { return; }
     let t = time.elapsed_secs();
     let k = 1.0 - (-7.0 * time.delta_secs()).exp();
+    let active_magpie = matches!(game.rules.mode, bbq_core::GameMode::FreeForAll | bbq_core::GameMode::Teams);
+    let resting = perch.hop(t);
+    let throw_near = active_magpie && game.magpie.phase == 0 && game.world.items.values().any(|item| {
+        item.state == bbq_core::flight::ItemState::Flying && item.live
+            && Vec3::new(item.pos.x, item.pos.y, item.pos.z).distance_squared(resting) < 2.0_f32.powi(2)
+    });
+    // A fast throw spends only a few frames in range. Finish a single flight arc
+    // and wingbeat even after the projectile has passed.
+    if game.magpie.phase != 0 || !active_magpie {
+        perch.startled_at = None;
+    } else if throw_near && !perch.throw_was_near {
+        perch.startled_at = Some(t);
+    }
+    perch.throw_was_near = throw_near;
+    let reaction = perch.startled_at.map_or(0.0, |start| {
+        let progress = ((t - start) / 0.9).clamp(0.0, 1.0);
+        4.0 * progress * (1.0 - progress)
+    });
     for (mut h, mut tf, gt) in &mut heads {
         if h.seed==0.0 && game.magpie.phase>0 && matches!(game.rules.mode,bbq_core::GameMode::FreeForAll|bbq_core::GameMode::Teams) {
             tf.rotation=Quat::IDENTITY;continue;
@@ -446,7 +516,7 @@ fn animate_magpies(
     }
     for (w,mut tf) in &mut wings {
         *tf=w.base;
-        if ((w.bird==0 && game.magpie.phase>0) || (w.bird>0 && game.flock.get(w.bird-1).is_some_and(|b|b.phase>0))) && matches!(game.rules.mode,bbq_core::GameMode::FreeForAll|bbq_core::GameMode::Teams) {
+        if ((w.bird==0 && (game.magpie.phase>0 || reaction > 0.0)) || (w.bird>0 && game.flock.get(w.bird-1).is_some_and(|b|b.phase>0))) && active_magpie {
             tf.rotation=Quat::from_rotation_z(w.side*(0.7+(t*24.0).sin()*0.65))*tf.rotation;tf.scale.y*=2.0;
         }
     }
@@ -463,6 +533,11 @@ fn animate_magpies(
         *visibility=Visibility::Inherited;
         if b.0==0.0 && matches!(game.rules.mode,bbq_core::GameMode::FreeForAll|bbq_core::GameMode::Teams) {
             let bird=&game.magpie;let next=Vec3::new(bird.pos.x,bird.pos.y,bird.pos.z);
+            if bird.phase == 0 {
+                tf.translation = resting + Vec3::new(0.32, 0.85, 0.45) * reaction;
+                tf.rotation = Quat::from_rotation_y(std::f32::consts::PI - 0.7 * reaction);
+                continue;
+            }
             let d=next-tf.translation;tf.translation=tf.translation.lerp(next,1.0-(-24.0*time.delta_secs()).exp());
             // Use replicated motion for heading, so guests never need a private target aim.
             if bird.phase>0 {if d.x*d.x+d.z*d.z>0.000001 {tf.rotation=Quat::from_rotation_y(d.x.atan2(d.z))*Quat::from_rotation_x(if bird.phase==2{0.3}else{-0.15});}}

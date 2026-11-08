@@ -29,6 +29,7 @@ mod magpie;
 mod gamepad;
 mod grass;
 mod heist_app;
+mod hero_model;
 mod hud;
 mod hud_fx;
 mod items_view;

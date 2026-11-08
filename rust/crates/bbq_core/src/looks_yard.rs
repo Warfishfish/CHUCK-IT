@@ -72,6 +72,15 @@ fn matt(c: u32) -> Surface {
     Surface::matt(c)
 }
 
+fn mix_color(a: u32, b: u32, t: f32) -> u32 {
+    let channel = |shift| {
+        let x = ((a >> shift) & 0xffu32) as f32;
+        let y = ((b >> shift) & 0xffu32) as f32;
+        (x + (y - x) * t.clamp(0.0, 1.0)).round() as u32
+    };
+    (channel(16) << 16) | (channel(8) << 8) | channel(0)
+}
+
 fn cuboid(w: f32, h: f32, d: f32, s: Surface, x: f32, y: f32, z: f32) -> Part {
     Part::new(Shape::Cuboid { w, h, d }, s).at(x, y, z)
 }
@@ -209,12 +218,22 @@ fn fence_styled(len: f32, horizontal: bool, x: f32, z: f32, rng: &mut Rng) -> Ve
         let (cx, cz) = if horizontal { (x + t, z) } else { (x, z + t) };
         let lean = rng.range(-0.035, 0.035);
         let roll = rng.range(-0.012, 0.012);
-        let part = cuboid(w, h, d, s, cx, h / 2.0, cz);
+        let boards = (sec / 0.14).round().max(4.0) as u32;
+        // A few sections get one missing, snapped-short, or loose board. This coordinate hash
+        // does not consume the world-generation stream or change any gameplay boundary.
+        let hash = x.to_bits().rotate_left(7) ^ z.to_bits().rotate_right(11) ^ (i as u32).wrapping_mul(0x9e37_79b9);
+        let pick = hash % 47;
+        let damage = if pick < 3 { (pick + 1) * 64 + ((hash / 47) % boards) } else { 0 };
+        let part = Part::new(Shape::PalingPanel { w, h, d, boards, damage }, s).at(cx, h / 2.0, cz);
         // lean sideways (toward or away from the yard) and tip a hair along the run
         let part = if horizontal { part.turn(lean, 0.0, roll) } else { part.turn(roll, 0.0, lean) };
         v.push(part);
         // a fat post at each join
-        v.push(cuboid(0.16, FENCE_H + 0.1, 0.16, matt(0x7a5e3f).material(Tex::Wood, 1.5), if horizontal { cx + sec / 2.0 } else { cx }, (FENCE_H + 0.1) / 2.0, if horizontal { cz } else { cz + sec / 2.0 }));
+        let post_phase = ((i * 7 + if horizontal { 3 } else { 8 }) % 11) as f32 / 10.0;
+        let post_h = FENCE_H + 0.1 + (post_phase - 0.5) * 0.08;
+        let post = cuboid(0.16, post_h, 0.16, matt(0x7a5e3f).material(Tex::Wood, 1.5), if horizontal { cx + sec / 2.0 } else { cx }, post_h / 2.0, if horizontal { cz } else { cz + sec / 2.0 });
+        // Posts echo the neighbouring paling run's slight lean, so the line does not look ruler-straight.
+        v.push(if horizontal { post.turn(lean * 0.5, 0.0, roll * 0.5) } else { post.turn(roll * 0.5, 0.0, lean * 0.5) });
     }
     v
 }
@@ -437,8 +456,23 @@ fn house_styled() -> Vec<Part> {
         v.push(cuboid(2.02,0.12,0.20,matt(0xd6c29b),x,1.72,-25.39));
     }
     // the rainwater tank
-    v.push(cyl(1.3, 1.3, 2.6, 20, matt(0x9fb0a4), 22.0, 1.3, -27.8));
-    v.push(cyl(1.35, 1.35, 0.1, 20, matt(0x8a9a8f), 22.0, 2.62, -27.8));
+    let tank = matt(0x9fb0a4).material(Tex::Metal, 1.4);
+    v.push(cyl(1.3, 1.3, 2.6, 20, tank, 22.0, 1.3, -27.8).bevel(0.07).weathered());
+    v.push(cyl(1.35, 1.35, 0.1, 20, matt(0x8a9a8f).material(Tex::Metal, 1.4), 22.0, 2.62, -27.8).bevel(0.035));
+    for y in [0.28f32, 0.75, 1.72, 2.2] {
+        v.push(torus(1.29, 0.025, 6, 20, 2.0 * PI, matt(0x87958d).material(Tex::Metal, 1.3)).at(22.0, y, -27.8).turn(HALF_PI, 0.0, 0.0));
+    }
+    // Outlet pipe and tap on the exposed side, with two subtle rust trails below the upper seam.
+    v.push(rod(V3::new(22.0, 0.52, -26.52), V3::new(22.0, 0.52, -26.22), 0.075, matt(0x7c8580).material(Tex::Metal, 1.2)));
+    v.push(rod(V3::new(22.0, 0.52, -26.22), V3::new(22.28, 0.52, -26.22), 0.075, matt(0x7c8580).material(Tex::Metal, 1.2)));
+    v.push(cyl(0.04, 0.04, 0.12, 8, matt(0xb28d55).material(Tex::Metal, 1.0), 22.14, 0.63, -26.22));
+    // Put the stains flush with two front facets of the 20-sided tank.
+    let wall = 1.3 * (PI / 20.0).cos();
+    for (angle, h) in [(-PI / 20.0, 0.30), (3.0 * PI / 20.0, 0.20)] {
+        v.push(cuboid(0.027, h, 0.004, matt(0x82543d).no_shadow(),
+            22.0 + wall * angle.sin(), 1.72 - h / 2.0, -27.8 + wall * angle.cos())
+            .turn(0.0, angle, 0.0));
+    }
     v
 }
 
@@ -591,9 +625,28 @@ fn bbq_styled_facing_yard() -> Vec<Part> {
         v.push(cyl(r * 0.5, r * 0.5, 0.115, 10, steel, bx + sx * 0.7, r, bz - 0.3).turn(0.0, 0.0, HALF_PI));
         v.push(cyl(0.03, 0.03, 0.13, 6, dark, bx + sx * 0.7, r, bz - 0.3).turn(0.0, 0.0, HALF_PI));
     }
-    // the big rounded hood, propped open at the back, with a chunky handle
-    v.push(Part::new(Shape::Capsule { r: 0.34, len: 1.0, cap: 6, radial: 12 }, red).at(bx + 0.03, 1.62, bz - 0.4).turn(0.0, 0.0, HALF_PI).stretch(1.0, 1.0, 0.8));
-    v.push(torus(0.12, 0.028, 6, 12, PI, steel).at(bx + 0.03, 1.55, bz - 0.09).turn(0.0, 0.0, 0.0));
+    // Individual steel bars sit just above the plate and just below the resting food.
+    for z in [-0.28f32, -0.13, 0.02, 0.17, 0.29] {
+        v.push(rod(V3::new(bx - 0.61, 1.216, bz + z), V3::new(bx + 0.61, 1.216, bz + z), 0.022, silver));
+    }
+    // The rounded lid sits further back and higher so the grate remains visible beneath it.
+    let hood_z = bz - 0.55;
+    v.push(Part::new(Shape::Capsule { r: 0.34, len: 1.0, cap: 6, radial: 12 }, red).at(bx + 0.03, 1.62, hood_z).turn(0.0, 0.0, HALF_PI).stretch(1.0, 1.0, 0.8));
+    // Two compact hinges make the raised lid read as attached to the firebox.
+    for x in [-0.48f32, 0.48] {
+        v.push(cyl(0.055, 0.055, 0.16, 10, steel, bx + x, 1.31, bz - 0.34).turn(0.0, 0.0, HALF_PI));
+        v.push(cyl(0.023, 0.023, 0.19, 8, dark, bx + x, 1.31, bz - 0.34).turn(0.0, 0.0, HALF_PI));
+        v.push(rod(V3::new(bx + x, 1.34, bz - 0.34), V3::new(bx + x, 1.70, hood_z), 0.035, dark));
+    }
+    // A straight steel grip and short standoffs read clearly against the red hood.
+    for x in [-0.20f32, 0.20] {
+        v.push(rod(V3::new(bx + x, 1.76, bz - 0.25), V3::new(bx + x, 1.86, bz - 0.20), 0.028, steel));
+    }
+    v.push(rod(V3::new(bx - 0.25, 1.86, bz - 0.20), V3::new(bx + 0.25, 1.86, bz - 0.20), 0.042, dark));
+    // Five shallow black slots sit on the lid's crown as simple heat vents.
+    for x in [-0.25f32, -0.13, 0.0, 0.13, 0.25] {
+        v.push(cuboid(0.11, 0.02, 0.04, dark, bx + x, 1.965, hood_z));
+    }
     v.push(cyl(0.05, 0.05, 0.06, 8, steel, bx - 0.66, 1.4, bz - 0.4).turn(0.0, 0.0, HALF_PI));
     v.push(cyl(0.05, 0.05, 0.06, 8, steel, bx + 0.7, 1.4, bz - 0.4).turn(0.0, 0.0, HALF_PI));
     // stubby control knobs on the front, each a little different
@@ -616,6 +669,17 @@ fn bbq_styled_facing_yard() -> Vec<Part> {
     }
     for (x, y, w) in [(-0.5f32, 0.22f32, 0.22f32), (0.35, 0.2, 0.3), (0.58, 0.55, 0.12)] {
         v.push(cuboid(w, 0.1, 0.012, matt(0x9a5a2a), bx + x, y, bz + 0.318)); // rust
+    }
+    // Old, sun-faded maker and service stickers on the cabinet front; little worn marks
+    // suggest labels without adding new readable text to the yard.
+    v.push(cuboid(0.22, 0.13, 0.008, matt(0xcbbd91), bx - 0.39, 0.55, bz + 0.326));
+    v.push(cuboid(0.16, 0.11, 0.008, matt(0x9eafa1), bx + 0.42, 0.55, bz + 0.326));
+    v.push(cuboid(0.12, 0.012, 0.004, matt(0x82775c), bx - 0.39, 0.57, bz + 0.333));
+    v.push(cuboid(0.075, 0.009, 0.004, matt(0x82775c), bx - 0.39, 0.54, bz + 0.333));
+    v.push(cuboid(0.085, 0.009, 0.004, matt(0x64746b), bx + 0.42, 0.56, bz + 0.333));
+    // Cooked-on sauce and grease have run down the lip below the grill plate.
+    for (x, h, c) in [(-0.22f32, 0.045f32, 0x553322), (0.27, 0.07, 0x704126), (0.5, 0.035, 0x47301f)] {
+        v.push(cuboid(0.025, h, 0.006, matt(c), bx + x, 1.105 - h * 0.5, bz + 0.367));
     }
     // weld seam down the middle of the cabinet
     v.push(cuboid(0.02, 0.6, 0.012, matt(0x7e868b), bx + 0.1, 0.5, bz + 0.316));
@@ -722,9 +786,17 @@ fn gum_tree_dusty(rng: &mut Rng, x: f32, z: f32, dust: f32) -> Vec<Part> {
     let tall = rng.range(0.0, 1.0);
     let h = 5.5 + tall * 4.5;
     let r = 0.2 + rng.range(0.0, 0.14);
+    // Use a position-derived stream for silhouette accents so adding an occasional twin trunk
+    // cannot reshuffle the yard's seeded tree positions or the rest of its scenery.
+    let mut silhouette = Rng::new((x.to_bits() as u64).rotate_left(23) ^ z.to_bits() as u64 ^ 0xA11C_E6A1);
     let mut v = Vec::new();
     // the trunk, in two bent sections
-    let lean = V3::new(rng.range(-0.5, 0.5), 0.0, rng.range(-0.5, 0.5));
+    let lean_scale = if silhouette.chance(0.2) { silhouette.range(1.7, 2.2) } else { 1.0 };
+    let lean = V3::new(
+        silhouette.range(-0.5, 0.5) * lean_scale,
+        0.0,
+        silhouette.range(-0.5, 0.5) * lean_scale,
+    );
     let base = V3::new(x, 0.0, z);
     let mid = V3::new(x, h * 0.35, z) + lean * 0.5;
     let fork = V3::new(x, h * 0.55, z) + lean;
@@ -732,6 +804,27 @@ fn gum_tree_dusty(rng: &mut Rng, x: f32, z: f32, dust: f32) -> Vec<Part> {
     v.push(limb(mid, fork, r, r * 0.85, 9, bark));
     // a root flare at the ground
     v.push(Part::new(Shape::Cone { r: r * 2.1, h: 0.5, seg: 9 }, bark).at(x, 0.25, z));
+    // A few nearer gums split low into a second pale stem. Keep the accent wholly visual and
+    // out of the far dusty tree line; the chosen positions do not affect world/gameplay data.
+    if dust < 0.72 && silhouette.chance(0.16) {
+        let side = if silhouette.chance(0.5) { 1.0 } else { -1.0 };
+        let split_base = base + V3::new(side * r * 0.7, 0.25, 0.0);
+        let split_mid = split_base + V3::new(side * 0.22, h * 0.27, -0.12);
+        let split_fork = split_base + V3::new(side * 0.5, h * 0.48, -0.22);
+        v.push(limb(split_base, split_mid, r * 0.82, r * 0.72, 8, bark));
+        v.push(limb(split_mid, split_fork, r * 0.72, r * 0.48, 8, bark));
+        for (i, color) in [0x78966e_u32, 0x91a57e, 0x708d65, 0x8fa68b, 0x617f59].into_iter().enumerate() {
+            let side_offset = (i as f32 - 2.0) * 0.33;
+            v.push(
+                Part::new(Shape::Sphere { r: 0.62, ws: 10, hs: 6 }, matt(mix_colour(color, 0x9ea27c, dust * 0.5)))
+                    .at(split_fork.x + side_offset, split_fork.y + (i % 2) as f32 * 0.32, split_fork.z + side_offset * 0.45)
+                    .stretch(1.1, 0.66, 1.15),
+            );
+        }
+    }
+    // A rare near gum has a sparse, sun-dried crown. Its bare forks show through without
+    // changing the number or placement of the yard's trees.
+    let dry_crown = dust < 0.55 && silhouette.chance(0.08);
     // the limbs, and a crown on each
     let n = 2 + rng.index(2);
     let a0 = rng.range(0.0, 2.0 * PI);
@@ -756,23 +849,23 @@ fn gum_tree_dusty(rng: &mut Rng, x: f32, z: f32, dust: f32) -> Vec<Part> {
             let hang = if c >= clumps - 2 { -rng.range(0.5, 1.2) } else { 0.0 };
             let col = leaves[rng.index(leaves.len())];
             let col = mix_colour(col, 0x9ea27c, dust * 0.5);
+            let col = if dry_crown { mix_colour(col, 0xb69a6c, 0.34) } else { col };
             let col = if hang < 0.0 || off.y < -0.1 { looks::shade(col, 0.8) } else { col };
-            v.push(
-                Part::new(Shape::Sphere { r: s, ws: 10, hs: 6 }, matt(col))
-                    .at(top.x + off.x, top.y + off.y + hang, top.z + off.z)
-                    .stretch(rng.range(0.9, 1.3), rng.range(0.5, 0.75), rng.range(0.9, 1.3))
-                    .turn(0.0, rng.range(0.0, PI), 0.0),
-            );
+            let leaf = Part::new(Shape::Sphere { r: s, ws: 10, hs: 6 }, matt(col))
+                .at(top.x + off.x, top.y + off.y + hang, top.z + off.z)
+                .stretch(rng.range(0.9, 1.3), rng.range(0.5, 0.75), rng.range(0.9, 1.3))
+                .turn(0.0, rng.range(0.0, PI), 0.0);
+            if !dry_crown || c % 3 != 1 { v.push(leaf); }
         }
-        for _ in 0..2 {
+        for i in 0..2 {
             let t = rng.range(0.4, 0.85);
             let p = bend + (top - bend) * t;
             let col = leaves[rng.index(leaves.len())];
-            v.push(
-                Part::new(Shape::Sphere { r: rng.range(0.35, 0.6), ws: 10, hs: 6 }, matt(col))
-                    .at(p.x + rng.range(-0.5, 0.5), p.y, p.z + rng.range(-0.5, 0.5))
-                    .stretch(1.2, 0.6, 1.2),
-            );
+            let col = if dry_crown { mix_colour(col, 0xb69a6c, 0.34) } else { col };
+            let leaf = Part::new(Shape::Sphere { r: rng.range(0.35, 0.6), ws: 10, hs: 6 }, matt(col))
+                .at(p.x + rng.range(-0.5, 0.5), p.y, p.z + rng.range(-0.5, 0.5))
+                .stretch(1.2, 0.6, 1.2);
+            if !dry_crown || i == 0 { v.push(leaf); }
         }
     }
     v
@@ -799,20 +892,32 @@ fn gum_tree(rng: &mut Rng, x: f32, z: f32) -> Vec<Part> {
 
 fn cloud(rng: &mut Rng) -> (V3, Vec<Part>) {
     let mut puffs = Vec::new();
-    for _ in 0..4 {
-        let r = rng.range(2.5, 4.5);
+    let count = 3 + rng.index(4);
+    for i in 0..count {
+        let r = if i == 0 { rng.range(2.8, 4.8) } else { rng.range(1.5, 3.3) };
         let (px, py, pz) = (
             rng.range(-5.0, 5.0),
-            rng.range(-0.6, 0.6),
+            rng.range(-0.75, 0.75),
             rng.range(-2.0, 2.0),
         );
+        let stretch_x = rng.range(0.75, 1.45);
+        let stretch_z = rng.range(0.65, 1.15);
         puffs.push(
             Part::new(
                 Shape::Sphere { r, ws: 16, hs: 10 },
                 matt(0xe2eaf0).glow(0x20262b).no_shadow(),
             )
             .at(px * 0.7, py + r * 0.14, pz * 0.75)
-            .stretch(1.0, 0.72, 0.9),
+            .stretch(stretch_x, 0.62, stretch_z),
+        );
+    }
+    // A few clouds trail into thin, soft streaks so the sky is not nine identical puff clusters.
+    if rng.chance(0.35) {
+        let r = rng.range(2.4, 4.0);
+        puffs.push(
+            Part::new(Shape::Sphere { r, ws: 16, hs: 10 }, matt(0xe7edf1).glow(0x20262b).no_shadow())
+                .at(rng.range(-2.5, 2.5), rng.range(-0.1, 0.4), rng.range(-1.0, 1.0))
+                .stretch(2.4, 0.24, 0.62),
         );
     }
     let at = V3::new(
@@ -843,6 +948,10 @@ fn clothesline(polished: bool) -> (Vec<Part>, Vec<Part>) {
         if i<4 {if let Shape::Cylinder{ref mut seg,..}=part.shape {*seg=6;}}
         head.push(part);
     }
+    if polished {
+        head.extend(pegged_washing());
+        return (pole, head);
+    }
     for (k, c) in [0xf25c54, 0x4cc9f0, 0xffd23f, 0xffffff]
         .into_iter()
         .enumerate()
@@ -855,6 +964,71 @@ fn clothesline(polished: bool) -> (Vec<Part>, Vec<Part>) {
         );
     }
     (pole, head)
+}
+
+/// Each garment is built with its pinned edge at y=0, then placed on an outer cord.
+fn pegged_washing() -> Vec<Part> {
+    const TEE: &[(f32, f32)] = &[
+        (-0.29, 0.0), (-0.55, -0.15), (-0.45, -0.35), (-0.31, -0.29),
+        (-0.32, -0.86), (0.31, -0.83), (0.31, -0.29), (0.45, -0.34),
+        (0.56, -0.14), (0.29, 0.0), (0.13, -0.01), (0.08, -0.10),
+        (-0.09, -0.10), (-0.14, -0.01),
+    ];
+    const SOCK: &[(f32, f32)] = &[
+        (-0.08, 0.0), (-0.08, -0.26), (-0.18, -0.32), (-0.20, -0.37),
+        (-0.15, -0.41), (0.06, -0.36), (0.09, -0.30), (0.08, 0.0),
+    ];
+    let cloth = |colour| matt(colour).both_sides().textured(Tex::Fabric).repeating(3.0, 3.0);
+    let peg_wood = matt(0xdcb481).material(Tex::Wood, 3.0);
+    let peg = |x: f32, tilt: f32| {
+        cuboid(0.044, 0.14, 0.048, peg_wood, x, 0.014, 0.0).turn(0.0, 0.0, tilt)
+    };
+    let mut washing = Vec::new();
+    // The last four beams form the outer square, in perimeter order.
+    for (side, cord) in crate::yard::clothesline_beams().rchunks_exact(4).next()
+        .expect("the clothesline has an outer ring").iter().enumerate()
+    {
+        let mut parts = Vec::new();
+        match side {
+            0 | 2 => {
+                let colour = if side == 2 { 0x208c95 } else { 0xca6254 };
+                // Each stripe is a section of the folded towel, visible from either side.
+                let mut top = 0.0;
+                for (height, tint) in [(0.62, colour), (0.07, 0xffe7ad), (0.05, colour),
+                                       (0.035, 0xffe7ad), (0.085, colour)] {
+                    parts.push(cuboid(1.04, height, 0.024, cloth(tint), 0.0, top - height * 0.5, 0.0));
+                    top -= height;
+                }
+                parts.extend([peg(-0.43, -0.09), peg(0.43, 0.12)]);
+            }
+            1 => {
+                for (x, tilt) in [(-0.16, 0.07), (0.20, -0.12)] {
+                    parts.push(Part::new(Shape::Poly(SOCK), cloth(0xf4e7ce))
+                        .at(x, 0.0, 0.0).turn(0.0, 0.0, tilt));
+                    parts.push(peg(x, tilt));
+                }
+            }
+            _ => {
+                parts.push(Part::new(Shape::Poly(TEE), cloth(0xe7ac46)));
+                parts.extend([peg(-0.26, -0.13), peg(0.26, 0.06)]);
+            }
+        }
+        if side == 2 {
+            let x = -0.94;
+            let basket = matt(0xc66142).material(Tex::Plastic, 3.0);
+            parts.push(torus(0.13, 0.013, 5, 12, PI, basket).at(x, -0.13, 0.0));
+            parts.push(cyl(0.15, 0.115, 0.17, 12, basket, x, -0.215, 0.0));
+            parts.push(cyl(0.133, 0.133, 0.005, 12, matt(0x6b392c), x, -0.128, 0.0));
+            for (offset, tilt) in [(-0.065, -0.35), (0.02, 0.5), (0.08, -0.18)] {
+                parts.push(cuboid(0.032, 0.09, 0.032, peg_wood, x + offset, -0.13, 0.0)
+                    .turn(0.0, 0.0, tilt));
+            }
+        }
+        let direction = cord.b - cord.a;
+        let yaw = (-direction.z).atan2(direction.x);
+        washing.extend(place(parts, (cord.a + cord.b) * 0.5 - HOIST_AT, turn_y(yaw), 1.0));
+    }
+    washing
 }
 
 fn pool() -> Vec<Part> {
@@ -1007,6 +1181,40 @@ fn pool() -> Vec<Part> {
     v
 }
 
+/// Poolside rest area for the polished yard. Kept outside the central run-up and throwing space.
+fn poolside_props() -> Vec<Part> {
+    let mut v = Vec::new();
+    for (i, x, yaw) in [(0usize, -25.5f32, PI), (1, -14.5, PI)] {
+        v.extend(place(chair_styled(i + 2), V3::new(x, 0.0, 17.2), turn_y(yaw), 1.0));
+    }
+    let (ux, uz) = (-20.0f32, 18.2f32);
+    let frame = matt(0xe9e4d6).material(Tex::Plastic, 2.0);
+    v.push(cyl(0.035, 0.035, 2.55, 8, frame, ux, 1.275, uz));
+    v.push(
+        Part::new(Shape::Cone { r: 1.45, h: 0.55, seg: 10 }, matt(0x34a9aa).material(Tex::Fabric, 2.5))
+            .at(ux, 2.24, uz),
+    );
+    let apex = V3::new(ux, 2.79, uz);
+    let rim: Vec<V3> = (0..10)
+        .map(|i| {
+            let a = i as f32 / 10.0 * 2.0 * PI;
+            V3::new(ux + 1.45 * a.sin(), 2.24, uz + 1.45 * a.cos())
+        })
+        .collect();
+    for i in 0..10 { v.push(rod(apex, rim[i], 0.018, matt(0xe9e4d6))); }
+    // A bright inflatable ring and a scuffed beach ball, both decorative and collision-free.
+    v.push(
+        torus(0.32, 0.1, 10, 20, 2.0 * PI, matt(0xf2c230).material(Tex::Plastic, 2.0))
+            .at(-26.0, 0.13, 15.8)
+            .turn(HALF_PI, 0.0, 0.0),
+    );
+    v.push(
+        Part::new(Shape::Sphere { r: 0.22, ws: 12, hs: 8 }, matt(0xe8443a).material(Tex::Plastic, 2.0))
+            .at(-15.2, 0.22, 15.4),
+    );
+    v
+}
+
 fn house() -> Vec<Part> {
     let roof = matt(0x8f3a2b);
     let mut v = vec![
@@ -1045,6 +1253,7 @@ fn house() -> Vec<Part> {
 
 fn props(polished: bool) -> Vec<Part> {
     let mut v = Vec::new();
+    let finish = |r| if polished { r } else { 0.0 };
     // trampoline
     v.push(cyl(
         TRAMP_R,
@@ -1055,7 +1264,7 @@ fn props(polished: bool) -> Vec<Part> {
         TRAMP_X,
         TRAMP_H,
         TRAMP_Z,
-    ));
+    ).bevel(finish(0.012)));
     v.push(
         torus(TRAMP_R + 0.05, 0.12, 8, 28, 2.0 * PI, matt(0x1f6fd1))
             .at(TRAMP_X, TRAMP_H + 0.02, TRAMP_Z)
@@ -1074,6 +1283,20 @@ fn props(polished: bool) -> Vec<Part> {
             TRAMP_Z + a.sin() * TRAMP_R,
         ));
     }
+    if polished {
+        // Galvanised springs bridge the mat edge and the blue safety ring.
+        let spring = matt(0x9a9d96).material(Tex::Metal, 1.3);
+        for k in 0..24 {
+            let a = k as f32 * (2.0 * PI / 24.0);
+            let (ca, sa) = (a.cos(), a.sin());
+            v.push(rod(
+                V3::new(TRAMP_X + ca * (TRAMP_R - 0.20), TRAMP_H + 0.018, TRAMP_Z + sa * (TRAMP_R - 0.20)),
+                V3::new(TRAMP_X + ca * (TRAMP_R + 0.015), TRAMP_H + 0.018, TRAMP_Z + sa * (TRAMP_R + 0.015)),
+                0.025,
+                spring,
+            ));
+        }
+    }
     // shed
     v.push(cuboid(
         4.0,
@@ -1084,8 +1307,53 @@ fn props(polished: bool) -> Vec<Part> {
         1.25,
         -16.5,
     ));
-    v.push(cuboid(4.4, 0.12, 3.4, matt(0x7f8b85), 22.5, 2.56, -16.5));
+    v.push(cuboid(4.4, 0.12, 3.4, matt(0x7f8b85), 22.5, 2.56, -16.5).bevel(finish(0.045)));
     v.push(cuboid(1.3, 2.0, 0.06, matt(0x56645d), 22.5, 1.0, -14.98));
+    if polished {
+        // Faded sheet-metal ribs, a rusty drip below the roof edge and a door that has sagged a touch.
+        let rib = matt(0x9a9b82).material(Tex::Metal, 1.2);
+        for x in [20.95f32, 21.45, 23.55, 24.05] {
+            v.push(cuboid(0.035, 2.15, 0.018, rib, x, 1.24, -14.965));
+        }
+        v.push(cuboid(1.36, 0.055, 0.025, matt(0x754630), 22.5, 2.44, -14.958));
+        v.push(cuboid(1.28, 1.96, 0.065, matt(0x56645d).material(Tex::Wood, 2.0), 22.5, 0.99, -14.94).bevel(0.023).weathered().turn(0.012, 0.0, -0.008));
+        for x in [21.9f32, 23.1] {
+            v.push(cuboid(0.045, 0.22, 0.035, matt(0x8d7650).material(Tex::Metal, 1.0), x, 0.88, -14.895));
+        }
+        // Old mower parked beside the shed: visual only, off the central play area.
+        let (mx, mz) = (18.7f32, -17.4f32);
+        let green = matt(0x526b3b).material(Tex::Plastic, 1.5);
+        let dark = matt(0x272a27).material(Tex::Plastic, 2.0);
+        v.push(cuboid(0.72, 0.28, 0.68, green, mx, 0.34, mz));
+        v.push(cuboid(0.38, 0.22, 0.38, matt(0xc09a4c).material(Tex::Metal, 1.5), mx, 0.58, mz + 0.05));
+        for (sx, sz) in [(-0.35f32, -0.24f32), (0.35, -0.24), (-0.35, 0.24), (0.35, 0.24)] {
+            v.push(torus(0.16, 0.055, 8, 14, 2.0 * PI, dark).at(mx + sx, 0.17, mz + sz).turn(HALF_PI, 0.0, 0.0));
+        }
+        for sx in [-0.2f32, 0.2] {
+            v.push(rod(V3::new(mx + sx, 0.52, mz - 0.23), V3::new(mx + sx * 1.4, 1.15, mz - 0.68), 0.035, dark));
+        }
+        v.push(rod(V3::new(mx - 0.29, 1.15, mz - 0.68), V3::new(mx + 0.29, 1.15, mz - 0.68), 0.045, dark));
+        // Coiled garden hose and a rotary sprinkler along the east fence.
+        let hose = matt(0x596b3c).material(Tex::Plastic, 2.0);
+        v.push(torus(0.36, 0.035, 8, 18, 2.0 * PI, hose).at(26.7, 0.045, -8.3).turn(HALF_PI, 0.0, 0.0).no_shadow_part());
+        v.push(rod(V3::new(26.5, 0.04, -8.0), V3::new(25.5, 0.04, -7.7), 0.055, hose).no_shadow_part());
+        let (sx, sz) = (25.5f32, -7.7f32);
+        v.push(cyl(0.11, 0.12, 0.16, 8, matt(0x6b6b5f), sx, 0.08, sz));
+        v.push(cyl(0.045, 0.045, 0.38, 8, matt(0x77786c), sx, 0.33, sz));
+        v.push(cuboid(0.42, 0.055, 0.08, matt(0x74766b), sx, 0.53, sz));
+        // Discarded outdoor bench with one slat missing, beside the bins beyond the back fence.
+        let (bx, bz) = (31.5f32, 16.8f32);
+        let timber = matt(0x806448).material(Tex::Wood, 1.5);
+        for zoff in [-0.22f32, 0.22] {
+            v.push(cuboid(1.15, 0.09, 0.17, timber, bx, 0.46, bz + zoff));
+        }
+        for xoff in [-0.47f32, 0.47] {
+            v.push(cuboid(0.12, 0.78, 0.12, timber, bx + xoff, 0.39, bz - 0.25));
+            v.push(cuboid(0.12, 0.78, 0.12, timber, bx + xoff, 0.39, bz + 0.25));
+        }
+        v.push(cuboid(1.14, 0.11, 0.10, timber, bx, 0.94, bz - 0.30).turn(-0.12, 0.0, 0.0));
+        v.push(cuboid(1.14, 0.09, 0.10, timber, bx, 1.25, bz - 0.34).turn(-0.12, 0.0, 0.0));
+    }
     // eskies
     for (n, (x, z, r)) in DECOR_ESKIES.into_iter().enumerate() {
         if polished {
@@ -1170,13 +1438,18 @@ fn props(polished: bool) -> Vec<Part> {
         for k in 0..(5 - row) {
             let lx = -12.0 - 1.0 + k as f32 * 0.5 + row as f32 * 0.25;
             let ly = 0.22 + row as f32 * 0.36;
-            v.push(cyl(0.2, 0.2, 1.0, 9, log_m, lx, ly, -3.0).turn(HALF_PI, 0.0, 0.0));
+            v.push(cyl(0.2, 0.2, 1.0, 9, log_m, lx, ly, -3.0).bevel(finish(0.011)).turn(HALF_PI, 0.0, 0.0));
             for e in [-0.5f32, 0.5] {
                 v.push(
                     Part::new(Shape::Disc { r: 0.19, seg: 9 }, end_m)
                         .at(lx, ly, -3.0 + e * 1.01)
                         .turn(0.0, if e > 0.0 { 0.0 } else { PI }, 0.0),
                 );
+                if polished {
+                    let face = -3.0 + e * 1.014;
+                    v.push(torus(0.125, 0.012, 5, 10, 2.0 * PI, matt(0xa77a4c)).at(lx, ly, face));
+                    v.push(Part::new(Shape::Disc { r: 0.035, seg: 7 }, matt(0x9a7048)).at(lx + 0.035, ly + 0.02, face + if e > 0.0 { 0.002 } else { -0.002 }).turn(0.0, if e > 0.0 { 0.0 } else { PI }, 0.0));
+                }
             }
         }
     }
@@ -1190,9 +1463,24 @@ fn props(polished: bool) -> Vec<Part> {
         0.55,
         -4.0,
     ));
-    // raised veggie planter
-    v.push(cuboid(5.0, 0.6, 0.9, matt(0x7a5a3a), -8.0, 0.3, 20.0));
-    v.push(cuboid(4.8, 0.1, 0.75, matt(0x4a3322), -8.0, 0.61, 20.0));
+    // Raised veggie planter; individual weathered boards and dark, uneven soil in the polished yard.
+    let planter_wood = if polished { matt(0x806044).material(Tex::Wood, 2.0) } else { matt(0x7a5a3a) };
+    v.push(cuboid(5.0, 0.6, 0.9, planter_wood, -8.0, 0.3, 20.0).bevel(finish(0.04)));
+    if polished {
+        for x in [-10.25f32, -8.0, -5.75] {
+            v.push(cuboid(0.025, 0.52, 0.018, matt(0x5c412d), x, 0.31, 20.46));
+        }
+        let mut post_rng = Rng::new(0xB04D);
+        for x in [-10.35f32, -5.65] {
+            for z in [19.72f32, 20.28] {
+                let height = post_rng.range(0.68, 0.76);
+                let lean = post_rng.range(-0.035, 0.035);
+                v.push(cuboid(0.10, height, 0.10, matt(0x705138).material(Tex::Wood, 1.4), x, height * 0.5, z)
+                    .bevel(0.016).weathered().turn(0.0, 0.0, lean));
+            }
+        }
+    }
+    v.push(cuboid(4.8, 0.1, 0.75, if polished { matt(0x403021) } else { matt(0x4a3322) }, -8.0, 0.61, 20.0));
     let mut rng = Rng::new(0x7E6);
     for k in 0..7 {
         v.push(
@@ -1205,7 +1493,7 @@ fn props(polished: bool) -> Vec<Part> {
 }
 
 /// The bar counter and the sign posts (the same in both modes; the sign and drinks change).
-fn bar() -> Vec<Part> {
+fn bar(polished: bool) -> Vec<Part> {
     let (bx, bz, bw, bd, bh) = (
         (BAR.x0 + BAR.x1) / 2.0,
         (BAR.z0 + BAR.z1) / 2.0,
@@ -1217,7 +1505,7 @@ fn bar() -> Vec<Part> {
     let top = matt(0xc79a61);
     let mut v = vec![
         cuboid(bw, bh - 0.08, bd, wood, bx, (bh - 0.08) / 2.0, bz),
-        cuboid(bw + 0.2, 0.08, bd + 0.2, top, bx, bh - 0.04, bz),
+        cuboid(bw + 0.2, 0.08, bd + 0.2, top, bx, bh - 0.04, bz).bevel(if polished { 0.032 } else { 0.0 }),
     ];
     for k in 0..6 {
         v.push(cuboid(
@@ -1241,6 +1529,17 @@ fn bar() -> Vec<Part> {
             1.3,
             bz - 0.35,
         ));
+    }
+    if !polished {
+        return v;
+    }
+    // Two modest brass taps at the back of the counter, clear of the serving edge.
+    let tap = matt(0xb18a4f).material(Tex::Metal, 1.2);
+    for x in [-0.55f32, 0.55] {
+        let z = bz - bd * 0.28;
+        v.push(cyl(0.035, 0.04, 0.24, 8, tap, bx + x, bh + 0.12, z));
+        v.push(rod(V3::new(bx + x, bh + 0.22, z), V3::new(bx + x, bh + 0.22, z + 0.14), 0.045, tap));
+        v.push(cyl(0.035, 0.035, 0.045, 8, matt(0x6c5131), bx + x, bh + 0.255, z + 0.14));
     }
     v
 }
@@ -1400,19 +1699,14 @@ fn bbq(polished: bool) -> Vec<Part> {
         ));
     }
     for k in 0..4 {
-        v.push(
-            Part::new(
-                Shape::Capsule {
-                    r: 0.04,
-                    len: 0.24,
-                    cap: 4,
-                    radial: 8,
-                },
-                matt(0x9b4a2a),
-            )
-            .at(-5.55 + k as f32 * 0.11, top + 0.02, -17.95)
-            .turn(HALF_PI, 0.0, 0.0),
-        );
+        let mut sausage = looks::snag();
+        sausage[0].surface.color = 0x9b4a2a;
+        v.extend(place(
+            sausage,
+            V3::new(-5.55 + k as f32 * 0.11, top + 0.02, -17.95),
+            turn_y(HALF_PI),
+            0.82,
+        ));
     }
     // the prep table with raw steaks and a plate of fish
     let (mx, mz, mw, md, mh) = MEAT_TABLE;
@@ -1610,6 +1904,9 @@ pub fn esky_with(body: u32, dark: u32) -> (Vec<Part>, Vec<Part>) {
     let navy = matt(dark).material(Tex::Plastic, 1.6);
     let white = matt(0xf1f3ee).material(Tex::Plastic, 1.6);
     let grey = matt(0x4a5057);
+    let faded_plastic = matt(mix_color(body, 0xf0e8d4, 0.32)).material(Tex::Plastic, 1.6);
+    let deep_scuff = matt(mix_color(body, 0x30343a, 0.44)).material(Tex::Plastic, 1.6);
+    let grime = matt(mix_color(dark, 0x554a3b, 0.36));
     let (hw, hd) = (0.62f32, 0.38f32);
     let mut base = vec![
         // the body is two overlapping boxes plus four round corners
@@ -1638,12 +1935,31 @@ pub fn esky_with(body: u32, dark: u32) -> (Vec<Part>, Vec<Part>) {
     base.push(cuboid(0.2, 0.2, 0.012, matt(0xf2c230), 0.12, 0.3, z).turn(0.0, 0.0, 0.5));
     base.push(cuboid(0.3, 0.12, 0.012, matt(0x2e9e4f), 0.42, 0.44, z));
     base.push(cuboid(0.22, 0.1, 0.012, white, 0.45, 0.22, z).turn(0.0, 0.0, -0.12));
+    let fine_detail_start = base.len();
+    // Sun-faded abrasion at the four front corners, plus short scratches that follow the plastic.
+    for sx in [-1.0f32, 1.0] {
+        for y in [0.14f32, 0.52] {
+            base.push(cuboid(0.085, 0.035, 0.009, faded_plastic, sx * 0.68, y, 0.473).turn(0.0, 0.0, sx * -0.28));
+        }
+        base.push(cuboid(0.12, 0.012, 0.009, deep_scuff, sx * 0.57, 0.27, 0.474).turn(0.0, 0.0, sx * 0.16));
+        base.push(cuboid(0.1, 0.01, 0.009, faded_plastic, sx * 0.49, 0.47, 0.474).turn(0.0, 0.0, sx * -0.12));
+    }
+    // Dirt caught where the body meets the darker foot band.
+    for (x, w) in [(-0.48f32, 0.16f32), (-0.16, 0.11), (0.31, 0.2), (0.58, 0.08)] {
+        base.push(cuboid(w, 0.025, 0.009, grime, x, 0.105, 0.474));
+    }
     // the lid, local to ESKY_PIVOT: a slab with a raised blue plate and an arched handle
     let mut lid = vec![
         cuboid(1.5, 0.12, 0.98, white, 0.0, 0.06, 0.49),
         cuboid(1.12, 0.07, 0.62, blue, 0.0, 0.14, 0.49),
         cuboid(1.5, 0.06, 0.08, navy, 0.0, 0.03, 0.97),
     ];
+    let lid_detail_start = lid.len();
+    // A pair of worn corners on the lid's blue inset and a rubbed edge near the handle.
+    for sx in [-1.0f32, 1.0] {
+        lid.push(cuboid(0.12, 0.008, 0.055, faded_plastic, sx * 0.46, 0.18, 0.73));
+    }
+    lid.push(cuboid(0.2, 0.008, 0.018, deep_scuff, 0.25, 0.18, 0.48));
     lid.push(
         Part::new(
             Shape::Torus {
@@ -1657,7 +1973,16 @@ pub fn esky_with(body: u32, dark: u32) -> (Vec<Part>, Vec<Part>) {
         )
         .at(0.0, 0.17, 0.49),
     );
-    (looks::mark_hero(base), looks::mark_hero(lid))
+    let mut base = looks::mark_hero(base);
+    let mut lid = looks::mark_hero(lid);
+    // Small abrasions should read as marks in the plastic, not as separate outlined shapes.
+    for part in &mut base[fine_detail_start..] {
+        part.hero = false;
+    }
+    for part in &mut lid[lid_detail_start..] {
+        part.hero = false;
+    }
+    (base, lid)
 }
 
 /// The toy in slot `k` of the chest (the sizes cycle: classic, mini, jumbo).
@@ -2136,6 +2461,13 @@ fn ground_story(seed: u64) -> Vec<Part> {
             v.extend(tuft(&mut rng, x + a.cos() * 0.75, z + a.sin() * 0.75, c));
         }
     }
+    // Old oil freckles beside the mower and shed, kept tight to the fence-side work area.
+    for (x, z, rx, rz, alpha) in [
+        (18.0f32, -16.2f32, 0.38f32, 0.22f32, 0.38f32),
+        (18.7, -15.9, 0.24, 0.16, 0.30),
+    ] {
+        v.push(ground_patch(x, z, rx, rz, 0.35, 0x24211b, alpha, 0.012));
+    }
     // A4.5: the pool: a wet dark band all round and worn bare ground beyond it
     let (pw, pd) = (POOL_X1 - POOL_X0, POOL_Z1 - POOL_Z0);
     let (pcx, pcz) = ((POOL_X0 + POOL_X1) / 2.0, (POOL_Z0 + POOL_Z1) / 2.0);
@@ -2374,6 +2706,7 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
     let (pole, hoist_head) = clothesline(polished);
     world.extend(pole);
     world.extend(pool());
+    if polished { world.extend(poolside_props()); }
     world.extend(props(polished));
     let (chest_base, chest_lid) = if polished { chest_esky() } else { chest() };
     let eskies = if polished {
@@ -2407,7 +2740,7 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         chest_pivot: if polished { ESKY_PIVOT } else { CHEST_PIVOT },
         world,
         hoist_head,
-        bar: if polished { looks::mark_hero(sun_bake(texture_pass(bar()))) } else { bar() },
+        bar: if polished { looks::mark_hero(sun_bake(texture_pass(bar(true)))) } else { bar(false) },
         bar_grog: if polished { looks::mark_hero(sun_bake(texture_pass(bar_grog()))) } else { bar_grog() },
         bar_soft: if polished { looks::mark_hero(sun_bake(texture_pass(bar_soft()))) } else { bar_soft() },
         litter,

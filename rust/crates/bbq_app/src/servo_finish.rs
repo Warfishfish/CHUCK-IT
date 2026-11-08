@@ -5,11 +5,12 @@ use bevy::image::{ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::render::render_resource::TextureFormat;
 use crate::lighting::{self, DisplayRaw, Grade, LookMode, Rig};
 
-// Artistic tuning. Keep shade open and the key warm without clipping player colours.
+// Concept direction: warm sun, cool readable shade and stronger material colour separation.
+// All values are scoped to the polished Pop Smoko scene and its menu overview.
 pub const SERVO_RIG: Rig = Rig {
-    sky: 0xc2d7ec, ground: 0xb7b9a2, hemi: 1.00,
-    sun: 0xffddb0, sun_intensity: 0.86,
-    grade: Grade { saturation: 0.98, warmth: 0.003, contrast: 0.995, vignette: 0.025 },
+    sky: 0xa8c5eb, ground: 0x9b947e, hemi: 0.70,
+    sun: 0xffddb5, sun_intensity: 1.12,
+    grade: Grade { saturation: 1.12, warmth: 0.010, contrast: 1.075, vignette: 0.020 },
 };
 pub const SUN_POSITION: Vec3 = Vec3::new(24.0, 24.0, 16.0);
 pub const DISTANT_HAZE: u32 = 0xd1d2cc;
@@ -42,13 +43,24 @@ fn sync_lighting(
         && crate::style::current()==crate::style::Style::Pop;
     if active==saved.active {return;}
     if active {
-        let (ambient, fill, _)=lighting::hemisphere_from_rig(SERVO_RIG);
+        // Comparison captures must use the same executable and assets.
+        let args: Vec<String> = std::env::args().collect();
+        let baseline = ["--shot", "--review", "--servo-baseline"].iter()
+            .all(|flag| args.iter().any(|a| a == flag));
+        let rig = if baseline {
+            Rig {
+                sky: 0xc2d7ec, ground: 0xb7b9a2, hemi: 0.90,
+                sun: 0xffd7a5, sun_intensity: 0.98,
+                grade: Grade { saturation: 1.04, warmth: 0.014, contrast: 1.04, vignette: 0.025 },
+            }
+        } else { SERVO_RIG };
+        let (ambient, fill, _)=lighting::hemisphere_from_rig(rig);
         for (id,kind,mut light,mut transform) in &mut lights {
             saved.lights.push((id,light.clone(),*transform));
             match kind {
                 YardLight::Sun=>{
-                    light.color=crate::models::hex(SERVO_RIG.sun);
-                    light.illuminance=lighting::lux(SERVO_RIG.sun_intensity)*lighting::SUN_FIX;
+                    light.color=crate::models::hex(rig.sun);
+                    light.illuminance=lighting::lux(rig.sun_intensity)*lighting::SUN_FIX;
                     *transform=Transform::from_translation(SUN_POSITION).looking_at(Vec3::ZERO,Vec3::Y);
                 }
                 YardLight::Fill=>{*light=fill.clone();}
@@ -59,7 +71,7 @@ fn sync_lighting(
             *amb=ambient.clone();
             fog.color=crate::models::hex(DISTANT_HAZE);
             fog.falloff=bevy::pbr::FogFalloff::Linear {start:HAZE_START,end:HAZE_END};
-            *grade=DisplayRaw::with_grade(SERVO_RIG.grade);
+            *grade=DisplayRaw::with_grade(rig.grade);
         }
     } else {
         for (id,old_light,old_transform) in saved.lights.drain(..) {

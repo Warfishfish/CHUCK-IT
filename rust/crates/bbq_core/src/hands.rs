@@ -187,13 +187,12 @@ impl Slots {
         self.held.len() >= MAX_HELD
     }
 
-    /// Pick something up; it becomes the selected item. Returns false if your hands are full.
+    /// Equip the first item; further acquisitions fill reserve without changing selection.
     pub fn add(&mut self, id: ItemId) -> bool {
-        if self.is_full() {
+        if self.is_full() || self.held.contains(&id) {
             return false;
         }
         self.held.push(id);
-        self.sel = self.held.len() - 1;
         true
     }
 
@@ -224,11 +223,6 @@ impl Slots {
         } else {
             false
         }
-    }
-
-    /// The oldest item (dropped first when a catch would overfill your hands).
-    pub fn oldest(&self) -> Option<ItemId> {
-        self.held.first().copied()
     }
 
     pub fn clear(&mut self) {
@@ -431,22 +425,26 @@ mod tests {
     }
 
     #[test]
-    fn two_slots_swap_and_select() {
+    fn acquisitions_keep_the_active_item_and_enforce_capacity() {
         let mut s = Slots::default();
         assert!(s.add(10));
+        assert_eq!(s.selected(), Some(10));
+        assert!(!s.add(10), "a repeated event cannot duplicate a slot");
         assert!(s.add(11));
-        assert!(!s.add(12), "hands are full");
-        assert_eq!(s.selected(), Some(11)); // newest is selected
+        assert_eq!(s.selected(), Some(10));
+        assert!(!s.add(12));
+        assert_eq!(s.ids(), &[10,11]);
         assert!(s.swap(1));
-        assert_eq!(s.selected(), Some(10));
-        assert!(s.swap(-1));
         assert_eq!(s.selected(), Some(11));
-        assert!(s.select_slot(0));
-        assert_eq!(s.selected(), Some(10));
         s.remove(10);
         assert_eq!(s.selected(), Some(11));
-        assert!(!s.swap(1), "nothing to swap with one item");
-        assert_eq!(s.oldest(), Some(11));
+        assert!(s.add(12));
+        assert_eq!(s.selected(), Some(11), "refilling the empty slot keeps the equipped item");
+        s.remove(11);
+        assert_eq!(s.selected(), Some(12));
+        s.clear();
+        assert!(s.add(13));
+        assert_eq!(s.selected(), Some(13));
     }
 
     #[test]

@@ -439,15 +439,12 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
             slots.add(*id);
         }
     }
-    let mut added = false;
     for id in &mine {
         if !slots.ids().contains(id) {
             slots.add(*id);
-            added = true;
         }
     }
-    if !added
-        && let Some(n) = old_selected.and_then(|sel| slots.ids().iter().position(|x| *x == sel))
+    if let Some(n) = old_selected.and_then(|sel| slots.ids().iter().position(|x| *x == sel))
     {
         slots.select_slot(n);
     }
@@ -1252,6 +1249,56 @@ mod tests {
     }
 
     #[test]
+    fn guest_snapshot_acquisition_preserves_local_selection() {
+        let mut host=host_with_a_guest();
+        let guest_id=REMOTE_ID_BASE+2;
+        let first={
+            let mut g=host.world_mut().resource_mut::<Game>();
+            let mut rng=bbq_core::rng::Rng::new(71);
+            let id=g.world.spawn(ItemKind::Teddy,8.,0.,false,&mut rng);
+            g.world.give(id,guest_id);
+            g.dummies.iter_mut().find(|d|d.id==guest_id).unwrap().bot.slots.add(id);
+            id
+        };
+        let mut guest=app();
+        let mut yard=Yard::default();
+        let snapshot=|host: &App,seq|build_world(host.world().resource::<Game>(), &Yard::default(),seq,-1.,&[]);
+        let snap=snapshot(&host,1);
+        apply_world(&mut guest.world_mut().resource_mut::<Game>(),&mut yard,&snap,2,"Host");
+        let second={
+            let mut g=host.world_mut().resource_mut::<Game>();
+            let mut rng=bbq_core::rng::Rng::new(72);
+            let id=g.world.spawn(ItemKind::WaterBalloon,8.,0.,false,&mut rng);
+            g.world.give(id,guest_id);
+            assert!(crate::game::accept_caught_item(&mut g,guest_id,id,V3::new(8.,0.3,0.)));
+            id
+        };
+        let snap=snapshot(&host,2);
+        apply_world(&mut guest.world_mut().resource_mut::<Game>(),&mut yard,&snap,2,"Host");
+        let mut g=guest.world_mut().resource_mut::<Game>();
+        assert_eq!(g.slots.ids(),&[first,second]);
+        assert_eq!(g.slots.selected(),Some(first));
+        g.slots.swap(1);
+        apply_world(&mut g,&mut yard,&snap,2,"Host");
+        assert_eq!(g.slots.selected(),Some(second));
+        drop(g);
+        let overflow={
+            let mut g=host.world_mut().resource_mut::<Game>();
+            let mut rng=bbq_core::rng::Rng::new(73);
+            let id=g.world.spawn(ItemKind::Teddy,8.,0.,false,&mut rng);
+            g.world.give(id,guest_id);
+            assert!(crate::game::accept_caught_item(&mut g,guest_id,id,V3::new(8.,0.3,0.)));
+            id
+        };
+        let snap=snapshot(&host,3);
+        apply_world(&mut guest.world_mut().resource_mut::<Game>(),&mut yard,&snap,2,"Host");
+        let g=guest.world().resource::<Game>();
+        assert_eq!(g.slots.ids(),&[first,second]);
+        assert_eq!(g.slots.selected(),Some(second));
+        assert_eq!(g.world.items[&overflow].holder,None);
+    }
+
+    #[test]
     fn a_guest_sees_what_the_host_says_they_hold() {
         let mut guest = app();
         let snap = {
@@ -1269,7 +1316,7 @@ mod tests {
         let mut yard = bbq_core::yard::Yard::default();
         apply_world(&mut g, &mut yard, &snap, 3, "Marcus");
         assert_eq!(g.slots.ids(), &[7, 8], "what the host says guest number 3 holds");
-        assert_eq!(g.slots.selected(), Some(8), "the newest in hand, as when you pick something up yourself");
+        assert_eq!(g.slots.selected(), Some(7), "the first item stays equipped when reserve arrives");
         // somebody else's steak is on the host's puppet, not in our hands
         assert_eq!(g.world.items[&9].holder, Some(REMOTE_ID_BASE + 1));
         // a swap by us stays when the next picture arrives with nothing new

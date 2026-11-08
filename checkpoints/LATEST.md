@@ -1,3 +1,23 @@
+# Concept vividness · 8 November 2026
+
+[Matched in-game views and browser walk](2026-11-08-concept-vivid/review.html) · [Recovery and measurements](2026-11-08-concept-vivid/CHECKPOINT.md). Stronger Smoko colour/light pass ready for local review. Both release builds passed. Earlier graphics and two-slot changes preserved.
+
+# Two-slot pickups and catches · 8 November 2026
+
+[Actual HUD captures](2026-11-08-secondary-slots/review.html) · [Recovery and verification](2026-11-08-secondary-slots/CHECKPOINT.md). Local protocol 27, ready for review. 699 tests and native/browser builds passed. Public release remains protocol 26.
+
+# Concept-led graphics pass · 8 November 2026
+
+[In-game review and performance](2026-11-08-graphics-list-progress/review.html) · [Checkpoint](2026-11-08-graphics-list-progress/CHECKPOINT.md). Gum, fence, pool, shed, sky, BBQ, blue esky, food, cheeky bottles, smash effects and a partial yard-props pass reviewed in the unlocked native build; the play area stays open. Latest 11-bot Heist/Cheeky runs averaged 112 fps with effects and 123 fps without; 20 and 6 of 600 intervals exceeded 16.67 ms respectively. Local only, not published.
+
+# Gum tree silhouette variation — local review (8 November 2026)
+
+[Backyard overview](2026-11-08-gum-silhouettes/review.html) · [Checkpoint](2026-11-08-gum-silhouettes/CHECKPOINT.md). A few stronger trunk leans and low twin stems added to visual-only gums outside the playable fence. Release build passes; no tests, commit, push or browser update. Sparse sun-dried crowns are implemented in the later gum-variety checkpoint; visual review is pending.
+
+# Polished Pop colour and light — local review (8 November 2026)
+
+[Same-camera captures and wider scene views](2026-11-08-vivid-pop/review.html) · [Checkpoint](2026-11-08-vivid-pop/CHECKPOINT.md). Slightly warmer key, less sky fill, and modest saturation/contrast lift across polished Pop; browser-match and other styles unchanged. Native release build passes. No test suite, browser update, commit or push. The shed shade item was checked against the included capture; newer environment details still await visual review.
+
 # Browser release · 8 November 2026
 
 Inside-fence servo, map previews, road and shade published from source dcdadbe. Protocol 26. [Play online](https://drum-patient-glucose-calcium.trycloudflare.com/rust/). Nine public hashes and two-way relay verified. [Publication and rollback](2026-11-08-servo-menu/PUBLICATION.md).

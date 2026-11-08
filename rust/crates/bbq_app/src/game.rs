@@ -833,37 +833,20 @@ pub fn step_game(
                     g.say(format!("{who} hit {to}"));
                 }
             }
-            WorldEvent::Caught { by, thrower, .. } if by != PLAYER_ID => {
-                if let Some(i) = g.dummies.iter().position(|d| d.id == by)
-                    && let Some(id) = caught_item(&g.world, by, &g.dummies[i].bot.slots)
-                {
-                    let slots = &mut g.dummies[i].bot.slots;
-                    if slots.is_full()
-                        && let Some(old) = slots.oldest()
-                    {
-                        slots.remove(old);
-                        let at = V3::new(g.dummies[i].mover.x, 1.2, g.dummies[i].mover.z);
-                        g.world.drop_item(old, at, None);
-                    }
-                    g.dummies[i].bot.slots.add(id);
+            WorldEvent::Caught { item, by, thrower } => {
+                let at = if by == PLAYER_ID {
+                    V3::new(p.mover.x, p.mover.y + 0.3, p.mover.z)
+                } else if let Some(d) = g.dummies.iter().find(|d| d.id == by) {
+                    V3::new(d.mover.x, d.mover.y + 0.3, d.mover.z)
+                } else { continue };
+                if accept_caught_item(g, by, item, at) {
                     g.board.catch(&g.rules, by, thrower);
-                    let who = crate::bots_app::name_of(g, by);
-                    g.say(format!("{who} caught it!"));
-                }
-            }
-            WorldEvent::Caught { by, thrower, .. } if by == PLAYER_ID => {
-                // the item is now in our hands; if full, drop the oldest
-                if let Some(id) = caught_item(&g.world, PLAYER_ID, &g.slots) {
-                    if g.slots.is_full()
-                        && let Some(old) = g.slots.oldest()
-                    {
-                        g.slots.remove(old);
-                        g.world.drop_item(old, eye_of(p), None);
+                    if by == PLAYER_ID { g.say("CAUGHT! +50"); }
+                    else {
+                        let who=crate::bots_app::name_of(g,by);
+                        g.say(format!("{who} caught it!"));
                     }
-                    g.slots.add(id);
                 }
-                g.board.catch(&g.rules, PLAYER_ID, thrower);
-                g.say("CAUGHT! +50");
             }
             WorldEvent::Flight {
                 ev: bbq_core::flight::FlightEvent::Over { thrower: Some(t) },
@@ -941,18 +924,20 @@ pub fn drink_name(d: Drink) -> &'static str {
     }
 }
 
-fn caught_item(
-    world: &ItemWorld,
-    who: PlayerId,
-    slots: &Slots,
-) -> Option<bbq_core::flight::ItemId> {
-    world
-        .items
-        .values()
-        .find(|i| {
-            i.state == ItemState::Held && i.holder == Some(who) && !slots.ids().contains(&i.id)
-        })
-        .map(|i| i.id)
+/// Catch events carry the exact item ID; repeated events cannot award another catch.
+pub(crate) fn accept_caught_item(g: &mut Game, who: PlayerId, id: bbq_core::flight::ItemId, at: V3) -> bool {
+    if !g.world.items.get(&id).is_some_and(|it| it.state == ItemState::Held && it.holder == Some(who)) {
+        return false;
+    }
+    let slots = if who == PLAYER_ID { &mut g.slots }
+        else if let Some(d)=g.dummies.iter_mut().find(|d|d.id==who) { &mut d.bot.slots }
+        else { return false };
+    if slots.ids().contains(&id) { return false; }
+    if !slots.add(id) {
+        // A successful catch with full hands safely drops the arriving item.
+        g.world.drop_item(id, at, Some((who, g.now + hands::OVERHOLD_BLOCK)));
+    }
+    true
 }
 
 /// Which kinds can't be thrown (melee-only) — used to hint in the HUD.
@@ -1008,6 +993,67 @@ mod tests {
         let id = g.world.spawn(ItemKind::Teddy, 8.0, 0.0, false, &mut rng);
         g.world.give(id, PLAYER_ID);
         g.slots.add(id);
+    }
+
+    #[test]
+    fn pickups_fill_reserve_without_replacing_the_current_item() {
+        let mut app=app();
+        give_teddy(&mut app);
+        let first=app.world().resource::<Game>().slots.selected().unwrap();
+        let second={
+            let mut g=app.world_mut().resource_mut::<Game>();
+            let mut rng=Rng::new(33);
+            g.world.spawn(ItemKind::WaterBalloon,8.,0.,false,&mut rng)
+        };
+        ticks(&mut app,120);
+        let g=app.world().resource::<Game>();
+        assert_eq!(g.slots.ids(), &[first,second]);
+        assert_eq!(g.slots.selected(), Some(first));
+        let third={
+            let mut g=app.world_mut().resource_mut::<Game>();
+            let mut rng=Rng::new(34);
+            g.world.spawn(ItemKind::Teddy,8.,0.,false,&mut rng)
+        };
+        ticks(&mut app,120);
+        let g=app.world().resource::<Game>();
+        assert_eq!(g.slots.ids(), &[first,second]);
+        assert_eq!(g.world.items[&third].state,ItemState::Ground);
+        assert_eq!(g.world.items[&third].holder,None);
+    }
+
+    #[test]
+    fn real_catches_keep_existing_slots_and_drop_overflow_once() {
+        for held in 0..=2 {
+            let mut app=app();
+            for _ in 0..held { give_teddy(&mut app); }
+            let original=app.world().resource::<Game>().slots.ids().to_vec();
+            let incoming={
+                let mut g=app.world_mut().resource_mut::<Game>();
+                let mut rng=Rng::new(55);
+                let id=g.world.spawn(ItemKind::Teddy,8.,0.8,false,&mut rng);
+                g.world.give(id,100);
+                assert!(g.world.throw(id,100,V3::new(8.,1.,0.8),V3::new(0.,0.,-5.),0.3,false));
+                g.catcher.press(true);
+                id
+            };
+            ticks(&mut app,3);
+            {
+                let g=app.world().resource::<Game>();
+                assert_eq!(g.board.get(PLAYER_ID).unwrap().catches,1);
+                assert_eq!(g.slots.len(),(held+1).min(2));
+                assert_eq!(g.slots.selected(),original.first().copied().or(Some(incoming)));
+                if held==2 {
+                    assert_eq!(g.slots.ids(),original.as_slice());
+                    let it=&g.world.items[&incoming];
+                    assert_ne!(it.state,ItemState::Held);
+                    assert_eq!(it.holder,None);
+                    assert!(!it.live);
+                    assert_eq!(it.block.unwrap().0,PLAYER_ID);
+                } else { assert!(g.slots.ids().contains(&incoming)); }
+            }
+            let mut g=app.world_mut().resource_mut::<Game>();
+            assert!(!accept_caught_item(&mut g,PLAYER_ID,incoming,V3::ZERO),"repeated catch cannot resolve twice");
+        }
     }
 
     #[test]

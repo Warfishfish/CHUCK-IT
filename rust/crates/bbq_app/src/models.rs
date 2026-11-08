@@ -170,11 +170,14 @@ fn build_part(
     mats: &mut Assets<StandardMaterial>,
 ) -> Built {
     let s = &p.surface;
-    let mesh_key = format!("{:?}|{}|servo={}", p.shape, s.uv_per_m, s.tex==Some(Tex::ServoRoad));
+    let mesh_key = format!("{:?}|{}|{}|{}|servo={}", p.shape, p.bevel, p.weathered, s.uv_per_m, s.tex==Some(Tex::ServoRoad));
     let mesh = match cache.shared_meshes.get(&mesh_key) {
         Some(h) => h.clone(),
         None => {
-            let mut m = if s.tex==Some(Tex::ServoDirt) { crate::shapes::servo_ground_mesh() } else if s.tex==Some(Tex::ServoRoad) { crate::shapes::servo_road_mesh() } else { crate::shapes::build_mesh_uv(&p.shape, s.uv_per_m) };
+            let mut m = if s.tex==Some(Tex::ServoDirt) { crate::shapes::servo_ground_mesh() } else if s.tex==Some(Tex::ServoRoad) { crate::shapes::servo_road_mesh() } else { crate::shapes::build_mesh_uv(&p.shape, s.uv_per_m, p.bevel) };
+            if p.weathered {
+                crate::shapes::weather_by_height(&mut m);
+            }
             if s.tex.is_some_and(|t| cache.normals.contains_key(&t)) {
                 // bump maps need a tangent on every corner
                 let _ = m.generate_tangents();

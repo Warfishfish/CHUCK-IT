@@ -333,6 +333,104 @@ fn cuboid(w: f32, h: f32, d: f32) -> Buf {
     b
 }
 
+struct Paling {
+    index: usize,
+    centre: f32,
+    height: f32,
+    width: f32,
+    lift: f32,
+    shade: f32,
+    phase: f32,
+}
+
+fn palings(len: f32, h: f32, boards: u32, damage: u32) -> impl Iterator<Item = Paling> {
+    let count = boards.clamp(4, 64) as usize;
+    let step = len / count as f32;
+    (0..count).filter_map(move |index| {
+        let defect = if index == (damage % 64) as usize { damage / 64 } else { 0 };
+        if defect == 1 { return None; }
+        let phase = ((index * 7 + 3) % 11) as f32 / 10.0;
+        let height = (h + (phase - 0.42) * 0.09) * match defect {
+            2 => 0.62,
+            3 => 0.80,
+            _ => 1.0,
+        };
+        Some(Paling {
+            index,
+            centre: -len * 0.5 + step * (index as f32 + 0.5),
+            height,
+            width: step * [0.91, 0.97, 0.94, 1.0, 0.89][index % 5],
+            lift: (height - h) * 0.5 + if defect == 3 { 0.20 } else { 0.0 },
+            shade: 0.93 + phase * 0.08,
+            phase,
+        })
+    })
+}
+
+/// Locate two neighbouring tops under the bird's feet on an east-west panel.
+pub(super) fn paling_perch(shape: &Shape, local_x: f32) -> Option<Vec3> {
+    let Shape::PalingPanel { w, h, d, boards, damage } = *shape else { return None; };
+    if w <= d || local_x.abs() > w * 0.5 { return None; }
+    let mut previous: Option<Paling> = None;
+    palings(w, h, boards, damage).filter_map(|board| {
+        let left = previous.replace(board)?;
+        let right = previous.as_ref()?;
+        let y_left = left.lift + left.height * 0.5;
+        let y_right = right.lift + right.height * 0.5;
+        if left.index + 1 != right.index || (y_left - y_right).abs() > 0.05 { return None; }
+        Some(Vec3::new((left.centre + right.centre) * 0.5, (y_left + y_right) * 0.5, 0.0))
+    }).min_by(|a, b| (a.x - local_x).abs().total_cmp(&(b.x - local_x).abs()))
+}
+
+/// A single mesh section of fence palings with tiny gaps, uneven tops and per-board colour.
+fn paling_panel(w: f32, h: f32, d: f32, boards: u32, damage: u32) -> Buf {
+    let along_x = w >= d;
+    let len = w.max(d);
+    let depth = w.min(d);
+    let mut out = Buf::default();
+    for Paling { index: i, width, height, centre, lift, shade, phase } in palings(len, h, boards, damage) {
+        let mut board = if along_x { cuboid(width, height, depth) } else { cuboid(depth, height, width) };
+        for p in &mut board.pos {
+            if along_x { p[0] += centre; } else { p[2] += centre; }
+            p[1] += lift;
+        }
+        board.col.resize(board.pos.len(), [shade, shade, shade, 1.0]);
+        let first = out.pos.len() as u32;
+        out.pos.extend(board.pos);
+        out.nor.extend(board.nor);
+        out.uv.extend(board.uv);
+        out.col.extend(board.col);
+        out.idx.extend(board.idx.into_iter().map(|index| index + first));
+        // A few elongated, low-contrast knots sit on both faces of selected boards. They share
+        // the section mesh, so texture detail does not create per-board entities or draw calls.
+        if (i * 7 + 3) % 8 == 0 {
+            for side in [-1.0f32, 1.0] {
+                let mut knot = sphere(0.018, 8, 6);
+                let offset = (((i * 3 + 1) % 7) as f32 - 3.0) * width * 0.045;
+                for p in &mut knot.pos {
+                    if along_x {
+                        p[0] = centre + offset + p[0] * 1.1;
+                        p[1] = -h * 0.5 + height * (0.35 + phase * 0.18) + p[1] * 2.4;
+                        p[2] = side * (depth * 0.5 + 0.002) + p[2] * 0.08;
+                    } else {
+                        p[0] = side * (depth * 0.5 + 0.002) + p[0] * 0.08;
+                        p[1] = -h * 0.5 + height * (0.35 + phase * 0.18) + p[1] * 2.4;
+                        p[2] = centre + offset + p[2] * 1.1;
+                    }
+                }
+                knot.col.resize(knot.pos.len(), [0.61, 0.47, 0.34, 1.0]);
+                let first = out.pos.len() as u32;
+                out.pos.extend(knot.pos);
+                out.nor.extend(knot.nor);
+                out.uv.extend(knot.uv);
+                out.col.extend(knot.col);
+                out.idx.extend(knot.idx.into_iter().map(|index| index + first));
+            }
+        }
+    }
+    out
+}
+
 /// `PlaneGeometry(w, h)`: a rectangle in the XY plane facing +z.
 fn quad(w: f32, h: f32) -> Buf {
     let mut b = Buf::default();
@@ -657,9 +755,121 @@ fn patchy_lawn(x0: f32, x1: f32, z0: f32, z1: f32, hole: (f32, f32, f32, f32), p
     b
 }
 
+/// Split each face into a centre, four edge strips and four corners. Project their
+/// shared boundary onto a rounded box so adjacent faces meet with the same normal.
+fn rounded_box(w: f32, h: f32, d: f32, radius: f32, per_m: f32) -> Buf {
+    let half = Vec3::new(w, h, d) * 0.5;
+    let radius = radius.min(half.min_element() * 0.95);
+    let inner = half - Vec3::splat(radius);
+    let faces = cuboid(w, h, d);
+    let mut mesh = Buf::default();
+    for face in faces.pos.chunks_exact(4) {
+        let origin = Vec3::from_array(face[0]);
+        let u = Vec3::from_array(face[1]) - origin;
+        let v = Vec3::from_array(face[2]) - origin;
+        let du = radius / u.length();
+        let dv = radius / v.length();
+        let repeats = if per_m > 0.0 { Vec2::new(u.length(), v.length()) * per_m } else { Vec2::ONE };
+        let first = mesh.pos.len() as u32;
+        for y in [0.0, dv, 1.0 - dv, 1.0] {
+            for x in [0.0, du, 1.0 - du, 1.0] {
+                let point = origin + u * x + v * y;
+                let core = point.clamp(-inner, inner);
+                let normal = (point - core).normalize();
+                mesh.vert((core + normal * radius).to_array(), normal.to_array(),
+                    [x * repeats.x, 1.0 - y * repeats.y]);
+            }
+        }
+        for row in 0..3 {
+            for col in 0..3 {
+                let a = first + row * 4 + col;
+                mesh.tri(a, a + 4, a + 1);
+                mesh.tri(a + 4, a + 5, a + 1);
+            }
+        }
+    }
+    mesh
+}
+
+/// Revolve two quarter-circle rims between a flat cap and the straight wall.
+/// Duplicate cap vertices to keep the circular cap UVs separate from the wall seam.
+fn rolled_cylinder(r: f32, h: f32, seg: u32, bevel: f32, per_m: f32) -> Buf {
+    let half = h * 0.5;
+    let bevel = bevel.min(r.min(half) * 0.95);
+    let cap_r = r - bevel;
+    let mut mesh = Buf::default();
+    for (side, angles) in [(1.0, [90.0_f32, 45.0, 0.0]), (-1.0, [0.0, 45.0, 90.0])] {
+        for angle in angles {
+            let (rise, radial) = angle.to_radians().sin_cos();
+            let ring_r = cap_r + bevel * radial;
+            let y = side * (half - bevel + bevel * rise);
+            for i in 0..=seg {
+                let u = i as f32 / seg as f32;
+                let (x, z) = (u * TAU).sin_cos();
+                let uv = if per_m > 0.0 {
+                    [u * TAU * r * per_m, 1.0 - (half - y) * per_m]
+                } else {
+                    [u, 0.5 + y / h]
+                };
+                mesh.vert([x * ring_r, y, z * ring_r], [x * radial, side * rise, z * radial], uv);
+            }
+        }
+    }
+    let stride = seg + 1;
+    for row in 0..5 {
+        for i in 0..seg {
+            let a = row * stride + i;
+            mesh.tri(a, a + stride, a + 1);
+            mesh.tri(a + stride, a + stride + 1, a + 1);
+        }
+    }
+    for side in [1.0, -1.0] {
+        let normal = [0.0, side, 0.0];
+        let centre = mesh.vert([0.0, half * side, 0.0], normal, [0.5, 0.5]);
+        let uv_radius = if per_m > 0.0 { cap_r * per_m } else { 0.5 };
+        for i in 0..=seg {
+            let (x, z) = (TAU * i as f32 / seg as f32).sin_cos();
+            mesh.vert([x * cap_r, half * side, z * cap_r], normal,
+                [0.5 + z * uv_radius, 0.5 + x * uv_radius * side]);
+        }
+        for i in 0..seg {
+            let a = centre + 1 + i;
+            if side > 0.0 { mesh.tri(centre, a, a + 1); }
+            else { mesh.tri(centre, a + 1, a); }
+        }
+    }
+    mesh
+}
+
+/// Low timber and metal pick up dirt. Exposed top edges get a warmer tint.
+pub fn weather_by_height(mesh: &mut Mesh) {
+    let Some(bevy::mesh::VertexAttributeValues::Float32x3(pos)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {
+        return;
+    };
+    if pos.is_empty() { return; }
+    let (low, high) = pos.iter().fold((f32::MAX, f32::MIN), |(lo, hi), p| (lo.min(p[1]), hi.max(p[1])));
+    let colours = pos.iter().map(|p| {
+        let t = ((p[1] - low) / (high - low).max(1e-5)).clamp(0.0, 1.0);
+        [0.79 + 0.21 * t, 0.75 + 0.24 * t, 0.72 + 0.24 * t, 1.0]
+    }).collect::<Vec<_>>();
+    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colours);
+}
+
 /// Build the mesh for a shape, with the picture laid by real size (`per_m` repeats per metre)
 /// on boxes and cylinders when `per_m` is above 0 (the step 2c material textures).
-pub fn build_mesh_uv(shape: &Shape, per_m: f32) -> Mesh {
+pub fn build_mesh_uv(shape: &Shape, per_m: f32, bevel: f32) -> Mesh {
+    if bevel > 0.0 {
+        match *shape {
+            Shape::Cuboid { w, h, d } if w.min(h).min(d) > 0.0 => {
+                return rounded_box(w, h, d, bevel, per_m).into_mesh();
+            }
+            Shape::Cylinder { top, bottom, h, seg, caps: true }
+                if top == bottom && top > 0.0 && h > 0.0 && seg >= 3 => {
+                return rolled_cylinder(top, h, seg, bevel, per_m).into_mesh();
+            }
+            _ => {}
+        }
+    }
     if per_m <= 0.0 {
         return build_mesh(shape);
     }
@@ -703,6 +913,7 @@ pub fn build_mesh(shape: &Shape) -> Mesh {
             caps,
         } => cylinder(top, bottom, h, seg, caps).into_mesh(),
         Shape::Cuboid { w, h, d } => cuboid(w, h, d).into_mesh(),
+        Shape::PalingPanel { w, h, d, boards, damage } => paling_panel(w, h, d, boards, damage).into_mesh(),
         Shape::Cone { r, h, seg } => cylinder(0.0, r, h, seg, true).into_mesh(),
         Shape::Torus {
             r,
@@ -749,6 +960,27 @@ mod tests {
 
     fn count(b: &Buf) -> (usize, usize) {
         (b.pos.len(), b.idx.len() / 3)
+    }
+
+    #[test]
+    fn beveled_props_keep_the_original_bounds_and_outward_faces() {
+        for (mesh, half) in [
+            (rounded_box(5.0, 0.6, 0.9, 0.04, 2.0), Vec3::new(2.5, 0.3, 0.45)),
+            (rolled_cylinder(1.3, 2.6, 20, 0.07, 1.4), Vec3::splat(1.3)),
+            (rounded_box(1.28, 1.96, 0.065, 0.5, 0.0), Vec3::new(0.64, 0.98, 0.0325)),
+        ] {
+            let mut furthest = Vec3::ZERO;
+            for &point in &mesh.pos {
+                furthest = furthest.max(Vec3::from_array(point).abs());
+            }
+            assert!((furthest - half).abs().max_element() < 1e-5);
+            for triangle in mesh.idx.chunks_exact(3) {
+                let [a, b, c] = [triangle[0], triangle[1], triangle[2]].map(|i| Vec3::from_array(mesh.pos[i as usize]));
+                let normal = Vec3::from_array(mesh.nor[triangle[0] as usize]);
+                assert!((b - a).cross(c - a).dot(normal) > 0.0);
+            }
+            assert!(mesh.uv.iter().flatten().all(|v| v.is_finite()));
+        }
     }
 
     #[test]

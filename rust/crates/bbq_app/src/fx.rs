@@ -82,14 +82,23 @@ pub struct FxPlugin;
 
 impl Plugin for FxPlugin {
     fn build(&self, app: &mut App) {
+        if !crate::lighting::effects_enabled(&std::env::args().collect::<Vec<_>>()) {
+            // Decals read the local event queue during Update. Hosts send a separate FX queue.
+            app.add_systems(PostUpdate, |mut game: ResMut<Game>| game.fx.clear());
+            return;
+        }
         app.add_plugins(HanabiPlugin)
             .add_systems(Startup, make_effects)
-            .add_systems(Update, (spawn_events, expire_effects, bbq_smoke));
+            .add_systems(Update, (expire_effects, bbq_smoke, pool_steam, sprint_dust, bot_fall_spray))
+            .add_systems(PostUpdate, spawn_events
+                .before(bevy::transform::TransformSystems::Propagate)
+                .before(bevy_hanabi::EffectSystems::CompileEffects)
+                .before(bevy_hanabi::EffectSystems::TickSpawners));
     }
 }
 
 #[derive(Resource)]
-struct Effects {
+pub(crate) struct Effects {
     stars: Handle<EffectAsset>,
     puff: Handle<EffectAsset>,
     foam: Handle<EffectAsset>,
@@ -97,11 +106,14 @@ struct Effects {
     balloon: Handle<EffectAsset>,
     mist: Handle<EffectAsset>,
     dust: Handle<EffectAsset>,
+    sprint: Handle<EffectAsset>,
+    fall_spray: Handle<EffectAsset>,
     shards: Handle<EffectAsset>,
     clear_shards: Handle<EffectAsset>,
     rum: Handle<EffectAsset>,
     fizz: Handle<EffectAsset>,
     smoke: Handle<EffectAsset>,
+    steam: Handle<EffectAsset>,
     dot: Handle<Image>,
 }
 
@@ -179,7 +191,8 @@ fn burst_asset(b: &Burst) -> EffectAsset {
         })
 }
 
-/// The BBQ's smoke: a steady trickle of slow grey puffs that rise, spread and fade.
+/// The BBQ's smoke: a light trickle of slow grey puffs that rise, spread and fade without hiding
+/// the open lid or food on the grill.
 fn smoke_asset() -> EffectAsset {
     let w = ExprWriter::new();
     let init_pos = SetPositionCircleModifier {
@@ -199,12 +212,12 @@ fn smoke_asset() -> EffectAsset {
     module.add_texture_slot("dot");
     let mut grad = bevy_hanabi::Gradient::new();
     grad.add_key(0.0, Vec4::new(0.5, 0.5, 0.52, 0.0));
-    grad.add_key(0.1, Vec4::new(0.5, 0.5, 0.52, 0.85));
+    grad.add_key(0.1, Vec4::new(0.5, 0.5, 0.52, 0.4));
     grad.add_key(1.0, Vec4::new(0.72, 0.72, 0.74, 0.0));
     let mut size = bevy_hanabi::Gradient::new();
-    size.add_key(0.0, Vec3::splat(0.4));
-    size.add_key(1.0, Vec3::splat(1.8));
-    EffectAsset::new(128, SpawnerSettings::rate(9.0.into()), module)
+    size.add_key(0.0, Vec3::splat(0.3));
+    size.add_key(1.0, Vec3::splat(1.1));
+    EffectAsset::new(128, SpawnerSettings::rate(3.5.into()), module)
         .with_name("bbq smoke")
         .with_alpha_mode(bevy_hanabi::AlphaMode::Blend)
         .init(init_pos)
@@ -221,6 +234,26 @@ fn smoke_asset() -> EffectAsset {
             gradient: size,
             screen_space_size: false,
         })
+}
+
+/// Sparse, pale wisps just above the outdoor pool; kept much smaller and fainter than BBQ smoke.
+fn steam_asset() -> EffectAsset {
+    burst_asset(&Burst {
+        name: "pool steam",
+        count: 9.0,
+        radius: 0.24,
+        speed: (0.08, 0.42),
+        up: 0.42,
+        life: (1.1, 1.8),
+        gravity: 0.12,
+        drag: 1.6,
+        size: (0.3, 0.82),
+        colours: [
+            Vec4::new(0.86, 0.93, 1.0, 0.22),
+            Vec4::new(0.9, 0.96, 1.0, 0.38),
+            Vec4::new(0.9, 0.96, 1.0, 0.0),
+        ],
+    })
 }
 
 fn make_effects(mut commands: Commands, mut effects: ResMut<Assets<EffectAsset>>, assets: Res<AssetServer>) {
@@ -297,6 +330,30 @@ fn make_effects(mut commands: Commands, mut effects: ResMut<Assets<EffectAsset>>
         size: (0.4, 1.1),
         colours: [c(0.78, 0.68, 0.5, 0.6), c(0.74, 0.65, 0.48, 0.3), c(0.74, 0.65, 0.48, 0.0)],
     }));
+    let sprint = effects.add(burst_asset(&Burst {
+        name: "sprint dust",
+        count: 8.0,
+        radius: 0.12,
+        speed: (0.35, 0.9),
+        up: 0.08,
+        life: (0.22, 0.42),
+        gravity: 0.05,
+        drag: 3.4,
+        size: (0.12, 0.34),
+        colours: [c(0.78, 0.66, 0.46, 0.34), c(0.72, 0.61, 0.43, 0.18), c(0.68, 0.58, 0.41, 0.0)],
+    }));
+    let fall_spray = effects.add(burst_asset(&Burst {
+        name: "dirt kicked up by a falling bot",
+        count: 24.0,
+        radius: 0.24,
+        speed: (1.6, 3.0),
+        up: 1.75,
+        life: (0.23, 0.5),
+        gravity: -11.0,
+        drag: 0.9,
+        size: (0.13, 0.04),
+        colours: [c(0.82, 0.61, 0.28, 1.0), c(0.55, 0.37, 0.15, 0.88), c(0.41, 0.29, 0.12, 0.0)],
+    }));
     // glass: small, fast, bright glints that fall quickly (brown beer glass, clear spirit glass)
     let shards = effects.add(burst_asset(&Burst {
         name: "brown glass",
@@ -348,6 +405,7 @@ fn make_effects(mut commands: Commands, mut effects: ResMut<Assets<EffectAsset>>
         colours: [c(1.6, 1.7, 1.2, 1.0), c(0.95, 1.0, 0.7, 0.9), c(0.9, 0.95, 0.65, 0.0)],
     }));
     let smoke = effects.add(smoke_asset());
+    let steam = effects.add(steam_asset());
     commands.insert_resource(Effects {
         stars,
         puff,
@@ -356,13 +414,81 @@ fn make_effects(mut commands: Commands, mut effects: ResMut<Assets<EffectAsset>>
         balloon,
         mist,
         dust,
+        sprint,
+        fall_spray,
         shards,
         clear_shards,
         rum,
         fizz,
         smoke,
+        steam,
         dot: assets.load("textures/particle.png"),
     });
+}
+
+/// The host and guests both have bot pose and ground-contact flags. Emit once when a
+/// knocked-down bot touches dry ground, including a landing after being thrown.
+fn bot_fall_spray(
+    mut commands: Commands,
+    game: Res<Game>,
+    fx: Res<Effects>,
+    mut sprayed: Local<std::collections::HashSet<u32>>,
+) {
+    if !game.rules.in_play() {
+        sprayed.clear();
+        return;
+    }
+    for bot in &game.dummies {
+        if bot.remote.is_some() {
+            continue;
+        }
+        if !bot.body.is_down() && !bot.fallen {
+            sprayed.remove(&bot.id);
+            continue;
+        }
+        if bot.mover.grounded && !bot.mover.in_pool && bot.dragged.is_none()
+            && bot.seat.is_none() && sprayed.insert(bot.id)
+        {
+            commands.spawn((
+                ParticleEffect::new(fx.fall_spray.clone()),
+                EffectMaterial { images: vec![fx.dot.clone()] },
+                Transform::from_xyz(bot.mover.x, bot.mover.y + 0.12, bot.mover.z),
+                FxLife(0.6),
+            ));
+        }
+    }
+}
+
+/// Short, low dust puffs behind the local player while boosting on dry ground.
+fn sprint_dust(
+    mut commands: Commands,
+    player: Option<Res<crate::player::Player>>,
+    fx: Option<Res<Effects>>,
+    time: Res<Time>,
+    mut until_next: Local<f32>,
+) {
+    let (Some(player), Some(fx)) = (player, fx) else { return };
+    let mover = &player.mover;
+    if !mover.sprinting(&bbq_core::movement::Modifiers::default()) || !mover.grounded || mover.in_pool {
+        *until_next = 0.0;
+        return;
+    }
+    *until_next -= time.delta_secs();
+    if *until_next > 0.0 { return; }
+    *until_next = 0.14;
+    let speed = mover.vx.hypot(mover.vz);
+    if speed < 0.2 { return; }
+    let at = Vec3::new(
+        mover.x - mover.vx / speed * 0.32,
+        mover.y + 0.08,
+        mover.z - mover.vz / speed * 0.32,
+    );
+    commands.spawn((
+        ParticleEffect::new(fx.sprint.clone()),
+        EffectMaterial { images: vec![fx.dot.clone()] },
+        Transform::from_translation(at),
+        FxLife(0.48),
+    ));
 }
 
 fn spawn_events(
@@ -434,4 +560,34 @@ fn bbq_smoke(
             commands.entity(e).despawn();
         }
     }
+}
+
+/// A faint warm-air wisp above the pool surface, only while that yard feature is enabled.
+fn pool_steam(
+    mut commands: Commands,
+    yard: Res<YardRes>,
+    fx: Option<Res<Effects>>,
+    time: Res<Time>,
+    mut until_next: Local<f32>,
+    mut corner: Local<usize>,
+) {
+    let Some(fx) = fx else { return };
+    let want = !yard.0.race && !yard.0.features.smoko;
+    if !want { *until_next = 0.0; return; }
+    *until_next -= time.delta_secs();
+    if *until_next > 0.0 { return; }
+    *until_next = 1.0;
+    // Alternate far corners to keep the centre lane clear and the evaporation intermittent.
+    let (x, z) = if *corner == 0 {
+        (bbq_core::yard::POOL_X0 + 2.0, bbq_core::yard::POOL_Z0 + 2.0)
+    } else {
+        (bbq_core::yard::POOL_X1 - 2.0, bbq_core::yard::POOL_Z1 - 2.0)
+    };
+    *corner = (*corner + 1) % 2;
+    commands.spawn((
+        ParticleEffect::new(fx.steam.clone()),
+        EffectMaterial { images: vec![fx.dot.clone()] },
+        Transform::from_xyz(x, bbq_core::yard::WATER_Y + 0.16, z),
+        FxLife(2.0),
+    ));
 }
