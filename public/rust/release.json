@@ -1,6 +1,6 @@
 {
-  "source_commit": "dcdadbeb2b4622bcf346c2cdf7120eb6c84796b2",
-  "protocol": 26,
+  "source_commit": "075d0fd99cfd0cc9612b63ec99b7fb860d8b6e8b",
+  "protocol": 28,
   "release_date": "2026-11-08",
-  "description": "Interior north-west servo, road and gum shade, selected-map menu overviews"
+  "description": "Full-lap Race sideline and replicated head gaze"
 }

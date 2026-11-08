@@ -1,10 +1,10 @@
 # Race sideline and visible gaze · 8 November 2026
 
-Status: complete, awaiting user review. No commit, push or public browser update.
+Status: committed, pushed and published after review authorization. Source commit 075d0fd; browser package published in a follow-up commit. Protocol 28 is live at https://honest-motion-cleaners-holdem.trycloudflare.com/rust/.
 
 Starting commit 963e1f8c70f8b207a82be4146559de05a2dc7f5d. Verified source archive and previous release executable in /Users/marcus/Claude/australian-bbq-before-race-gaze-20261108-203358. Git was clean at backup time.
 
-Scope: continuous full-lap sideline route, then bounded smooth cosmetic head pitch from existing camera controls. Preserve all modes, rules and graphics. No commit, push or publication authorised.
+Scope: continuous full-lap sideline route, then bounded smooth cosmetic head pitch from existing camera controls. Preserve all modes, rules and graphics. No files outside the reviewed race-route and gaze scope were included.
 
 Launch: `cd /Users/marcus/Claude/australian-bbq/rust` then `~/.cargo/bin/cargo run -p bbq_app --release -- --menu`.
 
@@ -50,15 +50,15 @@ Checkpoint files, logs, review.html and evidence are new. Source change boundari
 
 ## Local browser review
 
-http://localhost:3043/after/?perf=1 — private staged build, protocol **28**. Host and guest should both use this build. The relay is running from /tmp/bbq-race-gaze-server.cjs with staged content in /tmp/bbq-race-gaze-preview. This address works on this Mac; public browser deployment is unchanged.
+Public browser test: https://honest-motion-cleaners-holdem.trycloudflare.com/rust/ — protocol **28**. The published JS, compressed/uncompressed WASM, HTML, pointer-lock helper and release metadata matched their local hashes; the static asset tree matches the tested staging tree. The public two-way WebSocket relay passed and Chrome loaded the game at 1100×713 with no failed requests or page errors. Both host and guests must reload and create a fresh room. The temporary link works only while this Mac, its localhost:3000 server and the cloudflared process remain running. See evidence/publication-verification.json and evidence/public-browser-menu.png. The private localhost:3043 staging link remains available on this Mac.
 
 ## Recovery and resumption
 
 1. Keep the verified backup above. It contains the starting tracked source archive, pending.tar (empty at this clean starting point) and the previous release executable.
 2. Run `python3 checkpoints/2026-11-08-race-gaze/restore.py` from the repository to check the guard without changing files. `--restore` restores only listed tracked source/planning files from source.tar, and refuses if later edits differ. It preserves evidence, other files, Git history, assets and public content. Rebuild afterward.
 3. To compare without restoring anything, launch the saved `bbq_app-before` with `BEVY_ASSET_ROOT=/Users/marcus/Claude/australian-bbq/rust/crates/bbq_app`. The current assets match the backup; this milestone changed none.
-4. If interrupted now, implementation and required verification are finished. Start by reading this document and Git status. Await user review before committing, pushing, publishing or beginning another feature.
+4. The reviewed source is committed and pushed. The browser bundle can be rolled back as a unit from /Users/marcus/Claude/australian-bbq-browser-before-race-gaze-20261108. Restore public/rust from that directory, then restart/refresh the test page. The checked-in publication record and verification evidence are in evidence/publication-verification.json. The temporary tunnel expires and can be replaced with `cloudflared tunnel --url http://localhost:3000`; share the new URL only after rechecking live file hashes and relay.
 
 ## Limits and next decision
 
-Browser peer tests used a local relay on this Mac. Internet latency and a second physical device still need ordinary friend playtesting. Pitch is cosmetic and bounded; gaze is not separate free look. Public clients keep the previous build until publication is approved. Review the complete Race route and head poses before any commit or public update.
+Browser peer tests used a local relay on this Mac, and the public relay was verified with two connected clients. Internet latency and a second physical device still need ordinary friend playtesting. Pitch is cosmetic and bounded; gaze is not separate free look.

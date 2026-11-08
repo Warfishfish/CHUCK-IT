@@ -1,0 +1,27 @@
+{
+  "date": "2026-11-08",
+  "source_commit": "075d0fd99cfd0cc9612b63ec99b7fb860d8b6e8b",
+  "protocol": 28,
+  "public_url": "https://honest-motion-cleaners-holdem.trycloudflare.com/rust/",
+  "http_status": 200,
+  "public_hashes": {
+    "bbq.js": "4559ae7231927fd3e3904a4b7ad6132290011074b516f8cfc53dd0cc81318a34",
+    "bbq_bg.wasm": "1974e8dc497b860e1b19a3d398c61f43fba8f2caad7950888149863bbfdfbc54",
+    "bbq_bg.wasm.gz": "958ed75543afcb5cf42301379d70f50834df548b2b7d7d92d5ab006e8536f19f",
+    "index.html": "86fe7db3acc34c13772b44843b11911b079c564da1f582882f9f29c9271a045c",
+    "pointer-lock.js": "44822741589c2faa6d77e310f6ac44a9fb6ed056b26152f791a5fca4c0d84095",
+    "release.json": "d24c1cc213d7800d6e35746aef6a680e2ab5d83348736c057956da91fb8515a1",
+    "assets/models/magpie_pop.glb": "809252b00b6166d07c88567974553e1ff07598c74ab1b69a14cf5bc9efd9ddaf"
+  },
+  "asset_files": 75,
+  "staging_asset_tree_matches": true,
+  "decompressed_wasm_sha256_matches_publication": true,
+  "two_way_public_websocket_relay": "passed",
+  "public_chrome_load": {
+    "canvas": "1100x713",
+    "page_errors": 0,
+    "failed_http_responses": 0
+  },
+  "browser_backup": "/Users/marcus/Claude/australian-bbq-browser-before-race-gaze-20261108",
+  "service_note": "Temporary Quick Tunnel; requires this Mac, localhost:3000 server and cloudflared process to stay running."
+}
