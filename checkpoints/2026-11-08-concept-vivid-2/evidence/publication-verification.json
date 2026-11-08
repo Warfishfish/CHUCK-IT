@@ -1,0 +1,35 @@
+{
+  "source_commit": "b7faf26e25ec26ece4af2e583498cb8efde35b7f",
+  "protocol": 28,
+  "live_url": "https://honest-motion-cleaners-holdem.trycloudflare.com/rust/",
+  "quick_tunnel_http_status": 200,
+  "verified_remote_files": [
+    "bbq.js",
+    "bbq_bg.wasm",
+    "bbq_bg.wasm.gz",
+    "index.html",
+    "pointer-lock.js",
+    "release.json",
+    "assets/models/magpie_pop.glb"
+  ],
+  "local_sha256": {
+    "bbq.js": "4559ae7231927fd3e3904a4b7ad6132290011074b516f8cfc53dd0cc81318a34",
+    "bbq_bg.wasm": "a9587ff66d0c7f8d714fdf740608679692630d98551ac45e9b64141219fd443a",
+    "bbq_bg.wasm.gz": "36baf14e3ff61b378d53ac79f5bc895a65264684445d63bd26f01f9d629a9e2c",
+    "index.html": "86fe7db3acc34c13772b44843b11911b079c564da1f582882f9f29c9271a045c",
+    "pointer-lock.js": "44822741589c2faa6d77e310f6ac44a9fb6ed056b26152f791a5fca4c0d84095",
+    "release.json": "a5512612877ed189a17c774af2eae515e63a9bcbb702afed2cc12f2b22fafc61",
+    "assets/models/magpie_pop.glb": "809252b00b6166d07c88567974553e1ff07598c74ab1b69a14cf5bc9efd9ddaf"
+  },
+  "asset_tree_count": 75,
+  "asset_tree_matches_private_test_build": true,
+  "decompressed_wasm_matches_local": true,
+  "chrome_public_map_load": {
+    "canvas": "1100x713",
+    "failed_http_responses": 0,
+    "page_errors": 0
+  },
+  "public_two_way_websocket_relay": "passed",
+  "rollback_bundle": "/Users/marcus/Claude/australian-bbq-browser-before-concept-vivid-2-20261108",
+  "hosting": "Temporary Cloudflare Quick Tunnel; this Mac, localhost:3000 and cloudflared must remain running."
+}

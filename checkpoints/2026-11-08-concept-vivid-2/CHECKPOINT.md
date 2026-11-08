@@ -1,13 +1,13 @@
 # Smoko concept vividness: late-afternoon light · 8 November 2026
 
-Status: source and recovery checkpoint committed and pushed. The public browser release was not changed.
+Status: source committed/pushed as `b7faf26`; browser bundle published and verified in a follow-up commit. Live protocol-28 build: https://honest-motion-cleaners-holdem.trycloudflare.com/rust/.
 
 ## Starting state and recovery
 
 - Starting commit: `e36c03d1` (Race route/head gaze browser publication). Branch `main` was clean before this task.
 - Baseline source saved at `servo_finish.before.rs`; its SHA-256 is recorded in `starting-state.json`.
 - The starting commit is a complete Git recovery point. To restore only this pass, first inspect later edits, then copy `servo_finish.before.rs` back to `rust/crates/bbq_app/src/servo_finish.rs`.
-- Public browser files were not changed. Existing protocol-28 online link remains separate from this unreviewed graphics pass.
+- Public browser bundle backup: `/Users/marcus/Claude/australian-bbq-browser-before-concept-vivid-2-20261108`. Publication verification and rollback are documented in `BROWSER-PUBLICATION.md`.
 - Local launch: `cd /Users/marcus/Claude/australian-bbq/rust && ~/.cargo/bin/cargo run -p bbq_app --release -- --menu`.
 
 ## Scope and changes
@@ -37,4 +37,4 @@ Concept: `../concept art/exec-6ea4e9b3-70f7-4745-b24d-773f23cbe0ae.png`.
 
 ## Review decision
 
-The source is committed and pushed. The native and private local preview include this lighting pass. The public browser build remains at the previous release until a separate browser update is requested.
+The source is committed and pushed. The native and private local preview include this lighting pass. The public browser build was updated after the user requested publication. Both host and guests should refresh before starting a new room.
