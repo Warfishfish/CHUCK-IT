@@ -1,0 +1,14 @@
+{
+  "starting_commit": "e36c03d1aa4c212118633e9998328a4617f2e8f6",
+  "branch": "main",
+  "starting_status": "?? checkpoints/2026-11-08-concept-vivid-2/\n",
+  "source_file": "rust/crates/bbq_app/src/servo_finish.rs",
+  "source_sha256": "18deba87813c597d89ed0c416fee058e43b754ab5ca4b75c73ced5bca5b31c74",
+  "launch": "cd /Users/marcus/Claude/australian-bbq/rust && ~/.cargo/bin/cargo run -p bbq_app --release -- --menu",
+  "capture_views": {
+    "picnic": "13,2.45,-7.8,141,-13,64",
+    "shelter": "6.8,2.05,-0.4,144,-10,65"
+  },
+  "capture_mode": "--mode smoko --big --look polished --style pop --review --capture-frame 360",
+  "rollback": "Restore only rust/crates/bbq_app/src/servo_finish.rs from servo_finish.before.rs after checking later edits."
+}

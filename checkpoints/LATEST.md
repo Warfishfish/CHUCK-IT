@@ -1,6 +1,10 @@
+# Smoko concept vividness: late-afternoon light · 8 November 2026
+
+[Actual same-view captures](2026-11-08-concept-vivid-2/review.html) · [Checkpoint and rollback](2026-11-08-concept-vivid-2/CHECKPOINT.md). Committed and pushed: slightly lower amber sunlight, warmer ground bounce, more shade fill and a modest saturation lift for Smoko Polished Pop. No gameplay, geometry, textures or other maps changed. Native/browser builds and actual same-view/private-browser captures are recorded. Public browser build remains unchanged.
+
 # Full-lap Race sideline and visible gaze · 8 November 2026
 
-[Actual comparisons and browser motion](2026-11-08-race-gaze/review.html) · [Recovery and verification](2026-11-08-race-gaze/CHECKPOINT.md). Local protocol 28, awaiting review. Continuous sideline route with grass clearance; bounded smooth head pitch from existing controls. Full host/guest laps, both directions of gaze replication, 707 tests and native/browser releases pass. No commit, push or public update.
+[Actual comparisons and browser motion](2026-11-08-race-gaze/review.html) · [Recovery and verification](2026-11-08-race-gaze/CHECKPOINT.md). Source `075d0fd` and browser publication `e36c03d` are pushed; protocol 28 is live at [the browser game](https://honest-motion-cleaners-holdem.trycloudflare.com/rust/). Full host/guest laps, both directions of gaze replication, 707 tests and native/browser releases passed.
 
 # Concept vividness · 8 November 2026
 

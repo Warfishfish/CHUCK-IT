@@ -1,0 +1,8 @@
+{
+  "starting_commit": "e36c03d1aa4c212118633e9998328a4617f2e8f6",
+  "starting_worktree_clean": true,
+  "file": "rust/crates/bbq_app/src/servo_finish.rs",
+  "before_sha256": "18deba87813c597d89ed0c416fee058e43b754ab5ca4b75c73ced5bca5b31c74",
+  "after_sha256": "f93aeb58957c5bb051b37c3fa620cd28616f9a68dab13b11406786564b14c78b",
+  "rollback": "After checking for later edits, restore servo_finish.before.rs to rust/crates/bbq_app/src/servo_finish.rs. Public browser files are not part of this pass."
+}

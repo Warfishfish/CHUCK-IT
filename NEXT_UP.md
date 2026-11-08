@@ -4,7 +4,7 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 
 ## Active backlog additions · 7 November 2026
 
-8 November — items 1–3 are included in the starting commit 963e1f8. Items 4 and 5 are now implemented locally for review. [Full-lap Race route and visible gaze](checkpoints/2026-11-08-race-gaze/review.html). No commit, push or browser publication yet for these two additions.
+8 November — items 1–3 are in the committed history. Items 4 and 5 are implemented and published in source commit 075d0fd and browser publication e36c03d. [Full-lap Race route and visible gaze](checkpoints/2026-11-08-race-gaze/review.html). Smoko vividness pass is committed and pushed; [actual captures](checkpoints/2026-11-08-concept-vivid-2/review.html). The public browser still has the previous lighting. Continue with the next concept-art graphics item when requested.
 
 [Five-feature coding plan and acceptance tests](DEVELOPMENT-PLAN.md)
 

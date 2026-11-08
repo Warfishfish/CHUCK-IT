@@ -8,11 +8,13 @@ use crate::lighting::{self, DisplayRaw, Grade, LookMode, Rig};
 // Concept direction: warm sun, cool readable shade and stronger material colour separation.
 // All values are scoped to the polished Pop Smoko scene and its menu overview.
 pub const SERVO_RIG: Rig = Rig {
-    sky: 0xa8c5eb, ground: 0x9b947e, hemi: 0.70,
-    sun: 0xffddb5, sun_intensity: 1.12,
-    grade: Grade { saturation: 1.12, warmth: 0.010, contrast: 1.075, vignette: 0.020 },
+    // Low, amber sun and warm ground bounce echo the concept's late-afternoon palette.
+    // A little more hemisphere fill keeps the tree shade rich without crushing prop detail.
+    sky: 0x9ebfea, ground: 0xb09a77, hemi: 0.78,
+    sun: 0xffcf9c, sun_intensity: 1.14,
+    grade: Grade { saturation: 1.14, warmth: 0.018, contrast: 1.055, vignette: 0.015 },
 };
-pub const SUN_POSITION: Vec3 = Vec3::new(24.0, 24.0, 16.0);
+pub const SUN_POSITION: Vec3 = Vec3::new(24.0, 17.0, 16.0);
 pub const DISTANT_HAZE: u32 = 0xd1d2cc;
 pub const HAZE_START: f32 = 55.0;
 pub const HAZE_END: f32 = 150.0;

@@ -1,0 +1,10 @@
+{
+  "preview": "http://localhost:3044/rust/",
+  "capture": "solo Smoko Bush Servo, active Chrome WebGPU game, 1100x713, 8 seconds",
+  "frames": 601,
+  "mean_frame_ms": 13.313,
+  "p95_frame_ms": 14.3,
+  "frames_over_33_3ms": 0,
+  "approx_refresh_limited_fps": 75,
+  "limitations": "Single Mac and short sample; rAF is not a GPU timing measurement or a multiplayer/device benchmark."
+}
