@@ -1,3 +1,7 @@
+# Full-lap Race sideline and visible gaze · 8 November 2026
+
+[Actual comparisons and browser motion](2026-11-08-race-gaze/review.html) · [Recovery and verification](2026-11-08-race-gaze/CHECKPOINT.md). Local protocol 28, awaiting review. Continuous sideline route with grass clearance; bounded smooth head pitch from existing controls. Full host/guest laps, both directions of gaze replication, 707 tests and native/browser releases pass. No commit, push or public update.
+
 # Concept vividness · 8 November 2026
 
 [Matched in-game views and browser walk](2026-11-08-concept-vivid/review.html) · [Recovery and measurements](2026-11-08-concept-vivid/CHECKPOINT.md). Stronger Smoko colour/light pass ready for local review. Both release builds passed. Earlier graphics and two-slot changes preserved.

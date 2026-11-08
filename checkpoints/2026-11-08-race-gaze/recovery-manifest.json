@@ -1,0 +1,18 @@
+{
+  "starting_commit": "963e1f8c70f8b207a82be4146559de05a2dc7f5d",
+  "backup": "/Users/marcus/Claude/australian-bbq-before-race-gaze-20261108-203358",
+  "after_sha256": {
+    "DEVELOPMENT-PLAN.md": "b33fbb3708754557dc117abb7a64f88f9161026cee5e6a9a3f32fc270bbd02e6",
+    "NEXT_UP.md": "e2f1021cdb9872305047ad080590c48146440717917fedebf4f1237b82c47b61",
+    "checkpoints/LATEST.md": "fe96e81b16b8b4db8c0de02fbade1cab19562f4abda0e2bec93b5cbd9752c75b",
+    "rust/crates/bbq_app/src/face.rs": "7f7a0a7b972514b1a7d56b3be988297f22cb9fc5f076258b8e6501b1596f98bd",
+    "rust/crates/bbq_app/src/game.rs": "494c39219f3fa6c7490bcb47dfc94abb6b1cb35ad9028bc6713ffc929ca23f25",
+    "rust/crates/bbq_app/src/grass.rs": "449ac9907de46d6306524c48b4ed661c9369d5ca232d99d9526ff6df6ccacd9f",
+    "rust/crates/bbq_app/src/online.rs": "80f988a080a3b4966115a12f3a0e804dc58ec2f81e6b2cdd692fb3cf1d9eb56d",
+    "rust/crates/bbq_app/src/race.rs": "f4435ba6bbc420915148ca387e138e4caa66cbe188193c3128e0f5b7c9ded012",
+    "rust/crates/bbq_app/src/shot.rs": "32b270130bc688b14bd1b2cb572d42f43b373183bac9c93903ae5e9f587a6e9d",
+    "rust/crates/bbq_app/src/yard_scene.rs": "08677eaa7dcec5059aab905c87dfce7116d2c9bae93ec62941e234d5e706f56e",
+    "rust/crates/bbq_core/src/looks_yard.rs": "db7bab8116d380fc45ef798f0771fee7fc43b545e378379c853f0ba0d9912b9b",
+    "rust/crates/bbq_core/src/net.rs": "28188b9bdbef0719e5e1642859f3a02281914ab95212433da039cb3e38870859"
+  }
+}

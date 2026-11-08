@@ -653,10 +653,6 @@ fn sync_race_map(
   let a=(50.*t.sin(),-35.*t.cos());let b=(50.*u.sin(),-35.*u.cos());let dx=b.0-a.0;let dz=b.1-a.1;
   parts.push(block(0.14,1.1,dx.hypot(dz)+0.04,(a.0+b.0)*0.5,0.55,(a.1+b.1)*0.5,0x99623a).turn(0.,dx.atan2(dz),0.));
  }
- // Curved spectator terrace follows the near bend, outside the racing lane.
- for i in 0..40 {let a=-0.85+i as f32*1.7/40.;let b=-0.85+(i+1) as f32*1.7/40.;let p=(44.*a.sin(),-29.5*a.cos());let q=(44.*b.sin(),-29.5*b.cos());let dx=q.0-p.0;let dz=q.1-p.1;
-  parts.push(block(3.4,0.035,dx.hypot(dz)+0.12,(p.0+q.0)*0.5,0.01,(p.1+q.1)*0.5,0xe6bd79).turn(0.,dx.atan2(dz),0.));
- }
  for i in 0..8 {
   let a=crate::race::TRACK[i];let b=crate::race::TRACK[(i+1)%8];let dx=b.0-a.0;let dz=b.1-a.1;let len=dx.hypot(dz);let yaw=dx.atan2(dz);let mid=((a.0+b.0)*0.5,(a.1+b.1)*0.5);
   // Repeated arrow chevrons on the racing surface communicate direction without colour alone.
@@ -677,13 +673,13 @@ fn sync_race_map(
  // Chequered finish stripe across the lane at gate 8.
  for x in 0..2{for z in 0..10 {parts.push(block(0.4,0.04,0.48,-0.2+x as f32*0.4,0.09,-26.4+z as f32*0.48,if (x+z)%2==0{0xffffff}else{0x172823}));}}
  // Timber boundary, trees and spectator seats give the circuit a backyard identity.
- for i in 0..10 {let t=i as f32*std::f32::consts::TAU/10.;let x=47.*t.sin();let z=-32.*t.cos();if z < -25. {continue;}
+ for i in 0..10 {let t=i as f32*std::f32::consts::TAU/10.;let x=48.5*t.sin();let z=-33.5*t.cos();if z < -25. {continue;}
   parts.push(block(0.5,3.,0.5,x,1.5,z,0x825433));parts.push(Part::new(Shape::Sphere{r:1.7,ws:8,hs:6},Surface::matt(0x386b37)).at(x,4.,z));
  }
- for t in [-0.7_f32,-0.35,0.,0.35,0.7] {parts.extend(looks_yard::place(looks_yard::chair_styled(0),bbq_core::vec::V3::new(45.*t.sin(),0.,-30.5*t.cos()),bbq_core::vec::Quat::from_euler_xyz(0.,-t,0.),1.0));}
+ for t in [-0.7_f32,-0.35,0.,0.35,0.7] {parts.extend(looks_yard::place(looks_yard::chair_styled(0),bbq_core::vec::V3::new(48.5*t.sin(),0.,-33.5*t.cos()),bbq_core::vec::Quat::from_euler_xyz(0.,-t,0.),1.0));}
  // Four distinct spectator landmarks beyond the racing lane and throwing sightlines.
  // North: a striped marquee; east: corrugated shed; west: tyre/plant garden.
- for (x,z) in [(-17.0,30.0),(17.0,30.0)] {
+ for (x,z) in [(-17.0,33.0),(17.0,33.0)] {
   for dx in [-2.4,2.4] {for dz in [-1.4,1.4] {parts.push(block(0.12,3.2,0.12,x+dx,1.6,z+dz,0xf7eccf));}}
   for i in 0..8 {parts.push(block(0.64,0.18,3.4,x-2.24+i as f32*0.64,3.2,z,if i%2==0{0xe36e42}else{0xffe4b1}));}
   parts.push(block(3.5,0.18,1.1,x,0.9,z,0x9a673f));
@@ -695,7 +691,7 @@ fn sync_race_map(
  parts.push(block(5.6,0.18,4.6,55.,3.15,6.,0xb65e42).turn(0.,0.,0.08));
  parts.push(block(1.4,2.2,0.08,55.,1.1,3.94,0x3b6665));
  parts.push(block(0.12,0.12,0.12,55.5,1.2,3.86,0xffd457));
- for (x,z) in [(-44.,-11.),(-45.,7.),(40.,18.),(9.,32.)] {
+ for (x,z) in [(-47.,-11.),(-48.,7.),(43.,18.),(9.,33.)] {
   for j in 0..3 {let dx=(j as f32-1.)*0.9;
    parts.push(Part::new(Shape::Cylinder{top:0.45,bottom:0.34,h:0.6,seg:8,caps:true},Surface::matt(0xba764e)).at(x+dx,0.3,z));
    parts.push(Part::new(Shape::Sphere{r:0.6,ws:8,hs:6},Surface::matt(if j%2==0{0x69834b}else{0x87974b})).at(x+dx,0.95,z));
@@ -707,6 +703,32 @@ fn sync_race_map(
   parts.push(block(0.65,0.55,0.06,x,3.5,z,if i%3==0{0xe96c42}else if i%3==1{0xf3cc4e}else{0x4c99a6}).turn(0.,0.,0.08*(i as f32-3.)));
  }}
  let e=cache.spawn_parts(&mut commands,&parts,&mut meshes,&mut mats,Transform::default());commands.entity(e).insert(RaceMap);
+ // One vertex-coloured mesh keeps the complete route and both boundary lines inexpensive.
+ commands.spawn((Mesh3d(meshes.add(race_terrace_mesh())),
+  MeshMaterial3d(mats.add(StandardMaterial{base_color:Color::WHITE,perceptual_roughness:1.0,..default()})),
+  Transform::default(),ChildOf(e)));
+
+}
+
+fn race_terrace_mesh() -> Mesh {
+ use bevy::asset::RenderAssetUsages;
+ use bevy::mesh::{Indices,PrimitiveTopology};
+ let mut positions=Vec::new();let mut colors=Vec::new();let mut indices=Vec::new();
+ let edge=0.003; // About 8–13 cm, matching the legal radial boundaries.
+ for (inner,outer,hex) in [(1.0,1.0+edge,0xfff5cf),(1.0+edge,crate::race::TERRACE_OUTER-edge,0xe6bd79),(crate::race::TERRACE_OUTER-edge,crate::race::TERRACE_OUTER,0xfff5cf)] {
+  let color=Color::srgb_u8((hex>>16) as u8,(hex>>8) as u8,hex as u8).to_linear().to_f32_array();
+  let start=positions.len() as u32;
+  for i in 0..=crate::race::TERRACE_SEGMENTS {
+   let angle=i as f32*std::f32::consts::TAU/crate::race::TERRACE_SEGMENTS as f32;
+   for radius in [inner,outer] {let (x,z)=crate::race::terrace_at(angle,radius);positions.push([x,0.04,z]);colors.push(color);}
+   if i<crate::race::TERRACE_SEGMENTS {let n=start+i as u32*2;indices.extend([n,n+2,n+1,n+1,n+2,n+3]);}
+  }
+ }
+ let count=positions.len();let mut mesh=Mesh::new(PrimitiveTopology::TriangleList,RenderAssetUsages::default());
+ mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION,positions);
+ mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL,vec![[0.0,1.0,0.0];count]);
+ mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR,colors);
+ mesh.insert_indices(Indices::U32(indices));mesh
 }
 
 fn sync_backyard_cover(game:Res<Game>,mut q:Query<&mut Visibility,With<BackyardCover>>) {

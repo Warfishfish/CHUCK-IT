@@ -13,6 +13,12 @@ use bevy::prelude::*;
 use crate::game::Game;
 use crate::menu::Settings;
 
+/// Gaze tuning. Positive input is up; model heads face +Z, opposite the camera's -Z.
+pub const GAZE_UP: f32 = 0.88;
+pub const GAZE_DOWN: f32 = 0.72;
+pub const GAZE_RESPONSE: f32 = 12.0;
+const GAZE_NECK_DROP: f32 = 0.22;
+
 /// Whose face this head wears.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FaceOwner {
@@ -807,7 +813,7 @@ mod tests {
 }
 
 #[derive(Component)]
-struct HeadForm { owner: FaceOwner, centre: Vec3 }
+struct HeadForm { owner: FaceOwner, centre: Vec3, pitch: f32 }
 
 // A parent around the existing head and sibling eyes keeps every expression and eye animation
 // in its original coordinate system. No meshes, face features or hit volumes are added.
@@ -817,7 +823,7 @@ fn rig_head_forms(
     children: Query<&Children>, names: Query<&Name>,
 ) {
     for (head,node,parent,tf) in &heads {
-        let root=commands.spawn((Transform::default(),Visibility::default(),HeadForm{owner:node.owner,centre:tf.translation},ChildOf(parent.parent()))).id();
+        let root=commands.spawn((Transform::default(),Visibility::default(),HeadForm{owner:node.owner,centre:tf.translation,pitch:0.0},ChildOf(parent.parent()))).id();
         commands.entity(root).add_child(head);
         if let Ok(kids)=children.get(parent.parent()) {
             for e in kids.iter() {
@@ -830,9 +836,10 @@ fn rig_head_forms(
 }
 fn shape_heads(
     game:Res<Game>, settings:Res<Settings>, online:Option<Res<crate::online::Online>>,
-    mut heads:Query<(&HeadForm,&mut Transform)>,
+    time: Res<Time>,
+    mut heads:Query<(&mut HeadForm,&mut Transform)>,
 ) {
-    for (form,mut tf) in &mut heads {
+    for (mut form,mut tf) in &mut heads {
         let look=match form.owner {
             FaceOwner::Preview=>Some(settings.look),
             FaceOwner::Blob(i)=>game.dummies.get(i).map(|d|d.look),
@@ -840,8 +847,13 @@ fn shape_heads(
         };
         let Some(look)=look else {continue};
         let y=look.face_scale();let x=y.sqrt().recip();
-        tf.scale=Vec3::new(x,y,x);
-        tf.translation=form.centre*(Vec3::ONE-tf.scale);
+        let d = if let FaceOwner::Blob(i)=form.owner {game.dummies.get(i)} else {None};
+        let target=d.filter(|d| !d.body.is_down() && !d.fallen && d.seat.is_none())
+            .map_or(0.0,|d| d.look_pitch);
+        if !d.is_some_and(|d|d.anim.feel.frozen()) {
+            form.pitch=gaze_step(form.pitch,target,time.delta_secs());
+        }
+        *tf=head_form_transform(form.centre,Vec3::new(x,y,x),form.pitch);
     }
 }
 
@@ -857,5 +869,51 @@ fn gradient_skin(mut commands:Commands,mut meshes:ResMut<Assets<Mesh>>,q:Query<(
         let lo=positions.iter().map(|p|p[1]).fold(f32::INFINITY,f32::min);let hi=positions.iter().map(|p|p[1]).fold(f32::NEG_INFINITY,f32::max);
         let colors:Vec<[f32;4]>=positions.iter().map(|p|{let u=((p[1]-lo)/(hi-lo).max(0.001)).clamp(0.0,1.0);let v=1.0-bbq_core::finish::GRADIENT_DEPTH*(1.0-u)*bbq_core::finish::DETAIL_LEVEL.min(2) as f32;[v,v,v,1.0]}).collect();
         mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR,colors);let new=meshes.add(mesh);cache.insert(h.0.id(),new.clone());commands.entity(e).insert((Mesh3d(new),SkinGradient));
+    }
+}
+
+
+fn gaze_step(current: f32, target: f32, dt: f32) -> f32 {
+    let target=if target.is_finite(){target.clamp(-GAZE_DOWN,GAZE_UP)}else{0.0};
+    current+(target-current)*(1.0-(-GAZE_RESPONSE*dt.clamp(0.0,0.1)).exp())
+}
+fn head_form_transform(centre: Vec3, scale: Vec3, pitch: f32) -> Transform {
+    let rotation=Quat::from_rotation_x(-pitch);
+    let neck=centre-Vec3::Y*GAZE_NECK_DROP;
+    // Face-length scaling stays centred on the head; the completed shape pivots at the neck.
+    Transform { scale,rotation,translation:neck+rotation*(centre*(Vec3::ONE-scale)-neck) }
+}
+
+#[cfg(test)]
+mod gaze_tests {
+    use super::*;
+    #[test]
+    fn bounded_gaze_smoothly_reverses_and_resets() {
+        let mut angle=0.0;
+        for _ in 0..60 {angle=gaze_step(angle,1.45,1.0/60.0);}
+        assert!((angle-GAZE_UP).abs()<0.001);
+        let next=gaze_step(angle,-1.45,1.0/60.0);
+        assert!(next<angle && next>-GAZE_DOWN);
+        for _ in 0..60 {angle=gaze_step(angle,-1.45,1.0/60.0);}
+        assert!((angle+GAZE_DOWN).abs()<0.001);
+        for _ in 0..60 {angle=gaze_step(angle,0.0,1.0/60.0);}
+        assert!(angle.abs()<0.001);
+    }
+    #[test]
+    fn face_length_stays_centred_and_neck_stays_planted_in_every_pose() {
+        let centre=Vec3::new(0.0,1.5,0.0);
+        let neck=centre-Vec3::Y*GAZE_NECK_DROP;
+        for y in [0.75_f32,1.0,1.6] {
+            let scale=Vec3::new(y.sqrt().recip(),y,y.sqrt().recip());
+            let neutral=head_form_transform(centre,scale,0.0);
+            assert!(neutral.transform_point(centre).distance(centre)<0.0001);
+            let unscaled_neck=(neck-neutral.translation)/scale;
+            for pitch in [-GAZE_DOWN,0.0,GAZE_UP] {
+                let tf=head_form_transform(centre,scale,pitch);
+                assert!(tf.transform_point(unscaled_neck).distance(neck)<0.0001);
+                let forward=tf.rotation*Vec3::Z;
+                assert_eq!(forward.y.signum(),pitch.signum());
+            }
+        }
     }
 }

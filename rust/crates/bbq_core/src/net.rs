@@ -13,7 +13,16 @@
 
 /// Bump this whenever a message changes, so old and new copies of the game refuse each other
 /// politely instead of misreading each other.
-pub const PROTOCOL: u16 = 27; // Pickups/catches preserve equipped item and full catches drop incoming.
+pub const PROTOCOL: u16 = 28; // Cosmetic camera pitch in the existing player snapshot.
+/// One signed byte, neutral exactly zero. Cosmetic only; never used to validate a throw.
+pub fn pack_pitch(pitch: f32) -> i8 {
+    if !pitch.is_finite() { return 0; }
+    (pitch.clamp(-crate::movement::PITCH_LIMIT, crate::movement::PITCH_LIMIT)
+        / crate::movement::PITCH_LIMIT * 127.0).round() as i8
+}
+pub fn unpack_pitch(pitch: i8) -> f32 {
+    pitch.max(-127) as f32 / 127.0 * crate::movement::PITCH_LIMIT
+}
 /// The most people in one yard (the browser game's limit).
 pub const MAX_PLAYERS: usize = 16;
 /// How often each player reports where they are.
@@ -62,6 +71,8 @@ pub struct PlayerState {
     pub pos: (f32, f32, f32),
     /// Which way they face, radians (the game's `yaw`).
     pub yaw: f32,
+    /// Signed quantised camera elevation, positive looking up.
+    pub pitch: i8,
     pub vel: (f32, f32),
     pub walk: f32,
     pub grounded: bool,
@@ -86,6 +97,7 @@ impl PlayerState {
             id,
             pos: (0.0, 0.0, 0.0),
             yaw: 0.0,
+            pitch: 0,
             vel: (0.0, 0.0),
             walk: 0.0,
             grounded: true,
@@ -337,6 +349,7 @@ impl Msg {
                 w.f32(s.pos.1);
                 w.f32(s.pos.2);
                 w.f32(s.yaw);
+                w.u8(s.pitch.max(-127) as u8);
                 w.f32(s.vel.0);
                 w.f32(s.vel.1);
                 w.f32(s.walk);
@@ -396,6 +409,7 @@ impl Msg {
                 let seq = r.u32()?;
                 let pos = (r.f32()?, r.f32()?, r.f32()?);
                 let yaw = r.f32()?;
+                let pitch = (r.u8()? as i8).max(-127);
                 let vel = (r.f32()?, r.f32()?);
                 let walk = r.f32()?;
                 let f = r.u16()?;
@@ -404,6 +418,7 @@ impl Msg {
                     id,
                     pos,
                     yaw,
+                    pitch,
                     vel,
                     walk,
                     grounded: f & F_GROUNDED != 0,
@@ -559,6 +574,7 @@ mod tests {
             id: 7,
             pos: (12.5, 0.25, -9.75),
             yaw: 1.5,
+            pitch: -80,
             vel: (2.0, -3.0),
             walk: 41.5,
             grounded: true,
@@ -730,5 +746,28 @@ mod tests {
         assert_eq!(clean(""), "Mate");
         assert_eq!(clean("\u{7}\u{7}"), "Mate");
         assert_eq!(clean("ABCDEFGHIJKLMNOPQRSTUVWXYZ").chars().count(), 16);
+    }
+}
+
+#[cfg(test)]
+mod gaze_wire_tests {
+    use super::*;
+    #[test]
+    fn gaze_is_bounded_and_uses_one_extra_byte() {
+        for angle in [-1.45,-0.7,0.0,0.6,1.45] {
+            let mut s=PlayerState::new(2);s.pitch=pack_pitch(angle);
+            let bytes=Msg::State(s).encode();
+            assert_eq!(bytes.len(),45);
+            let Msg::State(roundtrip)=Msg::decode(&bytes).unwrap() else {panic!()};
+            assert_eq!(s,roundtrip);
+            assert!((unpack_pitch(roundtrip.pitch)-angle).abs()<0.006);
+        }
+        assert_eq!(pack_pitch(f32::NAN),0);
+        assert_eq!(pack_pitch(f32::INFINITY),0);
+        assert_eq!(pack_pitch(9.0),127);
+        assert_eq!(pack_pitch(-9.0),-127);
+        assert_eq!(unpack_pitch(-128),-crate::movement::PITCH_LIMIT);
+        let mut bytes=Msg::State(PlayerState::new(1)).encode();
+        bytes.pop();assert!(Msg::decode(&bytes).is_err());
     }
 }

@@ -17,6 +17,10 @@ use std::collections::{BTreeMap, VecDeque};
 pub const REPLENISH: f32 = 1.4;
 pub const MAX_AIRBORNE: usize = 3;
 pub const THROW_TIMEOUT: f32 = 6.0;
+/// Continuous spectator band, outside the 36 × 24 m racing ellipse.
+pub const TERRACE_AXES: (f32, f32) = (42.0, 28.0);
+pub const TERRACE_OUTER: f32 = 1.12;
+pub const TERRACE_SEGMENTS: usize = 96;
 pub const UNLOCKS: [u32; 3] = [225, 500, 900];
 #[derive(Clone, Debug)]
 pub struct Attempt {
@@ -410,7 +414,16 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted, y: &YardRes) {
     };
 }
 pub fn terrace(angle: f32) -> (f32, f32) {
-    (42. * angle.sin(), -28. * angle.cos())
+    terrace_at(angle, 1.0)
+}
+pub fn terrace_at(angle: f32, radius: f32) -> (f32, f32) {
+    (TERRACE_AXES.0 * radius * angle.sin(), -TERRACE_AXES.1 * radius * angle.cos())
+}
+/// Radial projection has no angle clamp or seam, in either direction around the oval.
+fn terrace_position(x: f32, z: f32) -> (f32, f32) {
+    if !x.is_finite() || !z.is_finite() { return terrace(0.0); }
+    let (nx, nz) = (x / TERRACE_AXES.0, -z / TERRACE_AXES.1);
+    terrace_at(nx.atan2(nz), nx.hypot(nz).clamp(1.0, TERRACE_OUTER))
 }
 fn constrain_throwers(g: &mut Game, p: &mut Player) {
     for id in g.race.throwers.keys() {
@@ -421,12 +434,7 @@ fn constrain_throwers(g: &mut Game, p: &mut Player) {
         } else {
             continue;
         };
-        let x = m.x / 42.;
-        let z = -m.z / 28.;
-        let a = x.atan2(z).clamp(-0.85, 0.85);
-        let r = x.hypot(z).clamp(1., 1.12);
-        m.x = 42. * r * a.sin();
-        m.z = -28. * r * a.cos();
+        (m.x, m.z) = terrace_position(m.x, m.z);
     }
 }
 pub fn prompt(g: &Game) -> String {
@@ -1053,4 +1061,83 @@ pub fn tug(g:&mut Game,p:&mut Player,id:PlayerId) {
     if v==PLAYER_ID {p.shake=p.shake.max(0.035);g.popup("SHORTS TUG! Brief slowdown",false);}
     if id==PLAYER_ID {g.popup("SHORTS TUG!",true);}
     g.say(format!("{} tugged {}'s shorts!",crate::round::name_of(g,id),crate::round::name_of(g,v)));
+}
+
+#[cfg(test)]
+mod full_lap_tests {
+    use super::*;
+    #[test]
+    fn continuous_band_is_legal_across_both_old_ends_and_angle_wrap() {
+        for direction in [-1.0,1.0] {
+            let mut previous=terrace_at(0.0,1.06);
+            for i in 1..=1440 {
+                let angle=direction*i as f32*std::f32::consts::TAU/1440.0;
+                let at=terrace_at(angle,1.06);
+                let projected=terrace_position(at.0,at.1);
+                assert!(distance(projected,at)<0.0001);
+                assert!(distance(previous,projected)<0.22,"no seam or sector snap");
+                assert!(track_distance(projected)>WIDTH*0.5+0.6,"separate racing lane");
+                assert!((projected.0/50.0).hypot(projected.1/35.0)<1.0,"inside visible fence");
+                previous=projected;
+            }
+        }
+        for angle in [0.0,0.85,-0.85,1.57,3.14,4.71] {
+            for (radius,expected) in [(0.5,1.0),(1.06,1.06),(2.0,TERRACE_OUTER)] {
+                let at=terrace_at(angle,radius);let p=terrace_position(at.0,at.1);
+                assert!(distance(p,terrace_at(angle,expected))<0.0001);
+            }
+        }
+    }
+    #[test]
+    fn mover_can_walk_whole_route_both_ways_without_reset_or_lane_entry() {
+        let mut yard=bbq_core::yard::Yard::default();yard.race=true;
+        for direction in [-1.0,1.0] {
+            let at=terrace_at(0.0,1.06);let mut m=Mover::new(at.0,at.1);
+            let mut travel=0.0;let mut last_angle=0.0;
+            for _ in 0..6000 {
+                let angle=(m.x/TERRACE_AXES.0).atan2(-m.z/TERRACE_AXES.1);
+                let goal=terrace_at(angle+direction*0.06,1.06);
+                let v=(goal.0-m.x,goal.1-m.z);let len=v.0.hypot(v.1);
+                let before=(m.x,m.z);
+                m.step(bbq_core::sim::TICK_DT,MoveInput{wish:(v.0/len,v.1/len),..Default::default()},&Modifiers::default(),&yard);
+                (m.x,m.z)=terrace_position(m.x,m.z);
+                assert!(distance(before,(m.x,m.z))<0.2);
+                assert!(track_distance((m.x,m.z))>WIDTH*0.5+0.6);
+                let a=(m.x/TERRACE_AXES.0).atan2(-m.z/TERRACE_AXES.1);
+                travel+=(a-last_angle+std::f32::consts::PI).rem_euclid(std::f32::consts::TAU)-std::f32::consts::PI;
+                last_angle=a;
+                if travel.abs()>std::f32::consts::TAU {break;}
+            }
+            assert!(travel*direction>std::f32::consts::TAU,"complete lap");
+        }
+    }
+}
+
+#[cfg(test)]
+mod far_bend_scoring_tests {
+    use super::*;
+    use bevy::prelude::*;
+    #[test]
+    fn host_and_guest_throw_score_once_from_the_far_bend() {
+        for owner in [PLAYER_ID,202] {
+            let mut app=App::new();app.add_plugins(MinimalPlugins).add_plugins(crate::game::GamePlugin);
+            let mut g=app.world_mut().remove_resource::<Game>().unwrap();
+            g.rules.mode=GameMode::Race;g.rules.phase=bbq_core::scoring::Phase::Play;
+            g.options.bots_on=false;g.world.clear();g.dummies.truncate(2);g.race=Default::default();
+            let mut p=Player{mover:Mover::new(44.0,0.0),prev:Vec3::ZERO,yaw:std::f32::consts::FRAC_PI_2,pitch:0.0,walk:0.0,shake:0.0,fov_base:85.0,fov:85.0,rng:bbq_core::rng::Rng::new(1)};
+            g.dummies[0].id=100;g.dummies[0].mover=Mover::new(36.0,0.0);
+            g.dummies[1].id=202;g.dummies[1].mover=Mover::new(44.0,0.0);
+            g.race.racers.insert(100,Progress::new((36.0,0.0)));
+            g.race.throwers.insert(owner,Thrower::default());
+            let item=g.world.spawn(ItemKind::WaterBalloon,44.0,0.0,false,&mut g.rng);g.world.give(item,owner);
+            let from=(44.0,1.2,0.0);let vel=(-16.0,4.0,0.0);
+            if owner==PLAYER_ID {g.slots.add(item);assert!(launch(&mut g,owner,item,V3::new(from.0,from.1,from.2),V3::new(vel.0,vel.1,vel.2),0.5));}
+            else {g.dummies[1].bot.slots.add(item);guest_act(&mut g,1,&bbq_core::net_act::GuestAct::Throw{item,from,vel,charge:0.5});}
+            assert_eq!(g.race.throwers[&owner].attempts.len(),1,"host accepted the legal throw");
+            let mut yard=bbq_core::yard::Yard::default();yard.race=true;yard.colliders.clear();let y=YardRes(yard);
+            for _ in 0..120 {g.now+=bbq_core::sim::TICK_DT;combat(&mut g,&mut p,&mut Wanted::default(),&y);}
+            let t=&g.race.throwers[&owner];assert_eq!((t.score,t.hits,t.streak),(50,1,1));
+            assert_eq!(t.next(),75);assert!(t.attempts.is_empty());
+        }
+    }
 }

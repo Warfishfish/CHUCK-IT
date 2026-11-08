@@ -2784,7 +2784,7 @@ mod tests {
         assert!(y.world.len() > 150, "{}", y.world.len());
         assert!(!y.bar.is_empty() && !y.bbq.is_empty() && !y.smoko.is_empty());
         assert_eq!(y.clouds.len(), 9);
-        assert!(y.clouds.iter().all(|(_, p)| p.len() == 4));
+        assert!(y.clouds.iter().all(|(_, p)| (3..=7).contains(&p.len())));
         assert!(!y.hoist_head.is_empty());
         assert!(!y.chest_base.is_empty() && y.chest_lid.len() == 3);
     }

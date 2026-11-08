@@ -603,7 +603,7 @@ impl Plugin for OnlinePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Online>()
             .init_resource::<Lobby>()
-            .add_systems(Update, (net_requests, online_poll, online_send, online_roster, online_world_send, online_world_apply, online_follow_host, net_test_actions, online_acts, online_hits, lobby_logic).chain())
+            .add_systems(Update, (net_requests, online_poll, online_send, online_roster, online_world_send, online_world_apply, online_gaze, online_follow_host, net_test_actions, online_acts, online_hits, lobby_logic).chain())
             .add_systems(FixedUpdate, online_puppets.after(crate::game::step_game));
     }
 }
@@ -743,6 +743,7 @@ fn online_send(time: Res<Time>, mut online: ResMut<Online>, player: Res<Player>,
         id: session.my_id,
         pos: (m.x, m.y, m.z),
         yaw: player.yaw,
+        pitch: bbq_core::net::pack_pitch(player.pitch),
         vel: (m.vx, m.vz),
         walk: player.walk,
         grounded: m.grounded,
@@ -1117,6 +1118,17 @@ fn online_hits(mut online: ResMut<Online>, mut game: ResMut<Game>, mut player: R
 
 /// Move each puppet to where its person says they are (a little ahead, by their speed, and
 /// smoothed so 20 reports a second look like 60 frames).
+fn online_gaze(online: Res<Online>, mut game: ResMut<Game>) {
+    let session = online.session.as_ref().filter(|s| !s.ended);
+    let now = game.now;
+    for d in &mut game.dummies {
+        d.look_pitch = d.remote.as_ref()
+            .and_then(|r| session.and_then(|s| s.heard.get(&r.net_id)))
+            .filter(|h| now-h.at <= 0.5)
+            .map_or(0.0, |h| bbq_core::net::unpack_pitch(h.state.pitch));
+    }
+}
+
 fn online_puppets(mut online: ResMut<Online>, mut game: ResMut<Game>, yard: Res<crate::yard_scene::YardRes>) {
     let Some(session) = online.session.as_mut().filter(|s| !s.ended) else {
         return;
@@ -1592,5 +1604,27 @@ mod tests {
             assert_eq!(code_char(char_code(c)), c);
         }
         assert_eq!(code_char(200), *Character::ALL.last().unwrap());
+    }
+}
+
+#[cfg(test)]
+mod gaze_replication_tests {
+    use super::*;
+    use bevy::ecs::system::RunSystemOnce;
+    #[test]
+    fn gaze_updates_downed_and_race_mirror_then_neutralises_stale_packets() {
+        let mut app=App::new();app.add_plugins(MinimalPlugins).add_plugins(crate::game::GamePlugin);
+        let remote=RemoteInfo{net_id:2,name:"Davo".into(),character:Character::Classic,look:Default::default(),belly:1.0};
+        let mut s=Session::host("Marcus",Character::Classic,"gaze");
+        let mut state=PlayerState::new(2);state.pitch=bbq_core::net::pack_pitch(1.0);
+        s.heard.insert(2,Heard{state,at:10.0,applied_seq:0});
+        let mut online=Online::default();online.session=Some(s);app.insert_resource(online);
+        {let mut g=app.world_mut().resource_mut::<Game>();g.now=10.1;g.mirror=true;g.rules.mode=bbq_core::GameMode::Race;
+         g.dummies[0].remote=Some(remote);g.dummies[0].body.down_t=2.0;}
+        app.world_mut().run_system_once(online_gaze).unwrap();
+        assert!((app.world().resource::<Game>().dummies[0].look_pitch-1.0).abs()<0.006);
+        app.world_mut().resource_mut::<Game>().now=10.6;
+        app.world_mut().run_system_once(online_gaze).unwrap();
+        assert_eq!(app.world().resource::<Game>().dummies[0].look_pitch,0.0);
     }
 }

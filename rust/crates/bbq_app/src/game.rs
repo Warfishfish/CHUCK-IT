@@ -56,6 +56,8 @@ pub struct Dummy {
     pub net_slap_at: f32,
     /// How deep a person online has dived (they say so; we draw it).
     pub net_dive: f32,
+    /// Cosmetic camera elevation from the remote player, independent of body authority.
+    pub look_pitch: f32,
     pub mover: Mover,
     pub body: Body,
     pub home: (f32, f32),
@@ -101,6 +103,7 @@ impl Dummy {
             net_target: None,
             net_slap_at: -9.0,
             net_dive: 0.0,
+            look_pitch: 0.0,
             mover: Mover::new(x, z),
             body: Body::default(),
             home: (x, z),

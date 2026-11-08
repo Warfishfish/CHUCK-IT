@@ -466,9 +466,9 @@ mod tests {
     }
 
     #[test]
-    fn the_line_up_has_eighteen_things_in_a_row() {
+    fn the_line_up_has_nineteen_things_in_a_row() {
         let g = gallery_places();
-        assert_eq!(g.len(), 18);
+        assert_eq!(g.len(), 19);
         assert!(g.iter().all(|(_, p)| p.z == -1.0 && p.y > 29.0));
     }
 }

@@ -4,9 +4,7 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 
 ## Active backlog additions · 7 November 2026
 
-8 November — item 3 implemented locally for review. [Two-slot pickup/catch result](checkpoints/2026-11-08-secondary-slots/review.html). Items 4 and 5 remain queued.
-
-Update 8 November — items 1 and 2 implemented locally for review. The user chose the north-west servo site. [Implementation evidence](checkpoints/2026-11-08-servo-menu/review.html). Items 3–5 remain queued.
+8 November — items 1–3 are included in the starting commit 963e1f8. Items 4 and 5 are now implemented locally for review. [Full-lap Race route and visible gaze](checkpoints/2026-11-08-race-gaze/review.html). No commit, push or browser publication yet for these two additions.
 
 [Five-feature coding plan and acceptance tests](DEVELOPMENT-PLAN.md)
 

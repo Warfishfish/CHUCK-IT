@@ -37,7 +37,8 @@ fn on_lawn(x: f32, z: f32, mode: GameMode, yard: &Yard) -> bool {
             || crate::race::track_distance((x, z)) < crate::race::WIDTH * 0.5 + 0.25 {
             return false;
         }
-        if z < -18.0 && (x / 44.0).powi(2) + (z / 29.5).powi(2) > 0.84 { return false; }
+        let radius=(x/crate::race::TERRACE_AXES.0).hypot(z/crate::race::TERRACE_AXES.1);
+        if (0.99..=crate::race::TERRACE_OUTER+0.01).contains(&radius) { return false; }
         return true;
     }
     if x.abs() > YARD_HALF_X - 0.5 || z.abs() > YARD_HALF_Z - 0.5 { return false; }
@@ -162,5 +163,12 @@ mod tests {
         for gate in crate::race::TRACK { assert!(!on_lawn(gate.0, gate.1, GameMode::Race, &yard)); }
         assert!(!on_lawn(0.0, -30.0, GameMode::Race, &yard));
         assert!(on_lawn(0.0, 0.0, GameMode::Race, &yard));
+        for i in 0..96 {
+            let a=i as f32*std::f32::consts::TAU/96.0;
+            for radius in [1.0,1.06,crate::race::TERRACE_OUTER] {
+                let (x,z)=crate::race::terrace_at(a,radius);
+                assert!(!on_lawn(x,z,GameMode::Race,&yard),"whole sideline stays clear");
+            }
+        }
     }
 }
