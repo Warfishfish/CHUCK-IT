@@ -161,8 +161,8 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] D14.4 Cheeky-mode bottles: a glass beer bottle and a spirit bottle (labels, see-through glass with liquid, cap or cork); gameplay is in CHECKLIST.md (translucent amber shells, separate visible fills, cream/red labels and bottle caps checked in the cheeky item gallery, 8 Nov 2026)
 - [x] D14.5 Smash effect for those bottles: glass shards, a splash and a stain decal (fixed showcase drop state so it exercises live bottle flight; beer foam/brown shards and rum splash/clear shards plus ground marks visually checked, 8 Nov 2026)
 - [x] D14.6 Food: a slightly oversized snag and steak with real-looking texture, the fish (separate sausage and steak silhouettes with browned casing, char lines, fat edge and marbling; fish keeps its scale texture; checked in the focused food gallery and on the BBQ, 8 Nov 2026)
-- [ ] D14.7 Shed, bar, trampoline, planters, log pile, tank: bevels, a slight lean, dirt, rust; springs on the trampoline, taps and bottles on the bar (partial: shed ribs/aged door, tank seams/outlet/rust drips, log-end rings, planter boards/soil, trampoline springs and brass bar taps added; awaiting shared bevel support from E17.6)
-- [ ] D14.8 Hills Hoist: pegs, a towel and washing (with B7.5)
+- [x] D14.7 Shed, bar, trampoline, planters, log pile, tank: softened edges on key timber and metal shapes, restrained lean on planter posts, aged shed door/rust, tank bevels and wraparound seams/outlet, log-end rings, planter boards/soil, trampoline springs and brass taps beside the drinks. Checked in the prop overview, tank close-up and supporting detail captures, 8 Nov 2026.
+- [x] D14.8 Hills Hoist: washing and wooden pegs attached to the outer cords, including two striped towels, a T-shirt and socks; visually checked 8 Nov 2026.
 
 ### D15. Animals
 - [x] D15.1 A magpie on the fence watching the player: big head, big beak, chunky body, head that tracks you and cocks now and then (two spots)
