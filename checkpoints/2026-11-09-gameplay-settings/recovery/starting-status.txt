@@ -1,0 +1,15 @@
+ M GRAPHICS_2C.md
+ M NEXT_UP.md
+ M RUST_REWRITE_PLAN.md
+ M checkpoints/LATEST.md
+ M rust/crates/bbq_app/src/fx.rs
+ M rust/crates/bbq_app/src/main.rs
+ M rust/crates/bbq_app/src/menu.rs
+ M rust/crates/bbq_app/src/models.rs
+ M rust/crates/bbq_app/src/shapes.rs
+ M rust/crates/bbq_app/src/shot.rs
+ M rust/crates/bbq_app/src/ui.rs
+ M rust/crates/bbq_app/src/visual_review.rs
+?? checkpoints/2026-11-08-graphics-finish/
+?? checkpoints/2026-11-09-gameplay-settings/
+?? rust/crates/bbq_app/src/graphics_quality.rs

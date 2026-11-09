@@ -33,6 +33,8 @@ pub struct Setup {
     pub heist_teams: usize,
     pub race_role: crate::race::Role,
     pub bots: usize,
+    /// Exact bot distribution for Red, Blue, Green and Yellow in team modes.
+    pub team_bots: [usize; 4],
     pub round_len: f32,
     /// Rounds in the match: 1, 3 or 5.
     pub match_len: u32,
@@ -46,6 +48,7 @@ impl Default for Setup {
             heist_teams: 2,
             race_role: crate::race::Role::Racer,
             bots: 3,
+            team_bots: [2, 1, 0, 0],
             round_len: 180.0,
             match_len: 1,
             friendly_fire: false,
@@ -204,24 +207,55 @@ pub fn sync_bot_count(g: &mut Game, want: usize) {
 /// Put people on teams for the coming round.
 pub fn assign_teams(g: &mut Game, reshuffle: bool) {
     let ids = everyone(g);
+    let bot_ids: Vec<PlayerId> = g.dummies.iter().filter(|d| d.remote.is_none()).map(|d| d.id).collect();
+    let human_ids: Vec<PlayerId> = ids.iter().copied().filter(|id| !bot_ids.contains(id)).collect();
+    let mut rng = Rng::new(g.rng.f32().to_bits() as u64 + 77);
     match g.round.setup.mode {
         GameMode::FreeForAll | GameMode::Smoko | GameMode::Race => g.teams.clear(),
         GameMode::Teams => {
-            let mut rng = Rng::new(g.rng.f32().to_bits() as u64 + 77);
-            g.teams.balance(&ids, reshuffle, false, &mut rng);
+            g.teams.clear();
+            g.teams.balance(&human_ids, reshuffle, false, &mut rng);
+            assign_bot_teams(g, &bot_ids, &[Team::Red, Team::Blue]);
+            // Teams mode keeps its classic Wildcard for an odd total player count. If the
+            // bot allocation makes an even total, fold the human Wildcard into the smaller
+            // side so the configured bot distribution still yields two playable teams.
+            if ids.len() % 2 == 0
+                && let Some(wildcard) = g.teams.members(Team::Wildcard).first().copied()
+            {
+                let team = if g.teams.count(Team::Red) <= g.teams.count(Team::Blue) { Team::Red } else { Team::Blue };
+                g.teams.set(wildcard, team);
+            }
         }
         GameMode::Heist => {
             let keys = heist::team_keys(g.round.setup.heist_teams);
-            let mut rng = Rng::new(g.rng.f32().to_bits() as u64 + 99);
-            g.teams.assign_heist(&ids, keys, reshuffle, &mut rng);
+            g.teams.clear();
+            g.teams.assign_heist(&human_ids, keys, reshuffle, &mut rng);
+            assign_bot_teams(g, &bot_ids, keys);
         }
     }
     show_teams(g);
 }
 
+fn assign_bot_teams(g: &mut Game, bots: &[PlayerId], teams: &[Team]) {
+    let mut cursor = 0;
+    for (index, &team) in teams.iter().enumerate() {
+        for _ in 0..g.round.setup.team_bots[index].min(bots.len().saturating_sub(cursor)) {
+            g.teams.set(bots[cursor], team);
+            cursor += 1;
+        }
+    }
+    while cursor < bots.len() {
+        let team = *teams.iter().min_by_key(|team| g.teams.count(**team)).unwrap_or(&Team::Red);
+        g.teams.set(bots[cursor], team);
+        cursor += 1;
+    }
+}
+
 /// Copy teams onto the blobs (their sashes).
 pub fn show_teams(g: &mut Game) {
-    let teamed = matches!(g.rules.mode, GameMode::Teams | GameMode::Heist);
+    // Lobby previews use the next-round setup before `rules.mode` switches at round start.
+    let teamed = matches!(g.round.setup.mode, GameMode::Teams | GameMode::Heist)
+        || matches!(g.rules.mode, GameMode::Teams | GameMode::Heist);
     for i in 0..g.dummies.len() {
         let id = g.dummies[i].id;
         g.dummies[i].team = if teamed { g.teams.get(id) } else { None };
@@ -867,6 +901,13 @@ fn unused(_: V3, _: &[&str]) {
 mod tests {
     use super::*;
 
+    fn assignment_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins);
+        app.add_plugins(crate::game::GamePlugin);
+        app
+    }
+
     #[test]
     fn clock_text_counts_down_in_minutes_and_seconds() {
         assert_eq!(clock_text(180.0), "3:00");
@@ -908,5 +949,36 @@ mod tests {
         s.next_mode();
         assert_eq!(s.mode, GameMode::Heist);
         assert!(!s.friendly_fire);
+    }
+
+    #[test]
+    fn configured_team_bot_counts_are_applied_exactly() {
+        let mut app = assignment_app();
+        {
+            let mut game = app.world_mut().resource_mut::<Game>();
+            game.round.setup.mode = GameMode::Teams;
+            game.round.setup.bots = 4;
+            game.round.setup.team_bots = [3, 1, 0, 0];
+            sync_bot_count(&mut game, 4);
+            assign_teams(&mut game, false);
+            assert_eq!(game.dummies.iter().filter(|d| d.team == Some(Team::Red)).count(), 3);
+            assert_eq!(game.dummies.iter().filter(|d| d.team == Some(Team::Blue)).count(), 1);
+        }
+    }
+
+    #[test]
+    fn heist_team_bot_counts_cover_each_selected_team() {
+        let mut app = assignment_app();
+        let mut game = app.world_mut().resource_mut::<Game>();
+        game.round.setup.mode = GameMode::Heist;
+        game.round.setup.heist_teams = 4;
+        game.round.setup.bots = 4;
+        game.round.setup.team_bots = [1, 2, 0, 1];
+        sync_bot_count(&mut game, 4);
+        assign_teams(&mut game, false);
+        assert_eq!(game.dummies.iter().filter(|d| d.team == Some(Team::Red)).count(), 1);
+        assert_eq!(game.dummies.iter().filter(|d| d.team == Some(Team::Blue)).count(), 2);
+        assert_eq!(game.dummies.iter().filter(|d| d.team == Some(Team::Green)).count(), 0);
+        assert_eq!(game.dummies.iter().filter(|d| d.team == Some(Team::Yellow)).count(), 1);
     }
 }

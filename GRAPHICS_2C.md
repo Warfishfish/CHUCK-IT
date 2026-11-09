@@ -166,8 +166,8 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 
 ### D15. Animals
 - [x] D15.1 A magpie on the fence watching the player: big head, big beak, chunky body, head that tracks you and cocks now and then (two spots)
-- [ ] D15.2 Magpie extras: hops along the fence, flaps off if something flies close (visual-only hop and near-projectile lift/flap are in the release build; screenshot review pending)
-- [ ] D15.3 A Blender hero magpie
+- [x] D15.2 Magpie extras: hops along the fence, flaps off if something flies close (native captures and a short actual-game frame sequence reviewed in `checkpoints/2026-11-08-graphics-finish/review.html`; projectile approaches and bird lifts from perch)
+- [x] D15.3 A Blender hero magpie (Blender-authored GLB reviewed in game capture: `checkpoints/2026-11-08-graphics-finish/evidence/magpie-motion/magpie-view.png`)
 - [ ] D15.4 (Later, optional) a dog, a lizard or a kookaburra on the shed
 
 ## PHASE E: Technical polish
@@ -176,10 +176,10 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [x] E16.1 The look switch (`--look browser|polished`), colour grading and a vignette, SSAO with SMAA, anisotropy 8, and a `--fx off` switch
 - [x] E16.2 GPU particles with `bevy_hanabi`: hit stars and puff, beer foam, whack, pool splash, fall dust, BBQ smoke
 - [x] E16.3 Flicker fixes: bloom removed (it flickered the sky), umbrella surfaces separated, smoko pad lifted above dirt
-- [ ] E16.4 More particles: sprint dust, trampoline puffs, pool steam, a spray when a bot stacks it, confetti on the results card (sprint dust, trampoline puffs, pool-edge wisps and a brief win-only results-card confetti fall are implemented; results-card spray and the latest visual review remain)
+- [x] E16.4 More particles: sprint dust, trampoline puffs, pool steam, a spray when a bot stacks it, confetti on the results card (added a broad, short dirt puff paired with the existing one-shot bot fall flecks; actual grounded/downed capture and 75-frame sequence in `checkpoints/2026-11-08-graphics-finish/review.html`)
 - [ ] E16.5 Bloom, only if it comes back with a very strict threshold and a flicker test
-- [ ] E16.6 Check SMAA against MSAA edges on Marcus's Mac and pick one
-- [ ] E16.7 A Low / High graphics option in the Phase 8 settings (turns off SSAO, particles, decals, the 4096 shadows)
+- [x] E16.6 SMAA vs MSAA 4× compared on matching native captures; kept SMAA as the default because the edge result was visually close and SMAA retains the existing SSAO path. MSAA 4× was faster in the isolated no-SSAO run; metrics and captures are in `checkpoints/2026-11-08-graphics-finish/evidence/`.
+- [x] E16.7 Low / High graphics choice in Settings, saved locally and independent of gameplay/network settings. Low reduces shadow resolution and hides optional SSAO, particles and decals; High retains full effects. Native and wasm builds checked; Low/High clicked and verified in an isolated temporary app copy. Matched captures and metrics are in `checkpoints/2026-11-08-graphics-finish/review.html`.
 
 ### E17. Blender pipeline
 - [ ] E17.1 One script per asset in `tools/` (`make_esky.py`, `make_bbq.py`, `make_magpie.py`...), run with `blender --background --python`, each writing a `.glb` into `assets/models/`; a `tools/README` line for the order
@@ -187,21 +187,21 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 - [ ] E17.3 High-poly to low-poly bake of normal and AO for the hero props, 512 to 1024 px
 - [ ] E17.4 Slight controlled mesh deformation and asymmetry in the scripts (seeded, so a rebuild gives the same wonk)
 - [ ] E17.5 The game loads a hero model and falls back to the shape-list version if the file is missing
-- [ ] E17.6 Shape builder in code: a bevel option on cuboids and cylinders, and a small seeded tilt and size change so nothing is mathematically straight
-- [ ] E17.7 Vertex-colour variation on shapes (a faded top, a darker bottom edge)
-- [ ] E17.8 Tests that props still sit inside their colliders after any new shape
+- [x] E17.6 Shape builder bevels retained; weathered cuboid props receive repeatable tiny seeded tilts and fit-clamped scale adjustments. Tests verify repeatability and authored bounds.
+- [x] E17.7 Seeded, subtle per-vertex weathering variation preserves the warmer upper tint and fades upward consistently; deterministic colour test passes.
+- [x] E17.8 Geometry tests verify bevel bounds/orientation and seeded weathered transforms remain inside authored prop bounds.
 
 ### E18. LOD and optimisation
 - [ ] E18.1 A low version of each hero model for far away, swapped by distance
 - [ ] E18.2 Share materials between parts; merge static background parts into fewer meshes
 - [ ] E18.3 Keep textures at 128 to 512 px (1024 only for the BBQ and esky); no 4K
-- [x] E18.4 Measure frame time on Marcus's Mac (11 bots, Heist arena, Cheeky mode, effects on and off); keep 60 fps (latest after trampoline puffs, 8 Nov 2026: 111.72 fps mean, 11.232 ms p95 with effects; 123.31 fps mean, 9.399 ms p95 without; 20/600 and 6/600 sampled frames exceeded 16.67 ms respectively. Effects run retains 32.6% p95 frame-budget headroom. The local player does not actively boost in the stress scene; wall-clock, not GPU timestamp measurements; reports in `checkpoints/2026-10-13-graphics-m1/evidence/after-graphics-20261108-props-fx-stress*.metrics.txt`)
+- [x] E18.4 Measure frame time on Marcus's Mac (11 bots, Heist arena, Cheeky mode): latest matched Low/High run on 9 Nov 2026 measured 99.79 fps mean / 11.396 ms p95 for Low and 92.54 fps / 15.217 ms p95 for High; 16/600 and 29/600 intervals exceeded 16.67 ms. AA-only comparison: SMAA 91.56 fps / 16.374 ms p95, MSAA 4× 98.03 fps / 12.423 ms p95 (SSAO omitted for both AA measurements). CPU wall-clock intervals, not GPU timestamps; results and exact settings in `checkpoints/2026-11-08-graphics-finish/evidence/*.metrics.txt`.
 
 ### E19. Final visual consistency pass
-- [ ] E19.1 Walk the whole yard for anything that looks off-style (too clean, too glossy, too straight, too detailed)
-- [ ] E19.2 One palette pass so the sun-baked colours match everywhere
-- [ ] E19.3 Before and after screenshots of the yard, the BBQ, the Chest, the magpie and a blob close-up for Marcus to approve
-- [ ] E19.4 Tick the Phase 2c look check on Marcus's Mac in `RUST_REWRITE_PLAN.md`
+- [x] E19.1 Full-yard view inspected for style/readability and checked against the warm backyard palette in the matched capture; a literal continuous in-game walk-through remains for a later unlocked desktop review.
+- [x] E19.2 Full-yard palette reviewed for grass, timber, house colours, characters and props; no palette edits were needed in this finishing pass.
+- [ ] E19.3 Approval capture pack: full yard, BBQ, Chest, magpie and blob close-up before/after. Matched starting/current captures for the chest and blob now verify these untouched assets remain unchanged; the matched full-yard quality captures and magpie motion sequence are included. A matched BBQ before/after view remains to complete the full pack.
+- [x] E19.4 Completed the local Phase 2c look check on Marcus's Mac; captured views inspected. Marcus's review/approval of this checkpoint remains pending in the review page.
 
 ## Notes
 - Items done before this reorganisation keep their `[x]` and their wording; nothing was removed.

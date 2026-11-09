@@ -841,7 +841,8 @@ fn rolled_cylinder(r: f32, h: f32, seg: u32, bevel: f32, per_m: f32) -> Buf {
     mesh
 }
 
-/// Low timber and metal pick up dirt. Exposed top edges get a warmer tint.
+/// Low timber and metal pick up dirt. Exposed top edges get a warmer tint, with a repeatable
+/// low-amplitude colour grain so repeated mesh builds keep their finish without adding textures.
 pub fn weather_by_height(mesh: &mut Mesh) {
     let Some(bevy::mesh::VertexAttributeValues::Float32x3(pos)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {
         return;
@@ -850,9 +851,46 @@ pub fn weather_by_height(mesh: &mut Mesh) {
     let (low, high) = pos.iter().fold((f32::MAX, f32::MIN), |(lo, hi), p| (lo.min(p[1]), hi.max(p[1])));
     let colours = pos.iter().map(|p| {
         let t = ((p[1] - low) / (high - low).max(1e-5)).clamp(0.0, 1.0);
-        [0.79 + 0.21 * t, 0.75 + 0.24 * t, 0.72 + 0.24 * t, 1.0]
+        // Fixed seed + vertex position means builds are stable, and coincident vertices share
+        // the same tint. The variation remains subtle enough not to read as a pattern.
+        let sample = ((p[0] * 127.1 + p[1] * 311.7 + p[2] * 74.7 + 19.19).sin() * 43_758.547).fract().abs();
+        let grain = 0.98 + sample * 0.04;
+        [
+            (0.79 + 0.21 * t) * grain,
+            (0.75 + 0.24 * t) * grain,
+            (0.72 + 0.24 * t) * grain,
+            1.0,
+        ]
     }).collect::<Vec<_>>();
     mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colours);
+}
+
+/// A deterministic, tiny tilt and size change for weathered scenery. The chosen scale is
+/// clamped from the rotated box's projected extents so its mesh never escapes the authored box
+/// that gameplay collision uses. The adjustment is transform-only and does not duplicate meshes.
+pub fn seeded_weathered_adjustment(shape: &Shape, at: bbq_core::vec::V3) -> Option<(Quat, f32)> {
+    let Shape::Cuboid { w, h, d } = *shape else { return None };
+    if w <= 0.0 || h <= 0.0 || d <= 0.0 { return None; }
+    let seed = at.x * 127.1 + at.y * 311.7 + at.z * 74.7 + w * 19.19 + h * 7.13 + d * 3.71;
+    let sample = |offset: f32| ((seed + offset).sin() * 43_758.547).fract().abs() * 2.0 - 1.0;
+    let rotation = Quat::from_euler(
+        EulerRot::XYZ,
+        sample(1.0) * 0.0015,
+        sample(2.0) * 0.0015,
+        sample(3.0) * 0.0015,
+    );
+    let half = Vec3::new(w * 0.5, h * 0.5, d * 0.5);
+    let m = Mat3::from_quat(rotation);
+    let projected = Vec3::new(
+        m.x_axis.x.abs() * half.x + m.y_axis.x.abs() * half.y + m.z_axis.x.abs() * half.z,
+        m.x_axis.y.abs() * half.x + m.y_axis.y.abs() * half.y + m.z_axis.y.abs() * half.z,
+        m.x_axis.z.abs() * half.x + m.y_axis.z.abs() * half.y + m.z_axis.z.abs() * half.z,
+    );
+    let fit = (half.x / projected.x.max(1e-6))
+        .min(half.y / projected.y.max(1e-6))
+        .min(half.z / projected.z.max(1e-6)) * 0.995;
+    let size = 0.99 + (sample(4.0) + 1.0) * 0.005;
+    Some((rotation, size.min(fit).min(1.0)))
 }
 
 /// Build the mesh for a shape, with the picture laid by real size (`per_m` repeats per metre)
@@ -981,6 +1019,48 @@ mod tests {
             }
             assert!(mesh.uv.iter().flatten().all(|v| v.is_finite()));
         }
+    }
+
+    #[test]
+    fn weathered_vertex_colour_is_seeded_subtle_and_fades_upward() {
+        let mut first = rounded_box(1.0, 1.0, 1.0, 0.08, 0.0).into_mesh();
+        let mut second = rounded_box(1.0, 1.0, 1.0, 0.08, 0.0).into_mesh();
+        weather_by_height(&mut first);
+        weather_by_height(&mut second);
+        let bevy::mesh::VertexAttributeValues::Float32x4(a) = first.attribute(Mesh::ATTRIBUTE_COLOR).unwrap() else { panic!() };
+        let bevy::mesh::VertexAttributeValues::Float32x4(b) = second.attribute(Mesh::ATTRIBUTE_COLOR).unwrap() else { panic!() };
+        assert_eq!(a, b, "the fixed position seed must reproduce identical vertex colours");
+        assert!(a.iter().flatten().all(|v| v.is_finite() && *v >= 0.70 && *v <= 1.03));
+        let bevy::mesh::VertexAttributeValues::Float32x3(pos) = first.attribute(Mesh::ATTRIBUTE_POSITION).unwrap() else { panic!() };
+        let low = pos.iter().zip(a).filter(|(p, _)| p[1] < -0.45).map(|(_, c)| c[0]).sum::<f32>() / 4.0;
+        let high = pos.iter().zip(a).filter(|(p, _)| p[1] > 0.45).map(|(_, c)| c[0]).sum::<f32>() / 4.0;
+        assert!(high > low, "top should remain warmer/lighter than the dirt-darkened base");
+    }
+
+    #[test]
+    fn seeded_weathered_tilts_are_repeatable_and_stay_inside_authored_bounds() {
+        let shapes = [
+            Shape::Cuboid { w: 5.0, h: 0.6, d: 0.9 },
+            Shape::Cuboid { w: 1.28, h: 1.96, d: 0.065 },
+            Shape::Cuboid { w: 0.8, h: 0.8, d: 0.8 },
+        ];
+        let positions = [
+            bbq_core::vec::V3::new(-8.0, 0.3, 20.0),
+            bbq_core::vec::V3::new(22.5, 0.99, -14.94),
+            bbq_core::vec::V3::new(1.0, 0.4, 2.0),
+        ];
+        for (shape, at) in shapes.into_iter().zip(positions) {
+            let a = seeded_weathered_adjustment(&shape, at).unwrap();
+            let b = seeded_weathered_adjustment(&shape, at).unwrap();
+            assert_eq!(a, b, "the same authored prop must rebuild identically");
+            let Shape::Cuboid { w, h, d } = shape else { unreachable!() };
+            let half = Vec3::new(w * 0.5, h * 0.5, d * 0.5);
+            for x in [-half.x, half.x] { for y in [-half.y, half.y] { for z in [-half.z, half.z] {
+                let p = a.0 * (Vec3::new(x, y, z) * a.1);
+                assert!(p.abs().cmple(half + Vec3::splat(1e-5)).all(), "prop escaped authored bounds: {p:?} vs {half:?}");
+            } } }
+        }
+        assert!(seeded_weathered_adjustment(&Shape::Sphere { r: 1.0, ws: 8, hs: 6 }, positions[0]).is_none());
     }
 
     #[test]

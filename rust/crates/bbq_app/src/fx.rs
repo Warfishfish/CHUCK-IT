@@ -432,8 +432,10 @@ fn bot_fall_spray(
     mut commands: Commands,
     game: Res<Game>,
     fx: Res<Effects>,
+    settings: Res<crate::menu::Settings>,
     mut sprayed: Local<std::collections::HashSet<u32>>,
 ) {
+    if settings.quality == crate::graphics_quality::GraphicsQuality::Low { return; }
     if !game.rules.in_play() {
         sprayed.clear();
         return;
@@ -455,6 +457,14 @@ fn bot_fall_spray(
                 Transform::from_xyz(bot.mover.x, bot.mover.y + 0.12, bot.mover.z),
                 FxLife(0.6),
             ));
+            // Pair the sharp dirt flecks with a short, broader ground puff so a distant
+            // knockdown still reads as a solid impact. Both bursts share the one-shot guard.
+            commands.spawn((
+                ParticleEffect::new(fx.dust.clone()),
+                EffectMaterial { images: vec![fx.dot.clone()] },
+                Transform::from_xyz(bot.mover.x, bot.mover.y + 0.06, bot.mover.z),
+                FxLife(1.0),
+            ));
         }
     }
 }
@@ -465,8 +475,10 @@ fn sprint_dust(
     player: Option<Res<crate::player::Player>>,
     fx: Option<Res<Effects>>,
     time: Res<Time>,
+    settings: Res<crate::menu::Settings>,
     mut until_next: Local<f32>,
 ) {
+    if settings.quality == crate::graphics_quality::GraphicsQuality::Low { return; }
     let (Some(player), Some(fx)) = (player, fx) else { return };
     let mover = &player.mover;
     if !mover.sprinting(&bbq_core::movement::Modifiers::default()) || !mover.grounded || mover.in_pool {
@@ -496,9 +508,14 @@ fn spawn_events(
     mut game: ResMut<Game>,
     fx: Option<Res<Effects>>,
     time: Res<Time>,
+    settings: Res<crate::menu::Settings>,
     mut tested: Local<bool>,
 ) {
     let Some(fx) = fx else { return };
+    if settings.quality == crate::graphics_quality::GraphicsQuality::Low {
+        game.fx.clear();
+        return;
+    }
     // `--fxtest` fires one of every effect in a row, for looking at them
     if !*tested && time.elapsed_secs() > 0.8 && std::env::args().any(|a| a == "--fxtest") {
         *tested = true;
@@ -545,8 +562,10 @@ fn bbq_smoke(
     yard: Res<YardRes>,
     fx: Option<Res<Effects>>,
     smoke: Query<Entity, With<BbqSmoke>>,
+    settings: Res<crate::menu::Settings>,
 ) {
     let Some(fx) = fx else { return };
+    if settings.quality == crate::graphics_quality::GraphicsQuality::Low { return; }
     let want = yard.0.features.bbq;
     if want && smoke.is_empty() {
         commands.spawn((
@@ -570,8 +589,10 @@ fn pool_steam(
     time: Res<Time>,
     mut until_next: Local<f32>,
     mut corner: Local<usize>,
+    settings: Res<crate::menu::Settings>,
 ) {
     let Some(fx) = fx else { return };
+    if settings.quality == crate::graphics_quality::GraphicsQuality::Low { return; }
     let want = !yard.0.race && !yard.0.features.smoko;
     if !want { *until_next = 0.0; return; }
     *until_next -= time.delta_secs();

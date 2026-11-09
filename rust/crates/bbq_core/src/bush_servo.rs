@@ -7,6 +7,17 @@ use std::f32::consts::{TAU, FRAC_PI_2};
 pub const SERVO_OFFSET: (f32,f32) = (-6.,9.5);
 pub const BBQ_OFFSET_Z: f32 = 6.;
 
+/// Collision surfaces matched to the Blender ute's authored body at its placed world position.
+/// The bonnet, cab roof and tray floor are separate so a jump can land on each visible surface.
+pub fn ute_colliders() -> Vec<Collider> {
+    [
+        (-1.1, 40.9, 1.65, 2.12, 1.41), // bonnet
+        (0.4, 40.9, 1.8, 2.02, 2.33),   // cab roof
+        (2.4, 40.9, 2.3, 1.95, 0.85),  // tray floor
+        (0.7, 40.9, 5.5, 2.05, 0.70), // chassis and wheel line
+    ].into_iter().map(|(x,z,w,d,h)| Collider::centred(x,z,w,d,h).of(Kind::Vehicle)).collect()
+}
+
 /// Closed shop and reachable forecourt solids in the original model's coordinates.
 pub fn servo_colliders() -> Vec<Collider> {
     let mut boxes = vec![
@@ -215,8 +226,15 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
     }
     }
     // Continuous stock fence marks the actual rectangular play limits; curved route is inside.
-    for z in [-24.,24.] {for i in 0..23 {let x=-33.+i as f32*3.;p.push(timber(0.16,1.8,0.16,x,0.9,z));}
-        for y in [0.55,1.25] {p.push(timber(66.,0.12,0.12,0.,y,z));}}
+    for z in [-24.,24.] {
+        for i in 0..23 {let x=-33.+i as f32*3.;if z==24. && (-3.0..=3.0).contains(&x) {continue;}p.push(timber(0.16,1.8,0.16,x,0.9,z));}
+        for y in [0.55,1.25] {
+            if z == 24. {
+                p.push(timber(27.0,0.12,0.12,-18.0,y,z));
+                p.push(timber(27.0,0.12,0.12, 18.0,y,z));
+            } else { p.push(timber(66.,0.12,0.12,0.,y,z)); }
+        }
+    }
     for x in [-33.,33.] {for i in 0..17 {let z=-24.+i as f32*3.;p.push(timber(0.16,1.8,0.16,x,0.9,z));}
         for y in [0.55,1.25] {p.push(timber(0.12,0.12,48.,x,y,0.));}}
     // Native runtime uses the Blender landscape; lightweight fallback for other renderers.

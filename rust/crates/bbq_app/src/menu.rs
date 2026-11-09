@@ -42,6 +42,8 @@ pub struct Settings {
     pub name: String,
     pub fov: f32,
     pub bots: usize,
+    /// Exact bot counts for Red, Blue, Green and Yellow; active teams only.
+    pub team_bots: [usize; 4],
     pub mode: GameMode,
     pub heist_teams: usize,
     pub race_role: crate::race::Role,
@@ -66,6 +68,8 @@ pub struct Settings {
     pub look: bbq_core::appearance::Appearance,
     /// Online: the room code to host or join (a new one is made when hosting with this empty).
     pub room: String,
+    /// Local rendering budget; does not change gameplay or network state.
+    pub quality: crate::graphics_quality::GraphicsQuality,
 }
 
 impl Default for Settings {
@@ -74,6 +78,7 @@ impl Default for Settings {
             name: "Mate".into(),
             fov: 85.0,
             bots: 3,
+            team_bots: [2, 1, 0, 0],
             mode: GameMode::FreeForAll,
             heist_teams: 2,
             race_role: crate::race::Role::Racer,
@@ -93,8 +98,42 @@ impl Default for Settings {
             server: "localhost:3000".into(),
             look: bbq_core::appearance::Appearance::default(),
             room: String::new(),
+            quality: if cfg!(target_arch = "wasm32") { crate::graphics_quality::GraphicsQuality::Low } else { crate::graphics_quality::GraphicsQuality::High },
         }
     }
+}
+
+fn active_bot_teams(settings: &Settings) -> usize {
+    match settings.mode {
+        GameMode::Teams => 2,
+        GameMode::Heist => settings.heist_teams.clamp(2, 4),
+        _ => 0,
+    }
+}
+
+fn set_bot_total(settings: &mut Settings, total: usize) {
+    settings.bots = total.min(crate::characters::MAX_BOTS);
+    let teams = active_bot_teams(settings);
+    if teams == 0 { return; }
+    settings.team_bots = [0; 4];
+    // Deterministic round-robin allocation is the sensible default; the host can adjust it below.
+    for i in 0..settings.bots { settings.team_bots[i % teams] += 1; }
+}
+
+fn set_team_bot_count(settings: &mut Settings, team: usize, total: usize) {
+    let teams = active_bot_teams(settings);
+    if team >= teams { return; }
+    let others: usize = settings.team_bots.iter().enumerate().filter(|(i, _)| *i != team && *i < teams).map(|(_, n)| *n).sum();
+    settings.team_bots[team] = total.min(crate::characters::MAX_BOTS.saturating_sub(others));
+    for count in settings.team_bots.iter_mut().skip(teams) { *count = 0; }
+    settings.bots = settings.team_bots[..teams].iter().sum();
+}
+
+fn active_team_counts(settings: &Settings) -> [usize; 4] {
+    let teams = active_bot_teams(settings);
+    let mut result = settings.team_bots;
+    for count in result.iter_mut().skip(teams) { *count = 0; }
+    result
 }
 
 /// Set for test runs (any of `TEST_FLAGS` on the command line): settings are read but never saved.
@@ -184,11 +223,11 @@ impl Settings {
         };
         let f = &self.features;
         let s = format!(
-            "name={}\nfov={}\nbots={}\nmode={mode}\nheist_teams={}\ncheeky={}\nround_len={}\nskill={skill}\nbottles={}\nrounds={}\nfriendly_fire={}\nbar={}\nbbq={}\nchest={}\nsmoko={}\nnaughty={}\nfalls={}\ndrunk_all={}\ncharacter={}\nbelly={}\nsound={}\nserver={}\nroom={}\n",
-            self.name, self.fov, self.bots, self.heist_teams, self.cheeky, self.round_len,
+            "name={}\nfov={}\nbots={}\nbot_red={}\nbot_blue={}\nbot_green={}\nbot_yellow={}\nmode={mode}\nheist_teams={}\ncheeky={}\nround_len={}\nskill={skill}\nbottles={}\nrounds={}\nfriendly_fire={}\nbar={}\nbbq={}\nchest={}\nsmoko={}\nnaughty={}\nfalls={}\ndrunk_all={}\ncharacter={}\nbelly={}\nsound={}\nserver={}\nroom={}\ngraphics={}\n",
+            self.name, self.fov, self.bots, self.team_bots[0], self.team_bots[1], self.team_bots[2], self.team_bots[3], self.heist_teams, self.cheeky, self.round_len,
             self.bottles.name(), self.rounds, self.friendly_fire, f.bar, f.bbq, f.chest, f.smoko, self.naughty,
             self.falls, self.drunk_all, self.character.name(), self.belly, self.sound,
-            self.server, self.room
+            self.server, self.room, self.quality.setting_name()
         ) + &format!("race_role={}\n",if self.race_role==crate::race::Role::Thrower{"thrower"}else{"racer"}) + &self.look.to_lines();
         write_settings(&s);
     }
@@ -215,7 +254,11 @@ impl Settings {
             match k {
                 "name" => s.name = v.chars().take(14).collect(),
                 "fov" => s.fov = v.parse().unwrap_or(85.0f32).clamp(60.0, 105.0),
-                "bots" => s.bots = v.parse().unwrap_or(3usize).min(3),
+                "bots" => s.bots = v.parse().unwrap_or(3usize).min(crate::characters::MAX_BOTS),
+                "bot_red" => s.team_bots[0] = v.parse().unwrap_or(2usize).min(crate::characters::MAX_BOTS),
+                "bot_blue" => s.team_bots[1] = v.parse().unwrap_or(1usize).min(crate::characters::MAX_BOTS),
+                "bot_green" => s.team_bots[2] = v.parse().unwrap_or(0usize).min(crate::characters::MAX_BOTS),
+                "bot_yellow" => s.team_bots[3] = v.parse().unwrap_or(0usize).min(crate::characters::MAX_BOTS),
                 "mode" => {
                     s.mode = match v {
                         "teams" => GameMode::Teams,
@@ -255,10 +298,15 @@ impl Settings {
                 "sound" => s.sound = b,
                 "server" => s.server = v.chars().take(80).collect(),
                 "room" => s.room = crate::online::clean_room(v),
+                "graphics" => s.quality = crate::graphics_quality::GraphicsQuality::from_setting(v),
                 k => {
                     s.look.read_line(k, v);
                 }
             }
+        }
+        if active_bot_teams(&s) > 0 && s.team_bots[..active_bot_teams(&s)].iter().sum::<usize>() != s.bots {
+            let total = s.bots;
+            set_bot_total(&mut s, total);
         }
         s.use_page_server();
         s
@@ -375,6 +423,9 @@ pub enum ShowWhen {
     SmokoNote,
     RaceNote,
     StandardBots,
+    BotDistribution,
+    GreenBotTeam,
+    YellowBotTeam,
     BackyardMode,
     NotRace,
     NotHeist,
@@ -426,6 +477,10 @@ impl Plugin for MenuPlugin {
         app.init_resource::<ShowDev>()
             .insert_resource({
                 let mut settings=Settings::load();
+                // Deterministic review/benchmark override; normal play uses the saved menu choice.
+                if let Some(value) = args.iter().position(|a| a == "--graphics").and_then(|i| args.get(i + 1)) {
+                    settings.quality = crate::graphics_quality::GraphicsQuality::from_setting(value);
+                }
                 // Screenshot-only selection; never writes over the user's saved choice.
                 if args.iter().any(|a| a=="--menu") && args.windows(2).any(|a| a==["--preview-mode","smoko"]) {
                     settings.mode=GameMode::Smoko;
@@ -964,8 +1019,9 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
             let b = button(r, Action::Play, "Play", Some(TOMATO));
             r.commands().entity(b).insert(PlayLabelMarker);
         });
-        p.spawn((column(0.0), ShowWhen::StandardBots)).with_children(|w| {
-            seg(w, SegId::Bots, "Bots", &[("None", 0), ("1", 1), ("2", 2), ("3", 3)]);
+        p.spawn((column(8.0), ShowWhen::StandardBots)).with_children(|w| {
+            slider(w, SliderId::Bots, "Number of bots", 0.0, crate::characters::MAX_BOTS as f32);
+            bot_team_sliders(w);
         });
         map_controls(p);
         p.spawn((
@@ -1004,6 +1060,20 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
     });
 }
 
+fn bot_team_sliders(p: &mut ChildSpawnerCommands) {
+    p.spawn((column(6.0), ShowWhen::BotDistribution)).with_children(|teams| {
+        teams.spawn(legend("Bots on each team (total follows these counts)"));
+        slider(teams, SliderId::RedBots, "Red bots", 0.0, crate::characters::MAX_BOTS as f32);
+        slider(teams, SliderId::BlueBots, "Blue bots", 0.0, crate::characters::MAX_BOTS as f32);
+        teams.spawn((column(0.0), ShowWhen::GreenBotTeam)).with_children(|row| {
+            slider(row, SliderId::GreenBots, "Green bots", 0.0, crate::characters::MAX_BOTS as f32);
+        });
+        teams.spawn((column(0.0), ShowWhen::YellowBotTeam)).with_children(|row| {
+            slider(row, SliderId::YellowBots, "Yellow bots", 0.0, crate::characters::MAX_BOTS as f32);
+        });
+    });
+}
+
 #[derive(Component)]
 struct PlayLabelMarker;
 
@@ -1011,14 +1081,22 @@ struct PlayLabelMarker;
 /// Changes to the round take effect from the next round.
 fn settings_panel(c: &mut ChildSpawnerCommands) {
     c.spawn((column(14.0), ShowWhen::Panel(Tab::Settings))).with_children(|p| {
+        // Keep the local render preset at the top of this long settings panel so it is easy
+        // to find before scrolling through host-controlled map and round options.
+        p.spawn(column(10.0)).with_children(|y| {
+            y.spawn(legend("Your graphics on this device"));
+            seg(y, SegId::GraphicsQuality, "Graphics quality", &[("Low", 0), ("High", 1)]);
+            y.spawn(text("Low reduces shadows and screen effects for smoother play. High enables full effects.", 12.5, false, MUTED));
+        });
         // the game: the host's to change when playing online
         p.spawn((column(12.0), ShowWhen::NotGuest)).with_children(|g| {
             map_controls(g);
             g.spawn((column(6.0), ShowWhen::HeistTeams)).with_children(|h| {
                 seg(h, SegId::HeistTeams, "Heist teams", &[("2", 2), ("3", 3), ("4", 4)]);
             });
-            g.spawn((column(6.0), ShowWhen::StandardBots)).with_children(|b| {
-                seg(b, SegId::Bots, "Bots", &[("None", 0), ("1", 1), ("2", 2), ("3", 3)]);
+            g.spawn((column(8.0), ShowWhen::StandardBots)).with_children(|b| {
+                slider(b, SliderId::Bots, "Number of bots", 0.0, crate::characters::MAX_BOTS as f32);
+                bot_team_sliders(b);
                 seg(b, SegId::Skill, "Bot skill", &[("Easy", 0), ("Fair dinkum", 1), ("Spicy", 2)]);
             });
             check(g, CheckId::Cheeky, "Cheeky mode");
@@ -1354,30 +1432,33 @@ fn test_looks(mut game: ResMut<Game>) {
 
 fn widget_clicks(
     mut settings: ResMut<Settings>,
+    mut game: Option<ResMut<Game>>,
     mut ui: ResMut<MenuUi>,
     segs: Query<(&Interaction, &SegOption), Changed<Interaction>>,
     checks: Query<(&Interaction, &CheckBox), Changed<Interaction>>,
     actions: Query<(&Interaction, &Action), Changed<Interaction>>,
     mut cast: ResMut<Cast>,
-    lobby: Res<crate::online::Lobby>,
+    lobby: Option<Res<crate::online::Lobby>>,
     mut content_scroll: Query<&mut ScrollPosition, With<MenuContent>>,
 ) {
-    let guest = lobby.in_yard && !lobby.host;
+    let in_yard = lobby.as_ref().is_some_and(|l| l.in_yard);
+    let host_lobby = lobby.as_ref().is_some_and(|l| l.in_yard && l.host);
+    let guest = in_yard && !host_lobby;
     let mut changed = false;
     for (i, s) in &segs {
         if *i != Interaction::Pressed {
             continue;
         }
-        if guest && !matches!(s.id, SegId::Character | SegId::RaceRole) {
+        if guest && !matches!(s.id, SegId::Character | SegId::RaceRole | SegId::GraphicsQuality) {
             continue;
         }
-        if lobby.in_yard && matches!(s.id, SegId::Map | SegId::Mode) && s.value == 2 {
+        if in_yard && matches!(s.id, SegId::Map | SegId::Mode) && s.value == 2 {
             continue;
         }
         changed = true;
         let v = s.value;
         match s.id {
-            SegId::Bots => settings.bots = v as usize,
+            SegId::Bots => set_bot_total(&mut settings, v as usize),
             SegId::Map if v == 0 && settings.mode == GameMode::Teams => {}
             SegId::Map | SegId::Mode => {
                 settings.mode = match v {
@@ -1401,10 +1482,15 @@ fn widget_clicks(
             SegId::Rounds => settings.rounds = v as u32,
             SegId::Bottles => settings.bottles = bbq_core::items::BottleAmount::ALL[(v as usize).min(3)],
             SegId::FriendlyFire => settings.friendly_fire = v == 1,
+            SegId::GraphicsQuality => settings.quality = if v == 0 { crate::graphics_quality::GraphicsQuality::Low } else { crate::graphics_quality::GraphicsQuality::High },
             SegId::Character => {
                 settings.character = Character::ALL[(v as usize).min(3)];
                 cast.mine = settings.character;
             }
+        }
+        if matches!(s.id, SegId::Map | SegId::Mode | SegId::HeistTeams) {
+            let total = settings.bots;
+            set_bot_total(&mut settings, total);
         }
     }
     for (i, c) in &checks {
@@ -1519,16 +1605,34 @@ fn widget_clicks(
     }
     if changed {
         settings.save();
+        if host_lobby && game.as_ref().is_some_and(|g| !g.round.timed) {
+            if let Some(game) = game.as_mut() {
+                apply_lobby_bot_settings(&settings, &mut **game);
+            }
+        }
     }
+}
+
+fn apply_lobby_bot_settings(settings: &Settings, game: &mut Game) {
+    game.round.setup.mode = settings.mode;
+    game.round.setup.heist_teams = settings.heist_teams;
+    game.round.setup.bots = settings.bots;
+    game.round.setup.team_bots = active_team_counts(settings);
+    game.rules.mode = settings.mode;
+    crate::round::sync_bot_count(game, settings.bots);
+    crate::round::assign_teams(game, false);
 }
 
 fn slider_drag(
     mut settings: ResMut<Settings>,
     mut player: ResMut<Player>,
+    mut game: ResMut<Game>,
+    lobby: Option<Res<crate::online::Lobby>>,
     sliders: Query<(&Interaction, &RelativeCursorPosition, &Slider)>,
 ) {
     for (i, rel, s) in &sliders {
-        if *i != Interaction::Pressed {
+        let host_lobby = lobby.as_ref().is_some_and(|l| l.in_yard && l.host);
+        if *i != Interaction::Pressed || lobby.as_ref().is_some_and(|l| l.in_yard && !l.host) {
             continue;
         }
         let Some(n) = rel.normalized else { continue };
@@ -1562,6 +1666,20 @@ fn slider_drag(
                     settings.save();
                 }
             }
+            SliderId::Bots => {
+                let value = (s.min + (s.max - s.min) * t).round() as usize;
+                if value != settings.bots { set_bot_total(&mut settings, value); settings.save(); }
+            }
+            SliderId::RedBots | SliderId::BlueBots | SliderId::GreenBots | SliderId::YellowBots => {
+                let team = match s.id { SliderId::RedBots=>0,SliderId::BlueBots=>1,SliderId::GreenBots=>2,_=>3 };
+                let value = (s.min + (s.max - s.min) * t).round() as usize;
+                let before = settings.team_bots[team];
+                set_team_bot_count(&mut settings, team, value);
+                if before != settings.team_bots[team] { settings.save(); }
+            }
+        }
+        if host_lobby && !game.round.timed && matches!(s.id, SliderId::Bots | SliderId::RedBots | SliderId::BlueBots | SliderId::GreenBots | SliderId::YellowBots) {
+            apply_lobby_bot_settings(&settings, &mut game);
         }
     }
 }
@@ -1779,6 +1897,7 @@ fn paint_widgets(
             SegId::Rounds => settings.rounds as i32 == v,
             SegId::Bottles => bbq_core::items::BottleAmount::ALL.iter().position(|b| *b == settings.bottles) == Some(v as usize),
             SegId::FriendlyFire => (v == 1) == settings.friendly_fire,
+            SegId::GraphicsQuality => (settings.quality == crate::graphics_quality::GraphicsQuality::High) == (v == 1),
             SegId::Character => Character::ALL[(v as usize).min(3)] == settings.character,
         }
     };
@@ -1827,7 +1946,10 @@ fn paint_widgets(
             ShowWhen::NotRace => settings.mode != GameMode::Race,
             ShowWhen::NotHeist => settings.mode != GameMode::Heist,
             ShowWhen::BackyardMode => matches!(settings.mode, GameMode::FreeForAll | GameMode::Teams),
-            ShowWhen::StandardBots => !lobby.in_yard && settings.mode != GameMode::Race,
+            ShowWhen::StandardBots => settings.mode != GameMode::Race && (!lobby.in_yard || lobby.host),
+            ShowWhen::BotDistribution => matches!(settings.mode, GameMode::Teams | GameMode::Heist) && (!lobby.in_yard || lobby.host),
+            ShowWhen::GreenBotTeam => settings.mode == GameMode::Heist && settings.heist_teams >= 3,
+            ShowWhen::YellowBotTeam => settings.mode == GameMode::Heist && settings.heist_teams >= 4,
             ShowWhen::FriendlyFire => teams,
             ShowWhen::MoreOpen => ui.more_open,
             ShowWhen::Cheeky => settings.cheeky,
@@ -1874,6 +1996,11 @@ fn paint_widgets(
                 _ => "Feral",
             }
             .to_string(),
+            SliderId::Bots => format!("{}", settings.bots),
+            SliderId::RedBots => format!("{}", settings.team_bots[0]),
+            SliderId::BlueBots => format!("{}", settings.team_bots[1]),
+            SliderId::GreenBots => format!("{}", settings.team_bots[2]),
+            SliderId::YellowBots => format!("{}", settings.team_bots[3]),
         };
     }
     for (id, mut n) in &mut handles {
@@ -1883,6 +2010,11 @@ fn paint_widgets(
             SliderId::Fov => (settings.fov - 60.0) / 45.0,
             SliderId::Belly => settings.belly / 2.0,
             SliderId::Dirt => settings.look.dirt as f32 / 100.0,
+            SliderId::Bots => settings.bots as f32 / crate::characters::MAX_BOTS as f32,
+            SliderId::RedBots => settings.team_bots[0] as f32 / crate::characters::MAX_BOTS as f32,
+            SliderId::BlueBots => settings.team_bots[1] as f32 / crate::characters::MAX_BOTS as f32,
+            SliderId::GreenBots => settings.team_bots[2] as f32 / crate::characters::MAX_BOTS as f32,
+            SliderId::YellowBots => settings.team_bots[3] as f32 / crate::characters::MAX_BOTS as f32,
         };
         n.left = Val::Percent(frac * 100.0);
     }
@@ -1930,8 +2062,8 @@ pub fn begin(settings: &Settings, g: &mut Game, p: &mut Player, yard: &mut YardR
         mode: settings.mode,
         heist_teams: settings.heist_teams,
         race_role: settings.race_role,
-        // with mates in the yard the bots stay out of it (for now)
-        bots: if g.remotes.is_empty() { settings.bots } else { 0 },
+        bots: settings.bots.min(crate::characters::MAX_BOTS),
+        team_bots: active_team_counts(settings),
         round_len: settings.round_len,
         match_len: if settings.mode == GameMode::Heist { 1 } else { settings.rounds },
         friendly_fire: settings.mode == GameMode::Teams && settings.friendly_fire,

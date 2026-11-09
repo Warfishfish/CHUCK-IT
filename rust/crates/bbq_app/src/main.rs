@@ -57,6 +57,7 @@ mod shirt;
 mod shot;
 mod visual_review;
 mod style;
+mod graphics_quality;
 mod ui;
 mod yard_scene;
 
@@ -136,6 +137,7 @@ fn main() {
         ),
     );
     app.add_plugins((wet::WetPlugin, servo_finish::ServoFinishPlugin, arena_depth::ArenaDepthPlugin));
+    app.add_plugins(graphics_quality::GraphicsQualityPlugin);
     app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin, online::OnlinePlugin, face::FacePlugin, lobby::LobbyPlugin, legs::LegsPlugin, shirt::ShirtPlugin));
     #[cfg(target_arch = "wasm32")]
     if browser_perf::enabled() {

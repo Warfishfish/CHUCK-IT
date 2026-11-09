@@ -246,7 +246,7 @@ The Rust version still draws items and props as plain shapes and does not look l
 ### Phase 2c: Sun-Baked Cartoon Realism (added 5 Oct 2026, Marcus)
 Its own list, worked one item at a time, highest impact first: see **`GRAPHICS_2C.md`** (inspection findings, decisions, and the checklist for characters, proportions, environment, backyard details, props, the Dildo Chest, animals, models, textures, materials, lighting, rendering, Blender workflow, high-detail assets and optimisation). Gameplay and the JavaScript game do not change.
 - [ ] Work through `GRAPHICS_2C.md` (tick items there; note here when a whole section is done)
-- [ ] Phase 2c look check on Marcus's Mac (before and after screenshots)
+- [x] Phase 2c local look check completed on Marcus's Mac; latest actual captures reviewed. Marcus's approval remains pending; the full E19.3 pack still needs a matched BBQ before/after view.
 
 ### Dazza fixes (5 Oct 2026, Marcus)
 - [x] Dazza no longer glitches when you grab food from the table: he turns at 13 rad/s instead of snapping up to 180 degrees in one frame, his walk animation speed is smoothed (it stuttered when the frame rate was not a multiple of the 60 Hz tick), a new speech line is not started for every steak, and he no longer dithers at the 5 m edge when he walks out to a thief

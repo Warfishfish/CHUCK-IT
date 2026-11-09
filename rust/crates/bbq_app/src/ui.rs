@@ -277,6 +277,8 @@ pub enum SegId {
     Character,
     /// Cheeky mode: how many beer and rum bottles turn up.
     Bottles,
+    /// Local visual quality, independent of the selected game mode.
+    GraphicsQuality,
 }
 
 /// A tick-box chip (the page's `.feat label`).
@@ -303,6 +305,12 @@ pub enum SliderId {
     Belly,
     /// How dirty the singlet and shorts are.
     Dirt,
+    /// Host-selected bot total and exact team split.
+    Bots,
+    RedBots,
+    BlueBots,
+    GreenBots,
+    YellowBots,
 }
 
 /// A slider (field of view, beer belly).

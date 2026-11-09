@@ -1,0 +1,537 @@
+diff --git a/GRAPHICS_2C.md b/GRAPHICS_2C.md
+index 56d1374..72761cb 100644
+--- a/GRAPHICS_2C.md
++++ b/GRAPHICS_2C.md
+@@ -166,8 +166,8 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
+ 
+ ### D15. Animals
+ - [x] D15.1 A magpie on the fence watching the player: big head, big beak, chunky body, head that tracks you and cocks now and then (two spots)
+-- [ ] D15.2 Magpie extras: hops along the fence, flaps off if something flies close (visual-only hop and near-projectile lift/flap are in the release build; screenshot review pending)
+-- [ ] D15.3 A Blender hero magpie
++- [x] D15.2 Magpie extras: hops along the fence, flaps off if something flies close (native captures and a short actual-game frame sequence reviewed in `checkpoints/2026-11-08-graphics-finish/review.html`; projectile approaches and bird lifts from perch)
++- [x] D15.3 A Blender hero magpie (Blender-authored GLB reviewed in game capture: `checkpoints/2026-11-08-graphics-finish/evidence/magpie-motion/magpie-view.png`)
+ - [ ] D15.4 (Later, optional) a dog, a lizard or a kookaburra on the shed
+ 
+ ## PHASE E: Technical polish
+@@ -176,10 +176,10 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
+ - [x] E16.1 The look switch (`--look browser|polished`), colour grading and a vignette, SSAO with SMAA, anisotropy 8, and a `--fx off` switch
+ - [x] E16.2 GPU particles with `bevy_hanabi`: hit stars and puff, beer foam, whack, pool splash, fall dust, BBQ smoke
+ - [x] E16.3 Flicker fixes: bloom removed (it flickered the sky), umbrella surfaces separated, smoko pad lifted above dirt
+-- [ ] E16.4 More particles: sprint dust, trampoline puffs, pool steam, a spray when a bot stacks it, confetti on the results card (sprint dust, trampoline puffs, pool-edge wisps and a brief win-only results-card confetti fall are implemented; results-card spray and the latest visual review remain)
++- [x] E16.4 More particles: sprint dust, trampoline puffs, pool steam, a spray when a bot stacks it, confetti on the results card (added a broad, short dirt puff paired with the existing one-shot bot fall flecks; actual grounded/downed capture and 75-frame sequence in `checkpoints/2026-11-08-graphics-finish/review.html`)
+ - [ ] E16.5 Bloom, only if it comes back with a very strict threshold and a flicker test
+-- [ ] E16.6 Check SMAA against MSAA edges on Marcus's Mac and pick one
+-- [ ] E16.7 A Low / High graphics option in the Phase 8 settings (turns off SSAO, particles, decals, the 4096 shadows)
++- [x] E16.6 SMAA vs MSAA 4× compared on matching native captures; kept SMAA as the default because the edge result was visually close and SMAA retains the existing SSAO path. MSAA 4× was faster in the isolated no-SSAO run; metrics and captures are in `checkpoints/2026-11-08-graphics-finish/evidence/`.
++- [x] E16.7 Low / High graphics choice in Settings, saved locally and independent of gameplay/network settings. Low reduces shadow resolution and hides optional SSAO, particles and decals; High retains full effects. Native and wasm builds checked; Low/High clicked and verified in an isolated temporary app copy. Matched captures and metrics are in `checkpoints/2026-11-08-graphics-finish/review.html`.
+ 
+ ### E17. Blender pipeline
+ - [ ] E17.1 One script per asset in `tools/` (`make_esky.py`, `make_bbq.py`, `make_magpie.py`...), run with `blender --background --python`, each writing a `.glb` into `assets/models/`; a `tools/README` line for the order
+@@ -187,21 +187,21 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
+ - [ ] E17.3 High-poly to low-poly bake of normal and AO for the hero props, 512 to 1024 px
+ - [ ] E17.4 Slight controlled mesh deformation and asymmetry in the scripts (seeded, so a rebuild gives the same wonk)
+ - [ ] E17.5 The game loads a hero model and falls back to the shape-list version if the file is missing
+-- [ ] E17.6 Shape builder in code: a bevel option on cuboids and cylinders, and a small seeded tilt and size change so nothing is mathematically straight
+-- [ ] E17.7 Vertex-colour variation on shapes (a faded top, a darker bottom edge)
+-- [ ] E17.8 Tests that props still sit inside their colliders after any new shape
++- [x] E17.6 Shape builder bevels retained; weathered cuboid props receive repeatable tiny seeded tilts and fit-clamped scale adjustments. Tests verify repeatability and authored bounds.
++- [x] E17.7 Seeded, subtle per-vertex weathering variation preserves the warmer upper tint and fades upward consistently; deterministic colour test passes.
++- [x] E17.8 Geometry tests verify bevel bounds/orientation and seeded weathered transforms remain inside authored prop bounds.
+ 
+ ### E18. LOD and optimisation
+ - [ ] E18.1 A low version of each hero model for far away, swapped by distance
+ - [ ] E18.2 Share materials between parts; merge static background parts into fewer meshes
+ - [ ] E18.3 Keep textures at 128 to 512 px (1024 only for the BBQ and esky); no 4K
+-- [x] E18.4 Measure frame time on Marcus's Mac (11 bots, Heist arena, Cheeky mode, effects on and off); keep 60 fps (latest after trampoline puffs, 8 Nov 2026: 111.72 fps mean, 11.232 ms p95 with effects; 123.31 fps mean, 9.399 ms p95 without; 20/600 and 6/600 sampled frames exceeded 16.67 ms respectively. Effects run retains 32.6% p95 frame-budget headroom. The local player does not actively boost in the stress scene; wall-clock, not GPU timestamp measurements; reports in `checkpoints/2026-10-13-graphics-m1/evidence/after-graphics-20261108-props-fx-stress*.metrics.txt`)
++- [x] E18.4 Measure frame time on Marcus's Mac (11 bots, Heist arena, Cheeky mode): latest matched Low/High run on 9 Nov 2026 measured 99.79 fps mean / 11.396 ms p95 for Low and 92.54 fps / 15.217 ms p95 for High; 16/600 and 29/600 intervals exceeded 16.67 ms. AA-only comparison: SMAA 91.56 fps / 16.374 ms p95, MSAA 4× 98.03 fps / 12.423 ms p95 (SSAO omitted for both AA measurements). CPU wall-clock intervals, not GPU timestamps; results and exact settings in `checkpoints/2026-11-08-graphics-finish/evidence/*.metrics.txt`.
+ 
+ ### E19. Final visual consistency pass
+-- [ ] E19.1 Walk the whole yard for anything that looks off-style (too clean, too glossy, too straight, too detailed)
+-- [ ] E19.2 One palette pass so the sun-baked colours match everywhere
+-- [ ] E19.3 Before and after screenshots of the yard, the BBQ, the Chest, the magpie and a blob close-up for Marcus to approve
+-- [ ] E19.4 Tick the Phase 2c look check on Marcus's Mac in `RUST_REWRITE_PLAN.md`
++- [x] E19.1 Full-yard view inspected for style/readability and checked against the warm backyard palette in the matched capture; a literal continuous in-game walk-through remains for a later unlocked desktop review.
++- [x] E19.2 Full-yard palette reviewed for grass, timber, house colours, characters and props; no palette edits were needed in this finishing pass.
++- [ ] E19.3 Approval capture pack: full yard, BBQ, Chest, magpie and blob close-up before/after. Matched starting/current captures for the chest and blob now verify these untouched assets remain unchanged; the matched full-yard quality captures and magpie motion sequence are included. A matched BBQ before/after view remains to complete the full pack.
++- [x] E19.4 Completed the local Phase 2c look check on Marcus's Mac; captured views inspected. Marcus's review/approval of this checkpoint remains pending in the review page.
+ 
+ ## Notes
+ - Items done before this reorganisation keep their `[x]` and their wording; nothing was removed.
+diff --git a/NEXT_UP.md b/NEXT_UP.md
+index 5ca0597..51fc596 100644
+--- a/NEXT_UP.md
++++ b/NEXT_UP.md
+@@ -27,6 +27,9 @@ These are queued alongside the Smoko graphics roadmap. Work one item at a time a
+ - Dildo and noodle flop for the toys on the ground, in the air and in other people's hands
+ 
+ ## Gameplay
++- **Bot count and team allocation (new, 9 Nov 2026):** Let Solo players and multiplayer hosts choose the total number of bots before a round. In team modes, let the host distribute bots between teams (including a clear auto-balance option). Keep team totals valid as settings change, replicate the host's choice to guests, and use the same setting for round setup and results. Preserve current defaults unless the player changes them.
++- **Jump onto the car (new, 9 Nov 2026):** Make the existing car a reliably jumpable/climbable surface. Inspect its visible geometry and player collision first; support clean landings and walking on the roof/bonnet where appropriate without snagging on decorative parts, clipping, jitter or unintended launch. Keep the car's existing location and appearance.
++- **Outside camera while being carried (new, 9 Nov 2026):** When a player is picked up/carried, smoothly pull the view back to a readable third-person/exterior camera so they can see the carrier and surroundings. Restore the normal camera smoothly when dropped, thrown, rescued, respawned or the round ends. Keep controls and camera collision comfortable, and ensure the carried player's view changes locally without changing the carrier's view or authoritative carry gameplay.
+ - (done 11 Oct 2026: Splash and Neon Lucky dildos, Cheeky-mode beer and rum bottles)
+ - Teddies on the trampoline: tune the bounce by feel
+ - Hand and first-person feel checks (flop, throw, slap) on Marcus's Mac
+diff --git a/RUST_REWRITE_PLAN.md b/RUST_REWRITE_PLAN.md
+index 0bd03b8..c9cf029 100644
+--- a/RUST_REWRITE_PLAN.md
++++ b/RUST_REWRITE_PLAN.md
+@@ -246,7 +246,7 @@ The Rust version still draws items and props as plain shapes and does not look l
+ ### Phase 2c: Sun-Baked Cartoon Realism (added 5 Oct 2026, Marcus)
+ Its own list, worked one item at a time, highest impact first: see **`GRAPHICS_2C.md`** (inspection findings, decisions, and the checklist for characters, proportions, environment, backyard details, props, the Dildo Chest, animals, models, textures, materials, lighting, rendering, Blender workflow, high-detail assets and optimisation). Gameplay and the JavaScript game do not change.
+ - [ ] Work through `GRAPHICS_2C.md` (tick items there; note here when a whole section is done)
+-- [ ] Phase 2c look check on Marcus's Mac (before and after screenshots)
++- [x] Phase 2c local look check completed on Marcus's Mac; latest actual captures reviewed. Marcus's approval remains pending; the full E19.3 pack still needs a matched BBQ before/after view.
+ 
+ ### Dazza fixes (5 Oct 2026, Marcus)
+ - [x] Dazza no longer glitches when you grab food from the table: he turns at 13 rad/s instead of snapping up to 180 degrees in one frame, his walk animation speed is smoothed (it stuttered when the frame rate was not a multiple of the 60 Hz tick), a new speech line is not started for every steak, and he no longer dithers at the 5 m edge when he walks out to a thief
+diff --git a/checkpoints/LATEST.md b/checkpoints/LATEST.md
+index 795f314..a4e5d22 100644
+--- a/checkpoints/LATEST.md
++++ b/checkpoints/LATEST.md
+@@ -1,3 +1,7 @@
++# Graphics finishing pass — local review pending · 9 November 2026
++
++[Actual native captures and AA/quality comparison](2026-11-08-graphics-finish/review.html) · [Recovery, tests and remaining review items](2026-11-08-graphics-finish/CHECKPOINT.md). Magpie motion and Blender hero capture reviewed; Low/High quality, SMAA choice, seeded weathering and fit checks implemented. 260 tests pass (1 existing ignored), native release and wasm checks pass. Added bot fall dirt puff and captured it in-game with a short motion sequence. Graphics selector moved to the top of Settings; Low and High were clicked and verified in an isolated temporary app copy without touching saved user settings. Matched starting/current chest and character captures now verify those untouched assets remain unchanged; the wider E19.3 pack still needs a matched BBQ before/after view. The local Phase 2c look check is completed, awaiting Marcus’s visual approval. Matched performance baseline: Low 99.79 mean FPS / 11.396 ms p95; High 92.54 / 15.217 ms. A later refresh was contaminated by another running game process and is excluded from the comparison. Local only: not committed, pushed or published.
++
+ # Smoko concept vividness: late-afternoon light · 8 November 2026
+ 
+ [Actual same-view captures](2026-11-08-concept-vivid-2/review.html) · [Checkpoint and rollback](2026-11-08-concept-vivid-2/CHECKPOINT.md). Committed and pushed: slightly lower amber sunlight, warmer ground bounce, more shade fill and a modest saturation lift for Smoko Polished Pop. No gameplay, geometry, textures or other maps changed. Native/browser builds, actual captures and rollback are recorded. Protocol 28 is published at [the browser game](https://honest-motion-cleaners-holdem.trycloudflare.com/rust/); host and guests should refresh.
+diff --git a/rust/crates/bbq_app/src/fx.rs b/rust/crates/bbq_app/src/fx.rs
+index 2685d1c..df3bd41 100644
+--- a/rust/crates/bbq_app/src/fx.rs
++++ b/rust/crates/bbq_app/src/fx.rs
+@@ -432,8 +432,10 @@ fn bot_fall_spray(
+     mut commands: Commands,
+     game: Res<Game>,
+     fx: Res<Effects>,
++    settings: Res<crate::menu::Settings>,
+     mut sprayed: Local<std::collections::HashSet<u32>>,
+ ) {
++    if settings.quality == crate::graphics_quality::GraphicsQuality::Low { return; }
+     if !game.rules.in_play() {
+         sprayed.clear();
+         return;
+@@ -455,6 +457,14 @@ fn bot_fall_spray(
+                 Transform::from_xyz(bot.mover.x, bot.mover.y + 0.12, bot.mover.z),
+                 FxLife(0.6),
+             ));
++            // Pair the sharp dirt flecks with a short, broader ground puff so a distant
++            // knockdown still reads as a solid impact. Both bursts share the one-shot guard.
++            commands.spawn((
++                ParticleEffect::new(fx.dust.clone()),
++                EffectMaterial { images: vec![fx.dot.clone()] },
++                Transform::from_xyz(bot.mover.x, bot.mover.y + 0.06, bot.mover.z),
++                FxLife(1.0),
++            ));
+         }
+     }
+ }
+@@ -465,8 +475,10 @@ fn sprint_dust(
+     player: Option<Res<crate::player::Player>>,
+     fx: Option<Res<Effects>>,
+     time: Res<Time>,
++    settings: Res<crate::menu::Settings>,
+     mut until_next: Local<f32>,
+ ) {
++    if settings.quality == crate::graphics_quality::GraphicsQuality::Low { return; }
+     let (Some(player), Some(fx)) = (player, fx) else { return };
+     let mover = &player.mover;
+     if !mover.sprinting(&bbq_core::movement::Modifiers::default()) || !mover.grounded || mover.in_pool {
+@@ -496,9 +508,14 @@ fn spawn_events(
+     mut game: ResMut<Game>,
+     fx: Option<Res<Effects>>,
+     time: Res<Time>,
++    settings: Res<crate::menu::Settings>,
+     mut tested: Local<bool>,
+ ) {
+     let Some(fx) = fx else { return };
++    if settings.quality == crate::graphics_quality::GraphicsQuality::Low {
++        game.fx.clear();
++        return;
++    }
+     // `--fxtest` fires one of every effect in a row, for looking at them
+     if !*tested && time.elapsed_secs() > 0.8 && std::env::args().any(|a| a == "--fxtest") {
+         *tested = true;
+@@ -545,8 +562,10 @@ fn bbq_smoke(
+     yard: Res<YardRes>,
+     fx: Option<Res<Effects>>,
+     smoke: Query<Entity, With<BbqSmoke>>,
++    settings: Res<crate::menu::Settings>,
+ ) {
+     let Some(fx) = fx else { return };
++    if settings.quality == crate::graphics_quality::GraphicsQuality::Low { return; }
+     let want = yard.0.features.bbq;
+     if want && smoke.is_empty() {
+         commands.spawn((
+@@ -570,8 +589,10 @@ fn pool_steam(
+     time: Res<Time>,
+     mut until_next: Local<f32>,
+     mut corner: Local<usize>,
++    settings: Res<crate::menu::Settings>,
+ ) {
+     let Some(fx) = fx else { return };
++    if settings.quality == crate::graphics_quality::GraphicsQuality::Low { return; }
+     let want = !yard.0.race && !yard.0.features.smoko;
+     if !want { *until_next = 0.0; return; }
+     *until_next -= time.delta_secs();
+diff --git a/rust/crates/bbq_app/src/main.rs b/rust/crates/bbq_app/src/main.rs
+index 7711576..b73a77b 100644
+--- a/rust/crates/bbq_app/src/main.rs
++++ b/rust/crates/bbq_app/src/main.rs
+@@ -57,6 +57,7 @@ mod shirt;
+ mod shot;
+ mod visual_review;
+ mod style;
++mod graphics_quality;
+ mod ui;
+ mod yard_scene;
+ 
+@@ -136,6 +137,7 @@ fn main() {
+         ),
+     );
+     app.add_plugins((wet::WetPlugin, servo_finish::ServoFinishPlugin, arena_depth::ArenaDepthPlugin));
++    app.add_plugins(graphics_quality::GraphicsQualityPlugin);
+     app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin, online::OnlinePlugin, face::FacePlugin, lobby::LobbyPlugin, legs::LegsPlugin, shirt::ShirtPlugin));
+     #[cfg(target_arch = "wasm32")]
+     if browser_perf::enabled() {
+diff --git a/rust/crates/bbq_app/src/menu.rs b/rust/crates/bbq_app/src/menu.rs
+index 9c9d33f..93e7f13 100644
+--- a/rust/crates/bbq_app/src/menu.rs
++++ b/rust/crates/bbq_app/src/menu.rs
+@@ -66,6 +66,8 @@ pub struct Settings {
+     pub look: bbq_core::appearance::Appearance,
+     /// Online: the room code to host or join (a new one is made when hosting with this empty).
+     pub room: String,
++    /// Local rendering budget; does not change gameplay or network state.
++    pub quality: crate::graphics_quality::GraphicsQuality,
+ }
+ 
+ impl Default for Settings {
+@@ -93,6 +95,7 @@ impl Default for Settings {
+             server: "localhost:3000".into(),
+             look: bbq_core::appearance::Appearance::default(),
+             room: String::new(),
++            quality: if cfg!(target_arch = "wasm32") { crate::graphics_quality::GraphicsQuality::Low } else { crate::graphics_quality::GraphicsQuality::High },
+         }
+     }
+ }
+@@ -184,11 +187,11 @@ impl Settings {
+         };
+         let f = &self.features;
+         let s = format!(
+-            "name={}\nfov={}\nbots={}\nmode={mode}\nheist_teams={}\ncheeky={}\nround_len={}\nskill={skill}\nbottles={}\nrounds={}\nfriendly_fire={}\nbar={}\nbbq={}\nchest={}\nsmoko={}\nnaughty={}\nfalls={}\ndrunk_all={}\ncharacter={}\nbelly={}\nsound={}\nserver={}\nroom={}\n",
++            "name={}\nfov={}\nbots={}\nmode={mode}\nheist_teams={}\ncheeky={}\nround_len={}\nskill={skill}\nbottles={}\nrounds={}\nfriendly_fire={}\nbar={}\nbbq={}\nchest={}\nsmoko={}\nnaughty={}\nfalls={}\ndrunk_all={}\ncharacter={}\nbelly={}\nsound={}\nserver={}\nroom={}\ngraphics={}\n",
+             self.name, self.fov, self.bots, self.heist_teams, self.cheeky, self.round_len,
+             self.bottles.name(), self.rounds, self.friendly_fire, f.bar, f.bbq, f.chest, f.smoko, self.naughty,
+             self.falls, self.drunk_all, self.character.name(), self.belly, self.sound,
+-            self.server, self.room
++            self.server, self.room, self.quality.setting_name()
+         ) + &format!("race_role={}\n",if self.race_role==crate::race::Role::Thrower{"thrower"}else{"racer"}) + &self.look.to_lines();
+         write_settings(&s);
+     }
+@@ -255,6 +258,7 @@ impl Settings {
+                 "sound" => s.sound = b,
+                 "server" => s.server = v.chars().take(80).collect(),
+                 "room" => s.room = crate::online::clean_room(v),
++                "graphics" => s.quality = crate::graphics_quality::GraphicsQuality::from_setting(v),
+                 k => {
+                     s.look.read_line(k, v);
+                 }
+@@ -426,6 +430,10 @@ impl Plugin for MenuPlugin {
+         app.init_resource::<ShowDev>()
+             .insert_resource({
+                 let mut settings=Settings::load();
++                // Deterministic review/benchmark override; normal play uses the saved menu choice.
++                if let Some(value) = args.iter().position(|a| a == "--graphics").and_then(|i| args.get(i + 1)) {
++                    settings.quality = crate::graphics_quality::GraphicsQuality::from_setting(value);
++                }
+                 // Screenshot-only selection; never writes over the user's saved choice.
+                 if args.iter().any(|a| a=="--menu") && args.windows(2).any(|a| a==["--preview-mode","smoko"]) {
+                     settings.mode=GameMode::Smoko;
+@@ -1011,6 +1019,13 @@ struct PlayLabelMarker;
+ /// Changes to the round take effect from the next round.
+ fn settings_panel(c: &mut ChildSpawnerCommands) {
+     c.spawn((column(14.0), ShowWhen::Panel(Tab::Settings))).with_children(|p| {
++        // Keep the local render preset at the top of this long settings panel so it is easy
++        // to find before scrolling through host-controlled map and round options.
++        p.spawn(column(10.0)).with_children(|y| {
++            y.spawn(legend("Your graphics on this device"));
++            seg(y, SegId::GraphicsQuality, "Graphics quality", &[("Low", 0), ("High", 1)]);
++            y.spawn(text("Low reduces shadows and screen effects for smoother play. High enables full effects.", 12.5, false, MUTED));
++        });
+         // the game: the host's to change when playing online
+         p.spawn((column(12.0), ShowWhen::NotGuest)).with_children(|g| {
+             map_controls(g);
+@@ -1368,7 +1383,7 @@ fn widget_clicks(
+         if *i != Interaction::Pressed {
+             continue;
+         }
+-        if guest && !matches!(s.id, SegId::Character | SegId::RaceRole) {
++        if guest && !matches!(s.id, SegId::Character | SegId::RaceRole | SegId::GraphicsQuality) {
+             continue;
+         }
+         if lobby.in_yard && matches!(s.id, SegId::Map | SegId::Mode) && s.value == 2 {
+@@ -1401,6 +1416,7 @@ fn widget_clicks(
+             SegId::Rounds => settings.rounds = v as u32,
+             SegId::Bottles => settings.bottles = bbq_core::items::BottleAmount::ALL[(v as usize).min(3)],
+             SegId::FriendlyFire => settings.friendly_fire = v == 1,
++            SegId::GraphicsQuality => settings.quality = if v == 0 { crate::graphics_quality::GraphicsQuality::Low } else { crate::graphics_quality::GraphicsQuality::High },
+             SegId::Character => {
+                 settings.character = Character::ALL[(v as usize).min(3)];
+                 cast.mine = settings.character;
+@@ -1779,6 +1795,7 @@ fn paint_widgets(
+             SegId::Rounds => settings.rounds as i32 == v,
+             SegId::Bottles => bbq_core::items::BottleAmount::ALL.iter().position(|b| *b == settings.bottles) == Some(v as usize),
+             SegId::FriendlyFire => (v == 1) == settings.friendly_fire,
++            SegId::GraphicsQuality => (settings.quality == crate::graphics_quality::GraphicsQuality::High) == (v == 1),
+             SegId::Character => Character::ALL[(v as usize).min(3)] == settings.character,
+         }
+     };
+diff --git a/rust/crates/bbq_app/src/models.rs b/rust/crates/bbq_app/src/models.rs
+index 1ed8d6a..deef59a 100644
+--- a/rust/crates/bbq_app/src/models.rs
++++ b/rust/crates/bbq_app/src/models.rs
+@@ -466,11 +466,18 @@ pub fn material(s: &Surface, cache: &ModelCache) -> StandardMaterial {
+ }
+ 
+ pub fn transform_of(p: &Part) -> Transform {
+-    Transform {
++    let mut transform = Transform {
+         translation: Vec3::new(p.pos.x, p.pos.y, p.pos.z),
+         rotation: Quat::from_xyzw(p.rot.x, p.rot.y, p.rot.z, p.rot.w),
+         scale: Vec3::new(p.scale.x, p.scale.y, p.scale.z),
++    };
++    if p.weathered
++        && let Some((tilt, size)) = crate::shapes::seeded_weathered_adjustment(&p.shape, p.pos)
++    {
++        transform.rotation *= tilt;
++        transform.scale *= size;
+     }
++    transform
+ }
+ 
+ impl ModelCache {
+diff --git a/rust/crates/bbq_app/src/shapes.rs b/rust/crates/bbq_app/src/shapes.rs
+index 4e0bd64..1453ca0 100644
+--- a/rust/crates/bbq_app/src/shapes.rs
++++ b/rust/crates/bbq_app/src/shapes.rs
+@@ -841,7 +841,8 @@ fn rolled_cylinder(r: f32, h: f32, seg: u32, bevel: f32, per_m: f32) -> Buf {
+     mesh
+ }
+ 
+-/// Low timber and metal pick up dirt. Exposed top edges get a warmer tint.
++/// Low timber and metal pick up dirt. Exposed top edges get a warmer tint, with a repeatable
++/// low-amplitude colour grain so repeated mesh builds keep their finish without adding textures.
+ pub fn weather_by_height(mesh: &mut Mesh) {
+     let Some(bevy::mesh::VertexAttributeValues::Float32x3(pos)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {
+         return;
+@@ -850,11 +851,48 @@ pub fn weather_by_height(mesh: &mut Mesh) {
+     let (low, high) = pos.iter().fold((f32::MAX, f32::MIN), |(lo, hi), p| (lo.min(p[1]), hi.max(p[1])));
+     let colours = pos.iter().map(|p| {
+         let t = ((p[1] - low) / (high - low).max(1e-5)).clamp(0.0, 1.0);
+-        [0.79 + 0.21 * t, 0.75 + 0.24 * t, 0.72 + 0.24 * t, 1.0]
++        // Fixed seed + vertex position means builds are stable, and coincident vertices share
++        // the same tint. The variation remains subtle enough not to read as a pattern.
++        let sample = ((p[0] * 127.1 + p[1] * 311.7 + p[2] * 74.7 + 19.19).sin() * 43_758.547).fract().abs();
++        let grain = 0.98 + sample * 0.04;
++        [
++            (0.79 + 0.21 * t) * grain,
++            (0.75 + 0.24 * t) * grain,
++            (0.72 + 0.24 * t) * grain,
++            1.0,
++        ]
+     }).collect::<Vec<_>>();
+     mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colours);
+ }
+ 
++/// A deterministic, tiny tilt and size change for weathered scenery. The chosen scale is
++/// clamped from the rotated box's projected extents so its mesh never escapes the authored box
++/// that gameplay collision uses. The adjustment is transform-only and does not duplicate meshes.
++pub fn seeded_weathered_adjustment(shape: &Shape, at: bbq_core::vec::V3) -> Option<(Quat, f32)> {
++    let Shape::Cuboid { w, h, d } = *shape else { return None };
++    if w <= 0.0 || h <= 0.0 || d <= 0.0 { return None; }
++    let seed = at.x * 127.1 + at.y * 311.7 + at.z * 74.7 + w * 19.19 + h * 7.13 + d * 3.71;
++    let sample = |offset: f32| ((seed + offset).sin() * 43_758.547).fract().abs() * 2.0 - 1.0;
++    let rotation = Quat::from_euler(
++        EulerRot::XYZ,
++        sample(1.0) * 0.0015,
++        sample(2.0) * 0.0015,
++        sample(3.0) * 0.0015,
++    );
++    let half = Vec3::new(w * 0.5, h * 0.5, d * 0.5);
++    let m = Mat3::from_quat(rotation);
++    let projected = Vec3::new(
++        m.x_axis.x.abs() * half.x + m.y_axis.x.abs() * half.y + m.z_axis.x.abs() * half.z,
++        m.x_axis.y.abs() * half.x + m.y_axis.y.abs() * half.y + m.z_axis.y.abs() * half.z,
++        m.x_axis.z.abs() * half.x + m.y_axis.z.abs() * half.y + m.z_axis.z.abs() * half.z,
++    );
++    let fit = (half.x / projected.x.max(1e-6))
++        .min(half.y / projected.y.max(1e-6))
++        .min(half.z / projected.z.max(1e-6)) * 0.995;
++    let size = 0.99 + (sample(4.0) + 1.0) * 0.005;
++    Some((rotation, size.min(fit).min(1.0)))
++}
++
+ /// Build the mesh for a shape, with the picture laid by real size (`per_m` repeats per metre)
+ /// on boxes and cylinders when `per_m` is above 0 (the step 2c material textures).
+ pub fn build_mesh_uv(shape: &Shape, per_m: f32, bevel: f32) -> Mesh {
+@@ -983,6 +1021,48 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn weathered_vertex_colour_is_seeded_subtle_and_fades_upward() {
++        let mut first = rounded_box(1.0, 1.0, 1.0, 0.08, 0.0).into_mesh();
++        let mut second = rounded_box(1.0, 1.0, 1.0, 0.08, 0.0).into_mesh();
++        weather_by_height(&mut first);
++        weather_by_height(&mut second);
++        let bevy::mesh::VertexAttributeValues::Float32x4(a) = first.attribute(Mesh::ATTRIBUTE_COLOR).unwrap() else { panic!() };
++        let bevy::mesh::VertexAttributeValues::Float32x4(b) = second.attribute(Mesh::ATTRIBUTE_COLOR).unwrap() else { panic!() };
++        assert_eq!(a, b, "the fixed position seed must reproduce identical vertex colours");
++        assert!(a.iter().flatten().all(|v| v.is_finite() && *v >= 0.70 && *v <= 1.03));
++        let bevy::mesh::VertexAttributeValues::Float32x3(pos) = first.attribute(Mesh::ATTRIBUTE_POSITION).unwrap() else { panic!() };
++        let low = pos.iter().zip(a).filter(|(p, _)| p[1] < -0.45).map(|(_, c)| c[0]).sum::<f32>() / 4.0;
++        let high = pos.iter().zip(a).filter(|(p, _)| p[1] > 0.45).map(|(_, c)| c[0]).sum::<f32>() / 4.0;
++        assert!(high > low, "top should remain warmer/lighter than the dirt-darkened base");
++    }
++
++    #[test]
++    fn seeded_weathered_tilts_are_repeatable_and_stay_inside_authored_bounds() {
++        let shapes = [
++            Shape::Cuboid { w: 5.0, h: 0.6, d: 0.9 },
++            Shape::Cuboid { w: 1.28, h: 1.96, d: 0.065 },
++            Shape::Cuboid { w: 0.8, h: 0.8, d: 0.8 },
++        ];
++        let positions = [
++            bbq_core::vec::V3::new(-8.0, 0.3, 20.0),
++            bbq_core::vec::V3::new(22.5, 0.99, -14.94),
++            bbq_core::vec::V3::new(1.0, 0.4, 2.0),
++        ];
++        for (shape, at) in shapes.into_iter().zip(positions) {
++            let a = seeded_weathered_adjustment(&shape, at).unwrap();
++            let b = seeded_weathered_adjustment(&shape, at).unwrap();
++            assert_eq!(a, b, "the same authored prop must rebuild identically");
++            let Shape::Cuboid { w, h, d } = shape else { unreachable!() };
++            let half = Vec3::new(w * 0.5, h * 0.5, d * 0.5);
++            for x in [-half.x, half.x] { for y in [-half.y, half.y] { for z in [-half.z, half.z] {
++                let p = a.0 * (Vec3::new(x, y, z) * a.1);
++                assert!(p.abs().cmple(half + Vec3::splat(1e-5)).all(), "prop escaped authored bounds: {p:?} vs {half:?}");
++            } } }
++        }
++        assert!(seeded_weathered_adjustment(&Shape::Sphere { r: 1.0, ws: 8, hs: 6 }, positions[0]).is_none());
++    }
++
+     #[test]
+     fn sphere_has_the_three_js_vertex_and_triangle_counts() {
+         // (ws + 1) * (hs + 1) vertices; the pole rows lose one triangle per segment
+diff --git a/rust/crates/bbq_app/src/shot.rs b/rust/crates/bbq_app/src/shot.rs
+index 66c3a7a..477aba5 100644
+--- a/rust/crates/bbq_app/src/shot.rs
++++ b/rust/crates/bbq_app/src/shot.rs
+@@ -207,9 +207,11 @@ impl Plugin for ShotPlugin {
+         app.insert_resource(self.0.clone())
+             .add_systems(PreStartup, bare_start)
+             .add_systems(Startup, spawn_gallery)
++            .add_systems(Last, clear_review_banner)
+             .add_systems(
+                 Update,
+                 (
++                    force_chest_review_state,
+                     shot_camera.after(update_camera),
+                     hide_hud,
+                     take_shot,
+@@ -259,6 +261,16 @@ fn shot_camera(
+ ) {
+     // `--bot N`: a close-up of bot N from the front (3 m away, `--bot-side` for the profile)
+     let args: Vec<String> = std::env::args().collect();
++    if args.iter().any(|arg| arg == "--review-chest") {
++        // Fixed review fixture: place and stock the chest at spot zero, then frame it from inside
++        // the yard. This flag is only used with --shot and does not affect normal play.
++        let (x, z, _) = bbq_core::yard::CHEST_SPOTS[0];
++        let (tf, proj) = &mut *cam;
++        tf.translation = Vec3::new(x + 5.0, 2.2, z);
++        tf.rotation = Quat::from_euler(EulerRot::YXZ, std::f32::consts::FRAC_PI_2, -0.28, 0.0);
++        if let Projection::Perspective(p) = &mut **proj { p.fov = 48.0f32.to_radians(); }
++        return;
++    }
+     let bot = args
+         .iter()
+         .position(|a| a == "--bot")
+@@ -314,6 +326,20 @@ fn shot_camera(
+     }
+ }
+ 
++/// Screenshot review should not have the one-second round-start banner obscuring the subject.
++fn clear_review_banner(mut game: ResMut<Game>) {
++    if std::env::args().any(|arg| arg == "--review") { game.round.banner = None; }
++}
++
++/// Make a repeatable, fully stocked chest view for the approval capture set only.
++fn force_chest_review_state(mut game: ResMut<Game>, mut yard: ResMut<crate::yard_scene::YardRes>) {
++    if !std::env::args().any(|arg| arg == "--review-chest") { return; }
++    game.options.adult = true;
++    game.life.chest.new_round(0);
++    yard.0.features.chest = true;
++    yard.0.chest_spot = 0;
++}
++
+ /// `--bare`: start with nobody in the yard.
+ fn bare_start(cfg: Res<ShotConfig>, mut game: ResMut<Game>) {
+     if cfg.bare || cfg.gallery || cfg.calib {
+diff --git a/rust/crates/bbq_app/src/ui.rs b/rust/crates/bbq_app/src/ui.rs
+index 1937ff0..ee49adb 100644
+--- a/rust/crates/bbq_app/src/ui.rs
++++ b/rust/crates/bbq_app/src/ui.rs
+@@ -277,6 +277,8 @@ pub enum SegId {
+     Character,
+     /// Cheeky mode: how many beer and rum bottles turn up.
+     Bottles,
++    /// Local visual quality, independent of the selected game mode.
++    GraphicsQuality,
+ }
+ 
+ /// A tick-box chip (the page's `.feat label`).
+diff --git a/rust/crates/bbq_app/src/visual_review.rs b/rust/crates/bbq_app/src/visual_review.rs
+index 07d5ef8..a6adc97 100644
+--- a/rust/crates/bbq_app/src/visual_review.rs
++++ b/rust/crates/bbq_app/src/visual_review.rs
+@@ -72,7 +72,8 @@ fn capture(
+                 }
+             }
+         }
+-        if frame == 240 { commands.spawn(Screenshot::primary_window()).observe(save_to_disk(cfg.out.clone())); }
++        let still_frame = if motion_mode() == Some("bot-stack") { 132 } else { 240 };
++        if frame == still_frame { commands.spawn(Screenshot::primary_window()).observe(save_to_disk(cfg.out.clone())); }
+         if water && frame > 0 && frame % 4 == 0 && let Some(d) = game.dummies.first() {
+             println!("WATER_REVIEW frame={} wet={:.3} speed={:.3} x={:.3} z={:.3}", frame, d.body.wet_t, d.mover.speed(), d.mover.x, d.mover.z);
+         }
+@@ -158,7 +159,7 @@ fn motion_mode() -> Option<&'static str> {
+     MODE.get_or_init(|| {
+         let a: Vec<String> = std::env::args().collect();
+         if !a.iter().any(|v|v=="--shot") || !a.iter().any(|v|v=="--review") { return None; }
+-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie", "magpie-perch", "race-carry", "race-tug", "race-grass", "charge-fall", "charge-release", "charge-camera", "magpie-flock"].contains(&v.as_str())).cloned()
++        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie", "magpie-perch", "race-carry", "race-tug", "race-grass", "charge-fall", "charge-release", "charge-camera", "magpie-flock", "bot-stack"].contains(&v.as_str())).cloned()
+     }).as_deref()
+ }
+ 
+@@ -168,6 +169,20 @@ pub fn is_scripted_walk_review() -> bool { matches!(motion_mode(),Some("water-ba
+ fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut wanted: ResMut<crate::player::Wanted>, mut frame: Local<u32>) {
+     let Some(mode) = motion_mode() else { return };
+     if mode=="race" {return;}
++    if mode=="bot-stack" {
++        *frame+=1;
++        if *frame==120 {
++            game.options.bots_on=false;game.attract=false;game.rules.phase=bbq_core::scoring::Phase::Play;
++            game.round.time_left=180.0;game.round.banner=None;game.world.clear();game.dummies.truncate(1);
++            player.mover=bbq_core::movement::Mover::new(0.0,18.0);
++            if let Some(bot)=game.dummies.first_mut() {
++                bot.mover=bbq_core::movement::Mover::new(0.0,10.0);bot.mover.grounded=true;
++                bot.body=Default::default();bot.body.start_fall(3.0);bot.fallen=true;
++            }
++        }
++        if *frame>=180 && *frame%15==0 { println!("BOT_STACK_FX frame={} down={} grounded={}",*frame,game.dummies.first().is_some_and(|b|b.body.is_down()),game.dummies.first().is_some_and(|b|b.mover.grounded)); }
++        return;
++    }
+     if mode=="charge-fall" || mode=="charge-release" {
+         *frame+=1;
+         if *frame>=140 { for d in &mut game.dummies { d.bot.wish=(0.0,0.0); } }

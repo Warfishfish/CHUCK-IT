@@ -466,11 +466,18 @@ pub fn material(s: &Surface, cache: &ModelCache) -> StandardMaterial {
 }
 
 pub fn transform_of(p: &Part) -> Transform {
-    Transform {
+    let mut transform = Transform {
         translation: Vec3::new(p.pos.x, p.pos.y, p.pos.z),
         rotation: Quat::from_xyzw(p.rot.x, p.rot.y, p.rot.z, p.rot.w),
         scale: Vec3::new(p.scale.x, p.scale.y, p.scale.z),
+    };
+    if p.weathered
+        && let Some((tilt, size)) = crate::shapes::seeded_weathered_adjustment(&p.shape, p.pos)
+    {
+        transform.rotation *= tilt;
+        transform.scale *= size;
     }
+    transform
 }
 
 impl ModelCache {

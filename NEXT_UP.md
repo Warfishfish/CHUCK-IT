@@ -27,6 +27,9 @@ These are queued alongside the Smoko graphics roadmap. Work one item at a time a
 - Dildo and noodle flop for the toys on the ground, in the air and in other people's hands
 
 ## Gameplay
+- **Bot count and team allocation (new, 9 Nov 2026):** Let Solo players and multiplayer hosts choose the total number of bots before a round. In team modes, let the host distribute bots between teams (including a clear auto-balance option). Keep team totals valid as settings change, replicate the host's choice to guests, and use the same setting for round setup and results. Preserve current defaults unless the player changes them.
+- **Jump onto the car (new, 9 Nov 2026):** Make the existing car a reliably jumpable/climbable surface. Inspect its visible geometry and player collision first; support clean landings and walking on the roof/bonnet where appropriate without snagging on decorative parts, clipping, jitter or unintended launch. Keep the car's existing location and appearance.
+- **Outside camera while being carried (new, 9 Nov 2026):** When a player is picked up/carried, smoothly pull the view back to a readable third-person/exterior camera so they can see the carrier and surroundings. Restore the normal camera smoothly when dropped, thrown, rescued, respawned or the round ends. Keep controls and camera collision comfortable, and ensure the carried player's view changes locally without changing the carrier's view or authoritative carry gameplay.
 - (done 11 Oct 2026: Splash and Neon Lucky dildos, Cheeky-mode beer and rum bottles)
 - Teddies on the trampoline: tune the bounce by feel
 - Hand and first-person feel checks (flop, throw, slap) on Marcus's Mac

@@ -330,6 +330,7 @@ pub fn update_camera(
     mut stop: Local<VisualHitStop>,
     mut walk_blend: Local<f32>,
     mut charge_lean: Local<bbq_core::feel::ReturnSpring>,
+    mut carry_view: Local<(f32, Option<Transform>)>,
 ) {
     let dt = time.delta_secs();
     let target=if game.wind.charging && !game.me.body.is_down() {game.wind.charge.clamp(0.0,1.0)}else{0.0};
@@ -382,6 +383,23 @@ pub fn update_camera(
         fx.roll,
     );
 
+    // When the host says we are being carried, ease into a compact spectator angle that
+    // shows the carrier and the carry interaction. The simulation/camera target stays local;
+    // this is presentation-only and drops back to first-person as soon as the carry ends.
+    let carried = crate::smoko_mode::player_locked(&game);
+    let blend_target = if carried { 1.0 } else { 0.0 };
+    carry_view.0 += (blend_target - carry_view.0) * (1.0 - (-dt * 7.0).exp());
+    if carried {
+        if let Some((carrier, forward)) = carried_view_target(&game, p) {
+            carry_view.1 = Some(carry_camera_pose(carrier, forward));
+        }
+    }
+    if let Some(external) = carry_view.1 {
+        tf.translation = tf.translation.lerp(external.translation, carry_view.0);
+        tf.rotation = tf.rotation.slerp(external.rotation, carry_view.0);
+        if !carried && carry_view.0 < 0.001 { carry_view.1 = None; }
+    }
+
     p.fov = movement::ease_fov(
         p.fov,
         p.fov_base,
@@ -391,7 +409,52 @@ pub fn update_camera(
     if let Projection::Perspective(persp) = &mut **proj {
         // drunk vision breathes in and out a little
         let breathe = me.drunk.da() * 3.0 * (time.elapsed_secs() * 1.3).sin();
-        persp.fov = (p.fov + breathe).to_radians();
+        persp.fov = (p.fov + breathe + carry_view.0 * 5.0).to_radians();
+    }
+}
+
+fn carried_view_target(game: &crate::game::Game, player: &Player) -> Option<(Vec3, Vec3)> {
+    let carrier_id = game.smoko.carries.iter()
+        .find_map(|(&id, carry)| (carry.victim == PLAYER_ID).then_some(id));
+    if let Some(id) = carrier_id {
+        let at = crate::smoko_mode::pos(game, player, id)?;
+        let face = crate::smoko_mode::face(game, player, id);
+        return Some((Vec3::new(at.x, at.y, at.z), Vec3::new(face.0, 0.0, face.1).normalize_or_zero()));
+    }
+    // Some host snapshots expose only the short carried/flight lock. In that case use the
+    // nearest visible character as the framing target; the host still controls the lock.
+    if game.mirror && game.now < game.smoko.guest_until {
+        let at = Vec3::new(player.mover.x, player.mover.y, player.mover.z);
+        let nearest = game.dummies.iter()
+            .map(|d| (d.mover.x, d.mover.y, d.mover.z))
+            .map(|(x,y,z)| Vec3::new(x,y,z))
+            .filter(|p| p.distance(at) < 4.5)
+            .min_by(|a,b| a.distance_squared(at).total_cmp(&b.distance_squared(at)))?;
+        return Some((nearest, (at - nearest).normalize_or_zero()));
+    }
+    None
+}
+
+fn carry_camera_pose(carrier: Vec3, forward: Vec3) -> Transform {
+    let forward = if forward.length_squared() > 0.01 { forward.normalize() } else { Vec3::NEG_Z };
+    let right = Vec3::new(-forward.z, 0.0, forward.x);
+    let target = carrier + Vec3::Y * 0.95;
+    let eye = carrier - forward * 3.2 + right * 1.15 + Vec3::Y * 2.0;
+    Transform::from_translation(eye).looking_at(target, Vec3::Y)
+}
+
+#[cfg(test)]
+mod carry_camera_tests {
+    use super::*;
+
+    #[test]
+    fn outside_view_sits_away_from_and_frames_the_carrier() {
+        let carrier = Vec3::new(2.0, 0.0, 4.0);
+        let view = carry_camera_pose(carrier, Vec3::NEG_Z);
+        let target = carrier + Vec3::Y * 0.95;
+        assert!(view.translation.distance(carrier) > 3.0);
+        assert!(view.forward().dot((target - view.translation).normalize()) > 0.99);
+        assert!(view.translation.y > carrier.y);
     }
 }
 

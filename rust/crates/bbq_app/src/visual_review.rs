@@ -72,7 +72,8 @@ fn capture(
                 }
             }
         }
-        if frame == 240 { commands.spawn(Screenshot::primary_window()).observe(save_to_disk(cfg.out.clone())); }
+        let still_frame = if motion_mode() == Some("bot-stack") { 132 } else { 240 };
+        if frame == still_frame { commands.spawn(Screenshot::primary_window()).observe(save_to_disk(cfg.out.clone())); }
         if water && frame > 0 && frame % 4 == 0 && let Some(d) = game.dummies.first() {
             println!("WATER_REVIEW frame={} wet={:.3} speed={:.3} x={:.3} z={:.3}", frame, d.body.wet_t, d.mover.speed(), d.mover.x, d.mover.z);
         }
@@ -158,7 +159,7 @@ fn motion_mode() -> Option<&'static str> {
     MODE.get_or_init(|| {
         let a: Vec<String> = std::env::args().collect();
         if !a.iter().any(|v|v=="--shot") || !a.iter().any(|v|v=="--review") { return None; }
-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie", "magpie-perch", "race-carry", "race-tug", "race-grass", "charge-fall", "charge-release", "charge-camera", "magpie-flock"].contains(&v.as_str())).cloned()
+        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie", "magpie-perch", "race-carry", "race-tug", "race-grass", "charge-fall", "charge-release", "charge-camera", "magpie-flock", "bot-stack"].contains(&v.as_str())).cloned()
     }).as_deref()
 }
 
@@ -168,6 +169,20 @@ pub fn is_scripted_walk_review() -> bool { matches!(motion_mode(),Some("water-ba
 fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut wanted: ResMut<crate::player::Wanted>, mut frame: Local<u32>) {
     let Some(mode) = motion_mode() else { return };
     if mode=="race" {return;}
+    if mode=="bot-stack" {
+        *frame+=1;
+        if *frame==120 {
+            game.options.bots_on=false;game.attract=false;game.rules.phase=bbq_core::scoring::Phase::Play;
+            game.round.time_left=180.0;game.round.banner=None;game.world.clear();game.dummies.truncate(1);
+            player.mover=bbq_core::movement::Mover::new(0.0,18.0);
+            if let Some(bot)=game.dummies.first_mut() {
+                bot.mover=bbq_core::movement::Mover::new(0.0,10.0);bot.mover.grounded=true;
+                bot.body=Default::default();bot.body.start_fall(3.0);bot.fallen=true;
+            }
+        }
+        if *frame>=180 && *frame%15==0 { println!("BOT_STACK_FX frame={} down={} grounded={}",*frame,game.dummies.first().is_some_and(|b|b.body.is_down()),game.dummies.first().is_some_and(|b|b.mover.grounded)); }
+        return;
+    }
     if mode=="charge-fall" || mode=="charge-release" {
         *frame+=1;
         if *frame>=140 { for d in &mut game.dummies { d.bot.wish=(0.0,0.0); } }

@@ -28,6 +28,8 @@ pub enum Kind {
     HeistWall,
     Steps,
     HeistCrate,
+    /// Walkable parked ute in the Smoko Bush Servo yard.
+    Vehicle,
     BackyardCover,
 }
 
@@ -318,6 +320,7 @@ impl Yard {
             }
         }
         y.colliders.extend(crate::bush_servo::colliders());
+        y.colliders.extend(crate::bush_servo::ute_colliders());
         y
     }
 

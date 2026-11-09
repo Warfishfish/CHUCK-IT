@@ -207,9 +207,11 @@ impl Plugin for ShotPlugin {
         app.insert_resource(self.0.clone())
             .add_systems(PreStartup, bare_start)
             .add_systems(Startup, spawn_gallery)
+            .add_systems(Last, clear_review_banner)
             .add_systems(
                 Update,
                 (
+                    force_chest_review_state,
                     shot_camera.after(update_camera),
                     hide_hud,
                     take_shot,
@@ -259,6 +261,16 @@ fn shot_camera(
 ) {
     // `--bot N`: a close-up of bot N from the front (3 m away, `--bot-side` for the profile)
     let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|arg| arg == "--review-chest") {
+        // Fixed review fixture: place and stock the chest at spot zero, then frame it from inside
+        // the yard. This flag is only used with --shot and does not affect normal play.
+        let (x, z, _) = bbq_core::yard::CHEST_SPOTS[0];
+        let (tf, proj) = &mut *cam;
+        tf.translation = Vec3::new(x + 5.0, 2.2, z);
+        tf.rotation = Quat::from_euler(EulerRot::YXZ, std::f32::consts::FRAC_PI_2, -0.28, 0.0);
+        if let Projection::Perspective(p) = &mut **proj { p.fov = 48.0f32.to_radians(); }
+        return;
+    }
     let bot = args
         .iter()
         .position(|a| a == "--bot")
@@ -312,6 +324,20 @@ fn shot_camera(
     if let Projection::Perspective(p) = &mut **proj {
         p.fov = fov.to_radians();
     }
+}
+
+/// Screenshot review should not have the one-second round-start banner obscuring the subject.
+fn clear_review_banner(mut game: ResMut<Game>) {
+    if std::env::args().any(|arg| arg == "--review") { game.round.banner = None; }
+}
+
+/// Make a repeatable, fully stocked chest view for the approval capture set only.
+fn force_chest_review_state(mut game: ResMut<Game>, mut yard: ResMut<crate::yard_scene::YardRes>) {
+    if !std::env::args().any(|arg| arg == "--review-chest") { return; }
+    game.options.adult = true;
+    game.life.chest.new_round(0);
+    yard.0.features.chest = true;
+    yard.0.chest_spot = 0;
 }
 
 /// `--bare`: start with nobody in the yard.
