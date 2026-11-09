@@ -1,3 +1,7 @@
+# Browser release — 9 November 2026
+
+The browser bundle for source `ac513c9` is published at [play online](https://twins-hepatitis-led-terrorism.trycloudflare.com/rust/). Protocol 28 is unchanged. The live menu loads, critical bundle hashes match, and the public two-way relay passed. Refresh clients and create a fresh yard. The temporary link requires the Mac, local server and Cloudflare tunnel to stay running. [Publication details and rollback](2026-11-09-browser-update/PUBLICATION.md).
+
 # Bot controls, ute traversal and carry camera — 9 November 2026
 
 Source commit/push: implementation verified with 714 passing core/app tests (one existing ignored), native release and wasm browser-target builds. Solo and host bot sliders, per-team bot counts, Smoko ute climbing, and a smooth outside carry camera are included. Browser bundle was not published. Manual in-game review remains recommended; see [gameplay checkpoint](2026-11-09-gameplay-settings/CHECKPOINT.md). The pre-trim graphics snapshot is preserved locally outside the repository at `/Users/marcus/Claude/australian-bbq-recovery-2026-11-09/graphics-finish-checkpoint.tar.gz`.
