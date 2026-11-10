@@ -1,3 +1,7 @@
+# Smoko browser publication · 10 November 2026
+
+Game source `6205a6f`, protocol 28. [Play online](https://attached-modifications-servers-sussex.trycloudflare.com/rust/) · [Smoko changes and clips](2026-11-10-shelter-approach/review.html). The public page, game code, shelter, surroundings and prep-table sign matched the verified local release. Two clients exchanged messages in both directions through the public relay. The temporary Cloudflare link depends on this Mac, its game server and the tunnel staying online. The previous browser bundle is available in Git at `72113a1:public/rust`.
+
 # Smoko entrance, cooking station and browser gameplay · 10 November 2026
 
 Local review build on top of 72113a1. The shelter sign and dusty road approach are ready to compare. Two browser players verified the exterior carry camera and return to first person. The live ute check found a misplaced collider. The corrected browser build supports a jump onto the visible tray beside the servo. [Review the views and clips](2026-11-10-shelter-approach/review.html) · [Measurements and rollback](2026-11-10-shelter-approach/CHECKPOINT.md).
