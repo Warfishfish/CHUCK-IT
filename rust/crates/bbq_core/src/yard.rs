@@ -320,7 +320,6 @@ impl Yard {
             }
         }
         y.colliders.extend(crate::bush_servo::colliders());
-        y.colliders.extend(crate::bush_servo::ute_colliders());
         y
     }
 

@@ -9,13 +9,16 @@ pub const BBQ_OFFSET_Z: f32 = 6.;
 
 /// Collision surfaces matched to the Blender ute's authored body at its placed world position.
 /// The bonnet, cab roof and tray floor are separate so a jump can land on each visible surface.
-pub fn ute_colliders() -> Vec<Collider> {
+fn ute_colliders() -> impl Iterator<Item = Collider> {
+    // Blender (6.7, 31.4) maps to (6.7, -31.4) on the game ground plane.
+    let x = 6.7 + SERVO_OFFSET.0;
+    let z = -31.4 + SERVO_OFFSET.1;
     [
-        (-1.1, 40.9, 1.65, 2.12, 1.41), // bonnet
-        (0.4, 40.9, 1.8, 2.02, 2.33),   // cab roof
-        (2.4, 40.9, 2.3, 1.95, 0.85),  // tray floor
-        (0.7, 40.9, 5.5, 2.05, 0.70), // chassis and wheel line
-    ].into_iter().map(|(x,z,w,d,h)| Collider::centred(x,z,w,d,h).of(Kind::Vehicle)).collect()
+        (-1.8, 1.65, 2.12, 1.41), // bonnet
+        (-0.3, 1.8, 2.02, 2.33),  // cab roof
+        (1.7, 2.3, 1.95, 0.85),   // tray floor
+        (0.0, 5.5, 2.05, 0.70),   // chassis
+    ].into_iter().map(move |(dx, w, d, h)| Collider::centred(x + dx, z, w, d, h).of(Kind::Vehicle))
 }
 
 /// Closed shop and reachable forecourt solids in the original model's coordinates.
@@ -23,7 +26,6 @@ pub fn servo_colliders() -> Vec<Collider> {
     let mut boxes = vec![
         (-8.,-29.,23.,7.,4.5), (-8.,-25.,24.1,1.85,0.24),
         (-18.,-24.85,1.9,1.05,1.49),
-        (6.4,-31.4,1.8,2.05,2.33), (4.9,-31.4,1.65,2.12,1.41), (8.4,-31.4,2.3,2.12,1.37),
         (-12.72,-24.77,0.92,0.62,1.34), (2.1,-24.77,1.0,0.62,1.2),
     ];
     for x in [-19.2,-12.4,-5.7,3.2] { boxes.push((x,-24.25,0.19,0.19,3.52)); }
@@ -33,7 +35,7 @@ pub fn servo_colliders() -> Vec<Collider> {
         boxes.push((x,-26.15,0.62,0.55,1.85));
         for dx in [-0.8,0.8] { boxes.push((x+dx,-25.32,0.13,0.13,0.68)); }
     }
-    boxes.into_iter().map(|(x,z,w,d,h)| Collider::centred(x+SERVO_OFFSET.0,z+SERVO_OFFSET.1,w,d,h)).collect()
+    boxes.into_iter().map(|(x,z,w,d,h)| Collider::centred(x+SERVO_OFFSET.0,z+SERVO_OFFSET.1,w,d,h)).chain(ute_colliders()).collect()
 }
 pub const CENTRE: (f32, f32) = (0., 10.);
 pub const SCORE_RADIUS: f32 = 3.5;
@@ -268,7 +270,7 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
  use super::*;
  #[test] fn servo_solids_fit_inside_fence() {
     let solids=servo_colliders();
-    assert_eq!(solids.len(),22);
+    assert_eq!(solids.len(),23);
     for c in solids {
         assert!(c.x0 > -33. && c.x1 < 33. && c.z0 > -24. && c.z1 < -14.);
     }

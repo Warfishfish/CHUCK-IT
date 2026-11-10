@@ -1,3 +1,15 @@
+# Smoko entrance, cooking station and browser gameplay · 10 November 2026
+
+Local review build on top of 72113a1. The shelter sign and dusty road approach are ready to compare. Two browser players verified the exterior carry camera and return to first person. The live ute check found a misplaced collider. The corrected browser build supports a jump onto the visible tray beside the servo. [Review the views and clips](2026-11-10-shelter-approach/review.html) · [Measurements and rollback](2026-11-10-shelter-approach/CHECKPOINT.md).
+
+# Smoko cooking station · 9 November 2026
+
+Local visual update to the shared polished grill and prep table. The [comparison page](2026-11-09-cookstation/review.html) includes the new Smoko views and the recovered Backyard E19.3 pair. [Measurements and recovery](2026-11-09-cookstation/CHECKPOINT.md).
+
+# Browser gameplay review and concept-art graphics backlog — 9 November 2026
+
+Solo and host team bot-count controls were checked in the published browser; settings were restored. A Bush Servo Smoko round started and bots interacted. The live ute landing and carried-player exterior camera still need clear hands-on visual confirmation. The previously labelled BBQ before/after files are hash-identical, so the graphics comparison remains pending. A baseline release capture attempt from the earlier commit spent over six minutes in optimized LTO and was stopped; no game code or browser bundle changed. [Review notes](2026-11-09-browser-graphics-review/REVIEW.md) · [Arena-first graphics backlog](../CONCEPT_ART_GRAPHICS_BACKLOG.md).
+
 # Browser release — 9 November 2026
 
 The browser bundle for source `ac513c9` is published at [play online](https://twins-hepatitis-led-terrorism.trycloudflare.com/rust/). Protocol 28 is unchanged. The live menu loads, critical bundle hashes match, and the public two-way relay passed. Refresh clients and create a fresh yard. The temporary link requires the Mac, local server and Cloudflare tunnel to stay running. [Publication details and rollback](2026-11-09-browser-update/PUBLICATION.md).

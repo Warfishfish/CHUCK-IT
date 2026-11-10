@@ -6,6 +6,10 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 
 8 November — items 1–3 are in the committed history. Items 4 and 5 are implemented and published in source commit 075d0fd and browser publication e36c03d. [Full-lap Race route and visible gaze](checkpoints/2026-11-08-race-gaze/review.html). Smoko vividness pass is committed, pushed and published; [actual captures](checkpoints/2026-11-08-concept-vivid-2/review.html). Continue with the next concept-art graphics item when requested.
 
+10 November — the local shelter approach and cooking station are ready for review. Both gameplay checks below are complete. [Captures and recordings](checkpoints/2026-11-10-shelter-approach/review.html).
+
+9 November — solo and host bot-count controls (including team allocation), Smoko ute jump surfaces and carried-player exterior camera are implemented, tested and published. Browser review confirmed the solo/team controls and that Smoko starts; the live ute landing and carried-player camera still need a clear hands-on visual check. [Review notes](checkpoints/2026-11-09-browser-graphics-review/REVIEW.md). E19.3 now includes independent [BBQ captures and the Smoko cooking station update](checkpoints/2026-11-09-cookstation/review.html). Follow the arena-first [concept-art graphics backlog](CONCEPT_ART_GRAPHICS_BACKLOG.md).
+
 [Five-feature coding plan and acceptance tests](DEVELOPMENT-PLAN.md)
 
 These are queued alongside the Smoko graphics roadmap. Work one item at a time and present it for review. The picnic bend and gum shade are ready for local review. Shelter roof, sign and timber materials are next in the graphics sequence.
@@ -27,9 +31,9 @@ These are queued alongside the Smoko graphics roadmap. Work one item at a time a
 - Dildo and noodle flop for the toys on the ground, in the air and in other people's hands
 
 ## Gameplay
-- **Bot count and team allocation (new, 9 Nov 2026):** Let Solo players and multiplayer hosts choose the total number of bots before a round. In team modes, let the host distribute bots between teams (including a clear auto-balance option). Keep team totals valid as settings change, replicate the host's choice to guests, and use the same setting for round setup and results. Preserve current defaults unless the player changes them.
-- **Jump onto the car (new, 9 Nov 2026):** Make the existing car a reliably jumpable/climbable surface. Inspect its visible geometry and player collision first; support clean landings and walking on the roof/bonnet where appropriate without snagging on decorative parts, clipping, jitter or unintended launch. Keep the car's existing location and appearance.
-- **Outside camera while being carried (new, 9 Nov 2026):** When a player is picked up/carried, smoothly pull the view back to a readable third-person/exterior camera so they can see the carrier and surroundings. Restore the normal camera smoothly when dropped, thrown, rescued, respawned or the round ends. Keep controls and camera collision comfortable, and ensure the carried player's view changes locally without changing the carrier's view or authoritative carry gameplay.
+- **Bot count and team allocation (implemented/published 9 Nov 2026):** Solo and host bot controls, including per-team counts, are implemented and automated checks pass. Browser controls and total updates were confirmed; settings restored to defaults. See the [browser review](checkpoints/2026-11-09-browser-graphics-review/REVIEW.md).
+- **Jump onto the car (implemented/published 9 Nov 2026):** Focused movement tests cover ute surfaces and a jump onto the tray. The 10 November browser check found a misplaced floor. The corrected local build passed the real jump and standing check. [Ute and camera clips](checkpoints/2026-11-10-shelter-approach/review.html).
+- **Outside camera while being carried (implemented/published 9 Nov 2026):** Camera eases to an exterior view for the carried player and returns on release. A two-player browser session verified pickup, the exterior guest camera and the return to first person on release.
 - (done 11 Oct 2026: Splash and Neon Lucky dildos, Cheeky-mode beer and rum bottles)
 - Teddies on the trampoline: tune the bounce by feel
 - Hand and first-person feel checks (flop, throw, slap) on Marcus's Mac

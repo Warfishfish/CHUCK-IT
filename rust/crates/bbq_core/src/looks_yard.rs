@@ -598,7 +598,7 @@ fn bbq_styled_facing_yard() -> Vec<Part> {
     let silver = matt(0xb4bcc0).material(Tex::Metal, 1.5);
     let steel = matt(0x8a9298).material(Tex::Metal, 1.5);
     let dark = matt(0x2a2d31).material(Tex::Metal, 1.5);
-    let red = matt(0xc43c2c).material(Tex::Metal, 1.2);
+    let red = matt(0xa23929).material(Tex::Metal, 1.2);
     let (bx, bz) = (-6.0f32, -18.0f32);
     let mut v = vec![
         // cabinet and shelf
@@ -632,6 +632,21 @@ fn bbq_styled_facing_yard() -> Vec<Part> {
     // The rounded lid sits further back and higher so the grate remains visible beneath it.
     let hood_z = bz - 0.55;
     v.push(Part::new(Shape::Capsule { r: 0.34, len: 1.0, cap: 6, radial: 12 }, red).at(bx + 0.03, 1.62, hood_z).turn(0.0, 0.0, HALF_PI).stretch(1.0, 1.0, 0.8));
+    // Raised enamel thermometer on the side visible from the yard. Layer the face
+    // just beyond the curved hood so the needle stays legible from the approach.
+    let face_z = hood_z - 0.29;
+    for (radius, depth, surface, z) in [
+        (0.145, 0.065, dark, face_z + 0.021),
+        (0.121, 0.014, matt(0xffedc8), face_z - 0.016),
+    ] {
+        v.push(cyl(radius, radius, depth, 20, surface, bx, 1.64, z).turn(HALF_PI, 0.0, 0.0));
+    }
+    let ink_z = face_z - 0.028;
+    for angle in [-1.14_f32, 0.0, 1.14] {
+        let tick = |r: f32| V3::new(bx + r * angle.sin(), 1.64 + r * angle.cos(), ink_z);
+        v.push(rod(tick(0.075), tick(0.101), 0.009, dark));
+    }
+    v.push(rod(V3::new(bx, 1.62, ink_z), V3::new(bx - 0.052, 1.692, ink_z), 0.012, red));
     // Two compact hinges make the raised lid read as attached to the firebox.
     for x in [-0.48f32, 0.48] {
         v.push(cyl(0.055, 0.055, 0.16, 10, steel, bx + x, 1.31, bz - 0.34).turn(0.0, 0.0, HALF_PI));
@@ -1711,6 +1726,19 @@ fn bbq(polished: bool) -> Vec<Part> {
     // the prep table with raw steaks and a plate of fish
     let (mx, mz, mw, md, mh) = MEAT_TABLE;
     v.push(cuboid(mw, 0.06, md, matt(0xc79a61), mx, mh - 0.03, mz));
+    if polished {
+        // The apron carries the warning sign. Battens tie the three shelf boards
+        // to the legs inside the original table footprint.
+        let painted = matt(0x526e5b).material(Tex::Wood, 1.4);
+        let timber = matt(0xae8559).material(Tex::Wood, 1.3);
+        v.push(cuboid(mw - 0.06, 0.29, 0.055, painted, mx, mh - 0.18, mz + md / 2.0 - 0.024).bevel(0.009));
+        for x in [-0.65, 0.65] {
+            v.push(cuboid(0.075, 0.075, 0.70, painted, mx + x, 0.19, mz));
+        }
+        for z in [-0.208, 0.0, 0.208] {
+            v.push(cuboid(1.33, 0.045, 0.19, timber, mx, 0.25, mz + z).bevel(0.007));
+        }
+    }
     for (a, b) in [(-0.65, -0.32), (0.65, -0.32), (-0.65, 0.32), (0.65, 0.32)] {
         v.push(cuboid(
             0.06,

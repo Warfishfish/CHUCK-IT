@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smoko shelter approach and gameplay</title>
+<style>
+*{box-sizing:border-box}body{max-width:1440px;margin:auto;padding:clamp(1rem,3vw,3rem);background:#faf1df;color:#233d35;font:1rem/1.55 system-ui,sans-serif}
+h1,h2{line-height:1.15}h1{font-size:clamp(2rem,4vw,3.5rem);margin:.2rem 0}section{margin:2rem 0 3rem}
+.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}figure{margin:0}img,video{display:block;width:100%;height:auto;border-radius:4px}video{background:#182722}
+figcaption{margin:.35rem 0 .75rem}a{color:#205d50}@media(max-width:720px){.pair{grid-template-columns:1fr}}
+</style></head><body><main>
+<h1>Smoko shelter approach</h1>
+<p>The tyre and timber rail frame the path to the shelter. The wider green sign reads across the road, and red dirt breaks up the outer edge of the bitumen.</p>
+<section><h2>The same view from the entrance</h2>
+<div class="pair"><figure><a href="entrance-before.png"><img src="entrance-before.png" alt="Smoko entrance before the sign and road edge changes"></a><figcaption>Before · native game</figcaption></figure>
+<figure><a href="entrance-after.png"><img src="entrance-after.png" alt="Wider shelter sign seen beyond the tyres and dusted road"></a><figcaption>After · same camera and field of view</figcaption></figure></div>
+<video controls playsinline preload="none" poster="browser-approach.png" src="approach-walk.webm"></video><p>Entrance at walking speed in Chrome. A six-second stationary check beside this approach averaged 13.33 ms per frame before and after. The slowest 5% started at 14.70 ms in both runs.</p></section>
+<section><h2>Cooking station</h2><div class="pair">
+<figure><a href="published-cookstation.png"><img loading="lazy" src="published-cookstation.png" alt="Previous local copy of the published browser build"></a><figcaption>Published build</figcaption></figure>
+<figure><video controls playsinline preload="none" poster="browser-cookstation.png" src="cookstation-walk.webm"></video><figcaption>Local build · walk past the grill dial and painted prep-table sign</figcaption></figure></div></section>
+<section><h2>Ute and carried-player camera</h2><div class="pair">
+<figure><video controls playsinline preload="none" poster="ute-landed.png" src="ute-jump.webm"></video><figcaption>Host jumps onto the ute beside the servo and stays on the tray.</figcaption></figure>
+<figure><video controls playsinline preload="none" poster="carry-outside.png" src="carry-camera.webm"></video><figcaption>Guest view during pickup, outside carry and release in a two-player browser round.</figcaption></figure></div>
+<p>Carry stills · <a href="carry-first-person.png">before pickup</a> · <a href="carry-host.png">carrier's view</a> · <a href="carry-outside.png">guest being carried</a> · <a href="carry-released.png">guest after release</a>.</p></section>
+<p><a href="CHECKPOINT.md">Measurements, changed files and recovery</a></p></main></body></html>

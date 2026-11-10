@@ -460,7 +460,7 @@ impl Mover {
         let (half_x,half_z)=if yard.race {(52.,37.)}else if smoko_ute_gate {(YARD_HALF_X,44.0)}else{(YARD_HALF_X,YARD_HALF_Z)};
         self.x = self.x.clamp(-half_x + 0.45, half_x - 0.45);
         self.z = self.z.clamp(-half_z + 0.45, half_z - 0.45);
-        // The only playable route through the north fence is the visible ute gate. Once through,
+        // The only playable route through the north fence is the open gate. Once through,
         // keep players in the narrow access lane until they return to the arena.
         if yard.features.smoko && self.z > YARD_HALF_Z && !smoko_ute_gate {
             self.z = YARD_HALF_Z - 0.45;
@@ -862,31 +862,37 @@ mod tests {
     }
 
     #[test]
-    fn smoko_ute_is_reachable_only_through_gate_and_has_jumpable_surfaces() {
+    fn smoko_fence_access_lane() {
         let yard=Yard::smoko(Features::default(),0);
         let mut through=Mover::new(0.0,22.0);
         settle(&mut through,&yard);
         walk(&mut through,&yard,(0.0,1.0),4.0,&Modifiers::default());
-        assert!(through.z>YARD_HALF_Z+5.0,"gate should lead to the ute: z={}",through.z);
+        assert!(through.z>YARD_HALF_Z+5.0,"gate should lead outside: z={}",through.z);
         let mut outside=Mover::new(12.0,22.0);
         settle(&mut outside,&yard);
         walk(&mut outside,&yard,(0.0,1.0),2.0,&Modifiers::default());
         assert!(outside.z<=YARD_HALF_Z-0.4,"closed fence remains a boundary: z={}",outside.z);
 
+    }
+
+    #[test]
+    fn smoko_ute_can_be_boarded_and_stood_on_beside_servo() {
+        let yard = Yard::smoko(Features::default(), 0);
+        assert_eq!(yard.floor_at(2.4, 40.9, 0.85, 0.85), 0.0);
         for (x,top) in [(-1.1,1.41),(0.4,2.33),(2.4,0.85)] {
-            assert!((yard.floor_at(x,40.9,top,top)-top).abs()<0.01);
+            assert!((yard.floor_at(x,-21.9,top,top)-top).abs()<0.01);
         }
-        // Approach from inside the gate and jump onto the lower tray floor. The bonnet is
-        // intentionally higher than a single grounded jump; it can be reached from the chassis.
-        let mut jumper=Mover::new(2.4,39.3);
+        let mut jumper=Mover::new(2.4,-20.3);
         settle(&mut jumper,&yard);
         jumper.try_jump(false);
         let mut landed=false;
         for _ in 0..180 {
-            jumper.step(DT,MoveInput{wish:(0.0,0.25),..Default::default()},&Modifiers::default(),&yard);
+            jumper.step(DT,MoveInput{wish:(0.0,-0.25),..Default::default()},&Modifiers::default(),&yard);
             if jumper.grounded && (jumper.y-0.85).abs()<0.02 {landed=true;break;}
         }
         assert!(landed,"existing jump should land on the ute tray; y={} z={}",jumper.y,jumper.z);
+        for _ in 0..60 { jumper.step(DT, MoveInput::default(), &Modifiers::default(), &yard); }
+        assert!(jumper.grounded && (jumper.y - 0.85).abs() < 0.02);
     }
 
     #[test]
