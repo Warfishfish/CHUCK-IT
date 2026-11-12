@@ -1,6 +1,6 @@
-# Smoko picnic island · 11 November 2026
+# Smoko picnic island browser publication · 12 November 2026
 
-Local art/layout pass with collision alignment. The [before/after review](2026-11-11-picnic-island/review.html) is ready. Rust workspace tests passed after enabling local access for the relay integration test. Single-run native timings vary; the browser sample stayed effectively flat. Awaiting Marcus's review before commit or publication. Details and recovery steps: [checkpoint](2026-11-11-picnic-island/CHECKPOINT.md).
+Source commit `5dbdd56`, protocol 28. WebAssembly rebuilt into the 81-file `public/rust/` bundle; local HTTP checks returned 200 for the page, metadata and updated assets. The prior Cloudflare hostname did not resolve and no tunnel process was running, so this verifies the local bundle only. [Visual comparison](2026-11-11-picnic-island/review.html) · [browser build details](2026-11-11-picnic-island/BROWSER-PUBLICATION.md) · [scope and recovery](2026-11-11-picnic-island/CHECKPOINT.md).
 
 # Smoko browser publication · 10 November 2026
 
