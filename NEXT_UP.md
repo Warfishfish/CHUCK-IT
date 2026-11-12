@@ -4,6 +4,8 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 
 ## Active backlog additions · 7 November 2026
 
+12 November — Marcus approved the Smoko picnic-island layout pass for publication. The car jump is already implemented and in the browser build; the tray landing check reached y=0.85 m in [the 10 November capture pack](checkpoints/2026-11-10-shelter-approach/review.html). Next arena graphics focus: compare the current elliptical road around the shelter with the near-circular loop in the [Bush Servo concept](concept%20art/exec-6ea4e9b3-70f7-4745-b24d-773f23cbe0ae.png), then prototype a rounder playable footprint without pushing the road through the fence or into the shop.
+
 8 November — items 1–3 are in the committed history. Items 4 and 5 are implemented and published in source commit 075d0fd and browser publication e36c03d. [Full-lap Race route and visible gaze](checkpoints/2026-11-08-race-gaze/review.html). Smoko vividness pass is committed, pushed and published; [actual captures](checkpoints/2026-11-08-concept-vivid-2/review.html). Continue with the next concept-art graphics item when requested.
 
 10 November — the local shelter approach and cooking station are ready for review. Both gameplay checks below are complete. [Captures and recordings](checkpoints/2026-11-10-shelter-approach/review.html).

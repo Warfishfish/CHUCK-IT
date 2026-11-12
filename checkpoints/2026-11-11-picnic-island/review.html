@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smoko — picnic island</title>
+<style>
+  body{font:16px/1.55 system-ui,sans-serif;background:#202b2b;color:#f3e9d6;margin:30px auto;max-width:1280px;padding:0 20px}
+  h1,h2{color:#f3c77b}h1{font-size:2rem}a{color:#8ed8ca}p{max-width:850px}
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0 28px}
+  figure{margin:0}img{width:100%;height:auto;border-radius:9px;display:block}figcaption{padding:8px 2px;color:#d3c9b7}
+  table{border-collapse:collapse;width:100%;max-width:850px;margin:12px 0 26px}td,th{text-align:left;padding:9px 12px;border-bottom:1px solid #68706c}
+  .note{background:#34413e;border-radius:9px;padding:14px 18px;max-width:850px}
+  @media(max-width:700px){.pair{grid-template-columns:1fr}}
+</style>
+<h1>Smoko picnic island</h1>
+<p>Actual game captures · 11 November 2026 · Approved for commit and browser publication on 12 November. The pass moves the esky and bin into the shelter-side picnic group, varies the front rock bank, and aligns collision and ground details with the new layout.</p>
+
+<h2>Entrance view</h2>
+<p>Same native camera and 1280 × 800 capture setup. The foreground esky and bin move back toward the shelter-side picnic area.</p>
+<div class="pair">
+  <figure><a href="entrance-before.png"><img src="entrance-before.png" alt="Smoko entrance before the picnic island pass"></a><figcaption>Before</figcaption></figure>
+  <figure><a href="entrance-after.png"><img src="entrance-after.png" alt="Smoko entrance after the picnic island pass"></a><figcaption>After</figcaption></figure>
+</div>
+
+<h2>Picnic bench view</h2>
+<p>Same native camera and capture setup. The stones have more varied shapes, and the route beside the table is clearer.</p>
+<div class="pair">
+  <figure><a href="bench-before.png"><img src="bench-before.png" alt="Picnic bench before the layout pass"></a><figcaption>Before</figcaption></figure>
+  <figure><a href="bench-after.png"><img src="bench-after.png" alt="Picnic bench after the layout pass"></a><figcaption>After</figcaption></figure>
+</div>
+
+<h2>Browser gameplay</h2>
+<p>These are solo gameplay captures from different runs. Player and item positions differ, so use them as a scene-scale check rather than a matched A/B pair.</p>
+<div class="pair">
+  <figure><a href="browser-before.png"><img src="browser-before.png" alt="Smoko browser gameplay before the pass"></a><figcaption>Before</figcaption></figure>
+  <figure><a href="browser-after.png"><img src="browser-after.png" alt="Smoko browser gameplay after the pass"></a><figcaption>After</figcaption></figure>
+</div>
+
+<h2>Performance sample</h2>
+<table>
+  <tr><th>View</th><th>Mean before → after</th><th>p95 before → after</th></tr>
+  <tr><td>Native entrance</td><td>18.687 → 9.639 ms</td><td>33.650 → 15.484 ms</td></tr>
+  <tr><td>Native bench</td><td>8.169 → 9.858 ms</td><td>10.054 → 14.417 ms</td></tr>
+  <tr><td>Browser sample</td><td>13.330 → 13.329 ms</td><td>14.8 → 14.9 ms</td></tr>
+</table>
+<p>Native runs are single 600-sample captures and vary substantially; they do not show a reliable trend. Scene counts are unchanged: 2,632 meshes, 862 materials and 5,798 mesh entities. Browser frame time is effectively unchanged.</p>
+
+<div class="note"><strong>Project checks:</strong> the Rust workspace test suite passed with local network access enabled for its temporary relay test. No separate two-player art check was run. Detailed scope and recovery notes are in <a href="CHECKPOINT.md">CHECKPOINT.md</a>.</div>
+</html>
