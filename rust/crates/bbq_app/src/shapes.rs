@@ -3,6 +3,7 @@
 //! Each builder follows the three.js geometry of the same name step by step, so sizes, the way
 //! pictures wrap round a shape and which way each shape faces all match the browser game.
 
+use bbq_core::bush_servo::{ROAD_INNER_RADIUS, ROAD_OUTER_RADIUS, ROAD_SEGMENTS};
 use bbq_core::looks::Shape;
 use bevy::asset::RenderAssetUsages;
 use bevy::mesh::{Indices, PrimitiveTopology};
@@ -534,12 +535,12 @@ pub fn servo_ground_mesh()->Mesh {
 
 /// Bush Servo road only: chipped shoulders and world-aligned baked surface UVs.
 pub fn servo_road_mesh() -> Mesh {
-    let mut b=ring(18.,26.,96);
+    let mut b=ring(ROAD_INNER_RADIUS,ROAD_OUTER_RADIUS,ROAD_SEGMENTS as u32);
     for (p,uv) in b.pos.iter_mut().zip(b.uv.iter_mut()) {
         let a=p[1].atan2(p[0]);
         let r=p[0].hypot(p[1]);
         let edge=(17.*a).sin()*0.18+(39.*a+1.2).sin()*0.11;
-        let new_r=r+edge*if r>22. {1.4}else{1.};
+        let new_r=r+edge*if r>(ROAD_INNER_RADIUS+ROAD_OUTER_RADIUS)*0.5 {1.4}else{1.};
         p[0]=new_r*a.cos();p[1]=new_r*a.sin();
         *uv=[p[0]/58.+0.5,p[1]/58.+0.5];
     }

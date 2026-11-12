@@ -40,9 +40,12 @@ pub fn servo_colliders() -> Vec<Collider> {
 pub const CENTRE: (f32, f32) = (0., 10.);
 pub const SCORE_RADIUS: f32 = 3.5;
 pub const ROAD_SEGMENTS: usize = 96;
+pub const ROAD_CENTRE_Z: f32 = 6.5;
+pub const ROAD_INNER_RADIUS: f32 = 16.5;
+pub const ROAD_OUTER_RADIUS: f32 = 19.0;
+pub const ROAD_DASH_RADIUS: f32 = (ROAD_INNER_RADIUS + ROAD_OUTER_RADIUS) * 0.5;
 // Ground tuning: the baked colour maps carry the palette.
 const DIRT: u32 = 0xffffff;
-const ROAD_Z_SCALE: f32 = 0.65;
 const GROUND_STONES: usize = 96;
 const TIMBER: u32 = 0x956b43;
 const CREAM: u32 = 0xe7d3ac;
@@ -141,15 +144,15 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
     let mut p=vec![Part::new(Shape::Quad{w:260.,h:260.},Surface::matt(DIRT).textured(Tex::ServoDirt).repeating(32.,32.).no_shadow()).at(0.,-0.018,0.).turn(-FRAC_PI_2,0.,0.)];
     // One opaque irregular annulus: worn asphalt receives normal ground shadows.
     // Purely visual; movement and projectile collision remain the shared flat ground.
-    let mut road=Part::new(Shape::Ring{inner:18.,outer:26.,seg:ROAD_SEGMENTS as u32},
+    let road=Part::new(Shape::Ring{inner:ROAD_INNER_RADIUS,outer:ROAD_OUTER_RADIUS,seg:ROAD_SEGMENTS as u32},
         Surface::matt(0xffffff).textured(Tex::ServoRoad).no_shadow())
-        .at(0.,0.008,6.).turn(-FRAC_PI_2,0.,0.);
-    road.scale=V3::new(1.,ROAD_Z_SCALE,1.);p.push(road);
+        .at(0.,0.008,ROAD_CENTRE_Z).turn(-FRAC_PI_2,0.,0.);
+    p.push(road);
     // Low embedded stones at shoulders: below boot height, never an implied obstacle.
     for i in 0..GROUND_STONES {
         let a=i as f32*2.399963;
-        let r=if i%2==0 {26.4+(i%7) as f32*0.17} else {17.4-(i%5) as f32*0.13};
-        let x=r*a.cos();let z=6.+r*a.sin()*ROAD_Z_SCALE;
+        let r=if i%2==0 {ROAD_OUTER_RADIUS+0.4+(i%7) as f32*0.17} else {ROAD_INNER_RADIUS-0.13-(i%5) as f32*0.13};
+        let x=r*a.cos();let z=ROAD_CENTRE_Z+r*a.sin();
         if x*x+(z-10.)*(z-10.)<45. {continue;}
         let size=0.045+(i%4) as f32*0.014;
         let mut stone=Part::new(Shape::Ico{r:size,detail:0},Surface::matt(if i%3==0{0xa97750}else{0xc19362}))
@@ -159,8 +162,8 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
     for i in 0..ROAD_SEGMENTS {
         if i%3!=0 {continue;}
         let a=i as f32*TAU/ROAD_SEGMENTS as f32;
-        let x=18.5*a.sin();let z=6.+12.025*a.cos();
-        let yaw=(18.5*a.cos()).atan2(-12.025*a.sin());
+        let x=ROAD_DASH_RADIUS*a.sin();let z=ROAD_CENTRE_Z+ROAD_DASH_RADIUS*a.cos();
+        let yaw=(ROAD_DASH_RADIUS*a.cos()).atan2(-ROAD_DASH_RADIUS*a.sin());
         p.push(block(0.10,0.008,0.75,x,0.016,z,0x9f9179).turn(0.,yaw,0.));
     }
     // Level delivery pad: visual ground only, never obstructs throws or carried victims.
@@ -281,7 +284,7 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
    let c=colliders().into_iter().find(|c|(c.x0-(x-w/2.)).abs()<0.001 && (c.z0-(z-d/2.)).abs()<0.001).unwrap();
    assert!(c.no_top && (c.h-h).abs()<0.001);
    // Trunk and 1.7m planting island stay within the inner road edge.
-   assert!((x.abs()+1.7).hypot(((z-6.).abs()+1.7)/ROAD_Z_SCALE)<18.);
+   assert!((x.abs()+1.7).hypot((z-ROAD_CENTRE_Z).abs()+1.7)<ROAD_INNER_RADIUS,"gum planting island enters the road at {x},{z}");
    for &(sx,sz) in &crate::yard::CHAR_SPAWNS {
     assert!((sx-x).abs()>w/2.+0.6 || (sz-z).abs()>d/2.+0.6);
    }
@@ -318,8 +321,8 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
    assert!(x.abs()+w/2.<32. && z.abs()+d/2.<23.);
    // Entire boulder stays beyond the irregular outer asphalt shoulder.
    let near_x=(x.abs()-w/2.).max(0.);
-   let near_z=((z-6.).abs()-d/2.).max(0.)/ROAD_Z_SCALE;
-   assert!(near_x.hypot(near_z)>26.5);
+   let near_z=((z-ROAD_CENTRE_Z).abs()-d/2.).max(0.);
+   assert!(near_x.hypot(near_z)>ROAD_OUTER_RADIUS+0.5);
   }
  }
  #[test] fn small_props_leave_scoring_spawns_and_approaches_clear(){
@@ -343,11 +346,11 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
   }
  }
  #[test] fn small_props_keep_asphalt_clear(){
-  // Conservative ellipse envelope around every prop; the playable annulus is 18..26m.
+  // Conservative circle envelope around every prop; the visual road is an annulus.
   for &(x,z,w,d,_) in &PROP_SOLIDS {
-   let near=(x.abs()-w/2.).max(0.).hypot(((z-6.).abs()-d/2.).max(0.)/ROAD_Z_SCALE);
-   let far=(x.abs()+w/2.).hypot(((z-6.).abs()+d/2.)/ROAD_Z_SCALE);
-   assert!(far<17.8 || near>26.5,"prop at {x},{z} intrudes on road: {near}..{far}");
+   let near=(x.abs()-w/2.).max(0.).hypot(((z-ROAD_CENTRE_Z).abs()-d/2.).max(0.));
+   let far=(x.abs()+w/2.).hypot((z-ROAD_CENTRE_Z).abs()+d/2.);
+   assert!(far<ROAD_INNER_RADIUS || near>ROAD_OUTER_RADIUS,"prop at {x},{z} intrudes on road: {near}..{far}");
   }
  }
  #[test] fn solid_dimensions_match_visuals(){let p=parts();for c in colliders().into_iter().take(colliders().len()-servo_colliders().len()){assert!(p.iter().any(|p|matches!(p.shape,Shape::Cuboid{w,h,d} if (w-(c.x1-c.x0)).abs()<0.001&&(d-(c.z1-c.z0)).abs()<0.001&&(h-c.h).abs()<0.001)&&(p.pos.x-(c.x0+c.x1)/2.).abs()<0.001&&(p.pos.z-(c.z0+c.z1)/2.).abs()<0.001));}}

@@ -1,3 +1,7 @@
+# Smoko Arena circular road · 12 November 2026
+
+Approved circular Bush Servo road, with the layout, lane markings and custom road mesh sharing one radius definition. Workspace tests and optimized WebAssembly build passed. The [concept comparison and captures](2026-11-12-round-arena/review.html) show the visual pass. [Details and local test command](2026-11-12-round-arena/CHECKPOINT.md). The car jump is already in the Rust browser build; its tray landing is documented in the [10 November capture pack](2026-11-10-shelter-approach/review.html).
+
 # Smoko picnic island browser publication · 12 November 2026
 
 Source commit `5dbdd56`, protocol 28. WebAssembly rebuilt into the 81-file `public/rust/` bundle; local HTTP checks returned 200 for the page, metadata and updated assets. The prior Cloudflare hostname did not resolve and no tunnel process was running, so this verifies the local bundle only. [Visual comparison](2026-11-11-picnic-island/review.html) · [browser build details](2026-11-11-picnic-island/BROWSER-PUBLICATION.md) · [scope and recovery](2026-11-11-picnic-island/CHECKPOINT.md).

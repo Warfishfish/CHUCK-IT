@@ -13,6 +13,7 @@
 - ✅ (Rust desktop and browser, 22 Oct 2026) Permanent menu navigation includes Customise, stays above the scrolling content, and resets content scrolling when changing tabs. Hosts and guests can reopen every menu after switching away.
 
 - ✅ WASD, Space jump, Shift sprint boost, Q swap item, right-click catch
+- ✅ (Rust desktop and browser, 12 Nov 2026) Bush Servo Smoko Arena road is a circular loop around the shelter, with the lane markings and shoulders aligned to the road mesh; existing prop clearance is preserved
 - ✅ 1.5x bigger yard with cover, a big deep pool (14 x 8), trampoline
 
 **Chucking and slapping**

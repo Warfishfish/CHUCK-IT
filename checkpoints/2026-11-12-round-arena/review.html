@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smoko Arena · circular road prototype</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#17130f;color:#f7eddb;font:16px/1.5 system-ui,sans-serif}main{max-width:1260px;margin:auto;padding:28px}h1,h2{line-height:1.15}h1{font-size:2rem;margin:0 0 8px}p{max-width:80ch;color:#d8cbb7}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin:20px 0 30px}figure{margin:0;background:#27211a;border:1px solid #55483a;border-radius:12px;overflow:hidden}figure img{display:block;width:100%;height:auto}figcaption{padding:10px 14px;color:#e8d9c4}section{margin:28px 0}li{margin:.4em 0}.concept img{max-height:640px;object-fit:contain;background:#0e0d0b}code{color:#f4ca87}
+</style>
+<main>
+<h1>Smoko Arena: rounder circuit prototype</h1>
+<p><strong>Approved for publication.</strong> This pass changes the Bush Servo arena road footprint to a circular annulus around the shelter, closer to the supplied concept. It keeps the existing props and playable yard bounds. It does not yet recreate the concept's servo buildings, detailed scenery, lighting, or art direction.</p>
+<section class="grid">
+ <figure class="concept"><img src="../../concept%20art/exec-6ea4e9b3-70f7-4745-b24d-773f23cbe0ae.png" alt="Bush Servo concept art with circular road around a central smoko shelter"><figcaption>Concept art · Bush Servo</figcaption></figure>
+ <figure><img src="round-before.png" alt="Prior Smoko map with compressed oval road"><figcaption>Before · compressed elliptical road</figcaption></figure>
+ <figure><img src="round-after.png" alt="Prototype Smoko map with circular road"><figcaption>Prototype · circular road footprint</figcaption></figure>
+</section>
+<section>
+<h2>What changed</h2>
+<ul>
+ <li>Replaced the compressed oval asphalt with a circular ring centered at <code>(0, 6.5)</code>, with 16.5 m inner and 19 m outer radii.</li>
+ <li>Moved the lane dashes and embedded shoulder stones onto the same circular path.</li>
+ <li>Shared the road dimensions with the custom Bevy mesh so its textured mesh follows the same footprint as the map layout.</li>
+ <li>Kept gameplay ground flat; the road remains visual only. Existing props, colliders, car, and shelter have not been moved.</li>
+</ul>
+<h2>Checks</h2>
+<p><code>cargo test --workspace</code> passed: 263 app tests and 452 core tests, with one pre-existing ignored test. A screenshot review capture was regenerated after the mesh change. The existing ute tray jump check remains in <a href="../2026-11-10-shelter-approach/review.html">the 10 November capture pack</a>; no jump code changed in this art pass.</p>
+<p>The screenshot's HUD and clouds obscure part of the circuit, so judge the footprint from the visible road edges and compare with the concept. The map remains a prototype and the other concept-art graphics are not part of this pass.</p>
+<p><strong>Next:</strong> continue toward the concept by matching the servo frontage and shelter surround, then refine perimeter fencing, rock groupings, and warm red-earth lighting as separate reviewable passes.</p>
+</section>
+</main>
+</html>
