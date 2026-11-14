@@ -33,6 +33,7 @@ for k,m in enumerate(wood):
 end=mat('Timber endgrain',(.33,.21,.115));dark=mat('Wood cracks',(.085,.048,.025));steel=mat('Old galvanized steel',(.43,.45,.41),.62,.45)
 rust=[mat('Corrugated iron '+str(i),c,.78,.22) for i,c in enumerate([(.43,.19,.095),(.53,.29,.16),(.38,.36,.30),(.57,.51,.40),(.30,.31,.28),(.58,.27,.12)])]
 bolt=mat('Dark iron fasteners',(.10,.105,.09),.55,.65);teal=mat('Weathered teal sign',(.07,.19,.17));cream=mat('Warm sign lettering',(.88,.77,.53))
+edge_wear=mat('Faded sign paint at upper rim',(.20,.25,.21),.92)
 runpy.run_path(str(ROOT/'art/bush-servo/shelter_materials.py'))['apply'](wood,rust,end,ROOT)
 
 def link(o):
@@ -111,10 +112,23 @@ for side in [-1,1]:
    for yy in [side*.45,side*4.25]:screw((xx,yy,4.43-.12*abs(yy)))
 cube('Ridge cap',(0,0,4.45),(9.4,.20,.07),steel,.025)
 for y in [-4.58,4.58]:cube('Weathered fascia',(0,y,3.86),(9.4,.14,.20),wood[3])
+# Narrow galvanized drip edges catch the sun beneath the two corrugated eaves.
+for side in [-1,1]:
+ cube('Galvanized eave edge',(0,side*4.68,3.86),(9.48,.035,.055),steel,.008)
 # Large framed sign on BOTH approaches; lower edge remains above character heads.
 for side in [-1,1]:
  y=side*4.70
  cube('SMOKO timber sign backing',(0,y,4.02),(4.25,.13,1.05),teal,.025)
+ # Uneven paint fade just below the upper frame; lettering remains on its own clean mesh.
+ verts=[];faces=[];steps=16
+ for i in range(steps):
+  x0=-2.02+4.04*i/steps;x1=-2.02+4.04*(i+1)/steps
+  depth0=.035+.055*(.5+.5*math.sin(i*2.13+side));depth1=.035+.055*(.5+.5*math.sin((i+1)*2.13+side))
+  yy=side*4.785;base=len(verts);top=4.525
+  verts.extend([(x0,yy,top),(x1,yy,top),(x1,yy,top-depth1),(x0,yy,top-depth0)])
+  faces.append((base,base+1,base+2,base+3) if side>0 else (base,base+3,base+2,base+1))
+ mesh=bpy.data.meshes.new('Faded paint along sign top');mesh.from_pydata(verts,[],faces);mesh.materials.append(edge_wear)
+ obj=bpy.data.objects.new('Subtle sign-top paint wear',mesh);collection.objects.link(obj);objects.append(obj)
  for x in [-2.16,2.16]:cube('Sign frame upright',(x,y,4.02),(.09,.19,1.17),wood[3],.015)
  for z in [3.46,4.58]:cube('Sign frame rail',(0,y,z),(4.4,.19,.09),wood[3],.012)
  # Text faces outward in Blender -Y/+Y, exported with the shelter.
@@ -158,4 +172,7 @@ next(n for n in scene.world.node_tree.nodes if n.type=='BACKGROUND').inputs[0].d
 scene.render.resolution_x=1200;scene.render.resolution_y=900;scene.render.resolution_percentage=100
 runpy.run_path(str(ROOT/'art/bush-servo/compact_glb.py'))['compact'](asset)
 finished,_=runpy.run_path(str(ROOT/'art/bush-servo/finish_arena_depth.py'))['finish'](asset.read_bytes(),'shelter');asset.write_bytes(finished)
+# Keep the later frontage pass's wider sign, then apply it to the new wear mesh too.
+approach=runpy.run_path(str(ROOT/'art/bush-servo/finish_approach.py'))
+doc,binary=approach['read_glb'](asset);approach['sign'](doc,binary);approach['write_glb'](asset,doc,binary)
 print('Exported',asset,'vertices',len(model.data.vertices),'polygons',len(model.data.polygons),'bytes',asset.stat().st_size)
