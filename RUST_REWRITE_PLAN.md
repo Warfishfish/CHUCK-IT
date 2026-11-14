@@ -77,7 +77,7 @@ One `requestAnimationFrame` loop, with the frame time capped at 50 ms. It is **n
   - Hangouts: the BBQ and meat table, the bar, smoko chairs (more chairs as more players join) and the chest (moves between 6 spots).
 - **Feature switches:** bar, BBQ, chest and smoko can each be turned off. Turning one off hides its meshes and removes its colliders.
 - **Teddy Heist arena:**
-  - Layout: an oval of stone steps with a half-round bay on each side, and a crate cross in the middle.
+  - Layout: an oval of stone steps with a half-round bay on each side, and a four-quadrant laser-tag maze of tall offset panels in the middle, with multiple open routes.
   - Bases: 2–4 walled team bases, each with a floor pad, a flag pole, a light beam and teddies.
   - Scoreboard: a big floating 4-sided cube.
 - **Spawn points:** fixed lists for items and characters, plus team spawns inside the bases in Heist.
@@ -246,7 +246,7 @@ The Rust version still draws items and props as plain shapes and does not look l
 ### Phase 2c: Sun-Baked Cartoon Realism (added 5 Oct 2026, Marcus)
 Its own list, worked one item at a time, highest impact first: see **`GRAPHICS_2C.md`** (inspection findings, decisions, and the checklist for characters, proportions, environment, backyard details, props, the Dildo Chest, animals, models, textures, materials, lighting, rendering, Blender workflow, high-detail assets and optimisation). Gameplay and the JavaScript game do not change.
 - [ ] Work through `GRAPHICS_2C.md` (tick items there; note here when a whole section is done)
-- [x] Phase 2c local look check completed on Marcus's Mac; latest actual captures reviewed. Marcus's approval remains pending; the full E19.3 pack still needs a matched BBQ before/after view.
+- [x] Phase 2c local look check completed on Marcus's Mac; latest actual captures reviewed. Marcus approved the checkpoint for commit and push on 14 Nov 2026; the completed E19.3 pack includes [matched BBQ views](checkpoints/2026-11-09-cookstation/review.html).
 
 ### Dazza fixes (5 Oct 2026, Marcus)
 - [x] Dazza no longer glitches when you grab food from the table: he turns at 13 rad/s instead of snapping up to 180 degrees in one frame, his walk animation speed is smoothed (it stuttered when the frame rate was not a multiple of the 60 Hz tick), a new speech line is not started for every steak, and he no longer dithers at the 5 m edge when he walks out to a thief

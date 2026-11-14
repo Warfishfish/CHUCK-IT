@@ -169,6 +169,8 @@ pub enum Tint {
     Stone(bool),
     /// The crates in the middle (the big ones, then the small ones).
     Crate(bool),
+    /// Warm-coloured laser-tag maze walls.
+    Maze(bool),
 }
 
 /// One solid piece of the Heist arena and what colour to draw it.
@@ -247,23 +249,26 @@ fn oval_steps() -> Vec<Piece> {
     v
 }
 
-/// A crate cross dead in the middle (so no base-to-base run is ever a straight line) and two
-/// small crates beside it.
-fn centrepiece() -> Vec<Piece> {
-    let big = |cx, cz, w, d| Piece {
-        collider: Collider::centred(cx, cz, w, d, WALL_HEIGHT).of(Kind::HeistCrate),
-        tint: Tint::Crate(false),
-    };
-    let small = |cx, cz| Piece {
-        collider: Collider::centred(cx, cz, 1.6, 1.6, WALL_HEIGHT).of(Kind::HeistCrate),
-        tint: Tint::Crate(true),
-    };
-    vec![
-        big(0.0, 0.0, 4.4, 1.3),
-        big(0.0, 0.0, 1.3, 4.4),
-        small(4.8, 2.8),
-        small(-4.6, -3.0),
-    ]
+/// Offset wall runs make a small four-quadrant arena with multiple attack routes.
+/// Panels are tall enough that a normal jump cannot skip the maze.
+fn maze_walls() -> Vec<Piece> {
+    let panels = [
+        (-9.0, -17.0, 0.7, 14.0, false),
+        (-9.0, 8.0, 0.7, 12.0, true),
+        (9.0, -8.0, 0.7, 12.0, true),
+        (9.0, 17.0, 0.7, 14.0, false),
+        (-1.0, -8.0, 9.0, 0.7, false),
+        (-16.0, 8.0, 7.0, 0.7, false),
+        (1.0, 8.0, 9.0, 0.7, true),
+        (16.0, 8.0, 7.0, 0.7, false),
+    ];
+    panels
+        .iter()
+        .map(|&(x, z, w, d, alt)| Piece {
+            collider: Collider::centred(x, z, w, d, 3.2).of(Kind::HeistCrate),
+            tint: Tint::Maze(alt),
+        })
+        .collect()
 }
 
 /// Everything solid that Heist adds to the yard, for `teams` teams.
@@ -274,7 +279,7 @@ pub fn arena(teams: usize) -> Vec<Piece> {
         v.extend(base_walls(def, *team));
     }
     v.extend(oval_steps());
-    v.extend(centrepiece());
+    v.extend(maze_walls());
     v
 }
 
@@ -633,17 +638,55 @@ mod tests {
     }
 
     #[test]
-    fn there_is_a_crate_cross_in_the_middle() {
-        let crates: Vec<_> = arena(2)
+    fn maze_has_open_routes_clear_of_bases_and_teddies() {
+        let walls: Vec<_> = arena(2)
             .into_iter()
-            .filter(|p| p.collider.kind == Kind::HeistCrate)
+            .filter(|p| matches!(p.tint, Tint::Maze(_)))
             .collect();
-        assert_eq!(crates.len(), 4);
-        assert!(
-            crates
-                .iter()
-                .any(|p| (p.collider.x1 - p.collider.x0 - 4.4).abs() < 1e-5)
-        );
+        assert_eq!(walls.len(), 8);
+        assert!(walls.iter().all(|p| p.collider.h >= 3.2));
+        let clear = |x: f32, z: f32| {
+            !walls.iter().any(|p| {
+                x > p.collider.x0 - 0.8
+                    && x < p.collider.x1 + 0.8
+                    && z > p.collider.z0 - 0.8
+                    && z < p.collider.z1 + 0.8
+            })
+        };
+        assert!(clear(0.0, 0.0), "central intersection stays open");
+        assert!(clear(-9.0, -8.0), "western turn-through gap stays open");
+        assert!(clear(9.0, 8.0), "eastern turn-through gap stays open");
+        for n in 2..=4 {
+            for base in layout(n) {
+                assert!(clear(base.x, base.z), "base interior stays clear");
+                let g = gate(base);
+                assert!(clear(g.x, g.z), "base doorway stays clear");
+                for p in &walls {
+                    let dx = if base.x < p.collider.x0 {
+                        p.collider.x0 - base.x
+                    } else if base.x > p.collider.x1 {
+                        base.x - p.collider.x1
+                    } else {
+                        0.0
+                    };
+                    let dz = if base.z < p.collider.z0 {
+                        p.collider.z0 - base.z
+                    } else if base.z > p.collider.z1 {
+                        base.z - p.collider.z1
+                    } else {
+                        0.0
+                    };
+                    assert!(
+                        dx.hypot(dz) > BASE_RADIUS,
+                        "wall intrudes into banking zone"
+                    );
+                }
+                for k in 0..2 {
+                    let (tx, tz) = teddy_spot(base, k).unwrap();
+                    assert!(clear(tx, tz), "teddy spawn stays clear");
+                }
+            }
+        }
     }
 
     #[test]

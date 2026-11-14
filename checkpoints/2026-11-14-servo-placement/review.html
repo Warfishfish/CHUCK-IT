@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bush Servo placement study</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#17130f;color:#f7eddb;font:16px/1.5 system-ui,sans-serif}main{max-width:1320px;margin:auto;padding:28px}h1,h2,h3{line-height:1.15}h1{font-size:2rem;margin:0 0 8px}p{max-width:85ch;color:#d8cbb7}.options{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px;margin:22px 0}article{background:#27211a;border:1px solid #55483a;border-radius:12px;padding:16px}article h2{margin:4px 0 8px}.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;margin:18px 0}figure{margin:0;background:#1f1b17;border:1px solid #55483a;border-radius:9px;overflow:hidden}figure img{display:block;width:100%;height:auto}figcaption{padding:9px 12px;color:#e8d9c4}.concept{max-width:900px}.concept img{width:100%;height:auto}.measure{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.measure div{padding:12px;background:#28221b;border-radius:8px}.note{padding:14px;border-left:4px solid #dfad5e;background:#28221b}code{color:#f4ca87}li{margin:.35em 0}
+</style>
+<main>
+<h1>Bush Servo: shop placement comparison</h1>
+<p>This is a visual study of the two sites already specified in <a href="../../NEXT_UP.md">NEXT_UP.md</a>. Both runs use the same gameplay camera positions. The north-west site is the current shipped placement; the north-east image shifts the visual model only for comparison. Collision and bot avoidance have not been moved in the north-east capture.</p>
+<section class="options">
+ <article><h2>Option A · North-west</h2><p>Current site. The shop stays left of the shelter, matching the concept's shop-left, smoko-centre composition. From the east approach, a foreground gum obscures some of the sign and windows. The western fence-side gap is the tighter route.</p></article>
+ <article><h2>Option B · North-east</h2><p>Moves the whole shop, pumps and parked ute to the opposite frontage. It is more visible from the east approach and leaves more room on the west side, but shifts the visual weight to the right and places the pumps/ute nearer the eastern fence.</p></article>
+</section>
+<h2>Same east-picnic gameplay view</h2>
+<div class="shots">
+ <figure><img src="nw-overview.png" alt="North-west placement from the east picnic approach"><figcaption>North-west · east-picnic approach</figcaption></figure>
+ <figure><img src="ne-overview.png" alt="North-east placement from the same east picnic approach"><figcaption>North-east · same camera</figcaption></figure>
+</div>
+<h2>Same view from the shelter</h2>
+<div class="shots">
+ <figure><img src="nw-south-gate.png" alt="North-west placement viewed from the south side of the shelter"><figcaption>North-west · south-side approach</figcaption></figure>
+ <figure><img src="ne-south-gate.png" alt="North-east placement viewed from the same south side of the shelter"><figcaption>North-east · same camera</figcaption></figure>
+</div>
+<h2>Matching top-down footprint</h2>
+<div class="shots">
+ <figure><img src="nw-topdown.png" alt="North-west shop and forecourt inside the map fence"><figcaption>North-west · top-down</figcaption></figure>
+ <figure><img src="ne-topdown.png" alt="North-east shop and forecourt inside the map fence"><figcaption>North-east · same top-down camera</figcaption></figure>
+</div>
+<h2>Measured clearances</h2>
+<p>Measurements use the full exported <code>smoko_servo.glb</code> bounds, which include the building, signs, pumps and parked ute, translated to each candidate position. They are conservative bounds, not collision shapes.</p>
+<div class="measure">
+ <div><strong>North-west model bounds</strong><br>x −29.75 to 5.67 m<br>z −23.50 to −14.52 m</div>
+ <div><strong>North-east model bounds</strong><br>x −6.75 to 28.67 m<br>z −23.50 to −14.52 m</div>
+ <div><strong>Fence gap</strong><br>NW: 3.25 m west, 27.34 m east<br>NE: 26.25 m west, 4.33 m east<br>Both: 0.50 m at north edge</div>
+ <div><strong>Circular road</strong><br>NW has at least 2.02 m radial separation.<br>NE has at least 3.08 m radial separation.</div>
+</div>
+<ul>
+ <li>Both models stay inside the 66 × 48 m arena fence and clear the 19 m outer road radius.</li>
+ <li>Each candidate overlaps one of the 12 player spawn spots, so 11 remain available; this matches the current placement's existing spawn filtering. Both block two of the 25 regular item spawn points, leaving the rest for the round.</li>
+ <li>Both leave a route on each side of the shop footprint: the tightest side gap is 3.25 m at NW and 4.33 m at NE. The central approach lanes to the shelter remain clear. The final collision move should add a path-clearance test for two carried-player routes.</li>
+ <li>Visual comparison only: the north-east capture keeps the current north-west collision, item filtering and bot avoidance. Do not use it as a playable north-east build yet.</li>
+</ul>
+<div class="note"><strong>Recommendation:</strong> keep the north-west site for the concept composition, then adjust the foreground view or shop details so the gum does not hide the sign. Choose north-east if east-side visibility and a wider west-side route matter more. The current north-west model is already fully inside the fence, and the runtime creates only this one shop instance; no source location or collision has changed in this study.</div>
+<h2>Reference</h2>
+<figure class="concept"><img src="../../concept%20art/exec-6ea4e9b3-70f7-4745-b24d-773f23cbe0ae.png" alt="Bush Servo concept art: shop at left, smoko shelter centred, circular road"></figure>
+</main>
+</html>

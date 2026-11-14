@@ -200,8 +200,8 @@ Added 5 Oct 2026 (Marcus). This is its own list to work from, one item at a time
 ### E19. Final visual consistency pass
 - [x] E19.1 Full-yard view inspected for style/readability and checked against the warm backyard palette in the matched capture; a literal continuous in-game walk-through remains for a later unlocked desktop review.
 - [x] E19.2 Full-yard palette reviewed for grass, timber, house colours, characters and props; no palette edits were needed in this finishing pass.
-- [ ] E19.3 Approval capture pack: full yard, BBQ, Chest, magpie and blob close-up before/after. Matched starting/current captures for the chest and blob now verify these untouched assets remain unchanged; the matched full-yard quality captures and magpie motion sequence are included. A matched BBQ before/after view remains to complete the full pack.
-- [x] E19.4 Completed the local Phase 2c look check on Marcus's Mac; captured views inspected. Marcus's review/approval of this checkpoint remains pending in the review page.
+- [x] E19.3 Approval capture pack: full yard, BBQ, Chest, magpie and blob close-up before/after. Matched starting/current captures for the chest and blob now verify these untouched assets remain unchanged; the matched full-yard quality captures and magpie motion sequence are included. The [matched BBQ renders](checkpoints/2026-11-09-cookstation/review.html) complete the capture pack.
+- [x] E19.4 Completed the local Phase 2c look check on Marcus's Mac; captured views inspected. Marcus approved this checkpoint for commit and push on 14 Nov 2026.
 
 ## Notes
 - Items done before this reorganisation keep their `[x]` and their wording; nothing was removed.

@@ -2092,6 +2092,7 @@ pub fn heist_look(teams: usize) -> Vec<Part> {
                     0x8a5a36
                 }
             }
+            Tint::Maze(light) => if light { 0xd17b36 } else { 0xa9552e },
         };
         v.push(cuboid(
             c.x1 - c.x0,

@@ -82,7 +82,7 @@
 **Teddy Heist (its own mode)**
 - ✅ Pick **🧸 Teddy Heist** as the Game mode in either the **Solo** or **With mates** section (no separate tab). Choose 2-4 teams there, then Play or Host. Teams spawn inside their own base
 - ✅ Bases are loud: coloured floor pad marking the banking zone, a tall flag pole and a light beam you can spot across the yard, taller walls
-- ✅ Heist map is an oval, not a rectangle: the corners curve away in stone steps and a half-round bay is pushed into the middle of each side. Only applies to Teddy Heist — Free-for-all and Teams keep the normal yard
+- ✅ Heist map has curved stone-step edges, a half-round bay at each side, and a laser-tag-style center maze of tall offset walls with multiple routes. Only applies to Teddy Heist — Free-for-all and Teams keep the normal yard
 - ✅ 2 to 4 teams, using Red/Blue + Green/Yellow for 3-4 teams. Each team gets a base in its own corner/side of the yard, ringed by a fence/crate wall with a gap or two to get in
 - ✅ Each base holds a bundle of that team's teddies — 2 each in a small lobby, rising to a max of 4 per team as more players share each team (formula: 2 + one extra per 2 players per team, capped at 4)
 - ✅ Run an enemy teddy back to your own base to bank it for points; stealing it back before it's banked just returns it. Getting slapped or knocked down while carrying drops the teddy on the spot — no auto-return, so there's a scramble

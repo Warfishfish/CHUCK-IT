@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Teddy Heist maze review</title>
+  <style>
+    :root{color-scheme:light;--ink:#28382e;--muted:#657166;--paper:#f5f2e8;--card:#fffdf7;--line:#ded8ca;--green:#28784e}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 system-ui,-apple-system,sans-serif}
+    main{max-width:1100px;margin:36px auto;padding:0 22px 56px}h1{font-size:clamp(30px,5vw,48px);line-height:1.1;margin:0 0 12px}h2{font-size:23px;margin:30px 0 8px}.lede{font-size:19px;color:var(--muted);max-width:800px}.card{margin-top:24px;padding:20px;background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:0 8px 24px #29372112}.map,.capture{display:block;width:100%;height:auto;border-radius:14px}.capture{border:1px solid var(--line);margin:12px 0 6px}.status{padding:14px 18px;border-left:5px solid #d88737;background:#fff5e5;border-radius:8px}.status strong{display:block}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}.tile{padding:15px;border:1px solid var(--line);border-radius:12px;background:#fff}.tile b{display:block;margin-bottom:4px}.muted{color:var(--muted)}code{white-space:normal;overflow-wrap:anywhere;background:#f0ede4;padding:2px 5px;border-radius:4px}.pass{color:var(--green);font-weight:700}
+  </style>
+</head>
+<body><main>
+  <h1>Teddy Heist maze</h1>
+  <p class="lede">Item 6 review. The arena keeps its oval stone-step edge and team bases. The central crate cross is replaced with eight tall, staggered panels that make a branching laser-tag-style run between bases.</p>
+  <section class="card">
+    <h2>Top-down layout</h2>
+    <img class="map" src="layout.svg" alt="Two-team Teddy Heist map plan with red and blue bases, banking zones and staggered orange maze panels">
+    <p class="muted">This plan comes from the shared arena coordinates. Banking circles remain unobstructed; panel positions are shared for 2, 3 and 4 team games.</p>
+  </section>
+  <section class="card">
+    <h2>Actual native game captures</h2>
+    <p>Release build, 1280 × 800, polished scene, Teddy Heist with one bot. The overhead capture shows the whole arena; the ground-level angle shows wall height, cover and the routes between panels.</p>
+    <figure><img class="capture" src="maze-top.png" alt="Native game screenshot looking straight down at Teddy Heist arena and maze"><figcaption class="muted">Overhead layout and base clearances.</figcaption></figure>
+    <figure><img class="capture" src="maze-playable.png" alt="Native game screenshot from ground level showing Teddy Heist maze walls and a base"><figcaption class="muted">Playable approach from near the red base, with the maze visible across the field.</figcaption></figure>
+  </section>
+  <section class="card">
+    <h2>Verification</h2>
+    <div class="grid">
+      <div class="tile"><b class="pass">Passed · Heist rules</b>20 Heist unit tests pass, including a new geometry check for every base, door, teddy start and banking radius across all team counts.</div>
+      <div class="tile"><b class="pass">Passed · Bot movement</b>The existing live-simulation test runs Heist bots and confirms they do not remain stuck.</div>
+      <div class="tile"><b class="pass">Passed · Core suite</b>All 452 <code>bbq_core</code> tests pass.</div>
+    </div>
+  </section>
+  <section class="card">
+    <h2>Local play</h2>
+    <p>To try the current native build yourself:</p>
+    <p><code>cd /Users/marcus/Claude/australian-bbq/rust<br>cargo run -p bbq_app --release -- --mode heist --bots 1</code></p>
+  </section>
+  <section class="card">
+    <h2>Scope and next step</h2>
+    <p>Assumption: “laser-tag maze” means solid wall runs with visible openings and route choices, rather than a sealed grid with narrow corridors. Panels are 3.2 m tall so the normal jump cannot bypass them. They reuse the existing Heist collision and render path; scoring, teddy rules, teams, doors, and spawn rules stay as before.</p>
+    <p>Marcus approved committing and pushing this reviewed change on 14 November 2026.</p>
+  </section>
+</main></body></html>

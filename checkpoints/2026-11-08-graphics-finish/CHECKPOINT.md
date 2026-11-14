@@ -1,6 +1,6 @@
 # Graphics finish backlog — checkpoint and recovery
 
-**Status:** implementation, builds, tests, actual captures and live Low/High selector check complete. Ready for review. No commit, push or browser publication.
+**Status:** implementation, builds, tests, actual captures and live Low/High selector check complete. Marcus approved commit and push on 14 November 2026. No browser publication is part of this checkpoint.
 
 ## Starting point
 - Repository: `/Users/marcus/Claude/australian-bbq`
@@ -18,8 +18,8 @@
 - E16.7: added persistent local Low/High quality selection. Low uses smaller shadows and omits SSAO, particles and decals; High retains the full visual effects. The preference is local and does not affect network/gameplay state.
 - E17.6–E17.8: retained bevelled geometry and added deterministic subtle vertex colour variation plus seeded weathered cuboid transforms clamped to authored bounds. Shape tests cover bevel orientation/bounds, repeatability and fit.
 - E18.4: reran matched 11-bot Heist/Cheeky wall-clock measurements at 1280×800. Matched initial Low 99.79 mean FPS / 11.396 ms p95; High 92.54 mean FPS / 15.217 ms p95. AA SMAA 91.56 mean FPS / 16.374 ms p95; MSAA 4× 98.03 / 12.423 ms p95, without SSAO. Later Low/High refreshes were 43.93 / 42.20 mean FPS while another game process remained open; retained as contaminated samples and not used for the comparison. Mesh/material/entity counts were unchanged between presets. See `evidence/*.metrics.txt`.
-- E19.3: added matched actual starting/current chest and character close-ups. Both objects are intentionally unchanged and the captures confirm preservation. E19.4 local visual check is complete; user approval remains pending. The full comparison pack still needs a matched BBQ before/after view.
-- E19: inspected the full-yard palette/readability in the matched Low/High captures and added an approval review page. The review page includes the bot spray capture/sequence and settings-screen capture. Low and High were clicked and verified in a temporary isolated copy of the app; actual saved user settings were not modified. Matched before/current native captures for chest and character are now included in `evidence/approval/` and the review page. They are visually unchanged because this finishing pass intentionally did not alter either asset. The wider E19.3 pack still lacks a matched BBQ before/after view.
+- E19.3: added matched actual starting/current chest and character close-ups. Both objects are intentionally unchanged and the captures confirm preservation. E19.4 local visual check is complete; Marcus approved this checkpoint for commit and push on 14 November 2026. Independent renders of the starting and published builds complete the [matched BBQ comparison](../2026-11-09-cookstation/review.html). Their identical pixels confirm preservation at that camera.
+- E19: inspected the full-yard palette/readability in the matched Low/High captures and added an approval review page. The review page includes the bot spray capture/sequence and settings-screen capture. Low and High were clicked and verified in a temporary isolated copy of the app; actual saved user settings were not modified. Matched before/current native captures for chest and character are now included in `evidence/approval/` and the review page. They are visually unchanged because this finishing pass intentionally did not alter either asset.
 
 ## Verification
 - `cargo test -p bbq_app`: 261 tests run; 260 passed, 1 existing ignored, 0 failed.
@@ -43,6 +43,6 @@ Then remove the new file `rust/crates/bbq_app/src/graphics_quality.rs` only if y
 ## Resume
 1. Open `review.html` to inspect the actual captures and image sequences.
 2. To retest locally, run `cd /Users/marcus/Claude/australian-bbq/rust && cargo run -p bbq_app --release -- --menu`; Settings now places Low/High at the top.
-3. The matched chest/blob captures are in the review page. The wider E19.3 pack still needs a matched BBQ before/after view.
+3. The matched chest/blob captures are in the review page. Open the linked cooking station review for the BBQ pair.
 4. E19.4 local look check is recorded as done; Marcus’s review of the captures is still pending.
-5. This pass remains uncommitted and unpublished pending review.
+5. Marcus approved commit and push on 14 November 2026; the browser build is unchanged.

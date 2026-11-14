@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" role="img" aria-labelledby="title desc">
+  <title id="title">Teddy Heist laser-tag maze, two-team layout</title>
+  <desc id="desc">Overhead diagram of an oval arena, red and blue bases at opposite ends, and tall orange maze walls with staggered openings forming alternate routes.</desc>
+  <defs>
+    <pattern id="grass" width="36" height="36" patternUnits="userSpaceOnUse"><rect width="36" height="36" fill="#8fc879"/><path d="M0 29l6-4m10 8 5-7m8 1 5-5M8 10l5-4m14 9 6-5" stroke="#76b363" stroke-width="2" opacity=".5"/></pattern>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="7" stdDeviation="6" flood-color="#243320" flood-opacity=".25"/></filter>
+    <style>
+      .wall{fill:#bd622f;stroke:#87411f;stroke-width:4;rx:7;filter:url(#shadow)}
+      .fine{font:600 18px system-ui,sans-serif;fill:#33483a}
+      .label{font:700 21px system-ui,sans-serif;fill:#243629}
+    </style>
+  </defs>
+  <rect width="1280" height="800" fill="#e8efdf"/>
+  <text x="64" y="58" font-family="system-ui,sans-serif" font-size="30" font-weight="800" fill="#26372d">TEDDY HEIST · MAZE PLAN · 2 TEAMS</text>
+  <text x="64" y="88" class="fine">Top-down review map · each gap stays open for movement and sightlines</text>
+  <!-- oval edge and arena grass; map scale is 9.5 px per metre -->
+  <ellipse cx="640" cy="420" rx="390" ry="276" fill="#747a80" stroke="#515960" stroke-width="12"/>
+  <ellipse cx="640" cy="420" rx="378" ry="264" fill="url(#grass)" stroke="#d9d9cf" stroke-width="3"/>
+  <!-- side bays in the stone ring -->
+  <ellipse cx="252" cy="420" rx="34" ry="58" fill="#8fc879" stroke="#515960" stroke-width="5"/>
+  <ellipse cx="1028" cy="420" rx="34" ry="58" fill="#8fc879" stroke="#515960" stroke-width="5"/>
+  <!-- base pads -->
+  <g filter="url(#shadow)">
+    <rect x="418" y="382" width="57" height="76" rx="9" fill="#e65b4c" stroke="#9f3028" stroke-width="4"/>
+    <rect x="805" y="382" width="57" height="76" rx="9" fill="#4e91dc" stroke="#275b9b" stroke-width="4"/>
+  </g>
+  <text x="425" y="375" class="label" fill="#9f3028">RED BASE</text>
+  <text x="800" y="375" class="label" fill="#275b9b">BLUE BASE</text>
+  <!-- doors face inward. Bank circles are shown dashed. -->
+  <circle cx="446" cy="420" r="41" fill="none" stroke="#ed6554" stroke-width="3" stroke-dasharray="8 7" opacity=".8"/>
+  <circle cx="834" cy="420" r="41" fill="none" stroke="#4e91dc" stroke-width="3" stroke-dasharray="8 7" opacity=".8"/>
+  <path d="M475 408v24 M805 408v24" stroke="#f7f4e8" stroke-width="8"/>
+  <!-- ten 3.2 m tall panels: scale 9.5 px/m, 7.5 px thick -->
+  <g class="wall">
+    <rect x="550" y="192" width="7" height="133"/>
+    <rect x="550" y="439" width="7" height="114"/>
+    <rect x="721" y="306" width="7" height="114"/>
+    <rect x="721" y="496" width="7" height="133"/>
+    <rect x="588" y="340" width="86" height="7"/>
+    <rect x="459" y="492" width="67" height="7"/>
+    <rect x="598" y="492" width="86" height="7"/>
+    <rect x="753" y="492" width="67" height="7"/>
+  </g>
+  <!-- route arrows weave through the staggered openings -->
+  <g fill="none" stroke="#fff5c4" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".95">
+    <path d="M484 420h46v-57h64v53h115v-55h64v59h37" marker-end="url(#arrow)"/>
+    <path d="M484 420h51v68h63v-50h126v72h61v-70h37" stroke-dasharray="10 10"/>
+  </g>
+  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0 0v6l8-3z" fill="#fff5c4"/></marker></defs>
+  <!-- teddy markers -->
+  <g font-family="system-ui,sans-serif" font-size="17" font-weight="800" text-anchor="middle">
+    <circle cx="429" cy="405" r="10" fill="#f6df9e" stroke="#644a26" stroke-width="3"/><circle cx="458" cy="437" r="10" fill="#f6df9e" stroke="#644a26" stroke-width="3"/>
+    <circle cx="817" cy="405" r="10" fill="#f6df9e" stroke="#644a26" stroke-width="3"/><circle cx="846" cy="437" r="10" fill="#f6df9e" stroke="#644a26" stroke-width="3"/>
+  </g>
+  <!-- legend -->
+  <rect x="64" y="700" width="1152" height="62" rx="18" fill="#fffdf5" stroke="#ded8c8" stroke-width="2"/>
+  <rect x="92" y="720" width="26" height="22" rx="5" fill="#bd622f" stroke="#87411f" stroke-width="2"/><text x="130" y="739" class="fine">Tall maze wall</text>
+  <path d="M300 731h54" stroke="#fff5c4" stroke-width="5" stroke-dasharray="8 6"/><text x="366" y="739" class="fine">Open route</text>
+  <circle cx="516" cy="731" r="12" fill="none" stroke="#4e91dc" stroke-width="3" stroke-dasharray="5 4"/><text x="540" y="739" class="fine">Banking zone</text>
+  <circle cx="720" cy="731" r="9" fill="#f6df9e" stroke="#644a26" stroke-width="3"/><text x="741" y="739" class="fine">Teddy spawn</text>
+  <text x="930" y="739" class="fine">Same bases for 3–4 teams</text>
+</svg>
