@@ -75,6 +75,13 @@ pub enum Shape {
         hole: (f32, f32, f32, f32),
         per_m: f32,
     },
+    /// A sampled elliptical ground with a rectangular pool cutout.
+    OvalGround {
+        a: f32,
+        b: f32,
+        hole: (f32, f32, f32, f32),
+        per_m: f32,
+    },
     /// The same lawn cut into `cell` metre squares (and along the hole's edges) with a colour on
     /// every corner from `looks_yard::lawn_tint`: dry yellow areas and stubborn green patches.
     PatchyLawn {

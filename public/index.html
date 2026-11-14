@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.23.8</span>
+      <span class="tag">Backyard Brawl · prototype 0.23.9</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -631,6 +631,10 @@ const sun=new THREE.DirectionalLight(0xfff0d2,0.88);
 sun.position.set(24,40,20);sun.castShadow=true;sun.shadow.mapSize.set(3072,3072);
 Object.assign(sun.shadow.camera,{left:-42,right:42,top:42,bottom:-42,near:1,far:120});
 sun.shadow.bias=-0.0006;scene.add(sun);
+let heistShadowFootprint=false;
+function syncShadowFootprint(){const wide=gameMode==='heist'&&state!=='menu';if(wide===heistShadowFootprint)return;
+  Object.assign(sun.shadow.camera,wide?{left:-58,right:58,top:44,bottom:-44}:{left:-42,right:42,top:42,bottom:-42});
+  sun.shadow.camera.updateProjectionMatrix();heistShadowFootprint=wide;}
 
 const matCache={};
 function mat(c,o){const key=String(c)+(o?JSON.stringify(o):'');if(!o&&matCache[key])return matCache[key];const m=new THREE.MeshLambertMaterial(Object.assign({color:c},o||{}));if(!o)matCache[key]=m;return m;}
@@ -668,7 +672,7 @@ const ADULT_BOX={'#pFeat':'#pAdult','#mFeat':'#mAdult','#yFeat':'#yAdult'}; // w
 function readFeatUI(sel,rn){setFeatMask(FEAT_KEYS.reduce((a,k,i)=>{const el=k==='adult'?document.querySelector(ADULT_BOX[sel]):document.querySelector(`${sel} input[data-f=${k}]`);if(k==='adult')return a|(el&&el.checked?1<<i:0);return a|(!el||el.checked?1<<i:0);},0));}
 function col(cx,cz,w,d,h){colliders.push({x0:cx-w/2,x1:cx+w/2,z0:cz-d/2,z1:cz+d/2,h});}
 const inPoolRect=p=>p.x>POOL.x0&&p.x<POOL.x1&&p.z>POOL.z0&&p.z<POOL.z1;
-let hoistHead,poolTex,clouds=[],yardFence=[];
+let hoistHead,poolTex,clouds=[],yardFence=[],yardLawn=null;
 function textTex(w,h,draw){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t;}
 // VP stubby label (cream, red band, green "VP" twice so it reads from any side)
 const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fillStyle='#1e7d3a';x.fillRect(0,0,w,h);x.fillStyle='#f2c230';x.fillRect(0,h*.78,w,h*.1);x.fillRect(0,h*.1,w,h*.06);
@@ -683,8 +687,8 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
     const hole=new THREE.Path();hole.moveTo(POOL.x0,-POOL.z1);hole.lineTo(POOL.x0,-POOL.z0);hole.lineTo(POOL.x1,-POOL.z0);hole.lineTo(POOL.x1,-POOL.z1);hole.lineTo(POOL.x0,-POOL.z1);
     sh.holes.push(hole);return new THREE.ShapeGeometry(sh);};
   lawn.repeat.set(1/16,1/16);
-  const g=new THREE.Mesh(holed(-W,W,-D,D),new THREE.MeshLambertMaterial({map:lawn}));
-  g.rotation.x=-Math.PI/2;g.receiveShadow=true;scene.add(g);
+  yardLawn=new THREE.Mesh(holed(-W,W,-D,D),new THREE.MeshLambertMaterial({map:lawn}));
+  yardLawn.rotation.x=-Math.PI/2;yardLawn.receiveShadow=true;scene.add(yardLawn);
   const outer=new THREE.Mesh(holed(-160,160,-160,160),mat(0x8aaa62));
   outer.rotation.x=-Math.PI/2;outer.position.y=-.02;outer.receiveShadow=true;scene.add(outer);
 
@@ -1368,7 +1372,7 @@ const HEIST_LAYOUT=[
 const heistLayout=(n=heistTeams,v=heistVariant)=>HEIST_LAYOUT[(v|0)%3][clamp(n|0,2,4)];
 const inHeistOval=(x,z,r=0)=>{const a=HEIST_A-r,b=HEIST_B-r;return a>0&&b>0&&x*x/(a*a)+z*z/(b*b)<=1;};
 function heistKeysArr(){return HEIST_TEAM_KEYS.slice(0,heistTeams);}
-function clearHeistProps(){for(const o of heistProps)if(o.parent)o.parent.remove(o);heistProps.length=0;yardFence.forEach(o=>o.visible=true);
+function clearHeistProps(){for(const o of heistProps)if(o.parent)o.parent.remove(o);heistProps.length=0;yardFence.forEach(o=>o.visible=true);if(yardLawn)yardLawn.visible=true;
   for(const c of heistColsSet){const i=colliders.indexOf(c);if(i>=0)colliders.splice(i,1);}heistColsSet.length=0;heistBases={};heistBanked={};heistSpawnN={};heistBoard=null;}
 function buildHeistWall(cx,cz,w,d,color,h){h=h||HEIST_WALL_H;heistProps.push(mesh(new THREE.BoxGeometry(w,h,d),mat(color),cx,h/2,cz));
   col(cx,cz,w,d,h);heistColsSet.push(colliders[colliders.length-1]);}
@@ -1386,8 +1390,8 @@ function buildHeistArena(){const {A,B,step,bay}=HEIST_ARENA;let n=0;
       if(dep>.5){put(-A+dep/2,zc,dep,step);put(A-dep/2,zc,dep,step);}}}
   const ground=new THREE.Shape();for(let i=0;i<=128;i++){const t=i/128*Math.PI*2,x=A*Math.cos(t),y=-B*Math.sin(t);if(i===0)ground.moveTo(x,y);else ground.lineTo(x,y);}
   const hole=new THREE.Path();hole.moveTo(POOL.x0,-POOL.z1);hole.lineTo(POOL.x0,-POOL.z0);hole.lineTo(POOL.x1,-POOL.z0);hole.lineTo(POOL.x1,-POOL.z1);hole.lineTo(POOL.x0,-POOL.z1);ground.holes.push(hole);
-  const lawn=mesh(new THREE.ShapeGeometry(ground),mat(0x659d4a),0,-.035,0);lawn.rotation.x=-Math.PI/2;lawn.receiveShadow=true;heistProps.push(lawn);
-  yardFence.forEach(o=>o.visible=false);}
+  const lawn=mesh(new THREE.ShapeGeometry(ground),mat(0x659d4a),0,.015,0);lawn.rotation.x=-Math.PI/2;lawn.castShadow=false;lawn.receiveShadow=true;heistProps.push(lawn);
+  if(yardLawn)yardLawn.visible=false;yardFence.forEach(o=>o.visible=false);}
 // a big four-sided scoreboard floating over the middle of the yard: teddies banked + points per team, readable from anywhere
 function drawHeistBoard(){const b=heistBoard;if(!b)return;const c=b.ctx,keys=heistKeysArr(),N=640;
   c.clearRect(0,0,N,N);c.fillStyle='#14202b';c.fillRect(0,0,N,N);c.fillStyle='#ffd23f';c.fillRect(0,0,N,14);c.fillRect(0,N-14,N,14);
@@ -3055,6 +3059,7 @@ let last=performance.now();
 function frame(now){
   requestAnimationFrame(frame);
   const dt=Math.min(.05,(now-last)/1000);last=now;
+  syncShadowFootprint();
   if(state==='paused'){renderFrame();return;}
   elapsed+=dt;
   if(state==='countdown'){countdown-=dt;const n=Math.ceil(countdown);if(n!==lastBeep&&n>0&&n<=3){lastBeep=n;banner(String(n),.9);SFX.beep();}

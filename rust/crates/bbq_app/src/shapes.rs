@@ -717,6 +717,51 @@ fn ground(x0: f32, x1: f32, z0: f32, z1: f32, hole: (f32, f32, f32, f32), per_m:
     b
 }
 
+/// A one metre tiled ellipse, clipped to the oval and with exact breaks around the pool hole.
+fn oval_ground(a: f32, b: f32, hole: (f32, f32, f32, f32), per_m: f32) -> Buf {
+    let (hx0, hx1, hz0, hz1) = hole;
+    let lines = |min: f32, max: f32, extra: [f32; 2]| {
+        let mut v: Vec<f32> = (0..=((max - min).ceil() as usize))
+            .map(|i| (min + i as f32).min(max))
+            .collect();
+        v.extend(extra.into_iter().filter(|x| *x > min && *x < max));
+        v.sort_by(f32::total_cmp);
+        v.dedup_by(|x, y| (*x - *y).abs() < 1e-4);
+        v
+    };
+    let xs = lines(-a, a, [hx0, hx1]);
+    let zs = lines(-b, b, [hz0, hz1]);
+    let inside = |x: f32, z: f32| x * x / (a * a) + z * z / (b * b) <= 1.0;
+    let mut mesh = Buf::default();
+    let normal = [0.0, 1.0, 0.0];
+    for zw in zs.windows(2) {
+        for xw in xs.windows(2) {
+            let (x0, x1, z0, z1) = (xw[0], xw[1], zw[0], zw[1]);
+            let center = ((x0 + x1) * 0.5, (z0 + z1) * 0.5);
+            if center.0 > hx0 && center.0 < hx1 && center.1 > hz0 && center.1 < hz1 {
+                continue;
+            }
+            let corners = [(x0, z0), (x1, z0), (x1, z1), (x0, z1)];
+            if !inside(center.0, center.1) && !corners.iter().any(|&(x, z)| inside(x, z)) {
+                continue;
+            }
+            let mut ids = [0u32; 4];
+            for (i, &(mut x, mut z)) in corners.iter().enumerate() {
+                let q = x * x / (a * a) + z * z / (b * b);
+                if q > 1.0 {
+                    let scale = q.sqrt().recip();
+                    x *= scale;
+                    z *= scale;
+                }
+                ids[i] = mesh.vert([x, 0.0, z], normal, [x * per_m, -z * per_m]);
+            }
+            mesh.tri(ids[0], ids[3], ids[2]);
+            mesh.tri(ids[0], ids[2], ids[1]);
+        }
+    }
+    mesh
+}
+
 /// The lawn cut into squares (and along the hole's edges), each corner coloured by
 /// `looks_yard::lawn_tint`. The hole is skipped cell by cell, so the cut lines up with the pool.
 fn patchy_lawn(x0: f32, x1: f32, z0: f32, z1: f32, hole: (f32, f32, f32, f32), per_m: f32, cell: f32) -> Buf {
@@ -981,6 +1026,7 @@ pub fn build_mesh(shape: &Shape) -> Mesh {
             hole,
             per_m,
         } => ground(x0, x1, z0, z1, hole, per_m).into_mesh(),
+        Shape::OvalGround { a, b, hole, per_m } => oval_ground(a, b, hole, per_m).into_mesh(),
         Shape::PatchyLawn {
             x0,
             x1,
@@ -1295,6 +1341,21 @@ mod tests {
                 g.pos[t[1] as usize],
                 g.pos[t[2] as usize],
             );
+            let cross_y = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+            assert!(cross_y > 0.0);
+        }
+    }
+
+    #[test]
+    fn oval_ground_stays_inside_its_edge_and_cuts_out_the_pool() {
+        let g = oval_ground(54.0, 40.0, (-27.0, -13.0, 6.0, 14.0), 1.0 / 16.0);
+        assert!(!g.idx.is_empty());
+        for &[x, _, z] in &g.pos {
+            assert!(x * x / (54.0 * 54.0) + z * z / (40.0 * 40.0) <= 1.0001);
+            assert!(!(x > -27.0 && x < -13.0 && z > 6.0 && z < 14.0));
+        }
+        for t in g.idx.chunks(3) {
+            let (a, b, c) = (g.pos[t[0] as usize], g.pos[t[1] as usize], g.pos[t[2] as usize]);
             let cross_y = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
             assert!(cross_y > 0.0);
         }
