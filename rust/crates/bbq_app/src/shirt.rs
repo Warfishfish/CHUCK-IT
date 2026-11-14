@@ -412,6 +412,69 @@ mod tests {
         png(w, h, &px)
     }
 
+    fn draw_label(px: &mut [u8], w: u32, h: u32, text: &str, x: f32, baseline: f32, size: f32, ink: [u8; 3]) {
+        let font = FontRef::try_from_slice(FONT).unwrap();
+        let scale = PxScale::from(size);
+        let f = font.as_scaled(scale);
+        let mut x = x;
+        for c in text.chars() {
+            let id = f.glyph_id(c);
+            if let Some(outline) = font.outline_glyph(id.with_scale_and_position(scale, ab_glyph::point(x, baseline))) {
+                let bounds = outline.px_bounds();
+                outline.draw(|gx, gy, alpha| {
+                    let (ix, iy) = (bounds.min.x as i32 + gx as i32, bounds.min.y as i32 + gy as i32);
+                    if ix < 0 || iy < 0 || ix >= w as i32 || iy >= h as i32 { return; }
+                    let at = (iy as u32 * w + ix as u32) as usize * 4;
+                    for c in 0..3 { px[at + c] = (px[at + c] as f32 * (1.0 - alpha) + ink[c] as f32 * alpha).round() as u8; }
+                    px[at + 3] = 255;
+                });
+            }
+            x += f.h_advance(id);
+        }
+    }
+
+    fn cricket_board() -> Vec<u8> {
+        let (w, h) = (512u32, 256u32);
+        let mut px = vec![255u8; (w * h * 4) as usize];
+        for y in 0..h {
+            for x in 0..w {
+                let wear = ((x * 13 + y * 7) % 17) as i16 - 8;
+                let i = ((y * w + x) * 4) as usize;
+                px[i] = (45i16 + wear).clamp(0, 255) as u8;
+                px[i + 1] = (70i16 + wear).clamp(0, 255) as u8;
+                px[i + 2] = (48i16 + wear).clamp(0, 255) as u8;
+                px[i + 3] = 255;
+            }
+        }
+        let chalk = [237, 225, 184];
+        let rule = [120, 139, 102];
+        // A narrow, hand-painted border and chalk rule keep the board readable on the fence.
+        for x in 10..502 {
+            for y in [9usize, 10, 245, 246] {
+                let i = (y * w as usize + x) * 4;
+                for c in 0..3 { px[i + c] = [128, 94, 59][c]; }
+            }
+        }
+        for y in [76usize, 77] {
+            for x in 24..488 {
+                let i = (y * w as usize + x) * 4;
+                for c in 0..3 { px[i + c] = rule[c]; }
+            }
+        }
+        draw_label(&mut px, w, h, "BACKYARD CRICKET", 42.0, 57.0, 31.0, chalk);
+        draw_label(&mut px, w, h, "24 / 3", 145.0, 163.0, 74.0, chalk);
+        draw_label(&mut px, w, h, "OVERS 4.2   |   NOT OUT: DAVO", 49.0, 221.0, 22.0, chalk);
+        png(w, h, &px)
+    }
+
+    /// Generate the entirely in-house cricket-board texture once; no external image assets.
+    #[test]
+    #[ignore]
+    fn make_cricket_board() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/textures");
+        std::fs::write(dir.join("cricket_board.png"), cricket_board()).unwrap();
+    }
+
     /// Makes family mode's drinks-stand signs in `assets/textures/`, in the colours of the bar's
     /// own (dark green and yellow; cream tags with dark green letters). Run once by hand:
     /// `cargo test -p bbq_app make_family_signs -- --ignored`.

@@ -141,6 +141,8 @@ pub enum Tex {
     SignSmoko,
     /// "HANDS OFF", on the meat table.
     SignHands,
+    /// A hand-painted backyard cricket score board.
+    CricketBoard,
     /// A white soft-edged dot (alpha falls off to the rim): dirt patches and worn paths.
     SoftDot,
     /// Step 2c surface textures made by `tools/make_textures.py`: light, mostly grey pictures
@@ -183,6 +185,7 @@ impl Tex {
             Tex::SmokoPad => "smoko_pad.png",
             Tex::SignSmoko => "sign_smoko.png",
             Tex::SignHands => "sign_hands.png",
+            Tex::CricketBoard => "cricket_board.png",
             Tex::SoftDot => "soft_dot.png",
             Tex::Wood => "wood.png",
             Tex::Metal => "metal.png",
@@ -193,7 +196,7 @@ impl Tex {
         }
     }
 
-    pub const ALL: [Tex; 32] = [
+    pub const ALL: [Tex; 33] = [
         Tex::ServoDirt, Tex::ServoRoad, Tex::SignServo,
         Tex::VpLabel,
         Tex::Fish,
@@ -217,6 +220,7 @@ impl Tex {
         Tex::SmokoPad,
         Tex::SignSmoko,
         Tex::SignHands,
+        Tex::CricketBoard,
         Tex::SoftDot,
         Tex::Wood,
         Tex::Metal,

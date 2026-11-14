@@ -364,6 +364,13 @@ fn clutter(_rng: &mut Rng) -> Vec<Part> {
     v.push(cuboid(0.12, 0.02, 0.02, matt(0xb8a070), cx - 0.05, 0.73, cz));
     v.push(cuboid(0.11, 0.5, 0.035, matt(0xcfae78), cx + 0.5, 0.2, cz + 0.2).turn(0.0, 0.4, 1.2));
     v.push(cyl(0.017, 0.017, 0.28, 6, matt(0x2a2a2a), cx + 0.78, 0.1, cz + 0.28).turn(0.0, 0.4, 1.2));
+    // Faded chalk creases mark out the little pitch; they are paint only, with no collision.
+    for z in [cz - 0.52, cz + 0.52] {
+        v.push(cuboid(1.65, 0.006, 0.028, matt(0xe7dfc8).no_shadow(), cx, 0.009, z));
+    }
+    for x in [cx - 0.82, cx + 0.82] {
+        v.push(cuboid(0.028, 0.006, 0.30, matt(0xe7dfc8).no_shadow(), x, 0.009, cz - 0.52));
+    }
     // the dog bowl and a bone
     v.push(cyl(0.19, 0.15, 0.08, 14, matt(0xc0392b), -14.0, 0.04, -19.5));
     v.push(cyl(0.14, 0.14, 0.01, 14, matt(0x6b4a2a), -14.0, 0.083, -19.5));
@@ -380,6 +387,27 @@ fn clutter(_rng: &mut Rng) -> Vec<Part> {
     // a washing basket on its side near the hoist, with a sock beside it
     v.push(cyl(0.26, 0.22, 0.34, 12, matt(0x3fa9a0), 2.6, 0.2, 6.2).turn(HALF_PI, 0.6, 0.0));
     v.push(cuboid(0.12, 0.02, 0.07, matt(0xf1f1ee), 3.2, 0.012, 6.6).turn(0.0, 0.8, 0.0));
+    v
+}
+
+/// A one-off, fence-mounted backyard cricket scoreboard: timber frame, chalk paint and
+/// sun-faded hardware. It is scenery only and sits outside the normal run of play.
+fn cricket_scoreboard() -> Vec<Part> {
+    let timber = matt(0x806044).material(Tex::Wood, 1.4);
+    let metal = matt(0x8d9189).material(Tex::Metal, 1.0);
+    let (x, y, z) = (40.32f32, 2.70f32, 10.0f32);
+    let yaw = -HALF_PI; // the written face looks back into the yard
+    let mut v = vec![
+        cuboid(2.8, 1.34, 0.16, timber, x, y, z).bevel(0.035).weathered().turn(0.0, yaw, 0.0),
+        Part::new(Shape::Quad { w: 2.56, h: 1.10 }, matt(0xffffff).textured(Tex::CricketBoard))
+            .at(40.22, y, z).turn(0.0, yaw, 0.0),
+    ];
+    // Two bent strap hinges pin the board back to the paling fence.
+    for dz in [-0.91f32, 0.91] {
+        v.push(cuboid(0.08, 0.48, 0.05, metal, 40.35, 1.88, z + dz).turn(0.0, yaw, 0.0));
+        v.push(orb(0.035, matt(0x665b48), 40.19, y + 0.47, z + dz));
+        v.push(orb(0.035, matt(0x665b48), 40.19, y - 0.47, z + dz));
+    }
     v
 }
 
@@ -2702,6 +2730,7 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         let mut sr = Rng::new(seed ^ 0x5CA7);
         world.extend(weeds(&mut sr));
         world.extend(clutter(&mut sr));
+        world.extend(cricket_scoreboard());
         litter = grog_litter(&mut sr);
         world.extend(ground_story(seed));
         world.extend(table_bottles());
@@ -2959,6 +2988,16 @@ mod tests {
             }
             _ => panic!("the lawn should be first"),
         }
+    }
+
+    #[test]
+    fn backyard_cricket_scoreboard_is_visible_above_the_fence() {
+        let board = cricket_scoreboard();
+        let face = board.iter().find(|p| p.surface.tex == Some(Tex::CricketBoard)).unwrap();
+        let normal = face.rot.rotate(V3::new(0.0, 0.0, 1.0));
+        assert!((normal.x + 1.0).abs() < 1e-5, "board should face the yard");
+        assert!(face.pos.y > FENCE_H, "board sits above the fence, away from player collisions");
+        assert!((face.pos.x - 40.22).abs() < 1e-5);
     }
 
     #[test]
