@@ -127,6 +127,8 @@ pub struct RoundSnap {
     pub chest_stock: u8,
     pub smoko_at: (f32, f32),
     pub heist_teams: u8,
+    /// Host-selected map variant (0..=2).
+    pub heist_variant: u8,
     /// The big banner on screen, with seconds left.
     pub banner: Option<(String, f32)>,
 }
@@ -206,6 +208,7 @@ impl WorldSnap {
         w.u8(r.chest_stock);
         w.pair(r.smoko_at);
         w.u8(r.heist_teams);
+        w.u8(r.heist_variant);
         match &r.banner {
             Some((t, secs)) => {
                 w.u8(1);
@@ -308,6 +311,7 @@ impl WorldSnap {
             chest_stock: r.u8()?,
             smoko_at: r.pair()?,
             heist_teams: r.u8()?,
+            heist_variant: r.u8()?.min(2),
             banner: match r.u8()? {
                 0 => None,
                 1 => Some((r.line(LINE_MAX)?, r.f32()?)),
@@ -415,6 +419,7 @@ mod tests {
                 chest_stock: 3,
                 smoko_at: (-24.0, -3.0),
                 heist_teams: 2,
+                heist_variant: 1,
                 banner: Some(("ROUND 2".into(), 1.5)),
             },
             items: (0..10)

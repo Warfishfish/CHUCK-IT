@@ -108,6 +108,8 @@ pub struct RoundCtl {
     pub panel_in: f32,
     pub last_beep: i32,
     pub rng: Rng,
+    /// Last Heist layout, used to avoid an immediate repeat.
+    pub last_heist_variant: Option<usize>,
 }
 
 impl RoundCtl {
@@ -122,6 +124,7 @@ impl RoundCtl {
             panel_in: 0.0,
             last_beep: 0,
             rng: Rng::new(0x20_0D),
+            last_heist_variant: None,
         }
     }
 
@@ -296,7 +299,11 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
     let features = yard.0.features;
     let spot = pick_chest_spot(g, setup.mode, setup.heist_teams);
     yard.0 = if setup.mode == GameMode::Heist {
-        Yard::heist(features, spot, setup.heist_teams)
+        let previous = g.round.last_heist_variant;
+        let mut variant = g.round.rng.range(0.0, heist::LAYOUTS_PER_TEAM_COUNT as f32) as usize;
+        if previous == Some(variant) { variant = (variant + 1) % heist::LAYOUTS_PER_TEAM_COUNT; }
+        g.round.last_heist_variant = Some(variant);
+        Yard::heist_variant(features, spot, setup.heist_teams, variant)
     } else if setup.mode == GameMode::Smoko {
         Yard::smoko(features, spot)
     } else {
@@ -330,7 +337,7 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
     let mut place = |g: &mut Game, id: PlayerId| -> (f32, f32) {
         if setup.mode == GameMode::Heist
             && let Some(t) = g.teams.get(id)
-            && let Some(at) = heist::spawn_in_base(setup.heist_teams, t, {
+            && let Some(at) = heist::spawn_in_base_variant(setup.heist_teams, yard.0.heist_variant, t, {
                 let n = team_spawned.entry(t).or_insert(0);
                 *n += 1;
                 *n - 1

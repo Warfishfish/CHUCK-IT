@@ -249,6 +249,8 @@ pub struct Yard {
     pub chest_spot: usize,
     /// Teddy Heist: how many teams the arena is built for.
     pub heist: Option<usize>,
+    /// Selected hand-authored layout; shared with the host snapshot for guests.
+    pub heist_variant: usize,
 }
 
 impl Yard {
@@ -294,6 +296,7 @@ impl Yard {
             features,
             chest_spot,
             heist: None,
+            heist_variant: 0,
             race: false,
         }
     }
@@ -301,10 +304,15 @@ impl Yard {
     /// The yard turned into the Teddy Heist arena: the usual props stay, and the oval of steps,
     /// the walled bases and the crates in the middle are added.
     pub fn heist(features: Features, chest_spot: usize, teams: usize) -> Self {
+        Self::heist_variant(features, chest_spot, teams, 0)
+    }
+
+    pub fn heist_variant(features: Features, chest_spot: usize, teams: usize, variant: usize) -> Self {
         let mut y = Self::new(features, chest_spot);
         y.heist = Some(teams.clamp(2, 4));
+        y.heist_variant = variant % crate::heist::LAYOUTS_PER_TEAM_COUNT;
         y.colliders
-            .extend(crate::heist::arena(teams).into_iter().map(|p| p.collider));
+            .extend(crate::heist::arena_for(teams, y.heist_variant).into_iter().map(|p| p.collider));
         y
     }
 
@@ -325,6 +333,13 @@ impl Yard {
 
     /// True when `(x, z)` is at least `r` clear of every Heist wall, step and crate.
     pub fn heist_clear(&self, x: f32, z: f32, r: f32) -> bool {
+        if self.heist.is_some() {
+            let a = crate::heist::ARENA_A - r;
+            let b = crate::heist::ARENA_B - r;
+            if a <= 0.0 || b <= 0.0 || x * x / (a * a) + z * z / (b * b) >= 1.0 {
+                return false;
+            }
+        }
         if self.features.smoko {
             return !self.colliders.iter().any(|c| x>c.x0-r && x<c.x1+r && z>c.z0-r && z<c.z1+r);
         }
@@ -365,6 +380,13 @@ impl Default for Yard {
 /// Is (x, z) inside the yard fence with `margin` to spare?
 pub fn inside_yard(x: f32, z: f32, margin: f32) -> bool {
     x.abs() <= YARD_HALF_X - margin && z.abs() <= YARD_HALF_Z - margin
+}
+
+/// Is a point inside the rounded Heist fence, with a player-sized margin?
+pub fn inside_heist(x: f32, z: f32, margin: f32) -> bool {
+    let a = crate::heist::ARENA_A - margin;
+    let b = crate::heist::ARENA_B - margin;
+    a > 0.0 && b > 0.0 && x * x / (a * a) + z * z / (b * b) <= 1.0
 }
 
 #[cfg(test)]

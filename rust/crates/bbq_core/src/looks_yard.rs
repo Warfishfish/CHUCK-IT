@@ -2072,9 +2072,19 @@ pub fn teddy_flag(team: crate::teams::Team) -> Vec<Part> {
 /// its ring, a light beam, a flag pole with a flag and a ball on top. The big scoreboard cube is
 /// drawn by the game (its writing changes).
 pub fn heist_look(teams: usize) -> Vec<Part> {
+    heist_look_variant(teams, 0)
+}
+
+pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
     use crate::heist::{self, Tint};
     let mut v = Vec::new();
-    for piece in heist::arena(teams) {
+    // Extend the playable lawn beneath the larger oval. Keep the swimming pool cut out of it.
+    v.push(Part::new(Shape::Ground {
+        x0: -heist::ARENA_A, x1: heist::ARENA_A,
+        z0: -heist::ARENA_B, z1: heist::ARENA_B,
+        hole: (POOL_X0, POOL_X1, POOL_Z0, POOL_Z1), per_m: 1.0 / 16.0,
+    }, matt(0xffffff).textured(Tex::Lawn).no_shadow().ground()));
+    for piece in heist::arena_for(teams, variant) {
         let c = piece.collider;
         let colour = match piece.tint {
             Tint::Team(t) => team_colour(t),
@@ -2104,7 +2114,7 @@ pub fn heist_look(teams: usize) -> Vec<Part> {
             (c.z0 + c.z1) / 2.0,
         ));
     }
-    for (def, team) in heist::layout(teams)
+    for (def, team) in heist::layout_for(teams, variant)
         .into_iter()
         .zip(heist::team_keys(teams))
     {

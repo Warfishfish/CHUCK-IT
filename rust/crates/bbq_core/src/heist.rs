@@ -19,8 +19,9 @@ pub const TEDDY_OFFSETS: [(f32, f32); 4] = [(-1.3, -1.3), (1.3, -1.3), (-1.3, 1.
 /// Players spawn inside their own base at these offsets, in turn.
 pub const SPAWN_OFFSETS: [(f32, f32); 4] = [(0.0, 2.1), (0.0, -2.1), (2.1, 0.0), (-2.1, 0.0)];
 /// The oval arena: half-axes and the bay in the middle of each side.
-pub const ARENA_A: f32 = 40.0;
-pub const ARENA_B: f32 = 29.0;
+pub const ARENA_A: f32 = 54.0;
+pub const ARENA_B: f32 = 40.0;
+pub const LAYOUTS_PER_TEAM_COUNT: usize = 3;
 
 pub const TEAM_KEYS: [Team; 4] = [Team::Red, Team::Blue, Team::Green, Team::Yellow];
 
@@ -47,21 +48,24 @@ pub struct BaseDef {
 
 /// Base positions for 2, 3 or 4 teams, in the order of `team_keys`.
 pub fn layout(teams: usize) -> Vec<BaseDef> {
+    layout_for(teams, 0)
+}
+
+/// Hand-authored routes for each player count. The three arrangements deliberately move
+/// the approaches around the arena so players cannot memorise one straight base-to-base run.
+pub fn layout_for(teams: usize, variant: usize) -> Vec<BaseDef> {
     use Open::*;
     let b = |x, z, open| BaseDef { x, z, open };
-    match teams.clamp(2, 4) {
-        2 => vec![b(-26.0, 0.0, XPos), b(26.0, 0.0, XNeg)],
-        3 => vec![
-            b(-26.0, -13.0, XPos),
-            b(26.0, -13.0, XNeg),
-            b(0.0, 20.0, ZNeg),
-        ],
-        _ => vec![
-            b(-26.0, -15.0, XPos),
-            b(26.0, -15.0, XNeg),
-            b(-26.0, 15.0, XPos),
-            b(26.0, 15.0, XNeg),
-        ],
+    match (teams.clamp(2, 4), variant % LAYOUTS_PER_TEAM_COUNT) {
+        (2, 0) => vec![b(-41.0, 0.0, XPos), b(41.0, 0.0, XNeg)],
+        (2, 1) => vec![b(-25.0, -23.0, ZPos), b(25.0, 23.0, ZNeg)],
+        (2, _) => vec![b(-24.0, 24.0, XPos), b(24.0, -24.0, XNeg)],
+        (3, 0) => vec![b(-39.0, -17.0, XPos), b(39.0, -17.0, XNeg), b(0.0, 36.0, ZNeg)],
+        (3, 1) => vec![b(-41.0, 14.0, XPos), b(35.0, 20.0, ZNeg), b(4.0, -35.0, ZPos)],
+        (3, _) => vec![b(-8.0, -35.0, ZPos), b(38.0, 0.0, XNeg), b(-32.0, 23.0, XPos)],
+        (4, 0) => vec![b(-39.0, -18.0, XPos), b(39.0, -18.0, XNeg), b(-39.0, 18.0, XPos), b(39.0, 18.0, XNeg)],
+        (4, 1) => vec![b(-32.0, -23.0, ZPos), b(32.0, -23.0, ZPos), b(-32.0, 23.0, ZNeg), b(32.0, 23.0, ZNeg)],
+        (_, _) => vec![b(-15.0, -35.0, ZPos), b(35.0, -12.0, XNeg), b(15.0, 35.0, ZNeg), b(-35.0, 12.0, XPos)],
     }
 }
 
@@ -158,7 +162,6 @@ impl Bank {
 
 use crate::vec::V3;
 use crate::yard::{Collider, Kind};
-use crate::{YARD_HALF_X, YARD_HALF_Z};
 
 /// How a piece of the arena is coloured.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -225,23 +228,23 @@ fn oval_steps() -> Vec<Piece> {
         });
         n += 1;
     };
-    let mut zc = -YARD_HALF_Z + STEP_SIZE / 2.0;
-    while zc < YARD_HALF_Z {
+    let mut zc = -ARENA_B + STEP_SIZE / 2.0;
+    while zc < ARENA_B {
         let e = if zc.abs() >= ARENA_B {
             0.0
         } else {
             ARENA_A * (1.0 - (zc / ARENA_B) * (zc / ARENA_B)).sqrt()
         };
-        let w = YARD_HALF_X - e.min(YARD_HALF_X);
+        let w = ARENA_A - e.min(ARENA_A);
         if w > 0.35 {
-            put(-YARD_HALF_X + w / 2.0, zc, w, STEP_SIZE);
-            put(YARD_HALF_X - w / 2.0, zc, w, STEP_SIZE);
+            put(-ARENA_A + w / 2.0, zc, w, STEP_SIZE);
+            put(ARENA_A - w / 2.0, zc, w, STEP_SIZE);
         }
         if zc.abs() < BAY_RADIUS {
             let dep = BAY_DEPTH * (1.0 - (zc / BAY_RADIUS) * (zc / BAY_RADIUS)).sqrt();
             if dep > 0.5 {
-                put(-YARD_HALF_X + dep / 2.0, zc, dep, STEP_SIZE);
-                put(YARD_HALF_X - dep / 2.0, zc, dep, STEP_SIZE);
+                put(-ARENA_A + dep / 2.0, zc, dep, STEP_SIZE);
+                put(ARENA_A - dep / 2.0, zc, dep, STEP_SIZE);
             }
         }
         zc += STEP_SIZE;
@@ -253,23 +256,15 @@ fn oval_steps() -> Vec<Piece> {
 /// while keeping several loops open for escapes and counter-attacks. Walls stop normal jumps.
 fn maze_walls() -> Vec<Piece> {
     let panels = [
-        // Horizontal runs leave alternating gates, so a straight sprint always hits a turn.
-        (-17.0, -20.0, 14.0, 0.75, false),
-        (9.0, -20.0, 30.0, 0.75, true),
-        (-9.0, -7.0, 30.0, 0.75, true),
-        (17.0, -7.0, 14.0, 0.75, false),
-        (-17.0, 7.0, 14.0, 0.75, false),
-        (9.0, 7.0, 30.0, 0.75, true),
-        (-14.5, 20.0, 19.0, 0.75, true),
-        (14.5, 20.0, 19.0, 0.75, false),
-        // Short cross-walls turn those gates into a branching route network.
-        (-3.0, -14.0, 0.75, 12.0, true),
-        (3.0, -14.0, 0.75, 12.0, false),
-        // A single center divider makes the direct run bend around its end, but leaves a
-        // broad enough passage that the simple bot steering can still find the route.
-        (0.0, 0.0, 0.75, 8.0, true),
-        (-6.0, 14.0, 0.75, 12.0, false),
-        (6.0, 14.0, 0.75, 12.0, true),
+        // Three staggered cross-arena gates create short contested runs and longer reconnecting flanks.
+        (-7.0, -29.0, 26.0, 0.8, false), (16.0, -29.0, 22.0, 0.8, true),
+        (-18.0, -15.0, 34.0, 0.8, true), (19.0, -15.0, 20.0, 0.8, false),
+        (-18.0, 0.0, 22.0, 0.8, false), (9.0, 0.0, 36.0, 0.8, true),
+        (-20.0, 17.5, 28.0, 0.8, true), (16.0, 15.0, 26.0, 0.8, false),
+        (-8.0, 29.0, 24.0, 0.8, false), (18.0, 29.0, 20.0, 0.8, true),
+        // Cross-walls turn the gates into connected loops. Nothing enters the pool's full rim.
+        (-4.0, -22.0, 0.8, 12.0, true), (7.0, -8.0, 0.8, 12.0, false),
+        (-9.0, 8.0, 0.8, 12.0, true), (5.0, 22.0, 0.8, 12.0, false),
     ];
     panels
         .iter()
@@ -282,9 +277,13 @@ fn maze_walls() -> Vec<Piece> {
 
 /// Everything solid that Heist adds to the yard, for `teams` teams.
 pub fn arena(teams: usize) -> Vec<Piece> {
+    arena_for(teams, 0)
+}
+
+pub fn arena_for(teams: usize, variant: usize) -> Vec<Piece> {
     let keys = team_keys(teams);
     let mut v = Vec::new();
-    for (def, team) in layout(teams).into_iter().zip(keys.iter()) {
+    for (def, team) in layout_for(teams, variant).into_iter().zip(keys.iter()) {
         v.extend(base_walls(def, *team));
     }
     v.extend(oval_steps());
@@ -294,13 +293,21 @@ pub fn arena(teams: usize) -> Vec<Piece> {
 
 /// The base of `team` in a game of `teams` teams.
 pub fn base_of(teams: usize, team: Team) -> Option<BaseDef> {
+    base_of_variant(teams, 0, team)
+}
+
+pub fn base_of_variant(teams: usize, variant: usize, team: Team) -> Option<BaseDef> {
     let i = team_keys(teams).iter().position(|t| *t == team)?;
-    layout(teams).get(i).copied()
+    layout_for(teams, variant).get(i).copied()
 }
 
 /// Where the `n`th person of `team` starts (inside their own base).
 pub fn spawn_in_base(teams: usize, team: Team, n: usize) -> Option<(f32, f32)> {
-    let b = base_of(teams, team)?;
+    spawn_in_base_variant(teams, 0, team, n)
+}
+
+pub fn spawn_in_base_variant(teams: usize, variant: usize, team: Team, n: usize) -> Option<(f32, f32)> {
+    let b = base_of_variant(teams, variant, team)?;
     let o = SPAWN_OFFSETS[n % SPAWN_OFFSETS.len()];
     Some((b.x + o.0, b.z + o.1))
 }
@@ -384,7 +391,19 @@ pub fn bot_goal(
     teddies: &[Stray],
     patrol: &mut u32,
 ) -> Option<V3> {
-    let bases = layout(teams);
+    bot_goal_variant(me, hands_free, teams, 0, people, teddies, patrol)
+}
+
+pub fn bot_goal_variant(
+    me: &Who,
+    hands_free: bool,
+    teams: usize,
+    variant: usize,
+    people: &[Who],
+    teddies: &[Stray],
+    patrol: &mut u32,
+) -> Option<V3> {
+    let bases = layout_for(teams, variant);
     let base_of_team = |t: Team| -> Option<BaseDef> {
         team_keys(teams)
             .iter()
@@ -484,9 +503,10 @@ mod tests {
             assert!(sx - crate::yard::POOL_X1 > -1.0 && sx - crate::yard::POOL_X1 < 6.0);
             assert!(sz > crate::yard::POOL_Z0 - 2.0 && sz < crate::yard::POOL_Z1 + 2.0);
         }
-        // and the old spot is in the red base's way
-        let b = layout(2)[0];
-        assert!(((crate::yard::SMOKO_X - b.x).abs() - BASE_HALF).max((crate::yard::SMOKO_Z - b.z).abs() - BASE_HALF) < 4.5);
+        // the historical smoko spot near the far side of the yard remains away from all bases
+        for b in layout(2) {
+            assert!(((crate::yard::SMOKO_X - b.x).abs() - BASE_HALF).max((crate::yard::SMOKO_Z - b.z).abs() - BASE_HALF) > 4.5);
+        }
     }
 
     use super::*;
@@ -506,27 +526,20 @@ mod tests {
             assert_eq!(layout(n).len(), n);
             assert_eq!(team_keys(n).len(), n);
         }
-        assert_eq!(
-            layout(2)[0],
-            BaseDef {
-                x: -26.0,
-                z: 0.0,
-                open: Open::XPos
-            }
-        );
+        assert_eq!(layout(2)[0], BaseDef { x: -41.0, z: 0.0, open: Open::XPos });
         assert_eq!(
             layout(3)[2],
             BaseDef {
                 x: 0.0,
-                z: 20.0,
+                z: 36.0,
                 open: Open::ZNeg
             }
         );
         assert_eq!(
             layout(4)[3],
             BaseDef {
-                x: 26.0,
-                z: 15.0,
+                x: 39.0,
+                z: 18.0,
                 open: Open::XNeg
             }
         );
@@ -599,13 +612,13 @@ mod tests {
             })
         };
         assert!(!solid(10.0, 10.0, 0.5));
-        assert!(!solid(-26.0, 0.0, 0.5), "inside the red base");
+        assert!(!solid(-41.0, 0.0, 0.5), "inside the red base");
         // the corners are filled
-        assert!(solid(38.0, 27.7, 0.5));
-        assert!(solid(-38.0, -27.7, 0.5));
+        assert!(solid(52.0, 38.5, 0.5));
+        assert!(solid(-52.0, -38.5, 0.5));
         // the bay pushes into the middle of the side walls
-        assert!(solid(38.0, 0.5, 0.5));
-        assert!(!solid(36.5, 10.0, 0.5), "but only in the middle");
+        assert!(solid(52.0, 0.5, 0.5));
+        assert!(!solid(50.5, 10.0, 0.5), "but only in the middle");
         // steps are 2.6 high, walls 2.1
         assert!(steps.iter().all(|p| p.collider.h == STEP_HEIGHT));
         assert!(
@@ -642,37 +655,39 @@ mod tests {
                     && z < p.collider.z1
             })
         };
-        assert!(!blocked(-22.0, 0.0), "the doorway");
-        assert!(blocked(-29.0, 0.0), "the back wall");
+        assert!(!blocked(-36.8, 0.0), "the doorway");
+        assert!(blocked(-44.0, 0.0), "the back wall");
     }
 
     #[test]
-    fn maze_has_open_routes_clear_of_bases_and_teddies() {
+    fn every_layout_has_connected_clear_routes_and_pool_clearance() {
         let walls: Vec<_> = arena(2)
             .into_iter()
             .filter(|p| matches!(p.tint, Tint::Maze(_)))
             .collect();
-        assert_eq!(walls.len(), 13);
+        assert_eq!(walls.len(), 14);
         assert!(walls.iter().all(|p| p.collider.h >= 3.2));
-        let clear = |x: f32, z: f32| {
-            !walls.iter().any(|p| {
-                x > p.collider.x0 - 0.8
-                    && x < p.collider.x1 + 0.8
-                    && z > p.collider.z0 - 0.8
-                    && z < p.collider.z1 + 0.8
-            })
-        };
-        assert!(!clear(0.0, 0.0), "the center divider blocks a straight run");
-        assert!(clear(0.0, 5.2), "a route remains open around the divider");
-        assert!(clear(-8.0, -20.0), "western gate stays open");
-        assert!(clear(8.0, -7.0), "eastern gate stays open");
-        assert!(clear(-8.0, 7.0), "western gate stays open");
-        assert!(clear(0.0, 20.0), "three-team base entrance stays open");
+        for p in &walls {
+            let c = p.collider;
+            // Include the outer coping and a 0.9 m blob width around the complete pool rim.
+            assert!(c.x1 + 0.9 < crate::yard::POOL_X0 - 0.3 || c.x0 - 0.9 > crate::yard::POOL_X1 + 0.3
+                || c.z1 + 0.9 < crate::yard::POOL_Z0 - 0.3 || c.z0 - 0.9 > crate::yard::POOL_Z1 + 0.3,
+                "maze wall overlaps the pool rim: {:?}", c);
+        }
         for n in 2..=4 {
-            for base in layout(n) {
-                assert!(clear(base.x, base.z), "base interior stays clear");
+          for variant in 0..LAYOUTS_PER_TEAM_COUNT {
+            let yard = crate::yard::Yard::heist_variant(Default::default(), 0, n, variant);
+            let walls: Vec<_> = arena_for(n, variant).into_iter().filter(|p| matches!(p.tint, Tint::Maze(_))).collect();
+            let clear = |x: f32, z: f32| !walls.iter().any(|p| {
+                x > p.collider.x0 - 0.65 && x < p.collider.x1 + 0.65 && z > p.collider.z0 - 0.65 && z < p.collider.z1 + 0.65
+            });
+            for base in layout_for(n, variant) {
+                assert!(yard.heist_clear(base.x, base.z, 0.45), "base interior blocked: teams={n} layout={variant} base=({}, {})", base.x, base.z);
                 let g = gate(base);
-                assert!(clear(g.x, g.z), "base doorway stays clear");
+                assert!(yard.heist_clear(g.x, g.z, 0.45) && clear(g.x,g.z), "base doorway blocked: teams={n} layout={variant}");
+                for &(ox, oz) in &SPAWN_OFFSETS {
+                    assert!(yard.heist_clear(base.x + ox, base.z + oz, 0.4), "spawn blocked: teams={n} layout={variant}");
+                }
                 for p in &walls {
                     let dx = if base.x < p.collider.x0 {
                         p.collider.x0 - base.x
@@ -690,7 +705,7 @@ mod tests {
                     };
                     assert!(
                         dx.hypot(dz) > BASE_RADIUS,
-                        "wall intrudes into banking zone: teams={n}, base=({}, {}), wall=({}, {})",
+                        "wall intrudes into banking zone: teams={n} layout={variant}, base=({}, {}), wall=({}, {})",
                         base.x,
                         base.z,
                         p.collider.x0,
@@ -699,9 +714,10 @@ mod tests {
                 }
                 for k in 0..2 {
                     let (tx, tz) = teddy_spot(base, k).unwrap();
-                    assert!(clear(tx, tz), "teddy spawn stays clear");
+                    assert!(yard.heist_clear(tx, tz, 0.4), "teddy spawn blocked");
                 }
             }
+          }
         }
     }
 
@@ -728,34 +744,34 @@ mod tests {
 
     #[test]
     fn the_doorway_is_just_outside_the_open_side() {
-        let b = base_of(2, Team::Red).unwrap(); // (-26, 0) opens +x
-        assert_eq!(gate(b), V3::new(-26.0 + 4.2, 0.0, 0.0));
-        let b = base_of(3, Team::Green).unwrap(); // (0, 20) opens -z
-        assert_eq!(gate(b), V3::new(0.0, 0.0, 20.0 - 4.2));
+        let b = base_of(2, Team::Red).unwrap();
+        assert_eq!(gate(b), V3::new(-41.0 + 4.2, 0.0, 0.0));
+        let b = base_of(3, Team::Green).unwrap();
+        assert_eq!(gate(b), V3::new(0.0, 0.0, 36.0 - 4.2));
     }
 
     #[test]
     fn going_in_means_the_doorway_first() {
         let b = base_of(2, Team::Red).unwrap();
-        let target = V3::new(-26.0, 0.0, 0.0);
+        let target = V3::new(-41.0, 0.0, 0.0);
         // from far away: the doorway
         assert_eq!(via(V3::new(0.0, 0.0, 10.0), b, target), gate(b));
         // standing at the doorway already: straight in
         assert_eq!(via(gate(b), b, target), target);
         // already inside: straight to it
-        assert_eq!(via(V3::new(-25.0, 0.0, 1.0), b, target), target);
+        assert_eq!(via(V3::new(-40.0, 0.0, 1.0), b, target), target);
     }
 
     #[test]
     fn leaving_a_base_means_the_doorway_too() {
         let bases = layout(2);
-        let inside = V3::new(-27.0, 0.0, 1.0);
+        let inside = V3::new(-42.0, 0.0, 1.0);
         let out = V3::new(0.0, 0.0, 5.0);
         assert_eq!(leave(inside, out, &bases), gate(bases[0]));
         // wanting something in the same base: no detour
         assert_eq!(
-            leave(inside, V3::new(-25.0, 0.0, 0.0), &bases),
-            V3::new(-25.0, 0.0, 0.0)
+            leave(inside, V3::new(-40.0, 0.0, 0.0), &bases),
+            V3::new(-40.0, 0.0, 0.0)
         );
         // outside already: no detour
         assert_eq!(
@@ -829,8 +845,8 @@ mod tests {
 
     #[test]
     fn with_a_mate_the_first_bot_guards_and_the_other_raids() {
-        let a = who(1, -16.0, 1.0, Team::Red, true);
-        let b = who(2, -10.0, 4.0, Team::Red, true);
+        let a = who(1, -41.0, 1.0, Team::Red, true);
+        let b = who(2, -40.0, 1.0, Team::Red, true);
         let strays = [Stray {
             team: Team::Blue,
             pos: V3::new(25.0, 0.2, 0.0),
@@ -841,17 +857,17 @@ mod tests {
         let mut pb = 0;
         // bot 1 patrols a corner of its own base
         let ga = bot_goal(&a, true, 2, &people, &strays, &mut pa).unwrap();
-        assert!(ga.horiz_dist(V3::new(-26.0, 0.0, 0.0)) < 4.5, "{ga:?}");
-        // bot 2 goes raiding, via the enemy doorway (blue base at (20, 0) opens -x)
+        assert!(ga.horiz_dist(V3::new(-41.0, 0.0, 0.0)) < 4.5, "{ga:?}");
+        // bot 2 leaves by its doorway before raiding.
         let gb = bot_goal(&b, true, 2, &people, &strays, &mut pb).unwrap();
-        assert_eq!(gb, gate(base_of(2, Team::Blue).unwrap()));
+        assert_eq!(gb, gate(base_of(2, Team::Red).unwrap()));
     }
 
     #[test]
     fn a_guard_goes_for_an_intruder_near_home_and_otherwise_walks_its_patrol() {
-        let a = who(1, -14.0, 3.0, Team::Red, true); // just outside the door
-        let mate = who(2, -19.0, -1.0, Team::Red, false);
-        let intruder = who(3, -20.0, 6.0, Team::Blue, false);
+        let a = who(1, -36.8, 0.0, Team::Red, true); // just outside the door
+        let mate = who(2, -42.0, -1.0, Team::Red, false);
+        let intruder = who(3, -41.0, 6.0, Team::Blue, false);
         let mut patrol = 0;
         let g = bot_goal(
             &a,
@@ -865,7 +881,7 @@ mod tests {
         assert_eq!(g, intruder.pos);
         // at a patrol corner it moves on to the next
         let ang = std::f32::consts::FRAC_PI_4;
-        let corner = who(1, -26.0 + ang.cos() * 1.9, ang.sin() * 1.9, Team::Red, true);
+        let corner = who(1, -41.0 + ang.cos() * 1.9, ang.sin() * 1.9, Team::Red, true);
         let mut patrol = 0;
         bot_goal(&corner, true, 2, &[corner.clone(), mate], &[], &mut patrol);
         assert_eq!(patrol, 1);
@@ -909,7 +925,7 @@ mod tests {
 
     #[test]
     fn a_bot_inside_its_own_base_leaves_by_the_door_when_raiding() {
-        let me = who(1, -27.0, 1.0, Team::Red, true);
+        let me = who(1, -41.0, 1.0, Team::Red, true);
         let strays = [Stray {
             team: Team::Blue,
             pos: V3::new(2.0, 0.2, 6.0),

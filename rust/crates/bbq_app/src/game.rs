@@ -2702,7 +2702,8 @@ mod tests {
 
     fn base_of(app: &App, team: Team) -> bbq_core::heist::BaseDef {
         let g = app.world().resource::<Game>();
-        bbq_core::heist::base_of(g.heist.as_ref().unwrap().teams, team).unwrap()
+        let h = g.heist.as_ref().unwrap();
+        bbq_core::heist::base_of_variant(h.teams, h.variant, team).unwrap()
     }
 
     fn teddies_of(app: &App, team: Team) -> Vec<bbq_core::flight::ItemId> {
@@ -2797,7 +2798,7 @@ mod tests {
         );
         ticks(&mut app, 120);
         let g = app.world().resource::<Game>();
-        let b = bbq_core::heist::base_of(2, me).unwrap();
+        let b = base_of(&app, me);
         let it = &g.world.items[&mine];
         assert!(
             it.pos.horiz_dist(V3::new(b.x, 0.0, b.z)) < 3.0,
@@ -2892,7 +2893,7 @@ mod tests {
             // pretend it was thrown out of the yard
             let mut g = app.world_mut().resource_mut::<Game>();
             let it = g.world.items.get_mut(&t).unwrap();
-            it.pos = V3::new(32.0, 3.0, 0.0);
+            it.pos = V3::new(60.0, 3.0, 0.0);
             it.vel = V3::new(30.0, 4.0, 0.0);
             it.state = ItemState::Flying;
             it.live = true;
@@ -2918,16 +2919,16 @@ mod tests {
             let b0 = g.dummies[0].id;
             g.teams.set(PLAYER_ID, Team::Red);
             g.teams.set(b0, Team::Blue);
-            g.dummies[0].mover.x = 8.0;
+            g.dummies[0].mover.x = 33.0;
             g.dummies[0].mover.z = 6.0;
-            g.dummies[0].home = (8.0, 6.0);
+            g.dummies[0].home = (33.0, 6.0);
             g.dummies[0].mover.y = 0.0;
             for d in g.dummies.iter_mut() {
                 d.bot.wish = (0.0, 0.0);
             }
         }
-        put_player(&mut app, 8.0, 0.0);
-        give_teddy_at(&mut app, 8.0, 0.0);
+        put_player(&mut app, 33.0, 0.0);
+        give_teddy_at(&mut app, 33.0, 0.0);
         app.world_mut().resource_mut::<Player>().yaw = std::f32::consts::PI;
         app.world_mut().resource_mut::<Player>().pitch = 0.05 - hands::CHARGE_ARC_RADIANS;
         app.world_mut().resource_mut::<Wanted>().throw_down = true;
@@ -3007,10 +3008,7 @@ mod tests {
             .sum();
         let carried = g.dummies.iter().any(|d| !d.bot.slots.is_empty());
         let hits = g.feed.len();
-        assert!(
-            banked > 0 || carried || hits > 0,
-            "bots did nothing about the teddies"
-        );
+        assert!(banked > 0, "bots moved and contested teddies but did not complete a steal and bank (carrying={carried}, feed={hits})");
     }
 
     // ---------------------------------------------------------------- Phase 8: the screens

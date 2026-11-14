@@ -1418,7 +1418,7 @@ mod tests {
             wet: vec![],
             seq,
             now: 1.0,
-            round: RoundSnap { phase: 3, mode: 0, features: 0, time_left: 9.0, round_no: 1, match_len: 1, chest_spot: 0, chest_stock: 3, smoko_at: (0.0, 0.0), heist_teams: 0, banner: None },
+            round: RoundSnap { phase: 3, mode: 0, features: 0, time_left: 9.0, round_no: 1, match_len: 1, chest_spot: 0, chest_stock: 3, smoko_at: (0.0, 0.0), heist_teams: 0, heist_variant: 0, banner: None },
             items: vec![],
             bots: vec![],
             dazza: DazzaSnap { x: 0.0, z: 0.0, face: 0.0, state: 0, say_seq: 0, swing_seq: 0, flip_seq: 0, say: String::new() },

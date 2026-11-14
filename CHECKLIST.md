@@ -85,7 +85,7 @@
 **Teddy Heist (its own mode)**
 - ✅ Pick **🧸 Teddy Heist** as the Game mode in either the **Solo** or **With mates** section (no separate tab). Choose 2-4 teams there, then Play or Host. Teams spawn inside their own base
 - ✅ Bases are loud: coloured floor pad marking the banking zone, a tall flag pole and a light beam you can spot across the yard, taller walls
-- ✅ Heist has an expanded 80 × 58 m play area, farther-apart bases, curved stone-step edges, half-round bays, and a 13-panel laser-tag maze with staggered passages and loops. Free-for-all and Teams retain their existing obstacle layouts
+- ✅ (14 Nov 2026) Teddy Heist now has its own 108 × 80 m rounded oval arena; the shared 80 × 58 m yard stays the same for other modes. Its visible stone perimeter, player/bot boundary, and thrown-item edge follow the same curve, with no square fence around Heist
 - ✅ 2 to 4 teams, using Red/Blue + Green/Yellow for 3-4 teams. Each team gets a base in its own corner/side of the yard, ringed by a fence/crate wall with a gap or two to get in
 - ✅ Each base holds a bundle of that team's teddies — 2 each in a small lobby, rising to a max of 4 per team as more players share each team (formula: 2 + one extra per 2 players per team, capped at 4)
 - ✅ Run an enemy teddy back to your own base to bank it for points; stealing it back before it's banked just returns it. Getting slapped or knocked down while carrying drops the teddy on the spot — no auto-return, so there's a scramble
@@ -95,7 +95,8 @@
 - ✅ Thrown-item hits no longer score or cost points in Heist (they used to pay 100+ and take 50 off the victim). Only banking scores now
 - ✅ Each player's own banked-teddy count is tracked: shown as 🧸 next to their score on the live scoreboard, as a 🧸 Banked column in the results, and the results line names the top banker in each team
 - ✅ Win: whoever's banked the most teddies when the clock runs out
-- ✅ Teddy Heist gets its own layout: farther-apart bases and a branching center maze create longer runs and multiple chokepoints, scaling from 2 to 4 bases
+- ✅ (14 Nov 2026) Three hand-authored Heist base layouts for each team count (2, 3 and 4), selected once per round without immediate repeats and synchronized from the host to guests and late joiners. Bases, doors, spawns, teddies, banking zones, emblems and bot goals share that layout
+- ✅ (14 Nov 2026) A connected 14-panel laser-tag maze creates short contested routes and longer flanks that reconnect; the full pool rim keeps player-width clearance and acts as a landmark. Measured 2-team doorway routes are documented in the Heist map review
 - ✅ Live tally bar during the round shows each team's banked count by colour
 - ✅ Bots play the objective: they raid the nearest enemy teddy (going round to the doorway first), run it home, chase anyone carrying one of theirs, pick up loose teddies of their own, and the first bot on each team of 2+ guards the base by walking between four spots inside it. Bots caught inside a base leave through its doorway instead of pushing at the walls
 - ⚠️ A thief can still throw a stolen teddy to a mate. Left in on purpose, so watch it in playtest (it might be fun, it might be exploitable)

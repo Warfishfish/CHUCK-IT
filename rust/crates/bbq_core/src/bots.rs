@@ -6,8 +6,8 @@
 //! catch, wind up, throw or swing, and which little errand (a drink, a seat, meat, the chest) to
 //! do right now. The game then does those things with the same rules as for a player.
 
-use std::collections::BTreeMap;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
+use std::cmp::Reverse;
 
 use crate::drinks::drunk_amt;
 use crate::drunk_state::bar_spot;
@@ -16,7 +16,7 @@ use crate::items::{ItemKind, Melee};
 use crate::movement::SEPARATE_DIST;
 use crate::rng::Rng;
 use crate::vec::V3;
-use crate::yard::{BAR, Features, MEAT_TABLE, POOL_SINK, SMOKO_X, SMOKO_Z, Yard};
+use crate::yard::{BAR, Features, MEAT_TABLE, POOL_SINK, Yard};
 use crate::{GameMode, PlayerId, YARD_HALF_X, YARD_HALF_Z, smoko};
 
 /// How good the bots are (spec 11, "Difficulty").
@@ -129,7 +129,66 @@ pub fn blocked(yard: &Yard, x: f32, z: f32, y: f32) -> bool {
             return true;
         }
     }
-    x.abs() > YARD_HALF_X - 0.6 || z.abs() > YARD_HALF_Z - 0.6
+    if yard.heist.is_some() {
+        !crate::yard::inside_heist(x, z, 0.6)
+    } else {
+        x.abs() > YARD_HALF_X - 0.6 || z.abs() > YARD_HALF_Z - 0.6
+    }
+}
+
+/// Pick a walkable waypoint around solid Heist walls. The normal steering system handles
+/// local avoidance; this A* route keeps long objectives from circling a maze panel forever.
+fn heist_waypoint(yard: &Yard, from: V3, target: V3) -> Option<V3> {
+    const MIN_X: i32 = -53;
+    const MAX_X: i32 = 53;
+    const MIN_Z: i32 = -39;
+    const MAX_Z: i32 = 39;
+    const NX: usize = (MAX_X - MIN_X + 1) as usize;
+    const N: usize = NX * (MAX_Z - MIN_Z + 1) as usize;
+    let index = |x: i32, z: i32| ((z - MIN_Z) as usize) * NX + (x - MIN_X) as usize;
+    let point = |i: usize| V3::new(MIN_X as f32 + (i % NX) as f32, 0.0, MIN_Z as f32 + (i / NX) as f32);
+    let snap = |x: f32, z: f32| -> (i32, i32) { (x.round() as i32, z.round() as i32) };
+    let direct_steps=((target.x-from.x).hypot(target.z-from.z)/0.6).ceil().max(1.0) as usize;
+    if (1..=direct_steps).all(|i| {let t=i as f32/direct_steps as f32;!blocked(yard,from.x+(target.x-from.x)*t,from.z+(target.z-from.z)*t,from.y)}) { return Some(target); }
+    let (sx, sz) = snap(from.x, from.z);
+    let (gx, gz) = snap(target.x, target.z);
+    if !(MIN_X..=MAX_X).contains(&sx) || !(MIN_Z..=MAX_Z).contains(&sz)
+        || !(MIN_X..=MAX_X).contains(&gx) || !(MIN_Z..=MAX_Z).contains(&gz) { return None; }
+    let start = index(sx, sz);
+    let end = index(gx, gz);
+    let clear = |i: usize| { let p = point(i); !blocked(yard, p.x, p.z, from.y) };
+    if !clear(start) || !clear(end) { return None; }
+    let mut score = vec![i32::MAX; N];
+    let mut parent = vec![usize::MAX; N];
+    let mut open = BinaryHeap::new();
+    let h = |x: i32, z: i32| { let (dx,dz)=((x-gx).abs(),(z-gz).abs()); 10*(dx+dz)-6*dx.min(dz) };
+    score[start] = 0;
+    open.push(Reverse((h(sx,sz), start)));
+    const DIRS: [(i32,i32); 8] = [(-1,0),(1,0),(0,-1),(0,1),(-1,-1),(-1,1),(1,-1),(1,1)];
+    while let Some(Reverse((_, at))) = open.pop() {
+        if at == end { break; }
+        let p = point(at); let (x,z)=(p.x as i32,p.z as i32);
+        for (dx,dz) in DIRS {
+            let (xx,zz)=(x+dx,z+dz);
+            if !(MIN_X..=MAX_X).contains(&xx) || !(MIN_Z..=MAX_Z).contains(&zz) { continue; }
+            let next=index(xx,zz);
+            if !clear(next) { continue; }
+            if dx != 0 && dz != 0 && (!clear(index(x+dx,z)) || !clear(index(x,z+dz))) { continue; }
+            let next_score=score[at]+if dx != 0 && dz != 0 {14}else{10};
+            if next_score < score[next] { score[next]=next_score;parent[next]=at;open.push(Reverse((next_score+h(xx,zz),next))); }
+        }
+    }
+    if parent[end] == usize::MAX { return None; }
+    let mut path=vec![end];let mut at=end;
+    while at != start { at=parent[at];if at==usize::MAX{return None;}path.push(at); }
+    path.reverse();
+    // Look several cells ahead to keep the route smooth, but never cut through a wall.
+    for &candidate in path.iter().rev().skip(1).take(5) {
+        let p=point(candidate);let steps=((p.x-from.x).hypot(p.z-from.z)/0.4).ceil().max(1.0) as usize;
+        let visible=(1..=steps).all(|i| {let t=i as f32/steps as f32;!blocked(yard,from.x+(p.x-from.x)*t,from.z+(p.z-from.z)*t,from.y)});
+        if visible { return Some(p); }
+    }
+    Some(point(path.get(1).copied().unwrap_or(end)))
 }
 
 /// Clear line between two spots: no box taller than 1.6 m in the way (`los`).
@@ -410,6 +469,9 @@ pub struct BotBrain {
     idle_goal: Option<V3>,
     idle_t: f32,
     last_goal: Option<V3>,
+    nav_goal: Option<V3>,
+    nav_point: Option<V3>,
+    nav_t: f32,
     seen: BTreeSet<ItemId>,
     melee_only: bool,
     last_swing: f32,
@@ -454,6 +516,9 @@ impl BotBrain {
             idle_goal: None,
             idle_t: 0.0,
             last_goal: None,
+            nav_goal: None,
+            nav_point: None,
+            nav_t: 0.0,
             seen: BTreeSet::new(),
             melee_only: false,
             last_swing: -9.0,
@@ -474,6 +539,9 @@ impl BotBrain {
         self.seen.clear();
         self.was_stun = false;
         self.help_t = 0.0;
+        self.nav_goal = None;
+        self.nav_point = None;
+        self.nav_t = 0.0;
     }
 
     pub fn is_on_errand(&self) -> bool {
@@ -1182,7 +1250,25 @@ impl BotBrain {
         goal: Option<V3>,
     ) -> (f32, f32) {
         let p = self.pers;
-        let (mut wx, mut wz) = wish;
+        let mut route_wish = wish;
+        self.nav_t -= dt;
+        if w.mode == GameMode::Heist && !urgent && let Some(g) = goal {
+            let changed = self.nav_goal.is_none_or(|old| (old.x-g.x).hypot(old.z-g.z)>1.0);
+            if changed || self.nav_t <= 0.0 {
+                self.nav_goal=Some(g);
+                self.nav_point=heist_waypoint(w.yard,me.pos,g);
+                self.nav_t=0.25;
+            }
+        } else if w.mode != GameMode::Heist || goal.is_none() || urgent {
+            self.nav_goal=None;self.nav_point=None;self.nav_t=0.0;
+        }
+        if w.mode == GameMode::Heist && !urgent
+            && let Some(next) = self.nav_point
+        {
+            let dx=next.x-me.pos.x;let dz=next.z-me.pos.z;let len=dx.hypot(dz).max(1e-3);
+            route_wish=(dx/len,dz/len);
+        }
+        let (mut wx, mut wz) = route_wish;
         let mut m = wx.hypot(wz).min(1.0);
         if m > 0.01 && !urgent {
             // give other people a bit of room (but not whoever we're heading for)
@@ -1378,7 +1464,7 @@ impl Between for V3 {
 mod tests {
     use super::*;
     use crate::movement::Mover;
-    use crate::yard::Yard;
+    use crate::yard::{SMOKO_X, SMOKO_Z, Yard};
 
     const DT: f32 = 1.0 / 60.0;
 

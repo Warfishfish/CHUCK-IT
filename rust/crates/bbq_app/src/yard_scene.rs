@@ -32,6 +32,8 @@ struct SharedSupplies;
 struct BackyardCover;
 #[derive(Component)]
 struct RaceMap;
+#[derive(Component)]
+struct YardFencePart;
 
 const LOOK_SEED: u64 = 0xBB0;
 
@@ -159,6 +161,11 @@ fn build_yard(
         &mut mats,
         Transform::default(),
     );
+    for (part, entity) in look.world.iter().zip(kids.iter().copied()) {
+        if part.surface.tex == Some(Tex::Paling) {
+            commands.entity(entity).insert(YardFencePart);
+        }
+    }
     commands.entity(yard_root).add_child(world_root);
     if let Some(i) = find(&look.world, Tex::PoolWater) {
         commands.entity(kids[i]).insert(PoolWater);
@@ -626,14 +633,15 @@ fn sync_smoko_map(
 }
 
 fn sync_race_map(
- mut commands:Commands,game:Res<Game>,screen:Res<crate::menu::Screen>,settings:Res<crate::menu::Settings>,mut normal:Query<&mut Visibility,(With<NormalYard>,Without<SharedSupplies>)>,
- mut supplies:Query<&mut Visibility,(With<SharedSupplies>,Without<NormalYard>)>,
- roots:Query<Entity,With<RaceMap>>,mut meshes:ResMut<Assets<Mesh>>,mut mats:ResMut<Assets<StandardMaterial>>,mut cache:ResMut<ModelCache>,
+ mut commands:Commands,game:Res<Game>,screen:Res<crate::menu::Screen>,settings:Res<crate::menu::Settings>,mut normal:Query<&mut Visibility,(With<NormalYard>,Without<SharedSupplies>,Without<YardFencePart>)>,
+ mut supplies:Query<&mut Visibility,(With<SharedSupplies>,Without<NormalYard>,Without<YardFencePart>)>,
+ roots:Query<Entity,With<RaceMap>>,mut fences:Query<&mut Visibility,(With<YardFencePart>,Without<NormalYard>,Without<SharedSupplies>)>,mut meshes:ResMut<Assets<Mesh>>,mut mats:ResMut<Assets<StandardMaterial>>,mut cache:ResMut<ModelCache>,
 ) {
  let displayed=crate::menu::displayed_mode(*screen, &settings, &game);
  let active=displayed==bbq_core::GameMode::Race;
  for mut v in &mut normal {v.set_if_neq(if active || displayed==bbq_core::GameMode::Smoko {Visibility::Hidden}else{Visibility::Inherited});}
  for mut v in &mut supplies {v.set_if_neq(if active{Visibility::Hidden}else{Visibility::Inherited});}
+ for mut v in &mut fences {v.set_if_neq(if displayed==bbq_core::GameMode::Heist{Visibility::Hidden}else{Visibility::Inherited});}
  if !active {for e in &roots{commands.entity(e).despawn();}return;}
  if !roots.is_empty(){return;}
  use bbq_core::looks::{Shape,Surface};

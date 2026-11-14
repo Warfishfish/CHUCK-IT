@@ -24,6 +24,7 @@ use crate::yard_scene::YardRes;
 /// The Heist round in progress.
 pub struct HeistState {
     pub teams: usize,
+    pub variant: usize,
     pub bank: Bank,
 }
 
@@ -45,10 +46,11 @@ pub fn start(g: &mut Game, yard: &Yard) {
     let keys = heist::team_keys(teams);
     g.heist = Some(HeistState {
         teams,
+        variant: yard.heist_variant,
         bank: Bank::new(keys),
     });
     let n = heist::teddy_count(g.dummies.len() + 1, teams);
-    let layout = heist::layout(teams);
+    let layout = heist::layout_for(teams, yard.heist_variant);
     for (def, team) in layout.into_iter().zip(keys) {
         for i in 0..n {
             let (x, z) = heist::teddy_spot(def, i).unwrap_or_else(|| {
@@ -65,8 +67,8 @@ pub fn start(g: &mut Game, yard: &Yard) {
     }
 }
 
-fn base_centre(teams: usize, t: Team) -> Option<V3> {
-    heist::base_of(teams, t).map(|b| V3::new(b.x, 0.0, b.z))
+fn base_centre(teams: usize, variant: usize, t: Team) -> Option<V3> {
+    heist::base_of_variant(teams, variant, t).map(|b| V3::new(b.x, 0.0, b.z))
 }
 
 /// Send a loose teddy back to its base, tossing it in from above.
@@ -74,14 +76,14 @@ pub fn return_teddy(g: &mut Game, id: ItemId) {
     let Some(h) = &g.heist else {
         return;
     };
-    let teams = h.teams;
+    let (teams, variant) = (h.teams, h.variant);
     let Some(it) = g.world.items.get(&id) else {
         return;
     };
     let Some(team) = it.team.and_then(team_of_index) else {
         return;
     };
-    let Some(c) = base_centre(teams, team) else {
+    let Some(c) = base_centre(teams, variant, team) else {
         return;
     };
     // already home: nothing to do
@@ -150,7 +152,7 @@ pub fn try_pickup(
         else {
             return Some(id);
         };
-        let home = base_centre(h.teams, theirs).unwrap_or(V3::ZERO);
+        let home = base_centre(h.teams, h.variant, theirs).unwrap_or(V3::ZERO);
         let d = g.world.items[&id].pos.horiz_dist(home);
         match heist::touch_teddy(mine, theirs, d) {
             Touch::Steal => return Some(id),
@@ -169,7 +171,7 @@ pub fn teddies_left(g: &mut Game, snapshot: &[(ItemId, u8)], removed: &[ItemId])
     let Some(h) = &g.heist else {
         return;
     };
-    let teams = h.teams;
+    let (teams, variant) = (h.teams, h.variant);
     for (id, ti) in snapshot {
         if !removed.contains(id) {
             continue;
@@ -177,7 +179,7 @@ pub fn teddies_left(g: &mut Game, snapshot: &[(ItemId, u8)], removed: &[ItemId])
         let Some(team) = team_of_index(*ti) else {
             continue;
         };
-        let Some(c) = base_centre(teams, team) else {
+        let Some(c) = base_centre(teams, variant, team) else {
             continue;
         };
         let new = g.world.spawn(ItemKind::Teddy, c.x, c.z, false, &mut g.rng);
@@ -205,7 +207,7 @@ pub fn team_teddies(g: &Game) -> Vec<(ItemId, u8)> {
 
 /// Bank stolen teddies, and drop them when knocked about. Every fixed step.
 pub fn step(g: &mut Game, p: &Player) {
-    let Some(teams) = g.heist.as_ref().map(|h| h.teams) else {
+    let Some((teams, variant)) = g.heist.as_ref().map(|h| (h.teams, h.variant)) else {
         return;
     };
     let ids: Vec<PlayerId> = std::iter::once(PLAYER_ID)
@@ -251,7 +253,7 @@ pub fn step(g: &mut Game, p: &Player) {
                 drop_held(g, id, item, pos);
                 continue;
             }
-            let Some(home) = base_centre(teams, mine) else {
+            let Some(home) = base_centre(teams, variant, mine) else {
                 continue;
             };
             if heist::can_bank(mine, theirs, pos.horiz_dist(home), stunned, down) {
@@ -322,7 +324,7 @@ pub fn tally_text(h: &HeistState) -> String {
 
 /// The goal for the bot in dummy slot `i`, and whether it is carrying a stolen teddy.
 pub fn goal_for_bot(g: &mut Game, i: usize) -> (Option<V3>, bool) {
-    let Some(teams) = g.heist.as_ref().map(|h| h.teams) else {
+    let Some((teams, variant)) = g.heist.as_ref().map(|h| (h.teams, h.variant)) else {
         return (None, false);
     };
     let id = g.dummies[i].id;
@@ -378,7 +380,7 @@ pub fn goal_for_bot(g: &mut Game, i: usize) -> (Option<V3>, bool) {
         .brains
         .get_mut(&id)
         .map_or(0, |b| b.patrol_corner_or_zero());
-    let goal = heist::bot_goal(&me, hands_free, teams, &people, &strays, &mut patrol);
+    let goal = heist::bot_goal_variant(&me, hands_free, teams, variant, &people, &strays, &mut patrol);
     if let Some(b) = g.crowd.brains.get_mut(&id) {
         b.set_patrol_corner(patrol);
     }
@@ -407,20 +409,21 @@ fn sync_heist_props(
     mut mats: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
     old: Query<Entity, With<HeistProp>>,
-    mut shown: Local<Option<Option<usize>>>,
+    mut shown: Local<Option<(Option<usize>, usize)>>,
 ) {
     let want = yard.0.heist;
-    if *shown == Some(want) {
+    let variant = yard.0.heist_variant;
+    if *shown == Some((want, variant)) {
         return;
     }
-    *shown = Some(want);
+    *shown = Some((want, variant));
     for e in &old {
         commands.entity(e).despawn();
     }
     let Some(teams) = want else {
         return;
     };
-    let parts = bbq_core::looks_yard::heist_look(teams);
+    let parts = bbq_core::looks_yard::heist_look_variant(teams, variant);
     let root = cache.spawn_parts(
         &mut commands,
         &parts,
@@ -431,7 +434,7 @@ fn sync_heist_props(
     commands.entity(root).insert(HeistProp);
     // A simple emblem above each bank makes its home readable over the maze walls.
     // These are visual-only markers and sit above the playable base interior.
-    for (base, team) in bbq_core::heist::layout(teams)
+    for (base, team) in bbq_core::heist::layout_for(teams, variant)
         .into_iter()
         .zip(bbq_core::heist::team_keys(teams).iter().copied())
     {

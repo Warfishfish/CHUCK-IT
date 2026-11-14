@@ -457,9 +457,21 @@ impl Mover {
 
         // yard edge
         let smoko_ute_gate = yard.features.smoko && (-3.5..=5.0).contains(&self.x);
-        let (half_x,half_z)=if yard.race {(52.,37.)}else if smoko_ute_gate {(YARD_HALF_X,44.0)}else{(YARD_HALF_X,YARD_HALF_Z)};
-        self.x = self.x.clamp(-half_x + 0.45, half_x - 0.45);
-        self.z = self.z.clamp(-half_z + 0.45, half_z - 0.45);
+        if yard.heist.is_some() {
+            let a = crate::heist::ARENA_A - 0.45;
+            let b = crate::heist::ARENA_B - 0.45;
+            let q = (self.x * self.x / (a * a) + self.z * self.z / (b * b)).sqrt();
+            if q > 1.0 {
+                self.x /= q;
+                self.z /= q;
+                self.vx = 0.0;
+                self.vz = 0.0;
+            }
+        } else {
+            let (half_x,half_z)=if yard.race {(52.,37.)}else if smoko_ute_gate {(YARD_HALF_X,44.0)}else{(YARD_HALF_X,YARD_HALF_Z)};
+            self.x = self.x.clamp(-half_x + 0.45, half_x - 0.45);
+            self.z = self.z.clamp(-half_z + 0.45, half_z - 0.45);
+        }
         // The only playable route through the north fence is the open gate. Once through,
         // keep players in the narrow access lane until they return to the arena.
         if yard.features.smoko && self.z > YARD_HALF_Z && !smoko_ute_gate {

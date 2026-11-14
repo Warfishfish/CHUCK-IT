@@ -145,6 +145,7 @@ pub fn build_world(g: &Game, yard: &Yard, seq: u32, feed_after: f32, fx: &[FxEve
         chest_stock: g.life.chest.stock.min(255) as u8,
         smoko_at: g.life.smoko_at,
         heist_teams: yard.heist.unwrap_or(0).min(255) as u8,
+        heist_variant: if yard.heist.is_some() { yard.heist_variant.min(2) as u8 } else { 0 },
         banner: g.round.banner.clone(),
     };
     let items = g
@@ -313,9 +314,10 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
     };
     let spot = r.chest_spot as usize;
     let heist = (r.heist_teams > 0).then_some(r.heist_teams as usize);
-    if yard.race != (g.rules.mode==GameMode::Race) || yard.features != features || yard.chest_spot != spot || yard.heist != heist {
+    let heist_variant = if heist.is_some() { r.heist_variant as usize } else { 0 };
+    if yard.race != (g.rules.mode==GameMode::Race) || yard.features != features || yard.chest_spot != spot || yard.heist != heist || yard.heist_variant != heist_variant {
         *yard = match heist {
-            Some(n) if g.rules.mode == GameMode::Heist => Yard::heist(features, spot, n),
+            Some(n) if g.rules.mode == GameMode::Heist => Yard::heist_variant(features, spot, n, heist_variant),
             _ if g.rules.mode == GameMode::Smoko => Yard::smoko(features, spot),
             _ => Yard::new(features, spot),
         };
@@ -864,6 +866,37 @@ mod tests {
     /// A host with one person online (net id 2) standing at (8, 0), the round on.
     fn host_with_a_guest() -> App {
         host_with_a_guest_and(0)
+    }
+
+    #[test]
+    fn late_joiner_rebuilds_the_hosts_heist_layout() {
+        let mut host = host_with_a_guest();
+        let host_yard = bbq_core::yard::Yard::heist_variant(
+            bbq_core::yard::Features::default(),
+            0,
+            3,
+            2,
+        );
+        host.world_mut().resource_mut::<Game>().rules.mode = bbq_core::GameMode::Heist;
+        let snap = {
+            let g = host.world().resource::<Game>();
+            build_world(g, &host_yard, 1, 0.0, &[])
+        };
+        assert_eq!(snap.round.heist_teams, 3);
+        assert_eq!(snap.round.heist_variant, 2);
+
+        let mut guest = app();
+        let mut guest_yard = bbq_core::yard::Yard::default();
+        {
+            let mut g = guest.world_mut().resource_mut::<Game>();
+            apply_world(&mut g, &mut guest_yard, &snap, 2, "Marcus");
+        }
+        assert_eq!(guest_yard.heist, Some(3));
+        assert_eq!(guest_yard.heist_variant, 2);
+        assert_eq!(
+            bbq_core::heist::base_of_variant(3, guest_yard.heist_variant, Team::Green),
+            bbq_core::heist::base_of_variant(3, 2, Team::Green),
+        );
     }
 
     #[test]
