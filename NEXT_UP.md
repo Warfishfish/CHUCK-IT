@@ -14,7 +14,7 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 
 [Five-feature coding plan and acceptance tests](DEVELOPMENT-PLAN.md)
 
-These are queued alongside the Smoko graphics roadmap. Work one item at a time and present it for review. The picnic bend and gum shade have local review captures. The shelter roof, sign and timber-material finish was reviewed and pushed on 14 Nov. Arena lighting and colour is now implemented locally for review in [the 14 November checkpoint](checkpoints/2026-11-14-arena-lighting/review.html).
+These are queued alongside the Smoko graphics roadmap. Work one item at a time and present it for review. The picnic bend and gum shade have local review captures. The shelter roof, sign and timber-material finish was reviewed and pushed on 14 Nov. Arena lighting and colour was reviewed and pushed. The carried-player view, Heist base emblems and Dazza snag reaction are ready for review in [the gameplay checkpoint](checkpoints/2026-11-14-party-ideas/review.html). The expanded Heist map and maze are also in local review.
 
 1. ✅ **Smoko shop placement — north-west site retained.** Marcus selected the north-west frontage in the 8 Nov review; the building, pumps and ute fit inside the fence, and the yard has one shop. The 14 Nov north-west/north-east comparison is in [the placement study](checkpoints/2026-11-14-servo-placement/review.html).
 2. ✅ **Menu map preview — completed and published.** Selected-map preview follows the current mode and host settings; joins show the host's map. See [the menu review](checkpoints/2026-11-08-servo-menu/review.html).
@@ -22,7 +22,7 @@ These are queued alongside the Smoko graphics roadmap. Work one item at a time a
 4. ✅ **Race sideline lap — completed and published.** The sideline path follows the oval for a full lap while preserving the track and scoring. See [the race review](checkpoints/2026-11-08-race-gaze/review.html).
 5. ✅ **Visible character gaze — completed and published.** Bounded head pitch replicates through the existing camera controls, with down/level/up and turn checks in [the race and gaze review](checkpoints/2026-11-08-race-gaze/review.html).
 
-6. ✅ **Teddy Heist maze — implemented and reviewed.** The center crate cross is now eight tall, offset wall panels with several route openings; bases, doors, teddy spawns and scoring rules are preserved. See the [native captures and review](checkpoints/2026-11-14-heist-maze/review.html).
+6. **Teddy Heist map — expanded for review.** The play area is 80 × 58 m, the bases are farther apart, and a 13-panel maze creates staggered passages and loops. Base doors, teddy spawns and scoring rules are preserved. See the [native review capture](checkpoints/2026-11-14-heist-expansion/review.html).
 
 ## Graphics (full list in GRAPHICS_2C.md)
 - A1.7 lawn debris and the four yard eskies (on hold)

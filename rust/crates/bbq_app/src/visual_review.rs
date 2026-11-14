@@ -159,7 +159,7 @@ fn motion_mode() -> Option<&'static str> {
     MODE.get_or_init(|| {
         let a: Vec<String> = std::env::args().collect();
         if !a.iter().any(|v|v=="--shot") || !a.iter().any(|v|v=="--review") { return None; }
-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie", "magpie-perch", "race-carry", "race-tug", "race-grass", "charge-fall", "charge-release", "charge-camera", "magpie-flock", "bot-stack"].contains(&v.as_str())).cloned()
+        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie", "magpie-perch", "race-carry", "race-tug", "race-grass", "carry-camera", "charge-fall", "charge-release", "charge-camera", "magpie-flock", "bot-stack"].contains(&v.as_str())).cloned()
     }).as_deref()
 }
 
@@ -169,6 +169,32 @@ pub fn is_scripted_walk_review() -> bool { matches!(motion_mode(),Some("water-ba
 fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut wanted: ResMut<crate::player::Wanted>, mut frame: Local<u32>) {
     let Some(mode) = motion_mode() else { return };
     if mode=="race" {return;}
+    if mode=="carry-camera" {
+        *frame += 1;
+        if *frame == 140 {
+            game.attract=false; game.options.bots_on=false; game.rules.mode=bbq_core::GameMode::Smoko;
+            game.rules.phase=bbq_core::scoring::Phase::Play; game.round.time_left=180.0; game.round.banner=None;
+            game.dummies.truncate(1); game.world.clear(); game.smoko=Default::default();
+            player.mover=bbq_core::movement::Mover::new(0.0,10.0); player.mover.grounded=true; player.yaw=0.0; player.pitch=0.0;
+            game.me.body=Default::default();
+            if game.dummies.is_empty() {
+                let mut rng=game.rng.clone();
+                game.dummies.push(crate::game::Dummy::new(100,0.0,12.0,0,&mut rng));
+            }
+            if let Some(d)=game.dummies.first_mut() { d.mover=bbq_core::movement::Mover::new(0.0,12.0); d.mover.grounded=true; d.body=Default::default(); d.face=0.0; }
+        }
+        if *frame >= 140 && let Some(d)=game.dummies.first_mut() {
+            d.mover.x=((*frame as f32-140.0)*0.025).sin()*0.7;
+            d.mover.z=12.0-((*frame as f32-140.0)*0.025).cos()*0.5;
+            player.mover.x=d.mover.x+1.1; player.mover.z=d.mover.z;
+        }
+        if (140..300).contains(&*frame) {
+            let since=game.now;
+            game.smoko.carries.entry(100).or_insert(crate::smoko_mode::Carry{victim:crate::player::PLAYER_ID,since});
+        }
+        if *frame==300 { crate::smoko_mode::release(&mut game,&mut player,100,true,true); }
+        return;
+    }
     if mode=="bot-stack" {
         *frame+=1;
         if *frame==120 {

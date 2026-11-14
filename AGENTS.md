@@ -12,6 +12,7 @@ Marcus's backyard party game (it used to be called Chuck It / Backyard Brawl). C
 
 ## How Marcus wants to work
 - Give complete, ready-to-use files, not snippets. Explain things in plain words; Marcus isn't a full-time programmer.
+- While working, send a brief progress update at least every few minutes, and give a concise summary when a milestone is reached or the work is handed back.
 - Before changing the game, read the relevant code. Don't guess from names.
 - Every game change:
   1. Test it: solo, plus 2 players online where networking is involved.

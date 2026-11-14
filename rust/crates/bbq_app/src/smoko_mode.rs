@@ -85,8 +85,9 @@ pub fn controlled(g: &Game, id: PlayerId) -> bool {
 }
 pub fn player_locked(g: &Game) -> bool {
     enabled(g)
-        && (carried(g, PLAYER_ID) || (g.mirror && g.now < g.smoko.guest_until))
+        && (carried(g, PLAYER_ID) || g.smoko.flights.contains_key(&PLAYER_ID) || (g.mirror && g.now < g.smoko.guest_until))
 }
+pub fn flight_owner(g: &Game, id: PlayerId) -> Option<PlayerId> { g.smoko.flights.get(&id).map(|(owner, _)| *owner) }
 fn eligible(g: &Game, p: &Player, carrier: PlayerId, victim: PlayerId) -> bool {
     carrier != victim
         && (if g.rules.mode==GameMode::Race {
@@ -190,7 +191,7 @@ fn grab(g: &mut Game, p: &mut Player, id: PlayerId) {
     }
     sync_person(g, p, id, false);
 }
-fn release(g: &mut Game, p: &mut Player, id: PlayerId, throw: bool, credit: bool) {
+pub(crate) fn release(g: &mut Game, p: &mut Player, id: PlayerId, throw: bool, credit: bool) {
     let Some(c) = g.smoko.carries.remove(&id) else {
         return;
     };

@@ -2855,14 +2855,14 @@ mod tests {
             .filter(|p| p.surface.tex == Some(Tex::Paling))
             .collect();
         assert_eq!(fences.len(), 4);
-        // two long runs (66.2 m) and two short ones (48 m)
+        // two long runs (80 m) and two short ones (58 m)
         let long = fences
             .iter()
-            .filter(|p| (p.surface.repeat.0 - 33.1).abs() < 1e-4)
+            .filter(|p| (p.surface.repeat.0 - 40.1).abs() < 1e-4)
             .count();
         let short = fences
             .iter()
-            .filter(|p| (p.surface.repeat.0 - 24.0).abs() < 1e-4)
+            .filter(|p| (p.surface.repeat.0 - 29.0).abs() < 1e-4)
             .count();
         assert_eq!((long, short), (2, 2));
         assert!(fences.iter().all(|p| (p.pos.y - 0.9).abs() < 1e-6));

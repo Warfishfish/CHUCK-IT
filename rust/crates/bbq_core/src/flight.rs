@@ -792,7 +792,7 @@ mod tests {
         assert_eq!(fate,Fate::Alive);assert_eq!(it.state,ItemState::Ground);
         assert!((it.pos.y-rest_height(ItemKind::Teddy)).abs()<0.01);
         assert!(!events.iter().any(|e|matches!(e,FlightEvent::Splash{..})));
-        let mut outside=thrown(ItemKind::Teddy,V3::new(40.,1.,0.),V3::ZERO);
+        let mut outside=thrown(ItemKind::Teddy,V3::new(47.,1.,0.),V3::ZERO);
         assert_eq!(fly(&mut outside,&yard,5.).0,Fate::Removed);
     }
 

@@ -1513,7 +1513,7 @@ mod tests {
     fn walls_block_and_the_edge_blocks() {
         let yard = Yard::default();
         assert!(!blocked(&yard, 0.0, 10.0, 0.0));
-        assert!(blocked(&yard, 33.0, 0.0, 0.0), "fence");
+        assert!(blocked(&yard, 40.0, 0.0, 0.0), "fence");
         // the shed at (22.5, -16.5), 2.6 high
         assert!(blocked(&yard, 22.5, -16.5, 0.0));
         // on top of it you are not blocked

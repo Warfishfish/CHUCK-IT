@@ -46,8 +46,8 @@ pub mod bush_servo;
 pub type PlayerId = u32;
 
 /// Yard half-sizes in metres (spec section 1).
-pub const YARD_HALF_X: f32 = 33.0;
-pub const YARD_HALF_Z: f32 = 24.0;
+pub const YARD_HALF_X: f32 = 40.0;
+pub const YARD_HALF_Z: f32 = 29.0;
 
 /// The game mode picked in the menu.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

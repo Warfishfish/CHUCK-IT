@@ -50,17 +50,17 @@ pub fn layout(teams: usize) -> Vec<BaseDef> {
     use Open::*;
     let b = |x, z, open| BaseDef { x, z, open };
     match teams.clamp(2, 4) {
-        2 => vec![b(-20.0, 0.0, XPos), b(20.0, 0.0, XNeg)],
+        2 => vec![b(-26.0, 0.0, XPos), b(26.0, 0.0, XNeg)],
         3 => vec![
-            b(-21.0, -10.0, XPos),
-            b(21.0, -10.0, XNeg),
-            b(0.0, 16.0, ZNeg),
+            b(-26.0, -13.0, XPos),
+            b(26.0, -13.0, XNeg),
+            b(0.0, 20.0, ZNeg),
         ],
         _ => vec![
-            b(-21.0, -10.0, XPos),
-            b(21.0, -10.0, XNeg),
-            b(-20.0, 18.0, XPos),
-            b(21.0, 18.0, XNeg),
+            b(-26.0, -15.0, XPos),
+            b(26.0, -15.0, XNeg),
+            b(-26.0, 15.0, XPos),
+            b(26.0, 15.0, XNeg),
         ],
     }
 }
@@ -249,18 +249,27 @@ fn oval_steps() -> Vec<Piece> {
     v
 }
 
-/// Offset wall runs make a small four-quadrant arena with multiple attack routes.
-/// Panels are tall enough that a normal jump cannot skip the maze.
+/// A broad laser-tag maze. Alternating openings force runners to turn and choose a route
+/// while keeping several loops open for escapes and counter-attacks. Walls stop normal jumps.
 fn maze_walls() -> Vec<Piece> {
     let panels = [
-        (-9.0, -17.0, 0.7, 14.0, false),
-        (-9.0, 8.0, 0.7, 12.0, true),
-        (9.0, -8.0, 0.7, 12.0, true),
-        (9.0, 17.0, 0.7, 14.0, false),
-        (-1.0, -8.0, 9.0, 0.7, false),
-        (-16.0, 8.0, 7.0, 0.7, false),
-        (1.0, 8.0, 9.0, 0.7, true),
-        (16.0, 8.0, 7.0, 0.7, false),
+        // Horizontal runs leave alternating gates, so a straight sprint always hits a turn.
+        (-17.0, -20.0, 14.0, 0.75, false),
+        (9.0, -20.0, 30.0, 0.75, true),
+        (-9.0, -7.0, 30.0, 0.75, true),
+        (17.0, -7.0, 14.0, 0.75, false),
+        (-17.0, 7.0, 14.0, 0.75, false),
+        (9.0, 7.0, 30.0, 0.75, true),
+        (-14.5, 20.0, 19.0, 0.75, true),
+        (14.5, 20.0, 19.0, 0.75, false),
+        // Short cross-walls turn those gates into a branching route network.
+        (-3.0, -14.0, 0.75, 12.0, true),
+        (3.0, -14.0, 0.75, 12.0, false),
+        // A single center divider makes the direct run bend around its end, but leaves a
+        // broad enough passage that the simple bot steering can still find the route.
+        (0.0, 0.0, 0.75, 8.0, true),
+        (-6.0, 14.0, 0.75, 12.0, false),
+        (6.0, 14.0, 0.75, 12.0, true),
     ];
     panels
         .iter()
@@ -500,7 +509,7 @@ mod tests {
         assert_eq!(
             layout(2)[0],
             BaseDef {
-                x: -20.0,
+                x: -26.0,
                 z: 0.0,
                 open: Open::XPos
             }
@@ -509,15 +518,15 @@ mod tests {
             layout(3)[2],
             BaseDef {
                 x: 0.0,
-                z: 16.0,
+                z: 20.0,
                 open: Open::ZNeg
             }
         );
         assert_eq!(
             layout(4)[3],
             BaseDef {
-                x: 21.0,
-                z: 18.0,
+                x: 26.0,
+                z: 15.0,
                 open: Open::XNeg
             }
         );
@@ -590,13 +599,13 @@ mod tests {
             })
         };
         assert!(!solid(10.0, 10.0, 0.5));
-        assert!(!solid(-20.0, 0.0, 0.5), "inside the red base");
+        assert!(!solid(-26.0, 0.0, 0.5), "inside the red base");
         // the corners are filled
-        assert!(solid(32.0, 22.7, 0.5));
-        assert!(solid(-32.0, -22.7, 0.5));
+        assert!(solid(38.0, 27.7, 0.5));
+        assert!(solid(-38.0, -27.7, 0.5));
         // the bay pushes into the middle of the side walls
-        assert!(solid(31.0, 0.5, 0.5));
-        assert!(!solid(31.0, 10.0, 0.5), "but only in the middle");
+        assert!(solid(38.0, 0.5, 0.5));
+        assert!(!solid(36.5, 10.0, 0.5), "but only in the middle");
         // steps are 2.6 high, walls 2.1
         assert!(steps.iter().all(|p| p.collider.h == STEP_HEIGHT));
         assert!(
@@ -633,8 +642,8 @@ mod tests {
                     && z < p.collider.z1
             })
         };
-        assert!(!blocked(-17.0, 0.0), "the doorway");
-        assert!(blocked(-23.0, 0.0), "the back wall");
+        assert!(!blocked(-22.0, 0.0), "the doorway");
+        assert!(blocked(-29.0, 0.0), "the back wall");
     }
 
     #[test]
@@ -643,7 +652,7 @@ mod tests {
             .into_iter()
             .filter(|p| matches!(p.tint, Tint::Maze(_)))
             .collect();
-        assert_eq!(walls.len(), 8);
+        assert_eq!(walls.len(), 13);
         assert!(walls.iter().all(|p| p.collider.h >= 3.2));
         let clear = |x: f32, z: f32| {
             !walls.iter().any(|p| {
@@ -653,9 +662,12 @@ mod tests {
                     && z < p.collider.z1 + 0.8
             })
         };
-        assert!(clear(0.0, 0.0), "central intersection stays open");
-        assert!(clear(-9.0, -8.0), "western turn-through gap stays open");
-        assert!(clear(9.0, 8.0), "eastern turn-through gap stays open");
+        assert!(!clear(0.0, 0.0), "the center divider blocks a straight run");
+        assert!(clear(0.0, 5.2), "a route remains open around the divider");
+        assert!(clear(-8.0, -20.0), "western gate stays open");
+        assert!(clear(8.0, -7.0), "eastern gate stays open");
+        assert!(clear(-8.0, 7.0), "western gate stays open");
+        assert!(clear(0.0, 20.0), "three-team base entrance stays open");
         for n in 2..=4 {
             for base in layout(n) {
                 assert!(clear(base.x, base.z), "base interior stays clear");
@@ -678,7 +690,11 @@ mod tests {
                     };
                     assert!(
                         dx.hypot(dz) > BASE_RADIUS,
-                        "wall intrudes into banking zone"
+                        "wall intrudes into banking zone: teams={n}, base=({}, {}), wall=({}, {})",
+                        base.x,
+                        base.z,
+                        p.collider.x0,
+                        p.collider.z0
                     );
                 }
                 for k in 0..2 {
@@ -712,34 +728,34 @@ mod tests {
 
     #[test]
     fn the_doorway_is_just_outside_the_open_side() {
-        let b = base_of(2, Team::Red).unwrap(); // (-20, 0) opens +x
-        assert_eq!(gate(b), V3::new(-20.0 + 4.2, 0.0, 0.0));
-        let b = base_of(3, Team::Green).unwrap(); // (0, 16) opens -z
-        assert_eq!(gate(b), V3::new(0.0, 0.0, 16.0 - 4.2));
+        let b = base_of(2, Team::Red).unwrap(); // (-26, 0) opens +x
+        assert_eq!(gate(b), V3::new(-26.0 + 4.2, 0.0, 0.0));
+        let b = base_of(3, Team::Green).unwrap(); // (0, 20) opens -z
+        assert_eq!(gate(b), V3::new(0.0, 0.0, 20.0 - 4.2));
     }
 
     #[test]
     fn going_in_means_the_doorway_first() {
         let b = base_of(2, Team::Red).unwrap();
-        let target = V3::new(-20.0, 0.0, 0.0);
+        let target = V3::new(-26.0, 0.0, 0.0);
         // from far away: the doorway
         assert_eq!(via(V3::new(0.0, 0.0, 10.0), b, target), gate(b));
         // standing at the doorway already: straight in
         assert_eq!(via(gate(b), b, target), target);
         // already inside: straight to it
-        assert_eq!(via(V3::new(-19.0, 0.0, 1.0), b, target), target);
+        assert_eq!(via(V3::new(-25.0, 0.0, 1.0), b, target), target);
     }
 
     #[test]
     fn leaving_a_base_means_the_doorway_too() {
         let bases = layout(2);
-        let inside = V3::new(-21.0, 0.0, 1.0);
+        let inside = V3::new(-27.0, 0.0, 1.0);
         let out = V3::new(0.0, 0.0, 5.0);
         assert_eq!(leave(inside, out, &bases), gate(bases[0]));
         // wanting something in the same base: no detour
         assert_eq!(
-            leave(inside, V3::new(-19.0, 0.0, 0.0), &bases),
-            V3::new(-19.0, 0.0, 0.0)
+            leave(inside, V3::new(-25.0, 0.0, 0.0), &bases),
+            V3::new(-25.0, 0.0, 0.0)
         );
         // outside already: no detour
         assert_eq!(
@@ -817,7 +833,7 @@ mod tests {
         let b = who(2, -10.0, 4.0, Team::Red, true);
         let strays = [Stray {
             team: Team::Blue,
-            pos: V3::new(19.0, 0.2, 0.0),
+            pos: V3::new(25.0, 0.2, 0.0),
             on_ground: true,
         }];
         let people = [a.clone(), b.clone()];
@@ -825,7 +841,7 @@ mod tests {
         let mut pb = 0;
         // bot 1 patrols a corner of its own base
         let ga = bot_goal(&a, true, 2, &people, &strays, &mut pa).unwrap();
-        assert!(ga.horiz_dist(V3::new(-20.0, 0.0, 0.0)) < 4.5, "{ga:?}");
+        assert!(ga.horiz_dist(V3::new(-26.0, 0.0, 0.0)) < 4.5, "{ga:?}");
         // bot 2 goes raiding, via the enemy doorway (blue base at (20, 0) opens -x)
         let gb = bot_goal(&b, true, 2, &people, &strays, &mut pb).unwrap();
         assert_eq!(gb, gate(base_of(2, Team::Blue).unwrap()));
@@ -835,7 +851,7 @@ mod tests {
     fn a_guard_goes_for_an_intruder_near_home_and_otherwise_walks_its_patrol() {
         let a = who(1, -14.0, 3.0, Team::Red, true); // just outside the door
         let mate = who(2, -19.0, -1.0, Team::Red, false);
-        let intruder = who(3, -17.0, 6.0, Team::Blue, false);
+        let intruder = who(3, -20.0, 6.0, Team::Blue, false);
         let mut patrol = 0;
         let g = bot_goal(
             &a,
@@ -849,7 +865,7 @@ mod tests {
         assert_eq!(g, intruder.pos);
         // at a patrol corner it moves on to the next
         let ang = std::f32::consts::FRAC_PI_4;
-        let corner = who(1, -20.0 + ang.cos() * 1.9, ang.sin() * 1.9, Team::Red, true);
+        let corner = who(1, -26.0 + ang.cos() * 1.9, ang.sin() * 1.9, Team::Red, true);
         let mut patrol = 0;
         bot_goal(&corner, true, 2, &[corner.clone(), mate], &[], &mut patrol);
         assert_eq!(patrol, 1);
@@ -893,7 +909,7 @@ mod tests {
 
     #[test]
     fn a_bot_inside_its_own_base_leaves_by_the_door_when_raiding() {
-        let me = who(1, -21.0, 1.0, Team::Red, true);
+        let me = who(1, -27.0, 1.0, Team::Red, true);
         let strays = [Stray {
             team: Team::Blue,
             pos: V3::new(2.0, 0.2, 6.0),

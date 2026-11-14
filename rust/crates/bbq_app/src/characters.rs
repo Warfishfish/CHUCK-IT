@@ -1587,6 +1587,7 @@ fn animate_dazza(
     mut arm: Query<&mut Transform, (With<DazzaArm>, Without<DazzaBody>, Without<DazzaRoot>)>,
     mut bubble: Query<&mut Visibility, With<DazzaBubble>>,
     mut text: Query<&mut Text2d, With<DazzaBubble>>,
+    mut snag_save: Local<(f32, f32)>,
 ) {
     let dt = time.delta_secs();
     let brain = &game.life.dazza;
@@ -1617,7 +1618,22 @@ fn animate_dazza(
     let raw = if dt > 0.0 { moved / dt } else { 0.0 };
     dz.speed += (raw - dz.speed) * (1.0 - (-14.0 * dt).exp());
     let speed = dz.speed;
-    let pose = dz.anim.tick(dt, brain.state, game.now, speed, moved);
+    let mut pose = dz.anim.tick(dt, brain.state, game.now, speed, moved);
+    let near_flying_snag = game.world.items.values().any(|item| {
+        item.live
+            && matches!(item.kind, bbq_core::items::ItemKind::Steak | bbq_core::items::ItemKind::Fish)
+            && item.vel.len() > 3.0
+            && Vec3::new(item.pos.x - brain.pos.x, item.pos.y - 1.0, item.pos.z - brain.pos.z).length() < 1.5
+    });
+    if near_flying_snag && game.now >= snag_save.0 {
+        snag_save.0 = game.now + 1.2;
+        snag_save.1 = 0.45;
+    }
+    if snag_save.1 > 0.0 {
+        snag_save.1 = (snag_save.1 - dt).max(0.0);
+        let lift = 1.0 - (snag_save.1 / 0.45).clamp(0.0, 1.0);
+        pose.arm = (-2.2 + lift * 1.5, 0.0, -0.4 + lift * 0.8);
+    }
     if let Ok(mut tf) = root.single_mut() {
         tf.translation = pos;
         tf.rotation = Quat::from_rotation_y(brain.face);

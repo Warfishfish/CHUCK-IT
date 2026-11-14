@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.23.5</span>
+      <span class="tag">Backyard Brawl · prototype 0.23.7</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -638,7 +638,7 @@ function mesh(geo,m,x,y,z,parent){const o=new THREE.Mesh(geo,m);o.position.set(x
 function canvasTex(w,h,draw,rx,ry){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx||1,ry||1);t.anisotropy=4;return t;}
 
 /* ================= WORLD ================= */
-const W=33,D=24,GRAV=18;
+const W=40,D=29,GRAV=18;
 const POOL={x0:-27,x1:-13,z0:6,z1:14},WATER_Y=-.16,POOL_DEPTH=1.55,POOL_SINK=1.0;
 const TRAMP={x:15,z:12,r:1.8,h:.6};
 const BAR={x:0,z:-21.5,w:3.6,d:.9,h:1.05};
@@ -1361,9 +1361,9 @@ let heistBoard=null;
 let heistTeams=2,heistBanked={},heistBases={},heistProps=[],heistColsSet=[];
 const HEIST_HALF=3,HEIST_WALL_H=2.1,HEIST_BASE_R=4.3,HEIST_BANK_PTS=150;
 const HEIST_LAYOUT={
-  2:[{x:-20,z:0,open:'xPos'},{x:20,z:0,open:'xNeg'}],
-  3:[{x:-21,z:-10,open:'xPos'},{x:21,z:-10,open:'xNeg'},{x:0,z:16,open:'zNeg'}],
-  4:[{x:-21,z:-10,open:'xPos'},{x:21,z:-10,open:'xNeg'},{x:-20,z:18,open:'xPos'},{x:21,z:18,open:'xNeg'}]
+  2:[{x:-26,z:0,open:'xPos'},{x:26,z:0,open:'xNeg'}],
+  3:[{x:-26,z:-13,open:'xPos'},{x:26,z:-13,open:'xNeg'},{x:0,z:20,open:'zNeg'}],
+  4:[{x:-26,z:-15,open:'xPos'},{x:26,z:-15,open:'xNeg'},{x:-26,z:15,open:'xPos'},{x:26,z:15,open:'xNeg'}]
 };
 function heistKeysArr(){return HEIST_TEAM_KEYS.slice(0,heistTeams);}
 function clearHeistProps(){for(const o of heistProps)if(o.parent)o.parent.remove(o);heistProps.length=0;
@@ -1439,9 +1439,13 @@ function heistBotGoalRaw(ch){const myT=teamOf.get(ch.id),home=myT&&heistBases[my
 const HEIST_SPAWN_OFF=[[0,2.1],[0,-2.1],[2.1,0],[-2.1,0]];let heistSpawnN={};
 function heistSpawnFor(ch){if(gameMode!=='heist')return null;const t=teamOf.get(ch.id),b=t&&heistBases[t];if(!b)return null;
   const n=heistSpawnN[t]=(heistSpawnN[t]||0)+1,o=HEIST_SPAWN_OFF[(n-1)%4];return [b.x+o[0],b.z+o[1]];}
-function buildHeistCenterpiece(){const c=0x8a5a36; // a crate cross dead in the middle of the yard, so no base-to-base run is ever a straight line
-  buildHeistWall(0,0,4.4,1.3,c);buildHeistWall(0,0,1.3,4.4,c);
-  buildHeistWall(4.8,2.8,1.6,1.6,0x9a6a40);buildHeistWall(-4.6,-3,1.6,1.6,0x9a6a40);}
+function buildHeistCenterpiece(){const c=0x8a5a36;
+  // A broad, multi-route laser-tag maze: staggered openings make a straight base-to-base run impossible.
+  const panels=[[-17,-20,14,.75], [9,-20,30,.75], [-9,-7,30,.75], [17,-7,14,.75],
+    [-17,7,14,.75], [9,7,30,.75], [-14.5,20,19,.75], [14.5,20,19,.75],
+    [-3,-14,.75,12], [3,-14,.75,12], [0,0,.75,8],
+    [-6,14,.75,12], [6,14,.75,12]];
+  panels.forEach((p,i)=>buildHeistWall(p[0],p[1],p[2],p[3],i%2?0x9a6a40:c,3.2));}
 function buildHeistBases(n){clearHeistProps();heistTeams=clamp(n|0,2,4);
   const keys=heistKeysArr(),layout=HEIST_LAYOUT[heistTeams]||HEIST_LAYOUT[2],H=HEIST_HALF,th=.35;
   layout.forEach((b,i)=>{const key=keys[i];if(!key)return;const color=TEAMS[key].color;
