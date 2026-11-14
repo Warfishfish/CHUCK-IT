@@ -421,6 +421,30 @@ fn house_styled() -> Vec<Part> {
         cuboid(41.0, 0.16, 4.9, roof, 0.0, 5.62, -27.4).turn(0.445, 0.0, 0.006),
         cuboid(41.0, 0.16, 4.9, shade_surface(roof, 0.94), 0.0, 5.58, -31.6).turn(-0.445, 0.0, -0.004),
     ];
+    // A modest ridge cap and rolled Colorbond gutters make the roof read as a built roof,
+    // while staying entirely above/behind the existing playable yard and collision shapes.
+    let galv = matt(0x858e8c).material(Tex::Metal, 1.3);
+    v.push(cuboid(41.2, 0.12, 0.22, matt(0x9b4d3b).material(Tex::Metal, 1.6), 0.0, 5.78, -29.5));
+    for z in [-24.96f32, -34.04] {
+        v.push(cuboid(40.8, 0.11, 0.16, galv, 0.0, 4.34, z));
+        // short brackets, regularly spaced but not over-detailed at game distance
+        for x in (-18..=18).step_by(6) {
+            v.push(cuboid(0.055, 0.12, 0.20, matt(0x6f7775).material(Tex::Metal, 1.2), x as f32, 4.25, z));
+        }
+    }
+    // Downpipes hug the gable ends. The last elbow points away from the weatherboards.
+    for (x, side) in [(-19.62f32, -1.0f32), (19.62, 1.0)] {
+        v.push(cuboid(0.11, 3.95, 0.11, galv, x, 2.32, -24.98));
+        v.push(rod(V3::new(x, 0.38, -24.98), V3::new(x + side * 0.20, 0.28, -24.98), 0.055, galv));
+        for y in [0.8f32, 2.0, 3.25] {
+            v.push(cuboid(0.17, 0.045, 0.15, matt(0x737b79).material(Tex::Metal, 1.2), x, y, -24.98));
+        }
+    }
+    // A slim sill drip and dark reveal give the existing windows a little depth.
+    for x in [-15.0f32, -9.0, -4.0, 8.0, 13.5] {
+        v.push(cuboid(1.78, 0.08, 0.18, matt(0xd1c4a7), x, 1.70, -25.43));
+        v.push(cuboid(0.025, 0.54, 0.006, matt(0x9b8667).no_shadow(), x + 0.62, 2.18, -25.425));
+    }
     for (i, x) in [-15.0f32, -9.0, -4.0, 8.0, 13.5].into_iter().enumerate() {
         let wob = ((i * 3 % 5) as f32 - 2.0) * 0.012;
         v.push(cuboid(1.9, 1.5, 0.06, matt(0xefeadc), x, 2.5, -25.47).turn(0.0, 0.0, wob));
@@ -450,6 +474,15 @@ fn house_styled() -> Vec<Part> {
     // Broad readable trims; no fine noise or new texture assets.
     for z in [-25.42,-33.58] {v.push(cuboid(40.4,0.20,0.14,matt(0xf4e4c6),0.0,4.55,z));}
     for x in [-19.9,19.9] {v.push(cuboid(0.16,4.5,0.16,matt(0xe6d2aa),x,2.25,-25.43));}
+    // A low painted footing, meter box and a small louvred vent give the wall a few practical
+    // details without introducing new collision or changing the house footprint.
+    v.push(cuboid(39.8, 0.20, 0.24, matt(0xbeb39d).material(Tex::Concrete, 0.8), 0.0, 0.10, -25.49));
+    v.push(cuboid(0.56, 0.76, 0.11, matt(0xddd9c9).material(Tex::Metal, 1.8), 5.35, 1.18, -25.43));
+    v.push(cuboid(0.42, 0.60, 0.025, matt(0xc9c8b9), 5.35, 1.18, -25.36));
+    v.push(cuboid(0.10, 0.10, 0.02, matt(0x587667), 5.35, 1.27, -25.34));
+    for y in [0.95f32, 1.02, 1.09] {
+        v.push(cuboid(0.25, 0.018, 0.02, matt(0x777b72), -18.0, y, -25.36));
+    }
     for x in [-15.0,-9.0,-4.0,8.0,13.5] {
         v.push(cuboid(0.065,1.22,0.04,matt(0xf8eddb),x,2.5,-25.37));
         v.push(cuboid(1.65,0.065,0.04,matt(0xf8eddb),x,2.5,-25.37));

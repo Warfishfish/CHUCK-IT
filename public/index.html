@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.23.9</span>
+      <span class="tag">Backyard Brawl · prototype 0.23.10</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -705,8 +705,25 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   const roofM=mat(0x8f3a2b);
   const r1=mesh(new THREE.BoxGeometry(41,.16,4.9),roofM,0,5.62,-27.4);r1.rotation.x=.445;
   const r2=mesh(new THREE.BoxGeometry(41,.16,4.9),roofM,0,5.62,-31.6);r2.rotation.x=-.445;
-  [-15,-9,-4,8,13.5].forEach(x=>{mesh(new THREE.BoxGeometry(1.9,1.5,.06),mat(0xf4f6f2),x,2.5,-25.47);mesh(new THREE.BoxGeometry(1.6,1.2,.08),mat(0x2d4b66),x,2.5,-25.44);});
+  mesh(new THREE.BoxGeometry(41.2,.12,.22),mat(0x9b4d3b),0,5.78,-29.5); // ridge cap
+  const galv=mat(0x858e8c);
+  [-24.96,-34.04].forEach(z=>{mesh(new THREE.BoxGeometry(40.8,.11,.16),galv,0,4.34,z);
+    for(let x=-18;x<=18;x+=6)mesh(new THREE.BoxGeometry(.055,.12,.20),mat(0x737b79),x,4.25,z);});
+  [-1,1].forEach(side=>{const x=side*19.62;
+    mesh(new THREE.BoxGeometry(.11,3.95,.11),galv,x,2.32,-24.98);
+    mesh(new THREE.BoxGeometry(.25,.055,.055),galv,x+side*.1,.31,-24.98);
+    [.8,2,3.25].forEach(y=>mesh(new THREE.BoxGeometry(.17,.045,.15),mat(0x737b79),x,y,-24.98));});
+  [-15,-9,-4,8,13.5].forEach(x=>{mesh(new THREE.BoxGeometry(1.9,1.5,.06),mat(0xf4f6f2),x,2.5,-25.47);mesh(new THREE.BoxGeometry(1.6,1.2,.08),mat(0x2d4b66),x,2.5,-25.44);
+    mesh(new THREE.BoxGeometry(1.78,.08,.18),mat(0xd1c4a7),x,1.70,-25.43);
+    mesh(new THREE.BoxGeometry(.025,.54,.006),mat(0x9b8667),x+.62,2.18,-25.425);});
+  mesh(new THREE.BoxGeometry(39.8,.20,.24),mat(0xbeb39d),0,.10,-25.49); // raised concrete footing
+  mesh(new THREE.BoxGeometry(.56,.76,.11),mat(0xddd9c9),5.35,1.18,-25.43);
+  mesh(new THREE.BoxGeometry(.42,.60,.025),mat(0xc9c8b9),5.35,1.18,-25.36);
+  mesh(new THREE.BoxGeometry(.10,.10,.02),mat(0x587667),5.35,1.27,-25.34); // meter indicator
+  [.95,1.02,1.09].forEach(y=>mesh(new THREE.BoxGeometry(.25,.018,.02),mat(0x777b72),-18,y,-25.36)); // laundry vent
   mesh(new THREE.BoxGeometry(1.1,2.2,.08),mat(0x7a4b2e),3,1.1,-25.44);
+  mesh(new THREE.BoxGeometry(1.2,2.3,.03),mat(0x9aa09c),3,1.15,-25.38);
+  mesh(new THREE.BoxGeometry(1.0,2.1,.01),new THREE.MeshLambertMaterial({color:0xdfe6e3,transparent:true,opacity:.3,side:THREE.DoubleSide}),3,1.15,-25.36);
   // rainwater tank
   mesh(new THREE.CylinderGeometry(1.3,1.3,2.6,20),mat(0x9fb0a4),22,1.3,-27.8);
   mesh(new THREE.CylinderGeometry(1.35,1.35,.1,20),mat(0x8a9a8f),22,2.62,-27.8);
@@ -1508,13 +1525,14 @@ function swingKey(u){for(let i=0;i<SWK.length-1;i++){const a=SWK[i],b=SWK[i+1];i
 function createChar(id,name,color,kind,sp){
   const ch={id,name,color,kind,isBot:false,pos:new V3(sp[0],0,sp[1]),vel:new V3(),yaw:0,pitch:0,face:0,selId:null,charging:false,charge:0,
     stun:0,dodgeT:0,dodgeCd:0,dodgeDir:new V3(),catchT:0,catchCd:0,grounded:true,jumpBuf:0,coyote:0,sprinting:false,boostT:0,boostCd:0,drunk:0,drinkT:0,drinkDur:1,drinkType:null,downT:0,smokoSeat:-1,smokoT:0,sipT:0,fallT:0,fallAge:0,fallImmune:0,rise:0,helpT:0,slapA:0,slapT:0,swingT:0,lastSwing:-9,lastSlap:-9,
-    tilt:0,tiltV:0,tiltAxis:new V3(1,0,0),phase:Math.random()*6.28,spinV:0,spinA:0,inPool:false,slip:false,wish:new THREE.Vector2(),walk:0,wasInPool:false,
+    tilt:0,tiltV:0,tiltAxis:new V3(1,0,0),phase:Math.random()*6.28,spinV:0,spinA:0,inPool:false,slip:false,wish:new THREE.Vector2(),walk:0,wasInPool:false,animSpeed:0,animYaw:0,
     netP:new V3(sp[0],0,sp[1]),netV:new V3(),netT:performance.now(),netFace:0};
   const g=new THREE.Group(),body=new THREE.Group();g.add(body);
   const cM=mat(color),cL=mat(new THREE.Color(color).lerp(new THREE.Color(0xffffff),.35).getHex()),wh=mat(0xffffff),bk=mat(0x111111);
   mesh(new THREE.CapsuleGeometry(.36,.55,6,14),cM,0,.78,0,body);
   mesh(new THREE.SphereGeometry(.3,18,14),cL,0,1.5,0,body);
   [-1,1].forEach(s=>{mesh(new THREE.SphereGeometry(.085,10,8),wh,s*.11,1.56,.24,body);mesh(new THREE.SphereGeometry(.042,8,6),bk,s*.11,1.56,.315,body);
+    mesh(new THREE.SphereGeometry(.013,8,6),wh,s*.11-.014,1.576,.351,body); // tiny catchlight keeps the gaze readable in shade
     mesh(new THREE.SphereGeometry(.13,10,8),mat(new THREE.Color(color).multiplyScalar(.6).getHex()),s*.16,.09,.04,body).scale.set(1,.6,1.4);});
   const handL=mesh(new THREE.SphereGeometry(.1,10,8),cL,.47,.88,.05,body);
   const hand=new THREE.Group();hand.position.set(-.47,.88,.05);body.add(hand);mesh(new THREE.SphereGeometry(.1,10,8),cL,0,0,0,hand);
@@ -2260,10 +2278,20 @@ function syncCharMesh(ch,dt){
     ch.mesh.position.x+=Math.cos(ry)*lurch;ch.mesh.position.z-=Math.sin(ry)*lurch;}
   ch.mesh.rotation.y=ry;
   la.copy(ch.tiltAxis).applyAxisAngle(UP,-ry);if(la.lengthSq()>1e-6)la.normalize();ch.body.quaternion.setFromAxisAngle(la,ch.tilt);
+  // Bots lean into acceleration and bank gently through turns. This is presentation only:
+  // steering, speed, hit size and collision continue to use the unchanged physics values.
+  const dYaw=Math.atan2(Math.sin(ch.face-ch.animYaw),Math.cos(ch.face-ch.animYaw));
+  const accel=clamp((sp-ch.animSpeed)/Math.max(dt,.001),-18,18);
+  const runPitch=ch.kind==='bot'&&moving?clamp(.035+sp*.012+Math.max(0,accel)*.002,-.03,.12):0;
+  const bank=ch.kind==='bot'&&moving?clamp(-dYaw/Math.max(dt,.001)*.012,-.12,.12):0;
+  ch.body.quaternion.multiply(dq.setFromEuler(de.set(runPitch,0,bank)));
+  ch.animSpeed+=((sp-ch.animSpeed)*(sp>ch.animSpeed?5.5:9))*dt;ch.animYaw=ch.face;
   if(da>0){const roll=da*(Math.sin(t*1.1+ph)*.23+Math.sin(t*2.7+ph*2)*.06)+(moving?Math.sin(ch.walk)*.2*da:0),pitch=da*Math.sin(t*.8+ph*1.7)*.13;
     ch.body.quaternion.multiply(dq.setFromEuler(de.set(pitch,0,roll)));}
   ch.body.position.y=ch.grounded?Math.abs(Math.sin(ch.walk))*(.07+.05*da):0;
-  const wind=ch.charging?ch.charge:0;ch.hand.position.set(-.47-da*.12*Math.abs(Math.sin(t*2.3+ph)),.88+wind*.75+da*Math.sin(t*3.1+ph)*.22,.05-wind*.35+da*Math.sin(t*1.9+ph)*.12);
+  const wind=ch.charging?ch.charge:0,runBlend=ch.kind==='bot'&&!ch.charging?clamp((sp-.4)/2,0,1):0;
+  const armSwing=Math.sin(ch.walk*1.2)*.15*runBlend;
+  ch.hand.position.set(-.47-da*.12*Math.abs(Math.sin(t*2.3+ph)),.88+wind*.75+da*Math.sin(t*3.1+ph)*.22,.05-wind*.35+da*Math.sin(t*1.9+ph)*.12+armSwing);
   if(ch.slapA){ch.slapT+=dt;if(ch.slapT>(ch.slapDur||DOWN_TIME))ch.slapA=0;}
   const P=slapPose(ch);
   if(P){ch.body.quaternion.setFromEuler(de.set(P.rx,P.ry,P.rz));ch.body.position.y=P.y;ch.body.scale.set(P.sx,P.sy,P.sx);}
@@ -2276,7 +2304,7 @@ function syncCharMesh(ch,dt){
   if(ch.slideT>0&&!P&&!(ch.downT>0)){const u=Math.min(1,ch.slideT*3);
     ch.hand.position.set(-.62+Math.sin(t*23)*.14,1.2+Math.sin(t*19)*.38,.05+Math.cos(t*17)*.25);ch.handL.position.set(.62+Math.sin(t*21+1)*.14,1.2+Math.sin(t*18+2)*.38,.05+Math.cos(t*16)*.25);
     ch.body.quaternion.multiply(dq.setFromEuler(de.set(-.4*u,0,Math.sin(t*13)*.32*u)));}
-  else ch.handL.position.set(.47,.88,.05);
+  else ch.handL.position.set(.47,.88+Math.abs(Math.cos(ch.walk*1.2))*.025*runBlend,.05-armSwing);
   let fl=0;if(ch.fallT>0){if(ch.kind==='proxy')ch.fallAge+=dt;fl=Math.min(1,ch.fallAge/.3);ch.rise=.45;
 }
   else if(ch.rise>0){ch.rise=Math.max(0,ch.rise-dt);fl=ch.rise/.45;}

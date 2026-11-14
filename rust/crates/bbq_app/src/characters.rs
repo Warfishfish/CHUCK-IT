@@ -395,16 +395,15 @@ fn spawn_model(
                             ));
                         }
                         "PupilL" | "PupilR" => {
-                            if crate::style::current() == crate::style::Style::Pop {
-                                // One shared warm catchlight makes the gaze legible in shade.
-                                for e in std::iter::once(node).chain(children.iter_descendants(node)) {
-                                    let Ok((mesh, _)) = mesh_nodes.get(e) else { continue };
-                                    let Some(mesh) = meshes.get(&mesh.0) else { continue };
-                                    let Some(bevy::mesh::VertexAttributeValues::Float32x3(pos)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else { continue };
-                                    let r = pos.iter().map(|p| p[0].abs()).fold(0.0f32, f32::max);
-                                    commands.spawn((Mesh3d(kit.glint.clone()), MeshMaterial3d(kit.glint_material.clone()), Transform::from_xyz(-r * 0.28, r * 0.35, r * 0.9).with_scale(Vec3::splat(r * 0.18)), bevy::light::NotShadowCaster, ChildOf(node)));
-                                    break;
-                                }
+                            // A shared catchlight keeps pupil direction legible across all three
+                            // looks, including the darker Current and Clay materials.
+                            for e in std::iter::once(node).chain(children.iter_descendants(node)) {
+                                let Ok((mesh, _)) = mesh_nodes.get(e) else { continue };
+                                let Some(mesh) = meshes.get(&mesh.0) else { continue };
+                                let Some(bevy::mesh::VertexAttributeValues::Float32x3(pos)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else { continue };
+                                let r = pos.iter().map(|p| p[0].abs()).fold(0.0f32, f32::max);
+                                commands.spawn((Mesh3d(kit.glint.clone()), MeshMaterial3d(kit.glint_material.clone()), Transform::from_xyz(-r * 0.28, r * 0.35, r * 0.9).with_scale(Vec3::splat(r * 0.16)), bevy::light::NotShadowCaster, ChildOf(node)));
+                                break;
                             }
                             commands.entity(node).insert((
                                 PupilPart {
@@ -2006,7 +2005,9 @@ fn animate_face_and_feet(
         let Some(dr) = drive.get(b.0) else { continue };
         let k = walk(b.0);
         let ph = dr.phase;
-        tf.translation += Vec3::new(0.0, (ph.cos()).abs() * 0.02 * k, ph.sin() * 0.16 * k);
+        // A slightly broader counter-swing reads as a run at normal camera distance; the
+        // shoulder also answers the turn lean so the arms do not look bolted to the torso.
+        tf.translation += Vec3::new(-dr.roll * 0.08, (ph.cos()).abs() * 0.025 * k, ph.sin() * 0.19 * k);
     }
     for (b, mut tf) in &mut hands_r {
         let Some(dr) = drive.get(b.0) else { continue };
@@ -2014,7 +2015,7 @@ fn animate_face_and_feet(
         let busy = d.bot.winding || d.body.stun > 0.0 || d.body.is_down() || d.seat.is_some() || d.bot.swing_t > 0.0;
         let k = if busy { 0.0 } else { walk(b.0) };
         let ph = dr.phase + std::f32::consts::PI;
-        tf.translation += Vec3::new(0.0, (ph.cos()).abs() * 0.02 * k, ph.sin() * 0.16 * k);
+        tf.translation += Vec3::new(-dr.roll * 0.08, (ph.cos()).abs() * 0.025 * k, ph.sin() * 0.19 * k);
         // the lower shoulder hangs a touch lower
         tf.translation.y -= ((b.0 * 53 % 9) as f32 - 4.0) * 0.004;
     }
