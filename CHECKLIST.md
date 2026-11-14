@@ -15,6 +15,7 @@
 - ✅ WASD, Space jump, Shift sprint boost, Q swap item, right-click catch
 - ✅ (Rust desktop and browser, 12 Nov 2026) Bush Servo Smoko Arena road is a circular loop around the shelter, with the lane markings and shoulders aligned to the road mesh; existing prop clearance is preserved
 - ✅ (Rust desktop, 14 Nov 2026; ready for visual review) Shelter eaves have a narrow galvanized edge, the upper sign has restrained uneven paint wear, and the wide sign lettering remains clear. [Matched captures](checkpoints/2026-11-14-shelter-finish/review.html)
+- ✅ (Rust desktop, 14 Nov 2026; ready for visual review) Bush Servo lighting keeps a warm afternoon sun while cooling sky fill and easing colour saturation for clearer shade and prop colours. [Matched captures](checkpoints/2026-11-14-arena-lighting/review.html)
 - ✅ 1.5x bigger yard with cover, a big deep pool (14 x 8), trampoline
 
 **Chucking and slapping**

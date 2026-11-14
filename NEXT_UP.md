@@ -14,7 +14,7 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 
 [Five-feature coding plan and acceptance tests](DEVELOPMENT-PLAN.md)
 
-These are queued alongside the Smoko graphics roadmap. Work one item at a time and present it for review. The picnic bend and gum shade have local review captures. The shelter roof, sign and timber finish is implemented and ready for review in [the 14 November checkpoint](checkpoints/2026-11-14-shelter-finish/review.html); review it before commit or publication.
+These are queued alongside the Smoko graphics roadmap. Work one item at a time and present it for review. The picnic bend and gum shade have local review captures. The shelter roof, sign and timber-material finish was reviewed and pushed on 14 Nov. Arena lighting and colour is now implemented locally for review in [the 14 November checkpoint](checkpoints/2026-11-14-arena-lighting/review.html).
 
 1. ✅ **Smoko shop placement — north-west site retained.** Marcus selected the north-west frontage in the 8 Nov review; the building, pumps and ute fit inside the fence, and the yard has one shop. The 14 Nov north-west/north-east comparison is in [the placement study](checkpoints/2026-11-14-servo-placement/review.html).
 2. ✅ **Menu map preview — completed and published.** Selected-map preview follows the current mode and host settings; joins show the host's map. See [the menu review](checkpoints/2026-11-08-servo-menu/review.html).
