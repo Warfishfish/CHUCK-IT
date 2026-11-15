@@ -155,11 +155,13 @@ pub enum Tex {
     Concrete,
     /// Gum-tree bark: pale, streaky, with peeling patches.
     Bark,
+    /// Deep, irregular red-brown woodchip mulch for garden beds.
+    Mulch,
     Fabric,
 }
 
 impl Tex {
-    /// The PNG file (in `assets/textures/`) exported from the browser game.
+    /// The image file in `assets/textures/` used by both renderers.
     pub fn file(self) -> &'static str {
         match self {
             Tex::ServoDirt => "servo_dirt.png",
@@ -167,10 +169,10 @@ impl Tex {
             Tex::SignServo => "sign_servo.png",
             Tex::VpLabel => "vp_label.png",
             Tex::Fish => "fish.png",
-            Tex::Lawn => "lawn.png",
+            Tex::Lawn => "lawn_overhaul.png",
             Tex::Paling => "paling.png",
-            Tex::Weatherboard => "weatherboard.png",
-            Tex::Corrugated => "corrugated.png",
+            Tex::Weatherboard => "weatherboard_overhaul.png",
+            Tex::Corrugated => "corrugated_overhaul.png",
             Tex::PoolWater => "pool_water.png",
             Tex::PoolFloor => "pool_floor.png",
             Tex::PoolWall => "pool_wall.png",
@@ -194,12 +196,13 @@ impl Tex {
             Tex::Metal => "metal.png",
             Tex::Plastic => "plastic.png",
             Tex::Concrete => "concrete.png",
-            Tex::Bark => "bark.png",
+            Tex::Bark => "gum_bark_overhaul.png",
+            Tex::Mulch => "mulch_overhaul.png",
             Tex::Fabric => "fabric.png",
         }
     }
 
-    pub const ALL: [Tex; 34] = [
+    pub const ALL: [Tex; 35] = [
         Tex::ServoDirt, Tex::ServoRoad, Tex::SignServo,
         Tex::VpLabel,
         Tex::Fish,
@@ -231,6 +234,7 @@ impl Tex {
         Tex::Plastic,
         Tex::Concrete,
         Tex::Bark,
+        Tex::Mulch,
         Tex::Fabric,
     ];
 

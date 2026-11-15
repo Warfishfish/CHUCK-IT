@@ -281,6 +281,8 @@ fn build_yard(
             "models/backyard_neighbourhood_vignette.glb",
             Transform::from_xyz(16.0, 0.0, 0.0),
         ),
+        // The taller, Blender-authored ribbon gum replaces the simplified boundary shade tree.
+        ("models/gum_tree_hero.glb", Transform::from_xyz(12.0, 0.0, 33.0)),
     ] {
         let prop = commands
             .spawn((

@@ -3274,6 +3274,11 @@ fn props(polished: bool) -> Vec<Part> {
         20.0,
     ));
     if polished {
+        // Textured soil sits inside the established raised-bed edge; it is scenery only.
+        v.push(
+            cuboid(4.56, 0.035, 0.58, matt(0xffffff).material(Tex::Mulch, 3.0), -8.0, 0.682, 20.0)
+                .no_shadow_part(),
+        );
         // Tomatoes climb rough stakes; basil and capsicums give the raised bed distinct crops.
         let stake = matt(0x806344).material(Tex::Wood, 1.2);
         let stem = matt(0x44723a).material(Tex::Plastic, 1.3);
@@ -5308,7 +5313,7 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         // Front-boundary shade trees: reuse gum assets to cast broken canopy shadows
         // across the lawn. Trunks remain outside the playable fence.
         let mut shade_rng = Rng::new(seed ^ 0x5ADE);
-        for (x, z) in [(12.0, D + 4.0), (-14.0, D + 4.5), (W + 4.0, 8.0)] {
+        for (x, z) in [(-14.0, D + 4.5), (W + 4.0, 8.0)] {
             let tree = gum_tree_dusty(&mut shade_rng, 0.0, 0.0, 0.0);
             let mut airy = Vec::new();
             for part in tree {

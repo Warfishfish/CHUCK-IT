@@ -266,10 +266,10 @@ impl Plugin for ModelsPlugin {
 }
 
 fn load_textures(mut cache: ResMut<ModelCache>, assets: Res<AssetServer>) {
-    // Pictures are used as they are, with no sRGB step, like the browser game does. They repeat
-    // (fences, tiles) and blend smoothly at a distance, as three.js does.
-    let load = |s: &mut ImageLoaderSettings| {
-        s.is_srgb = false;
+    // Authored color albedos use sRGB; normal and packed data stay linear. All repeat cleanly
+    // and use mipmaps plus anisotropy so broad surfaces stay readable without distant shimmer.
+    fn settings(s: &mut ImageLoaderSettings, is_srgb: bool) {
+        s.is_srgb = is_srgb;
         s.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
             address_mode_u: ImageAddressMode::Repeat,
             address_mode_v: ImageAddressMode::Repeat,
@@ -279,22 +279,27 @@ fn load_textures(mut cache: ResMut<ModelCache>, assets: Res<AssetServer>) {
             anisotropy_clamp: 8,
             ..default()
         });
-    };
+    }
     for t in Tex::ALL {
         let afternoon_lawn = POLISHED.load(std::sync::atomic::Ordering::Relaxed)
             && crate::style::current() == crate::style::Style::Pop && t == Tex::Lawn;
         let h = assets
             .load_builder()
-            .with_settings(load)
-            .load(format!("textures/{}", if afternoon_lawn { "lawn_afternoon.png" } else { t.file() }));
+            .with_settings(move |s| {
+                settings(
+                    s,
+                    matches!(t, Tex::Lawn | Tex::Weatherboard | Tex::Corrugated | Tex::Bark | Tex::Mulch),
+                )
+            })
+            .load(format!("textures/{}", if afternoon_lawn { "lawn_overhaul.png" } else { t.file() }));
         cache.textures.insert(t, h);
         if POLISHED.load(std::sync::atomic::Ordering::Relaxed) {
-            if let Some(n) = if afternoon_lawn { Some("lawn_afternoon_n.png") } else { t.normal_file() } {
-                let h = assets.load_builder().with_settings(load).load(format!("textures/{n}"));
+            if let Some(n) = if afternoon_lawn { None } else { t.normal_file() } {
+                let h = assets.load_builder().with_settings(|s| settings(s, false)).load(format!("textures/{n}"));
                 cache.normals.insert(t, h);
             }
             if let Some(n) = t.orm_file() {
-                let h = assets.load_builder().with_settings(load).load(format!("textures/{n}"));
+                let h = assets.load_builder().with_settings(|s| settings(s, false)).load(format!("textures/{n}"));
                 cache.orms.insert(t, h);
             }
         }

@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.17</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.18</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -557,6 +557,7 @@ body.touch #cds{display:none}
 
 <script src="room-ws.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 (function(){
 'use strict';
@@ -640,6 +641,8 @@ const matCache={};
 function mat(c,o){const key=String(c)+(o?JSON.stringify(o):'');if(!o&&matCache[key])return matCache[key];const m=new THREE.MeshLambertMaterial(Object.assign({color:c},o||{}));if(!o)matCache[key]=m;return m;}
 function mesh(geo,m,x,y,z,parent){const o=new THREE.Mesh(geo,m);o.position.set(x||0,y||0,z||0);o.castShadow=true;o.receiveShadow=true;(parent||scene).add(o);return o;}
 function canvasTex(w,h,draw,rx,ry){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx||1,ry||1);t.anisotropy=4;return t;}
+function imageTex(path,rx,ry){const t=new THREE.TextureLoader().load(path);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx||1,ry||1);t.anisotropy=renderer.capabilities.getMaxAnisotropy();t.encoding=THREE.sRGBEncoding;return t;}
+function loadHeroGumTree(x,z){new THREE.GLTFLoader().load('models/gum_tree_hero.glb',g=>{const root=g.scene;root.position.set(x,0,z);root.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});scene.add(root);},undefined,e=>console.warn('Hero gum tree failed to load',e));}
 
 /* ================= WORLD ================= */
 const W=40,D=29,GRAV=18,HEIST_A=54,HEIST_B=40;
@@ -724,18 +727,7 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
 (function buildWorld(){
   let porchCurtain=null;
   // lawn with mowing stripes
-  const lawn=canvasTex(256,256,(x,w,h)=>{x.fillStyle='#718d4d';x.fillRect(0,0,w,h);
-    // Muted, soft mowing bands sit beneath varied grass colour instead of hard alternating bars.
-    for(let i=0;i<12;i++){const y=i*h/12;x.fillStyle=i%2?'rgba(193,190,128,.035)':'rgba(37,69,31,.045)';x.beginPath();x.moveTo(0,y+7*Math.sin(i));
-      for(let px=0;px<=w;px+=16)x.lineTo(px,y+7*Math.sin(i+px*.025));x.lineTo(w,y+16);x.lineTo(0,y+16);x.fill();}
-    // Sun-baked, irregular dry patches soften the mowing stripes without hiding the grass.
-    for(let i=0;i<42;i++){const px=Math.random()*w,py=Math.random()*h,rx=3+Math.random()*17,ry=2+Math.random()*10;
-      const g=x.createRadialGradient(px,py,1,px,py,rx);g.addColorStop(0,Math.random()<.55?'rgba(183,157,94,.26)':'rgba(119,142,71,.22)');g.addColorStop(1,'rgba(183,157,94,0)');
-      x.fillStyle=g;x.save();x.translate(px,py);x.scale(1,ry/rx);x.beginPath();x.arc(0,0,rx,0,Math.PI*2);x.fill();x.restore();}
-    // Fine, overlapping fibres make the lawn read as dense cut grass instead of a flat tile.
-    for(let i=0;i<7200;i++){const px=Math.random()*w,py=Math.random()*h;x.strokeStyle=Math.random()<.52?'rgba(35,70,25,.25)':'rgba(211,211,141,.19)';x.lineWidth=.6+Math.random()*.7;
-      x.beginPath();x.moveTo(px,py);x.lineTo(px+(Math.random()-.5)*1.8,py-1-Math.random()*4);x.stroke();}
-    for(let i=0;i<3200;i++){x.fillStyle=Math.random()<.5?'rgba(40,75,28,.23)':'rgba(205,206,133,.19)';x.fillRect(Math.random()*w,Math.random()*h,1+Math.random()*2,2+Math.random()*4);}},2*W/16,2*D/16);
+  const lawn=imageTex('textures/lawn_overhaul.png',2*W/16,2*D/16);
   // the lawn and the paddock both have a hole cut where the pool is, so the pool can actually be deep
   const holed=(x0,x1,y0,y1)=>{const sh=new THREE.Shape();sh.moveTo(x0,y0);sh.lineTo(x1,y0);sh.lineTo(x1,y1);sh.lineTo(x0,y1);sh.lineTo(x0,y0);
     const hole=new THREE.Path();hole.moveTo(POOL.x0,-POOL.z1);hole.lineTo(POOL.x0,-POOL.z0);hole.lineTo(POOL.x1,-POOL.z0);hole.lineTo(POOL.x1,-POOL.z1);hole.lineTo(POOL.x0,-POOL.z1);
@@ -763,12 +755,10 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   });
 
   // house (weatherboard + Colorbond roof), just over the back fence
-  const wb=canvasTex(128,128,(x,w,h)=>{x.fillStyle='#c8d0c1';x.fillRect(0,0,w,h);for(let y=0;y<h;y+=16){const shade=[-8,0,5,-3,2,7,-5,1][(y/16)%8];x.fillStyle=`rgba(${shade<0?'54,61,48':'238,226,197'},${Math.abs(shade)/100+.04})`;x.fillRect(0,y,w,16);
-      x.fillStyle='rgba(69,70,54,.25)';x.fillRect(0,y+14,w,1.5);x.fillStyle='rgba(255,249,225,.36)';x.fillRect(0,y,w,1);
-      for(let k=0;k<4;k++){const xx=Math.random()*w;x.fillStyle='rgba(111,83,58,.08)';x.fillRect(xx,y+2,1,5+Math.random()*8);}}},20,3);
+  const wb=imageTex('textures/weatherboard_overhaul.png',20,3);
   mesh(new THREE.BoxGeometry(40,4.6,8),new THREE.MeshLambertMaterial({map:wb}),0,2.3,-29.5);
   col(HOUSE.x,HOUSE.z,HOUSE.w,HOUSE.d,HOUSE.h); // weatherboard body is solid to the same edge as the rendered mesh
-  const roofM=mat(0x8f3a2b);
+  const roofM=new THREE.MeshLambertMaterial({color:0xffffff,map:imageTex('textures/corrugated_overhaul.png',28,4)});
   const r1=mesh(new THREE.BoxGeometry(41,.16,4.9),roofM,0,5.62,-27.4);r1.rotation.x=.445;
   const r2=mesh(new THREE.BoxGeometry(41,.16,4.9),roofM,0,5.62,-31.6);r2.rotation.x=-.445;
   // Fine rusty rain trails on the walkable rear roof edge: visual only, with no added colliders.
@@ -871,7 +861,7 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
 
   // gum trees
   const leaf=[0x7d9460,0x6b8656,0x8ea46b].map(c=>new THREE.MeshLambertMaterial({color:c,flatShading:true}));
-  const barkTex=canvasTex(64,128,(x,w,h)=>{x.fillStyle='#c7bcaa';x.fillRect(0,0,w,h);for(let i=0;i<46;i++){const xx=Math.random()*w,yy=Math.random()*h;x.fillStyle=['rgba(246,237,218,.48)','rgba(103,86,67,.24)','rgba(166,131,93,.25)'][i%3];x.fillRect(xx,yy,2+Math.random()*7,7+Math.random()*36);}for(let i=0;i<9;i++){x.strokeStyle='rgba(90,79,63,.25)';x.lineWidth=1;x.beginPath();const xx=Math.random()*w;x.moveTo(xx,0);x.lineTo(xx+(Math.random()-.5)*8,h);x.stroke();}},1,1);
+  const barkTex=imageTex('textures/gum_bark_overhaul.png',1,1);
   const bark=new THREE.MeshLambertMaterial({map:barkTex});
   // Low-key weatherboard neighbours continue the suburban backdrop beyond the yard fence.
   const neighbourHomes=[
@@ -880,14 +870,16 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
     [-42,41,Math.PI,14,9,0xf1e7d6,0x7c4b3d],[-14,41,Math.PI,14,9,0xd6ded1,0x5c6c61],[14,41,Math.PI,14,9,0xe7cebb,0x954b3d],[42,41,Math.PI,14,9,0xd8d8ca,0x687677],
     [-44,-50,0,14,9,0xe9d9b8,0x6f7c65],[-16,-50,0,14,9,0xe2e4dc,0x864a3c],[16,-50,0,14,9,0xe9d7c8,0x5c6970],[44,-50,0,14,9,0xcfdac9,0x84603b]
   ];
+  const exteriorWeatherboard=imageTex('textures/weatherboard_overhaul.png',7,2.5);
+  const exteriorRoof=imageTex('textures/corrugated_overhaul.png',7,2);
   function buildNeighbourHouse(home,index){
     const [x,z,yaw,w,d,wallColor,roofColor]=home,style=index%3,h=style===1?3.5:3.7+(index%3)*.18,a=style===1?.26:style===2?.23:.42,rise=d*.25*Math.tan(a),slabD=(d*.5+.7)/Math.cos(a);
     const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=yaw;scene.add(g);
-    const wall=mat(wallColor),roof=mat(roofColor),trim=mat(0xe5d8be),glass=mat([0x36566d,0x496778,0x52676b][index%3]),zinc=mat(0x7f8a86),wood=mat([0x79553a,0x806043,0x74614a][index%3]);
+    const wall=new THREE.MeshLambertMaterial({color:wallColor,map:exteriorWeatherboard}),roof=new THREE.MeshLambertMaterial({color:roofColor,map:exteriorRoof}),trim=mat(0xe5d8be),glass=mat([0x36566d,0x496778,0x52676b][index%3]),zinc=mat(0x7f8a86),wood=mat([0x79553a,0x806043,0x74614a][index%3]);
     mesh(new THREE.BoxGeometry(w,h,d),wall,0,h/2,0,g);
     if(style!==2){
       const shape=new THREE.Shape();shape.moveTo(-w/2,0);shape.lineTo(w/2,0);shape.lineTo(0,rise);shape.closePath();
-      const gableGeo=new THREE.ShapeGeometry(shape),gableMat=new THREE.MeshLambertMaterial({color:wallColor,side:THREE.DoubleSide});
+      const gableGeo=new THREE.ShapeGeometry(shape),gableMat=new THREE.MeshLambertMaterial({color:wallColor,map:exteriorWeatherboard,side:THREE.DoubleSide});
       const frontGable=new THREE.Mesh(gableGeo,gableMat);frontGable.position.set(0,h,d/2+.006);g.add(frontGable);
       const rearGable=new THREE.Mesh(gableGeo,gableMat);rearGable.position.set(0,h,-d/2-.006);rearGable.rotation.y=Math.PI;g.add(rearGable);
     }
@@ -1090,11 +1082,7 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
     // One extra clump keeps the canopy open and irregular.
     const s=rand(1.1,1.8),c=mesh(new THREE.IcosahedronGeometry(s,0),pick(leaf),x+rand(-1.6,1.6),h+rand(-.4,1.2),z+rand(-1.6,1.6));c.scale.set(1.2,.62,.9);}
   // A front gum tree anchors the possum box and throws a broken patch of shade beyond the fence.
-  {const x=12,z=33,h=8.2;mesh(new THREE.CylinderGeometry(.18,.37,h,9),bark,x,h/2,z);
-    for(let k=0;k<3;k++){const a=k*Math.PI*2/3,start=new THREE.Vector3(x,h*.57,z),end=new THREE.Vector3(x+Math.cos(a)*2,h*.9,z+Math.sin(a)*1.8),d=end.clone().sub(start);
-      const limb=mesh(new THREE.CylinderGeometry(.035,.10,d.length(),7),bark,(start.x+end.x)/2,(start.y+end.y)/2,(start.z+end.z)/2);limb.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());
-      const cl=mesh(new THREE.IcosahedronGeometry(1.55,0),pick(leaf),end.x,end.y+.3,end.z);cl.scale.set(1.35,.62,1.05);}
-    for(let i=0;i<8;i++){const a=i*2.4,l=mesh(new THREE.IcosahedronGeometry(.22,0),mat(i%2?0x71824d:0x9a8851),12+Math.cos(a)*.48,.06,33+Math.sin(a)*.34);l.scale.set(1.3,.25,.75);}}
+  loadHeroGumTree(12,33);
   // clouds
   for(let i=0;i<9;i++){const grp=new THREE.Group();for(let k=0;k<4;k++){const c=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(2.5,4.5),1),new THREE.MeshLambertMaterial({color:0xffffff,flatShading:true,emissive:0x8899aa}));
     c.position.set(rand(-5,5),rand(-.6,.6),rand(-2,2));c.scale.y=.45;grp.add(c);}grp.position.set(rand(-90,90),rand(32,46),rand(-90,60));scene.add(grp);clouds.push(grp);}
@@ -1123,7 +1111,7 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   col(0,3,.3,.3,2.3);colliders[colliders.length-1].noTop=true; // the clothesline pole: too thin to stand on
 
   // shed
-  const corr=canvasTex(64,64,(x,w,h)=>{for(let i=0;i<w;i+=8){x.fillStyle='#a9b5ae';x.fillRect(i,0,4,h);x.fillStyle='#93a19a';x.fillRect(i+4,0,4,h);}},6,1);
+  const corr=imageTex('textures/corrugated_overhaul.png',6,1);
   mesh(new THREE.BoxGeometry(4,2.5,3),new THREE.MeshLambertMaterial({map:corr}),22.5,1.25,-16.5);
   mesh(new THREE.BoxGeometry(4.4,.12,3.4),mat(0x7f8b85),22.5,2.56,-16.5);
   mesh(new THREE.BoxGeometry(1.3,2,.06),mat(0x56645d),22.5,1,-14.98);
@@ -1387,6 +1375,7 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   // raised veggie planter
   mesh(new THREE.BoxGeometry(5,.6,.9),mat(0x7a5a3a),-8,.3,20);
   mesh(new THREE.BoxGeometry(4.8,.1,.75),mat(0x4a3322),-8,.61,20);
+  mesh(new THREE.BoxGeometry(4.56,.035,.58),new THREE.MeshLambertMaterial({map:imageTex('textures/mulch_overhaul.png',3,1)}),-8,.682,20);
   const vegLeaf=mat(0x4f8a3d),vegStem=mat(0x44723a),vegStake=mat(0x806344),tomatoRed=mat(0xc83f32);
   for(const [x,lean] of [[-9.35,-.035],[-8.18,.025]]){
     mesh(new THREE.BoxGeometry(.045,1.18,.045),vegStake,x,1.16,19.92).rotation.z=lean;

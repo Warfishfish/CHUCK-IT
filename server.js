@@ -11,7 +11,7 @@ const ROOM_NAME = /^[a-z0-9][a-z0-9_.-]{0,47}$/;
 const MAX_PER_ROOM = 16;
 const MAX_PRESENCE_BYTES = 8192;
 const MAX_MSG_BYTES = 12288; // one relayed game message, after base64
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.ico': 'image/x-icon', '.svg': 'image/svg+xml',
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.ico': 'image/x-icon', '.svg': 'image/svg+xml',
   // the Rust game in the browser (public/rust, built by rust/tools/build_web.sh)
   '.wasm': 'application/wasm', '.glb': 'model/gltf-binary', '.ttf': 'font/ttf', '.wgsl': 'text/plain; charset=utf-8', '.txt': 'text/plain; charset=utf-8' };
 
