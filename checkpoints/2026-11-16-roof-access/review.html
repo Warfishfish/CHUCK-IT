@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tank ladder, roof access and yard detail</title>
+<style>
+  :root{color-scheme:dark;font:16px/1.5 system-ui,sans-serif;background:#18201c;color:#f2eee2}
+  body{max-width:1100px;margin:0 auto;padding:32px 20px 60px}
+  h1{font-size:clamp(28px,5vw,46px);line-height:1.08;margin:0 0 10px}
+  h2{margin:34px 0 10px;color:#e7bd63}
+  p,li{max-width:78ch;color:#d5d2c7}
+  figure{margin:22px 0 30px}
+  img{display:block;width:100%;height:auto;border-radius:12px;border:1px solid #667066;background:#252d28}
+  figcaption{margin-top:8px;color:#bdc4b7;font-size:14px}
+  code{background:#29332d;padding:2px 5px;border-radius:4px}
+</style>
+<body>
+  <h1>Roof access, thicker grass and ride-on mower</h1>
+  <p>Rust desktop and browser-source pass · 16 November 2026</p>
+
+  <figure>
+    <img src="yard-roof-access.png" alt="Backyard house, rainwater tank and ladder leading toward the roof">
+    <figcaption>The climb route sits beside the house: shed-side approach, tank ladder and roof edge.</figcaption>
+  </figure>
+  <figure>
+    <img src="ladder-tank-player-height.png" alt="Closer view of the water tank ladder and house roof">
+    <figcaption>The ladder has visible rails, rungs and tank hooks. The tank's ribbed metal, rain marks and inspection plate are visible at player height.</figcaption>
+  </figure>
+  <figure>
+    <img src="ride-on-mower.png" alt="Detailed ride-on lawn mower parked near the water tank and shed">
+    <figcaption>The shed corner now has a ride-on mower with a pressed deck, wide tyres, seat, steering wheel, headlights and muffler. It stays decorative and does not add a new obstacle.</figcaption>
+  </figure>
+
+  <h2>What changed</h2>
+  <ul>
+    <li>The tank has circular player-side collision and a standable lid. Its ladder is represented by a narrow walkable slope under the visible rungs.</li>
+    <li>Sixteen short roof collision patches follow the front roof plane; the house body blocks walking through the building. A jump from the tank lid lands on the sloped roof and remains stable.</li>
+    <li>Rust lawn blades are about 25% taller, slightly wider and modestly denser. The browser lawn texture has many more fine grass strokes. Grass remains visual-only.</li>
+    <li>The mower, ladder and roof add no item scoring, movement speed, round timing or other-mode map-size changes.</li>
+  </ul>
+  <p>Rust movement and workspace tests cover the new collision and landing. Browser JavaScript syntax passes. The browser scene was not visually captured in this review; its rendering and collision changes mirror the Rust layout.</p>
+</body>
+</html>

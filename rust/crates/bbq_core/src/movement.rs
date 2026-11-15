@@ -3,7 +3,11 @@
 //! Pure maths: the game hands in what the player wants (`MoveInput`) and what is going on
 //! around them (`Modifiers`), and gets back where they end up.
 
-use crate::yard::{POOL_SINK, TRAMP_H, TRAMP_R, TRAMP_X, TRAMP_Z, Yard, in_pool_rect};
+use crate::yard::{
+    Kind, POOL_SINK, TANK_LADDER_BOTTOM_Z, TANK_LADDER_TOP_Z, TANK_LADDER_X_HALF,
+    TANK_RADIUS, TANK_TOP, TANK_X, TANK_Z, TRAMP_H, TRAMP_R, TRAMP_X,
+    TRAMP_Z, Yard, in_pool_rect,
+};
 use crate::{YARD_HALF_X, YARD_HALF_Z};
 
 /// One fixed step in seconds.
@@ -228,13 +232,41 @@ impl Mover {
     pub fn resolve_obstacles(&mut self, yard:&Yard) {
         // push out of boxes (unless we're above them: then we land on top)
         let r = CHAR_RADIUS;
+        if yard.race { return; }
         for c in &yard.colliders {
+            if matches!(c.kind, Kind::HouseRoof | Kind::TankLadder) {
+                // These are walkable top surfaces, not vertical boxes. The house and tank
+                // colliders below them still provide the solid sides.
+                continue;
+            }
             let skip = if c.no_top {
                 self.y >= c.h + 1.5
             } else {
                 self.y >= c.h - LEDGE_CLEARANCE || self.prev_y >= c.h - 0.05
             };
             if skip {
+                continue;
+            }
+            if c.kind == Kind::RainTank {
+                let on_ladder = self.x >= TANK_X - TANK_LADDER_X_HALF
+                    && self.x <= TANK_X + TANK_LADDER_X_HALF
+                    && self.z >= TANK_LADDER_TOP_Z && self.z <= TANK_LADDER_BOTTOM_Z;
+                if on_ladder {
+                    let along = (TANK_LADDER_BOTTOM_Z - self.z) / (TANK_LADDER_BOTTOM_Z - TANK_LADDER_TOP_Z);
+                    let ladder_y = TANK_TOP * along.clamp(0.0, 1.0);
+                    if self.y >= ladder_y - LEDGE_CLEARANCE || self.prev_y >= ladder_y - 0.05 { continue; }
+                }
+                let (dx, dz) = (self.x - TANK_X, self.z - TANK_Z);
+                let distance_sq = dx * dx + dz * dz;
+                let min_distance = TANK_RADIUS + r;
+                if distance_sq < min_distance * min_distance {
+                    let distance = distance_sq.sqrt();
+                    let (nx, nz) = if distance > 1e-5 { (dx / distance, dz / distance) } else { (1.0, 0.0) };
+                    self.x += nx * (min_distance - distance);
+                    self.z += nz * (min_distance - distance);
+                    let into = self.vx * nx + self.vz * nz;
+                    if into < 0.0 { self.vx -= into * nx; self.vz -= into * nz; }
+                }
                 continue;
             }
             let cx = self.x.clamp(c.x0, c.x1);
@@ -667,6 +699,52 @@ mod tests {
         settle(&mut m, &yard);
         walk(&mut m, &yard, (1.0, 0.0), 1.0, &Modifiers::default());
         assert!((m.speed() - 6.2).abs() < 0.05, "{}", m.speed());
+    }
+
+    #[test]
+    fn rain_tank_blocks_walk_through_and_ladder_is_walkable() {
+        let yard = Yard::default();
+        assert!((yard.floor_at(crate::yard::TANK_X, crate::yard::TANK_Z, crate::yard::TANK_TOP, crate::yard::TANK_TOP)
+            - crate::yard::TANK_TOP).abs() < 1e-4);
+
+        let mut against = Mover::new(crate::yard::TANK_X, crate::yard::TANK_Z + 2.0);
+        settle(&mut against, &yard);
+        walk(&mut against, &yard, (0.0, -1.0), 1.0, &Modifiers::default());
+        let distance = (against.x - crate::yard::TANK_X).hypot(against.z - crate::yard::TANK_Z);
+        assert!(distance >= crate::yard::TANK_RADIUS + CHAR_RADIUS - 0.02,
+            "player passed through tank wall: distance={distance}");
+
+        let mut climber = Mover::new(crate::yard::TANK_X, crate::yard::TANK_LADDER_BOTTOM_Z + 0.15);
+        settle(&mut climber, &yard);
+        let mut reached_lid = false;
+        for _ in 0..180 {
+            climber.step(DT, MoveInput { wish: (0.0, -1.0), ..Default::default() }, &Modifiers::default(), &yard);
+            if climber.grounded && climber.y >= crate::yard::TANK_TOP - 0.01 { reached_lid = true; break; }
+        }
+        assert!(reached_lid, "ladder ramp did not reach the tank lid: y={}, z={}", climber.y, climber.z);
+    }
+
+    #[test]
+    fn jump_from_tank_lands_on_sloped_house_roof_and_stays_there() {
+        let yard = Yard::default();
+        let mut m = Mover::new(crate::yard::TANK_X - 0.9, crate::yard::TANK_Z);
+        m.y = crate::yard::TANK_TOP;
+        m.prev_y = m.y;
+        m.grounded = true;
+        m.try_jump(false);
+        let wish = (-0.55, -0.84);
+        let mut landed = false;
+        for _ in 0..120 {
+            m.step(DT, MoveInput { wish, ..Default::default() }, &Modifiers::default(), &yard);
+            if m.grounded && m.y > crate::yard::HOUSE_HEIGHT {
+                landed = true;
+                break;
+            }
+        }
+        assert!(landed, "jump missed the front roof: pos=({}, {}, {}), grounded={}", m.x, m.y, m.z, m.grounded);
+        for _ in 0..30 { m.step(DT, MoveInput::default(), &Modifiers::default(), &yard); }
+        assert!(m.grounded && m.y > crate::yard::HOUSE_HEIGHT,
+            "roof did not hold a stable landing: pos=({}, {}, {})", m.x, m.y, m.z);
     }
 
     #[test]

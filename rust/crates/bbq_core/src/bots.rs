@@ -16,7 +16,7 @@ use crate::items::{ItemKind, Melee};
 use crate::movement::SEPARATE_DIST;
 use crate::rng::Rng;
 use crate::vec::V3;
-use crate::yard::{BAR, Features, MEAT_TABLE, POOL_SINK, Yard};
+use crate::yard::{BAR, Features, Kind, MEAT_TABLE, POOL_SINK, Yard};
 use crate::{GameMode, PlayerId, YARD_HALF_X, YARD_HALF_Z, smoko};
 
 /// How good the bots are (spec 11, "Difficulty").
@@ -122,6 +122,7 @@ fn ang_lerp(a: f32, b: f32, t: f32) -> f32 {
 /// Is there a solid thing at `(x, z)` for someone at height `y`? (`blocked` in the browser game.)
 pub fn blocked(yard: &Yard, x: f32, z: f32, y: f32) -> bool {
     for c in &yard.colliders {
+        if matches!(c.kind, Kind::HouseRoof | Kind::TankLadder) { continue; }
         if c.h < 0.4 || y >= c.h - 0.3 {
             continue;
         }

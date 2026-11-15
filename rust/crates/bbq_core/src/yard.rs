@@ -31,6 +31,14 @@ pub enum Kind {
     /// Walkable parked ute in the Smoko Bush Servo yard.
     Vehicle,
     BackyardCover,
+    /// Solid body of the backyard rainwater tank (its top is a circular landing surface).
+    RainTank,
+    /// Walkable slope along the visible ladder rails.
+    TankLadder,
+    /// Solid weatherboard house body.
+    House,
+    /// Height-stepped collision patches following the visible front roof slope.
+    HouseRoof,
 }
 
 /// The four map features the host can switch off.
@@ -86,6 +94,28 @@ pub struct Collider {
     /// Too thin to stand on (the clothesline pole).
     pub no_top: bool,
 }
+
+/// Shared house and water-tank dimensions. The tank is moved to the front-east corner so its
+/// ladder and roof jump sit in the yard rather than inside the house mesh.
+pub const TANK_X: f32 = 22.3;
+pub const TANK_Z: f32 = -23.9;
+pub const TANK_RADIUS: f32 = 1.3;
+pub const TANK_BODY_HEIGHT: f32 = 3.52;
+pub const TANK_TOP: f32 = 3.62;
+pub const TANK_CAP_RADIUS: f32 = 1.35;
+pub const TANK_LADDER_X_HALF: f32 = 0.55;
+pub const TANK_LADDER_BOTTOM_Z: f32 = -19.4;
+pub const TANK_LADDER_TOP_Z: f32 = -22.55;
+pub const HOUSE_X_HALF: f32 = 20.0;
+pub const HOUSE_Z_CENTRE: f32 = -29.5;
+pub const HOUSE_DEPTH: f32 = 8.0;
+pub const HOUSE_HEIGHT: f32 = 4.6;
+pub const ROOF_EDGE_Z: f32 = -24.95;
+pub const ROOF_RIDGE_Z: f32 = -29.85;
+pub const ROOF_WIDTH: f32 = 41.0;
+pub const ROOF_FRONT_CENTRE_Y: f32 = 5.62;
+pub const ROOF_FRONT_CENTRE_Z: f32 = -27.4;
+pub const ROOF_FRONT_PITCH: f32 = 0.445;
 
 impl Collider {
     /// Box from a centre and width (x) and depth (z), like the JavaScript `col()`.
@@ -263,6 +293,28 @@ impl Yard {
         pole.no_top = true;
         c.push(pole); // clothesline pole
         c.push(Collider::centred(22.5, -16.5, 4.0, 3.0, 2.6).of(Kind::Shed)); // shed
+        c.push(Collider::centred(0.0, HOUSE_Z_CENTRE, HOUSE_X_HALF * 2.0, HOUSE_DEPTH, HOUSE_HEIGHT).of(Kind::House));
+        c.push(Collider::centred(TANK_X, TANK_Z, TANK_RADIUS * 2.1, TANK_RADIUS * 2.1, TANK_TOP).of(Kind::RainTank));
+        c.push(Collider::centred(
+            TANK_X,
+            (TANK_LADDER_BOTTOM_Z + TANK_LADDER_TOP_Z) * 0.5,
+            TANK_LADDER_X_HALF * 2.0,
+            TANK_LADDER_BOTTOM_Z - TANK_LADDER_TOP_Z,
+            TANK_TOP,
+        ).of(Kind::TankLadder));
+        // These tops are small horizontal patches over the sloped mesh. Their sides are ignored
+        // by player movement, while the house body below prevents walking through the roof.
+        const ROOF_PATCHES: usize = 16;
+        let roof_step = (ROOF_EDGE_Z - ROOF_RIDGE_Z) / ROOF_PATCHES as f32;
+        for i in 0..ROOF_PATCHES {
+            let z0 = ROOF_RIDGE_Z + i as f32 * roof_step;
+            let z1 = z0 + roof_step;
+            let z = (z0 + z1) * 0.5;
+            let h = ROOF_FRONT_CENTRE_Y
+                - ROOF_FRONT_PITCH.sin() * (z - ROOF_FRONT_CENTRE_Z)
+                + ROOF_FRONT_PITCH.cos() * 0.08;
+            c.push(Collider::centred(0.0, z, ROOF_WIDTH, roof_step, h).of(Kind::HouseRoof));
+        }
         // Eskies: the box is the axis-aligned bounds of a 1.5 x 1.0 box turned by r.
         for &(x, z, r) in decor_eskies() {
             let (s, co) = (r.sin().abs(), r.cos().abs());
@@ -355,16 +407,32 @@ impl Yard {
     /// Highest standable top under (x, z) for someone at height `y` (and `prev_y` last step).
     /// You can step up onto things when you are at least `h - 0.35` high, or were `h - 0.05` high.
     pub fn floor_at(&self, x: f32, z: f32, y: f32, prev_y: f32) -> f32 {
+        if self.race { return 0.0; }
         let mut floor = 0.0f32;
         for c in &self.colliders {
+            let top = match c.kind {
+                Kind::RainTank => {
+                    let dx = x - TANK_X;
+                    let dz = z - TANK_Z;
+                    if dx * dx + dz * dz > (TANK_CAP_RADIUS - 0.04).powi(2) { continue; }
+                    TANK_TOP
+                }
+                Kind::TankLadder => {
+                    if x < TANK_X - TANK_LADDER_X_HALF || x > TANK_X + TANK_LADDER_X_HALF
+                        || z < TANK_LADDER_TOP_Z || z > TANK_LADDER_BOTTOM_Z { continue; }
+                    let along = (TANK_LADDER_BOTTOM_Z - z) / (TANK_LADDER_BOTTOM_Z - TANK_LADDER_TOP_Z);
+                    TANK_TOP * along.clamp(0.0, 1.0)
+                }
+                _ => c.h,
+            };
             if !c.no_top
                 && x > c.x0 - 0.1
                 && x < c.x1 + 0.1
                 && z > c.z0 - 0.1
                 && z < c.z1 + 0.1
-                && (y >= c.h - 0.35 || prev_y >= c.h - 0.05)
+                && (y >= top - 0.35 || prev_y >= top - 0.05)
             {
-                floor = floor.max(c.h);
+                floor = floor.max(top);
             }
         }
         floor
@@ -419,9 +487,9 @@ mod tests {
 
     #[test]
     fn full_yard_has_all_the_boxes() {
-        // pole, shed, 4 eskies, table, grill, meat table, bins, crates, hedge, 2 tyres,
-        // woodpile, wall, planter, bar, chest
-        assert_eq!(Yard::default().colliders.len(), 21);
+        // pole, shed, house, rain tank, ladder and 16 roof patches, 4 eskies, table, grill,
+        // meat table, bins, crates, hedge, 2 tyres, woodpile, wall, planter, bar, chest
+        assert_eq!(Yard::default().colliders.len(), 40);
     }
 
     #[test]
@@ -432,7 +500,7 @@ mod tests {
             chest: false,
             smoko: false,
         };
-        assert_eq!(Yard::new(off, 0).colliders.len(), 21 - 4);
+        assert_eq!(Yard::new(off, 0).colliders.len(), 40 - 4);
     }
 
     #[test]

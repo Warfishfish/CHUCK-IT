@@ -10,6 +10,8 @@ use crate::rng::Rng;
 use crate::vec::{Quat, V3, cross};
 use crate::yard::{
     BAR, CHEST_SPOTS, DECOR_ESKIES, MEAT_TABLE, POOL_DEPTH, POOL_X0, POOL_X1, POOL_Z0, POOL_Z1, SMOKO_X, SMOKO_Z,
+    HOUSE_DEPTH, HOUSE_HEIGHT, HOUSE_X_HALF, HOUSE_Z_CENTRE, TANK_BODY_HEIGHT,
+    TANK_LADDER_BOTTOM_Z, TANK_LADDER_TOP_Z, TANK_RADIUS, TANK_TOP, TANK_X, TANK_Z,
     TRAMP_H, TRAMP_R, TRAMP_X, TRAMP_Z, WATER_Y,
 };
 use crate::{YARD_HALF_X as W, YARD_HALF_Z as D};
@@ -480,10 +482,71 @@ fn table_bottles() -> Vec<Part> {
 
 /// The house in the step 2c look: faded cream paint, a roofline that is a little uneven, and a
 /// veranda whose roof sags in the middle.
+fn rain_tank_and_ladder(polished: bool) -> Vec<Part> {
+    let mut v = Vec::new();
+    let metal = |colour| {
+        let s = matt(colour);
+        if polished { s.material(Tex::Metal, 1.35) } else { s }
+    };
+    let tank = metal(0x9eafa3);
+    let zinc = metal(0x858d89);
+    let dark = matt(0x56645e);
+    let body = cyl(TANK_RADIUS, TANK_RADIUS, TANK_BODY_HEIGHT, 24, tank, TANK_X, TANK_BODY_HEIGHT * 0.5, TANK_Z).bevel(0.07);
+    v.push(if polished { body.weathered() } else { body });
+    v.push(cyl(1.35, 1.35, 0.10, 24, metal(0x87958c), TANK_X, TANK_BODY_HEIGHT + 0.05, TANK_Z).bevel(0.035));
+    // Folded horizontal seams, a slightly raised lid lip, and the outlet on the exposed east face.
+    for y in [0.28f32, 0.72, 1.36, 2.02, 2.70, 3.22, 3.46] {
+        v.push(torus(1.29, 0.023, 6, 24, 2.0 * PI, zinc).at(TANK_X, y, TANK_Z).turn(HALF_PI, 0.0, 0.0));
+    }
+    v.push(rod(V3::new(TANK_X + 1.26, 0.50, TANK_Z), V3::new(TANK_X + 1.58, 0.50, TANK_Z), 0.07, zinc));
+    v.push(rod(V3::new(TANK_X + 1.58, 0.50, TANK_Z), V3::new(TANK_X + 1.58, 0.50, TANK_Z + 0.23), 0.07, zinc));
+    v.push(cyl(0.04, 0.04, 0.12, 8, metal(0xb28d55), TANK_X + 1.58, 0.62, TANK_Z + 0.12));
+    // Subtle rain streaks and a little faded inspection plate make the tank look used, not new.
+    for (x, y, h) in [(-0.44f32, 2.64f32, 0.38f32), (0.28, 2.35, 0.24), (0.52, 1.72, 0.31)] {
+        v.push(cuboid(0.035, h, 0.008, matt(0x765947).no_shadow(), TANK_X + x, y - h * 0.5, TANK_Z + 1.26));
+    }
+    v.push(cuboid(0.45, 0.25, 0.035, matt(0xddd1ae), TANK_X - 0.52, 2.88, TANK_Z + 1.27));
+    v.push(cuboid(0.27, 0.035, 0.045, matt(0x557469), TANK_X - 0.52, 2.90, TANK_Z + 1.30));
+
+    // A steep but walkable set of ladder rungs: the narrow sloped support follows these rails,
+    // so normal movement walks up it and lands on the tank's circular lid.
+    let (bottom_z, top_z) = (TANK_LADDER_BOTTOM_Z, TANK_LADDER_TOP_Z);
+    let rail_y = 0.08;
+    for side in [-0.46f32, 0.46] {
+        v.push(rod(
+            V3::new(TANK_X + side, rail_y, bottom_z),
+            V3::new(TANK_X + side, TANK_TOP + 0.03, top_z),
+            0.045,
+            zinc,
+        ));
+    }
+    for i in 1..=11 {
+        let t = i as f32 / 12.0;
+        let z = bottom_z + (top_z - bottom_z) * t;
+        let y = rail_y + (TANK_TOP - rail_y) * t;
+        v.push(cuboid(0.91, 0.055, 0.075, zinc, TANK_X, y, z).bevel(0.012));
+        if i == 3 || i == 7 || i == 11 {
+            for side in [-0.46f32, 0.46] {
+                v.push(cuboid(0.055, 0.045, 0.09, dark, TANK_X + side, y, z + 0.035));
+            }
+        }
+    }
+    // The top pair of hooks bolts the ladder to the tank rim.
+    for side in [-0.46f32, 0.46] {
+        v.push(rod(
+            V3::new(TANK_X + side, TANK_TOP + 0.04, top_z),
+            V3::new(TANK_X + side, TANK_TOP + 0.04, TANK_Z + 1.43),
+            0.035,
+            zinc,
+        ));
+    }
+    v
+}
+
 fn house_styled() -> Vec<Part> {
     let roof = matt(0xb36149).textured(Tex::Corrugated).repeating(20.0, 2.0);
     let mut v = vec![
-        cuboid(40.0, 4.6, 8.0, matt(0xf3ead4).textured(Tex::Weatherboard).repeating(20.0, 3.0), 0.0, 2.3, -29.5),
+        cuboid(HOUSE_X_HALF * 2.0, HOUSE_HEIGHT, HOUSE_DEPTH, matt(0xf3ead4).textured(Tex::Weatherboard).repeating(20.0, 3.0), 0.0, HOUSE_HEIGHT * 0.5, HOUSE_Z_CENTRE),
         // two roof slabs, one a hair lower and tilted so the ridge is not dead straight
         cuboid(41.0, 0.16, 4.9, roof, 0.0, 5.62, -27.4).turn(0.445, 0.0, 0.006),
         cuboid(41.0, 0.16, 4.9, shade_surface(roof, 0.94), 0.0, 5.58, -31.6).turn(-0.445, 0.0, -0.004),
@@ -575,24 +638,7 @@ fn house_styled() -> Vec<Part> {
                 x + ang.cos() * 0.13, y + 0.06, z + ang.sin() * 0.13).turn(0.0, -ang, 0.0));
         }
     }
-    // the rainwater tank
-    let tank = matt(0x9fb0a4).material(Tex::Metal, 1.4);
-    v.push(cyl(1.3, 1.3, 2.6, 20, tank, 22.0, 1.3, -27.8).bevel(0.07).weathered());
-    v.push(cyl(1.35, 1.35, 0.1, 20, matt(0x8a9a8f).material(Tex::Metal, 1.4), 22.0, 2.62, -27.8).bevel(0.035));
-    for y in [0.28f32, 0.75, 1.72, 2.2] {
-        v.push(torus(1.29, 0.025, 6, 20, 2.0 * PI, matt(0x87958d).material(Tex::Metal, 1.3)).at(22.0, y, -27.8).turn(HALF_PI, 0.0, 0.0));
-    }
-    // Outlet pipe and tap on the exposed side, with two subtle rust trails below the upper seam.
-    v.push(rod(V3::new(22.0, 0.52, -26.52), V3::new(22.0, 0.52, -26.22), 0.075, matt(0x7c8580).material(Tex::Metal, 1.2)));
-    v.push(rod(V3::new(22.0, 0.52, -26.22), V3::new(22.28, 0.52, -26.22), 0.075, matt(0x7c8580).material(Tex::Metal, 1.2)));
-    v.push(cyl(0.04, 0.04, 0.12, 8, matt(0xb28d55).material(Tex::Metal, 1.0), 22.14, 0.63, -26.22));
-    // Put the stains flush with two front facets of the 20-sided tank.
-    let wall = 1.3 * (PI / 20.0).cos();
-    for (angle, h) in [(-PI / 20.0, 0.30), (3.0 * PI / 20.0, 0.20)] {
-        v.push(cuboid(0.027, h, 0.004, matt(0x82543d).no_shadow(),
-            22.0 + wall * angle.sin(), 1.72 - h / 2.0, -27.8 + wall * angle.cos())
-            .turn(0.0, angle, 0.0));
-    }
+    v.extend(rain_tank_and_ladder(true));
     v
 }
 
@@ -1381,15 +1427,15 @@ fn house() -> Vec<Part> {
     let roof = matt(0x8f3a2b);
     let mut v = vec![
         cuboid(
-            40.0,
-            4.6,
-            8.0,
+            HOUSE_X_HALF * 2.0,
+            HOUSE_HEIGHT,
+            HOUSE_DEPTH,
             matt(0xffffff)
                 .textured(Tex::Weatherboard)
                 .repeating(20.0, 3.0),
             0.0,
-            2.3,
-            -29.5,
+            HOUSE_HEIGHT * 0.5,
+            HOUSE_Z_CENTRE,
         ),
         cuboid(41.0, 0.16, 4.9, roof, 0.0, 5.62, -27.4).turn(0.445, 0.0, 0.0),
         cuboid(41.0, 0.16, 4.9, roof, 0.0, 5.62, -31.6).turn(-0.445, 0.0, 0.0),
@@ -1407,9 +1453,7 @@ fn house() -> Vec<Part> {
         v.push(cuboid(1.65,0.065,0.04,matt(0xf8eddb),x,2.5,-25.37));
         v.push(cuboid(2.02,0.12,0.20,matt(0xd6c29b),x,1.72,-25.39));
     }
-    // the rainwater tank
-    v.push(cyl(1.3, 1.3, 2.6, 20, matt(0x9fb0a4), 22.0, 1.3, -27.8));
-    v.push(cyl(1.35, 1.35, 0.1, 20, matt(0x8a9a8f), 22.0, 2.62, -27.8));
+    v.extend(rain_tank_and_ladder(false));
     v
 }
 
@@ -1495,6 +1539,34 @@ fn props(polished: bool) -> Vec<Part> {
             v.push(rod(V3::new(mx + sx, 0.52, mz - 0.23), V3::new(mx + sx * 1.4, 1.15, mz - 0.68), 0.035, dark));
         }
         v.push(rod(V3::new(mx - 0.29, 1.15, mz - 0.68), V3::new(mx + 0.29, 1.15, mz - 0.68), 0.045, dark));
+        // A second, distinctly ride-on mower lives in the open shed-side corner. It has a pressed
+        // deck, chunky rear tyres, steering wheel, faded vinyl seat, headlights and muffler.
+        // It stays a visual prop: the nearby route and character collision are unchanged.
+        let (rx, rz) = (27.6f32, -19.0f32);
+        let enamel = matt(0x667744).material(Tex::Metal, 1.8);
+        let faded = matt(0x788456).material(Tex::Metal, 2.0);
+        let tyre = matt(0x282a27).material(Tex::Plastic, 2.0);
+        let steel = matt(0x818783).material(Tex::Metal, 1.4);
+        v.push(ground_patch(rx, rz + 0.35, 1.45, 1.9, 0.006, 0x695d40, 0.12, 0.035).no_shadow_part());
+        v.push(cuboid(1.32, 0.25, 1.55, enamel, rx, 0.39, rz).bevel(0.07).weathered());
+        v.push(cuboid(1.02, 0.44, 0.88, faded, rx, 0.70, rz + 0.33).bevel(0.12).weathered());
+        v.push(cuboid(1.62, 0.18, 0.90, enamel, rx, 0.22, rz + 0.67).bevel(0.07).weathered());
+        v.push(cuboid(0.66, 0.20, 0.46, matt(0x493f30).material(Tex::Plastic, 2.2), rx, 0.90, rz - 0.39).bevel(0.045));
+        v.push(cuboid(0.62, 0.30, 0.09, matt(0x594b37).material(Tex::Plastic, 2.2), rx, 1.13, rz - 0.59).turn(-0.10, 0.0, 0.0).bevel(0.035));
+        for side in [-1.0f32, 1.0] {
+            let rear = torus(0.39, 0.10, 8, 18, 2.0 * PI, tyre).at(rx + side * 0.72, 0.40, rz - 0.34).turn(0.0, HALF_PI, 0.0);
+            let front = torus(0.29, 0.075, 8, 16, 2.0 * PI, tyre).at(rx + side * 0.60, 0.30, rz + 0.57).turn(0.0, HALF_PI, 0.0);
+            v.push(rear); v.push(front);
+            v.push(torus(0.13, 0.027, 6, 14, 2.0 * PI, steel).at(rx + side * 0.73, 0.40, rz - 0.34).turn(0.0, HALF_PI, 0.0));
+            v.push(torus(0.10, 0.022, 6, 14, 2.0 * PI, steel).at(rx + side * 0.61, 0.30, rz + 0.57).turn(0.0, HALF_PI, 0.0));
+            v.push(cuboid(0.20, 0.12, 0.06, matt(0xd8d0a4), rx + side * 0.27, 0.77, rz + 0.77));
+        }
+        v.push(rod(V3::new(rx, 0.78, rz + 0.04), V3::new(rx, 1.16, rz + 0.58), 0.035, steel));
+        v.push(torus(0.20, 0.025, 8, 16, 2.0 * PI, dark).at(rx, 1.17, rz + 0.58).turn(0.16, 0.0, 0.0));
+        v.push(cyl(0.055, 0.055, 0.32, 8, steel, rx - 0.43, 0.86, rz - 0.42));
+        v.push(rod(V3::new(rx - 0.43, 1.02, rz - 0.42), V3::new(rx - 0.43, 1.20, rz - 0.52), 0.045, dark));
+        v.push(cuboid(0.30, 0.20, 0.24, matt(0x77766c).material(Tex::Metal, 1.8), rx - 0.42, 0.79, rz - 0.65).bevel(0.04).weathered());
+        v.push(rod(V3::new(rx + 0.43, 0.68, rz - 0.47), V3::new(rx + 0.43, 1.04, rz - 0.47), 0.04, steel));
         // Coiled garden hose and a rotary sprinkler along the east fence.
         let hose = matt(0x596b3c).material(Tex::Plastic, 2.0);
         v.push(torus(0.36, 0.035, 8, 18, 2.0 * PI, hose).at(26.7, 0.045, -8.3).turn(HALF_PI, 0.0, 0.0).no_shadow_part());

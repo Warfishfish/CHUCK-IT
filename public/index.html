@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.23.12</span>
+      <span class="tag">Backyard Brawl · prototype 0.23.13</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -643,6 +643,8 @@ function canvasTex(w,h,draw,rx,ry){const c=document.createElement('canvas');c.wi
 
 /* ================= WORLD ================= */
 const W=40,D=29,GRAV=18,HEIST_A=54,HEIST_B=40;
+const TANK={x:22.3,z:-23.9,r:1.3,bodyH:3.52,top:3.62,capR:1.35,ladderBottom:-19.4,ladderTop:-22.55,ladderHalf:.55};
+const HOUSE={x:0,z:-29.5,w:40,d:8,h:4.6},ROOF={edgeZ:-24.95,ridgeZ:-29.85,frontY:5.62,frontZ:-27.4,pitch:.445,width:41};
 const POOL={x0:-27,x1:-13,z0:6,z1:14},WATER_Y=-.16,POOL_DEPTH=1.55,POOL_SINK=1.0;
 const TRAMP={x:15,z:12,r:1.8,h:.6};
 const BAR={x:0,z:-21.5,w:3.6,d:.9,h:1.05};
@@ -685,7 +687,10 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
     for(let i=0;i<42;i++){const px=Math.random()*w,py=Math.random()*h,rx=3+Math.random()*17,ry=2+Math.random()*10;
       const g=x.createRadialGradient(px,py,1,px,py,rx);g.addColorStop(0,Math.random()<.55?'rgba(183,157,94,.26)':'rgba(119,142,71,.22)');g.addColorStop(1,'rgba(183,157,94,0)');
       x.fillStyle=g;x.save();x.translate(px,py);x.scale(1,ry/rx);x.beginPath();x.arc(0,0,rx,0,Math.PI*2);x.fill();x.restore();}
-    for(let i=0;i<2600;i++){x.fillStyle=Math.random()<.5?'rgba(40,75,28,.19)':'rgba(205,206,133,.16)';x.fillRect(Math.random()*w,Math.random()*h,1+Math.random()*2,2+Math.random()*3);}},2*W/16,2*D/16);
+    // Fine, overlapping fibres make the lawn read as dense cut grass instead of a flat tile.
+    for(let i=0;i<7200;i++){const px=Math.random()*w,py=Math.random()*h;x.strokeStyle=Math.random()<.52?'rgba(35,70,25,.25)':'rgba(211,211,141,.19)';x.lineWidth=.6+Math.random()*.7;
+      x.beginPath();x.moveTo(px,py);x.lineTo(px+(Math.random()-.5)*1.8,py-1-Math.random()*4);x.stroke();}
+    for(let i=0;i<3200;i++){x.fillStyle=Math.random()<.5?'rgba(40,75,28,.23)':'rgba(205,206,133,.19)';x.fillRect(Math.random()*w,Math.random()*h,1+Math.random()*2,2+Math.random()*4);}},2*W/16,2*D/16);
   // the lawn and the paddock both have a hole cut where the pool is, so the pool can actually be deep
   const holed=(x0,x1,y0,y1)=>{const sh=new THREE.Shape();sh.moveTo(x0,y0);sh.lineTo(x1,y0);sh.lineTo(x1,y1);sh.lineTo(x0,y1);sh.lineTo(x0,y0);
     const hole=new THREE.Path();hole.moveTo(POOL.x0,-POOL.z1);hole.lineTo(POOL.x0,-POOL.z0);hole.lineTo(POOL.x1,-POOL.z0);hole.lineTo(POOL.x1,-POOL.z1);hole.lineTo(POOL.x0,-POOL.z1);
@@ -718,10 +723,17 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
       x.fillStyle='rgba(69,70,54,.25)';x.fillRect(0,y+14,w,1.5);x.fillStyle='rgba(255,249,225,.36)';x.fillRect(0,y,w,1);
       for(let k=0;k<4;k++){const xx=Math.random()*w;x.fillStyle='rgba(111,83,58,.08)';x.fillRect(xx,y+2,1,5+Math.random()*8);}}},20,3);
   mesh(new THREE.BoxGeometry(40,4.6,8),new THREE.MeshLambertMaterial({map:wb}),0,2.3,-29.5);
+  col(HOUSE.x,HOUSE.z,HOUSE.w,HOUSE.d,HOUSE.h); // weatherboard body is solid to the same edge as the rendered mesh
   const roofM=mat(0x8f3a2b);
   const r1=mesh(new THREE.BoxGeometry(41,.16,4.9),roofM,0,5.62,-27.4);r1.rotation.x=.445;
   const r2=mesh(new THREE.BoxGeometry(41,.16,4.9),roofM,0,5.62,-31.6);r2.rotation.x=-.445;
   mesh(new THREE.BoxGeometry(41.2,.12,.22),mat(0x9b4d3b),0,5.78,-29.5); // ridge cap
+  // The front roof is a real, walkable sloped surface. Short height steps follow the roof mesh
+  // closely enough to keep the character's feet on top while the side walls stop clipping.
+  const roofStep=(ROOF.edgeZ-ROOF.ridgeZ)/16;
+  for(let i=0;i<16;i++){const z0=ROOF.ridgeZ+i*roofStep,z1=z0+roofStep,z=(z0+z1)*.5;
+    const h=ROOF.frontY-Math.sin(ROOF.pitch)*(z-ROOF.frontZ)+Math.cos(ROOF.pitch)*.08;
+    col(0,z,ROOF.width,roofStep,h);colliders[colliders.length-1].roofSurface=true;}
   const galv=mat(0x858e8c);
   [-24.96,-34.04].forEach(z=>{mesh(new THREE.BoxGeometry(40.8,.11,.16),galv,0,4.34,z);
     for(let x=-18;x<=18;x+=6)mesh(new THREE.BoxGeometry(.055,.12,.20),mat(0x737b79),x,4.25,z);});
@@ -748,9 +760,30 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   mesh(new THREE.BoxGeometry(1.1,2.2,.08),mat(0x7a4b2e),3,1.1,-25.44);
   mesh(new THREE.BoxGeometry(1.2,2.3,.03),mat(0x9aa09c),3,1.15,-25.38);
   mesh(new THREE.BoxGeometry(1.0,2.1,.01),new THREE.MeshLambertMaterial({color:0xdfe6e3,transparent:true,opacity:.3,side:THREE.DoubleSide}),3,1.15,-25.36);
-  // rainwater tank
-  mesh(new THREE.CylinderGeometry(1.3,1.3,2.6,20),mat(0x9fb0a4),22,1.3,-27.8);
-  mesh(new THREE.CylinderGeometry(1.35,1.35,.1,20),mat(0x8a9a8f),22,2.62,-27.8);
+  // Tall, ribbed Colorbond rain tank, moved beside the house's front-east corner so the roof
+  // approach is visible from the yard. Its matching collider uses a circular side and top.
+  const tankMetal=mat(0x9eafa3),tankZinc=mat(0x858d89),tankDark=mat(0x56645e);
+  const rod=(a,b,r,m)=>{const d=b.clone().sub(a),o=mesh(new THREE.CylinderGeometry(r,r,d.length(),8),m,(a.x+b.x)/2,(a.y+b.y)/2,(a.z+b.z)/2);o.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());return o;};
+  mesh(new THREE.CylinderGeometry(TANK.r,TANK.r,TANK.bodyH,24),tankMetal,TANK.x,TANK.bodyH/2,TANK.z);
+  mesh(new THREE.CylinderGeometry(TANK.capR,TANK.capR,.1,24),mat(0x87958c),TANK.x,TANK.bodyH+.05,TANK.z);
+  for(const y of [.28,.72,1.36,2.02,2.70,3.22,3.46]){const band=mesh(new THREE.TorusGeometry(1.29,.023,6,24),tankZinc,TANK.x,y,TANK.z);band.rotation.x=Math.PI/2;}
+  // Exposed outlet tap, rain streaks and a faded inspection label.
+  rod(new THREE.Vector3(TANK.x+1.24,.5,TANK.z),new THREE.Vector3(TANK.x+1.58,.5,TANK.z),.07,tankZinc);
+  rod(new THREE.Vector3(TANK.x+1.58,.5,TANK.z),new THREE.Vector3(TANK.x+1.58,.5,TANK.z+.23),.07,tankZinc);
+  mesh(new THREE.CylinderGeometry(.04,.04,.12,8),mat(0xb28d55),TANK.x+1.58,.62,TANK.z+.12);
+  [[-.44,2.45,.38],[.28,2.23,.24],[.52,1.565,.31]].forEach(([dx,y,h])=>mesh(new THREE.BoxGeometry(.035,h,.008),mat(0x765947),TANK.x+dx,y,TANK.z+1.26));
+  const rainLabel=textTex(128,64,(x,w,h)=>{x.fillStyle='#ddd1ae';x.fillRect(0,0,w,h);x.fillStyle='#557469';x.font='bold 23px Arial';x.textAlign='center';x.textBaseline='middle';x.fillText('RAIN',w/2,h/2);});
+  mesh(new THREE.BoxGeometry(.45,.25,.035),new THREE.MeshLambertMaterial({map:rainLabel}),TANK.x-.52,2.88,TANK.z+1.27);
+  mesh(new THREE.BoxGeometry(.27,.035,.045),mat(0x557469),TANK.x-.52,2.90,TANK.z+1.30);
+  col(TANK.x,TANK.z,TANK.r*2.1,TANK.r*2.1,TANK.top);colliders[colliders.length-1].rainTank=true;
+  // Galvanised ladder rails, regularly spaced rungs, wall clips and a top safety hook.
+  const ladderBottom=new THREE.Vector3(TANK.x,.08,TANK.ladderBottom),ladderTop=new THREE.Vector3(TANK.x,TANK.top+.03,TANK.ladderTop);
+  for(const side of [-.46,.46])rod(ladderBottom.clone().add(new THREE.Vector3(side,0,0)),ladderTop.clone().add(new THREE.Vector3(side,0,0)),.045,tankZinc);
+  for(let i=1;i<=11;i++){const t=i/12,y=.08+(TANK.top-.08)*t,z=TANK.ladderBottom+(TANK.ladderTop-TANK.ladderBottom)*t;
+    mesh(new THREE.BoxGeometry(.91,.055,.075),tankZinc,TANK.x,y,z);
+    if([3,7,11].includes(i))for(const side of [-.46,.46])mesh(new THREE.BoxGeometry(.055,.045,.09),tankDark,TANK.x+side,y,z+.035);}
+  for(const side of [-.46,.46])rod(new THREE.Vector3(TANK.x+side,TANK.top+.04,TANK.ladderTop),new THREE.Vector3(TANK.x+side,TANK.top+.04,TANK.z+1.43),.035,tankZinc);
+  col(TANK.x,(TANK.ladderBottom+TANK.ladderTop)/2,TANK.ladderHalf*2,TANK.ladderBottom-TANK.ladderTop,TANK.top);colliders[colliders.length-1].tankLadder=true;
 
   // gum trees
   const leaf=[0x7d9460,0x6b8656,0x8ea46b].map(c=>new THREE.MeshLambertMaterial({color:c,flatShading:true}));
@@ -804,6 +837,27 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   for(const dx of [-.16,.16]){const bar=mesh(new THREE.CylinderGeometry(.025,.025,.64,6),handle,19.55+dx,.83,-16.90);bar.rotation.x=-.35;}
   mesh(new THREE.CylinderGeometry(.025,.025,.36,6),handle,19.55,.98,-16.79);
   col(22.5,-16.5,4,3,2.6);
+
+  // A sun-faded ride-on mower parked beyond the shed, with proper deck, seat and wide tyres.
+  // Like the push mower, it is a visual landmark rather than a new gameplay obstacle.
+  const ride=new THREE.Group();ride.position.set(27.6,0,-19.0);scene.add(ride);
+  const rideGreen=mat(0x667744),rideFade=mat(0x788456),rideRubber=mat(0x282a27),rideSteel=mat(0x818783);
+  mesh(new THREE.BoxGeometry(1.32,.25,1.55),rideGreen,0,.39,0,ride);
+  mesh(new THREE.BoxGeometry(1.02,.44,.88),rideFade,0,.70,.33,ride);
+  mesh(new THREE.BoxGeometry(1.62,.18,.90),rideGreen,0,.22,.67,ride);
+  mesh(new THREE.BoxGeometry(.66,.20,.46),mat(0x493f30),0,.90,-.39,ride);
+  const back=mesh(new THREE.BoxGeometry(.62,.30,.09),mat(0x594b37),0,1.13,-.59,ride);back.rotation.x=-.10;
+  for(const side of [-1,1]){
+    for(const [x,z,r] of [[side*.72,-.34,.39],[side*.60,.57,.29]]){const wheel=mesh(new THREE.TorusGeometry(r,r===.39?.10:.075,8,18),rideRubber,x,r+.01,z,ride);wheel.rotation.y=Math.PI/2;}
+    const hub=mesh(new THREE.CylinderGeometry(.13,.13,.045,12),rideSteel,side*.74,.40,-.34,ride);hub.rotation.z=Math.PI/2;
+    const frontHub=mesh(new THREE.CylinderGeometry(.10,.10,.04,12),rideSteel,side*.62,.30,.57,ride);frontHub.rotation.z=Math.PI/2;
+    mesh(new THREE.BoxGeometry(.20,.12,.06),mat(0xd8d0a4),side*.27,.77,.77,ride);
+  }
+  rod(new THREE.Vector3(0,.78,.04),new THREE.Vector3(0,1.16,.58),.035,rideSteel);
+  const steering=mesh(new THREE.TorusGeometry(.20,.025,8,16),mat(0x282a27),0,1.17,.58,ride);steering.rotation.x=.16;
+  mesh(new THREE.CylinderGeometry(.055,.055,.32,8),rideSteel,-.43,.86,-.42,ride);
+  mesh(new THREE.BoxGeometry(.30,.20,.24),mat(0x77766c),-.42,.79,-.65,ride);
+  mesh(new THREE.CylinderGeometry(.035,.04,.38,8),rideSteel,.43,.87,-.47,ride);
 
   // pool
   poolTex=canvasTex(128,128,(x,w,h)=>{x.fillStyle='#2eaee3';x.fillRect(0,0,w,h);x.strokeStyle='rgba(210,245,255,.55)';x.lineWidth=2;
@@ -1811,7 +1865,7 @@ function npcUpdate(dt){ // host only
     if(d>.05)NPC.face=Math.atan2(dx,dz);}
   else NPC.face=angLerp(NPC.face,0,1-Math.exp(-4*dt));
   // keep him out of the furniture and inside the fence
-  const R=.45;for(const c of colliders){if(c.h<.3)continue;const cx=clamp(NPC.pos.x,c.x0,c.x1),cz=clamp(NPC.pos.z,c.z0,c.z1),ex=NPC.pos.x-cx,ez=NPC.pos.z-cz,d2=ex*ex+ez*ez;
+  const R=.45;for(const c of colliders){if(c.h<.3||c.roofSurface||c.tankLadder)continue;const cx=clamp(NPC.pos.x,c.x0,c.x1),cz=clamp(NPC.pos.z,c.z0,c.z1),ex=NPC.pos.x-cx,ez=NPC.pos.z-cz,d2=ex*ex+ez*ez;
     if(d2<R*R&&d2>1e-6){const d=Math.sqrt(d2);NPC.pos.x+=ex/d*(R-d);NPC.pos.z+=ez/d*(R-d);}}
   NPC.pos.x=clamp(NPC.pos.x,-W+.5,W-.5);NPC.pos.z=clamp(NPC.pos.z,-D+.5,D-.5);
   // spatula
@@ -2168,6 +2222,12 @@ function collideWorld(it){
   if(tx*tx+tz*tz<TRAMP.r*TRAMP.r&&it.pos.y<TRAMP.h+r&&it.pos.y>TRAMP.h-.2&&it.vel.y<0){it.pos.y=TRAMP.h+r;it.vel.y=Math.max(7,-it.vel.y*.9);it.vel.x+=rand(-1,1);it.vel.z+=rand(-1,1);fx('boing',r2(it.pos.x),r2(it.pos.y),r2(it.pos.z));return;}
   if(it.pos.y<r+(inPoolRect(it.pos)?WATER_Y-.05:0)){onSurface(it,0);if(it.state!=='flying')return;}
   for(const c of colliders){
+    if(c.tankLadder)continue; // walkable ramp, never an invisible throwable wall
+    if(c.roofSurface){
+      if(it.pos.y-r<=c.h&&it.vel.y<=0&&it.pos.x>=c.x0-r&&it.pos.x<=c.x1+r&&it.pos.z>=c.z0-r&&it.pos.z<=c.z1+r){
+        it.pos.y=c.h+r;onSurface(it,c.h,c);if(it.state!=='flying')return;}
+      continue;
+    }
     if(it.pos.y-r>c.h)continue;if(it.pos.x<c.x0-r||it.pos.x>c.x1+r||it.pos.z<c.z0-r||it.pos.z>c.z1+r)continue;
     const px=Math.min(it.pos.x-(c.x0-r),(c.x1+r)-it.pos.x),pz=Math.min(it.pos.z-(c.z0-r),(c.z1+r)-it.pos.z),py=(c.h+r)-it.pos.y;
     if(py<=px&&py<=pz&&it.vel.y<=0){it.pos.y=c.h+r;onSurface(it,c.h,c);if(it.state!=='flying')return;}
@@ -2186,6 +2246,8 @@ function collideVisual(it){
   if(tx*tx+tz*tz<TRAMP.r*TRAMP.r&&it.pos.y<TRAMP.h+r&&it.pos.y>TRAMP.h-.2&&it.vel.y<0){it.pos.y=TRAMP.h+r;it.vel.y=Math.max(7,-it.vel.y*.9);return;}
   if(it.pos.y<r){it.pos.y=r;landVisual(it);}
   for(const c of colliders){
+    if(c.tankLadder)continue;
+    if(c.roofSurface){if(it.pos.y-r<=c.h&&it.vel.y<=0&&it.pos.x>=c.x0-r&&it.pos.x<=c.x1+r&&it.pos.z>=c.z0-r&&it.pos.z<=c.z1+r){it.pos.y=c.h+r;landVisual(it);}continue;}
     if(it.pos.y-r>c.h)continue;if(it.pos.x<c.x0-r||it.pos.x>c.x1+r||it.pos.z<c.z0-r||it.pos.z>c.z1+r)continue;
     const px=Math.min(it.pos.x-(c.x0-r),(c.x1+r)-it.pos.x),pz=Math.min(it.pos.z-(c.z0-r),(c.z1+r)-it.pos.z),py=(c.h+r)-it.pos.y;
     if(py<=px&&py<=pz&&it.vel.y<=0){it.pos.y=c.h+r;landVisual(it);}
@@ -2280,7 +2342,11 @@ const DOWN_TIME=3.5;
 const TRAMP_MAX=5,JUMP_V=7.5,BOOST_MULT=1.7,BOOST_TIME=1.6,BOOST_CD=5;
 function tryBoost(ch){if(carryOf.has(ch.id)||ch.smokoSeat>=0||ch.boostT>0||ch.boostCd>0||ch.stun>0||state==='countdown')return;ch.boostT=BOOST_TIME;SFX.dodge(ch.pos);}
 function tryJump(ch){if(ch.stun>0)return;ch.jumpBuf=.14;}
-function floorAt(ch){let floor=0;for(const c of colliders){if(!c.noTop&&ch.pos.x>c.x0-.1&&ch.pos.x<c.x1+.1&&ch.pos.z>c.z0-.1&&ch.pos.z<c.z1+.1&&(ch.pos.y>=c.h-.35||ch.prevY>=c.h-.05))floor=Math.max(floor,c.h);}return floor;}
+function floorAt(ch){let floor=0;for(const c of colliders){let top=c.h;
+  if(c.rainTank){const dx=ch.pos.x-TANK.x,dz=ch.pos.z-TANK.z;if(dx*dx+dz*dz>(TANK.capR-.04)**2)continue;top=TANK.top;}
+  if(c.tankLadder){if(ch.pos.x<TANK.x-TANK.ladderHalf||ch.pos.x>TANK.x+TANK.ladderHalf||ch.pos.z<TANK.ladderTop||ch.pos.z>TANK.ladderBottom)continue;
+    const t=clamp((TANK.ladderBottom-ch.pos.z)/(TANK.ladderBottom-TANK.ladderTop),0,1);top=TANK.top*t;}
+  if(!c.noTop&&ch.pos.x>c.x0-.1&&ch.pos.x<c.x1+.1&&ch.pos.z>c.z0-.1&&ch.pos.z<c.z1+.1&&(ch.pos.y>=top-.35||ch.prevY>=top-.05))floor=Math.max(floor,top);}return floor;}
 // VP puddles: run onto one and you skate across it, arms flailing, spinning, barely able to steer
 const SLIDE_T=1.1;
 function slideCheck(ch,dt){ch.slideT=Math.max(0,(ch.slideT||0)-dt);
@@ -2321,7 +2387,14 @@ function updateChar(ch,dt){
   const fallV=ch.vel.y;
   ch.prevY=ch.pos.y;ch.vel.y-=24*dt;ch.pos.addScaledVector(ch.vel,dt);
   const R=.42;
-  for(const c of colliders){if(c.noTop?ch.pos.y>=c.h+1.5:(ch.pos.y>=c.h-.05||ch.prevY>=c.h-.05))continue; // was above it last frame: land on top, don't get shoved off the side
+  for(const c of colliders){
+    if(c.roofSurface||c.tankLadder)continue;
+    if(c.rainTank){if(ch.pos.y>=c.h-.05||ch.prevY>=c.h-.05)continue;
+      const onLadder=ch.pos.x>=TANK.x-TANK.ladderHalf&&ch.pos.x<=TANK.x+TANK.ladderHalf&&ch.pos.z>=TANK.ladderTop&&ch.pos.z<=TANK.ladderBottom;
+      if(onLadder){const t=clamp((TANK.ladderBottom-ch.pos.z)/(TANK.ladderBottom-TANK.ladderTop),0,1),ladderY=TANK.top*t;if(ch.pos.y>=ladderY-.15||ch.prevY>=ladderY-.05)continue;}
+      const dx=ch.pos.x-TANK.x,dz=ch.pos.z-TANK.z,d2=dx*dx+dz*dz,min=TANK.r+R;
+      if(d2<min*min){const d=Math.sqrt(d2),nx=d>1e-5?dx/d:1,nz=d>1e-5?dz/d:0;ch.pos.x+=nx*(min-d);ch.pos.z+=nz*(min-d);const vn=ch.vel.x*nx+ch.vel.z*nz;if(vn<0){ch.vel.x-=vn*nx;ch.vel.z-=vn*nz;}}continue;}
+    if(c.noTop?ch.pos.y>=c.h+1.5:(ch.pos.y>=c.h-.05||ch.prevY>=c.h-.05))continue; // was above it last frame: land on top, don't get shoved off the side
     const cx=clamp(ch.pos.x,c.x0,c.x1),cz=clamp(ch.pos.z,c.z0,c.z1);const dx=ch.pos.x-cx,dz=ch.pos.z-cz,d2=dx*dx+dz*dz;if(d2>=R*R)continue;
     if(d2>1e-6){const d=Math.sqrt(d2),nx=dx/d,nz=dz/d;ch.pos.x+=nx*(R-d);ch.pos.z+=nz*(R-d);const vn=ch.vel.x*nx+ch.vel.z*nz;if(vn<0){ch.vel.x-=vn*nx;ch.vel.z-=vn*nz;}}
     else{const l=ch.pos.x-c.x0,r=c.x1-ch.pos.x,b=ch.pos.z-c.z0,f=c.z1-ch.pos.z,m=Math.min(l,r,b,f);
@@ -2438,7 +2511,7 @@ function syncCharMesh(ch,dt){
 /* ================= BOT BRAINS (authority only) ================= */
 function nearestFreeItem(ch){let best=null,bd=1e9;for(const it of items.values()){if(it.state!=='ground'||it.def.melee)continue;if(it.claimedBy&&it.claimedBy!==ch&&it.claimedBy.ai&&it.claimedBy.ai.claim===it)continue;
   const d=Math.hypot(it.pos.x-ch.pos.x,it.pos.z-ch.pos.z)+(it.groundY>.1?1.5:0);if(d<bd){bd=d;best=it;}}return best;}
-function blocked(x,z,y){for(const c of colliders){if(c.h<.4||y>=c.h-.3)continue;if(x>c.x0-.45&&x<c.x1+.45&&z>c.z0-.45&&z<c.z1+.45)return true;}return gameMode==='heist'?!inHeistOval(x,z,.6):Math.abs(x)>W-.6||Math.abs(z)>D-.6;}
+function blocked(x,z,y){for(const c of colliders){if(c.roofSurface||c.tankLadder||c.h<.4||y>=c.h-.3)continue;if(x>c.x0-.45&&x<c.x1+.45&&z>c.z0-.45&&z<c.z1+.45)return true;}return gameMode==='heist'?!inHeistOval(x,z,.6):Math.abs(x)>W-.6||Math.abs(z)>D-.6;}
 function los(a,b){for(let i=1;i<8;i++){const t=i/8,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;for(const c of colliders){if(c.h>1.6&&x>c.x0&&x<c.x1&&z>c.z0&&z<c.z1)return false;}}return true;}
 function ballistic(from,to,speed,g){const dx=to.x-from.x,dz=to.z-from.z,dy=to.y-from.y,h=Math.hypot(dx,dz);if(h<.1)return null;
   const v2=speed*speed,disc=v2*v2-g*(g*h*h+2*dy*v2);if(disc<0)return null;const ang=Math.atan((v2-Math.sqrt(disc))/(g*h));
@@ -2916,7 +2989,7 @@ function updateTrajectory(){
   const p=vmStart(),v=playerThrowVel(it),g=GRAV*it.def.grav;let n=0,hitY=null;
   for(let i=0;i<TRJ_N;i++){for(let k=0;k<2;k++){v.y-=g*.018;p.addScaledVector(v,.018);}
     trjPos[n*3]=p.x;trjPos[n*3+1]=p.y;trjPos[n*3+2]=p.z;n++;
-    if(p.y<=0){hitY=0;break;}let stop=false;for(const c of colliders){if(p.y<c.h&&p.x>c.x0&&p.x<c.x1&&p.z>c.z0&&p.z<c.z1){stop=true;hitY=c.h;break;}}if(stop)break;
+    if(p.y<=0){hitY=0;break;}let stop=false;for(const c of colliders){if(c.tankLadder)continue;if(p.y<c.h&&p.x>c.x0&&p.x<c.x1&&p.z>c.z0&&p.z<c.z1){stop=true;hitY=c.h;break;}}if(stop)break;
     if(Math.abs(p.x)>W+1||Math.abs(p.z)>D+1)break;}
   trjGeo.setDrawRange(0,n);trjGeo.attributes.position.needsUpdate=true;trj.visible=true;
   if(hitY!==null){land.visible=true;land.position.set(p.x,hitY+.03,p.z);}else land.visible=false;

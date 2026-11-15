@@ -622,6 +622,7 @@ fn draw_trajectory(
             break;
         }
         for c in &yard.0.colliders {
+            if c.kind == bbq_core::yard::Kind::TankLadder { continue; }
             if pos.y < c.h && pos.x > c.x0 && pos.x < c.x1 && pos.z > c.z0 && pos.z < c.z1 {
                 hit_y = Some(c.h);
                 break 'dots;

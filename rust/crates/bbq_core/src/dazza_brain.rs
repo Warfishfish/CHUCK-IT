@@ -8,7 +8,7 @@ use crate::dazza::{ANGER_MAX, DazzaState, HOME};
 use crate::pose::ang_diff;
 use crate::rng::Rng;
 use crate::vec::V3;
-use crate::yard::Collider;
+use crate::yard::{Collider, Kind as ColliderKind};
 use crate::{PlayerId, YARD_HALF_X, YARD_HALF_Z};
 
 /// How close the spatula must be to start a swing, and how far it still reaches when it lands.
@@ -446,6 +446,7 @@ impl Brain {
 
         // keep him out of the furniture and inside the fence
         for c in colliders {
+            if matches!(c.kind, ColliderKind::HouseRoof | ColliderKind::TankLadder) { continue; }
             if c.h < 0.3 {
                 continue;
             }

@@ -12,8 +12,8 @@ use crate::{game::Game, lighting::LookMode, player::EyeCamera, yard_scene::YardR
 const ROOT_COLOUR: Vec3 = Vec3::new(0.20, 0.37, 0.09);
 const TIP_COLOUR: Vec3 = Vec3::new(0.31, 0.52, 0.15);
 const TILE: f32 = 5.0;
-const NEAR_TUFTS: usize = 1600;
-const FAR_TUFTS: usize = 300;
+const NEAR_TUFTS: usize = 1800;
+const FAR_TUFTS: usize = 375;
 const DETAIL_DISTANCE: f32 = 22.0;
 const DRAW_DISTANCE: f32 = 38.0;
 #[derive(Component)]
@@ -72,14 +72,14 @@ fn tile_mesh(cx: f32, cz: f32, mode: GameMode, yard: &Yard, tufts: usize) -> Opt
         let preview=crate::backyard_finish::enabled();
         let edge=if preview {0.78+0.22*(wx*0.19+wz*0.12).sin()}else{1.0};
         let worn=if preview {1.0-0.32*(-(wx/1.8).powi(2)).exp()}else{1.0};
-        let h = rng.range(0.06, 0.125) * (0.8 + lush * 0.5)*edge*worn;
+        let h = rng.range(0.075, 0.15) * (0.8 + lush * 0.5)*edge*worn;
         let tint = if preview {rng.range(0.94,1.06)*(0.92+lush*0.12)}else{rng.range(0.86, 1.12)};
         for _ in 0..3 {
             let angle = rng.range(0.0, std::f32::consts::TAU);
             let side = Vec3::new(angle.cos(), 0.0, angle.sin());
             let bend = Vec3::new(-angle.sin(), 0.0, angle.cos()) * rng.range(0.012, 0.045);
             let at = Vec3::new(x + rng.range(-0.09, 0.09), 0.008, z + rng.range(-0.09, 0.09));
-            let width = if preview {rng.range(0.008,0.014)}else{rng.range(0.006, 0.013)};
+            let width = if preview {rng.range(0.009,0.016)}else{rng.range(0.007, 0.015)};
             let mid = at + Vec3::Y * h * 0.55 + bend * 0.35;
             let tip = at + Vec3::Y * h + bend;
             let first = positions.len() as u32;

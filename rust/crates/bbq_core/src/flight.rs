@@ -390,6 +390,19 @@ fn collide_world_with_dt(it: &mut Item, yard: &Yard, rng: &mut Rng, events: &mut
     }
     // boxes
     for c in &yard.colliders {
+        if c.kind == crate::yard::Kind::TankLadder { continue; }
+        if c.kind == crate::yard::Kind::HouseRoof {
+            if it.pos.y - r <= c.h && it.vel.y <= 0.0
+                && it.pos.x >= c.x0 - r && it.pos.x <= c.x1 + r
+                && it.pos.z >= c.z0 - r && it.pos.z <= c.z1 + r {
+                it.pos.y = c.h + r;
+                if on_surface(it, c.h, Some(c), events, dt, yard.race, yard.heist.is_some(), yard.race || yard.features.smoko) == Fate::Removed {
+                    return Fate::Removed;
+                }
+                if it.state != ItemState::Flying { return Fate::Alive; }
+            }
+            continue;
+        }
         if it.pos.y - r > c.h {
             continue;
         }
