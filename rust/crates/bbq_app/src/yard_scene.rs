@@ -5,8 +5,8 @@
 use bbq_core::looks::{Part, Tex};
 use bbq_core::looks_yard::{self, HOIST_AT};
 use bbq_core::yard::{
-    Feature, Features, Yard, GARDEN_WALL_X, GARDEN_WALL_Z, POOLSIDE_SHOWER_X,
-    POOLSIDE_SHOWER_Z, TANK_X, TANK_Z,
+    Feature, Features, GARDEN_WALL_X, GARDEN_WALL_Z, POOLSIDE_SHOWER_X, POOLSIDE_SHOWER_Z, TANK_X,
+    TANK_Z, Yard,
 };
 use bevy::prelude::*;
 
@@ -45,6 +45,16 @@ const LOOK_SEED: u64 = 0xBB0;
 /// Fixed clothesline frame; shared geometry keeps multiplayer clearance exact.
 #[derive(Component)]
 struct HoistHead;
+#[derive(Component)]
+struct BreezyHangers;
+#[derive(Component)]
+struct Pinwheel;
+#[derive(Component)]
+struct SprinklerRotor;
+#[derive(Component)]
+struct SprinklerTrail;
+#[derive(Component)]
+struct UmbrellaShade;
 /// A cloud drifting along +x at 1.2 m/s, wrapping round at 110.
 #[derive(Component)]
 struct Cloud;
@@ -70,13 +80,31 @@ struct MagpieHead {
 #[derive(Component)]
 struct MagpieBody(f32);
 #[derive(Component)]
-struct MagpieWing { bird:usize, side:f32, base:Transform }
+struct MagpieWing {
+    bird: usize,
+    side: f32,
+    base: Transform,
+}
 #[derive(Clone, Copy)]
-enum GardenVisitorState { Perched, FlyingOut(f32), AtFence(f32), FlyingHome(f32) }
+enum GardenVisitorState {
+    Perched,
+    FlyingOut(f32),
+    AtFence(f32),
+    FlyingHome(f32),
+}
 #[derive(Component)]
-struct GardenVisitor { index:usize, perch:Vec3, escape:Vec3, state:GardenVisitorState }
+struct GardenVisitor {
+    index: usize,
+    perch: Vec3,
+    escape: Vec3,
+    state: GardenVisitorState,
+}
 #[derive(Component)]
-struct GardenVisitorWing { bird:usize, side:f32, base:Transform }
+struct GardenVisitorWing {
+    bird: usize,
+    side: f32,
+    base: Transform,
+}
 /// One of the yard's other eskies and its lid.
 #[derive(Component)]
 struct DecorLid(usize);
@@ -104,14 +132,21 @@ impl MagpiePerch {
         let (x, z, _) = looks_yard::MAGPIE_SPOTS[0];
         let ends = [-0.36, 0.36].map(|offset| {
             let x = x + offset;
-            let contact = parts.iter().filter(|part| (part.pos.z - z).abs() < 0.01)
+            let contact = parts
+                .iter()
+                .filter(|part| (part.pos.z - z).abs() < 0.01)
                 .find_map(|part| {
                     let top = crate::shapes::paling_perch(&part.shape, x - part.pos.x)?;
                     Some(crate::models::transform_of(part).transform_point(top))
-                }).unwrap_or(Vec3::new(x, looks_yard::FENCE_H, z));
+                })
+                .unwrap_or(Vec3::new(x, looks_yard::FENCE_H, z));
             contact + Vec3::Z * (0.045 * 1.35)
         });
-        Self { ends, startled_at: None, throw_was_near: false }
+        Self {
+            ends,
+            startled_at: None,
+            throw_was_near: false,
+        }
     }
 
     fn hop(&self, time: f32) -> Vec3 {
@@ -132,9 +167,29 @@ impl Plugin for YardScenePlugin {
         app.insert_resource(YardRes(Yard::default()))
             .init_resource::<Drift>()
             .add_systems(Startup, build_yard)
-            .add_systems(Update, (crate::grass::sync, crate::grass::distance_cull).chain())
-            .add_systems(PostUpdate, crate::lighting::follow_sky.before(bevy::transform::TransformSystems::Propagate))
-            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_map, sync_race_map, sync_race_return_marker, sync_backyard_cover, animate_magpies, animate_garden_visitors));
+            .add_systems(
+                Update,
+                (crate::grass::sync, crate::grass::distance_cull).chain(),
+            )
+            .add_systems(
+                PostUpdate,
+                crate::lighting::follow_sky.before(bevy::transform::TransformSystems::Propagate),
+            )
+            .add_systems(
+                Update,
+                (
+                    toggle_features,
+                    animate_yard,
+                    sync_chest,
+                    sync_decor_eskies,
+                    sync_smoko_map,
+                    sync_race_map,
+                    sync_race_return_marker,
+                    sync_backyard_cover,
+                    animate_magpies,
+                    animate_garden_visitors,
+                ),
+            );
     }
 }
 
@@ -150,18 +205,37 @@ fn build_yard(
     mut cache: ResMut<ModelCache>,
     mode: Res<crate::lighting::LookMode>,
 ) {
-    let yard_root=commands.spawn((Transform::default(),Visibility::default(),NormalYard)).id();
-    let supply_root=commands.spawn((Transform::default(),Visibility::default(),SharedSupplies)).id();
+    let yard_root = commands
+        .spawn((Transform::default(), Visibility::default(), NormalYard))
+        .id();
+    let supply_root = commands
+        .spawn((Transform::default(), Visibility::default(), SharedSupplies))
+        .id();
     let look = looks_yard::yard_styled(LOOK_SEED, *mode == crate::lighting::LookMode::Polished);
-    if *mode == crate::lighting::LookMode::Polished && crate::style::current() == crate::style::Style::Pop {
+    if *mode == crate::lighting::LookMode::Polished
+        && crate::style::current() == crate::style::Style::Pop
+    {
         crate::lighting::spawn_afternoon_sky(&mut commands, &mut meshes, &mut mats);
     }
 
-    let cover=cache.spawn_parts(&mut commands,&looks_yard::backyard_cover(),&mut meshes,&mut mats,Transform::default());
-    commands.entity(cover).insert(BackyardCover);commands.entity(yard_root).add_child(cover);
+    let cover = cache.spawn_parts(
+        &mut commands,
+        &looks_yard::backyard_cover(),
+        &mut meshes,
+        &mut mats,
+        Transform::default(),
+    );
+    commands.entity(cover).insert(BackyardCover);
+    commands.entity(yard_root).add_child(cover);
 
     if crate::backyard_finish::enabled() {
-        let trim=cache.spawn_parts(&mut commands,&crate::backyard_finish::house_trim(),&mut meshes,&mut mats,Transform::default());
+        let trim = cache.spawn_parts(
+            &mut commands,
+            &crate::backyard_finish::house_trim(),
+            &mut meshes,
+            &mut mats,
+            Transform::default(),
+        );
         commands.entity(yard_root).add_child(trim);
     }
     // everything that is always there (lawn, fence, house, trees, pool, props)
@@ -196,6 +270,10 @@ fn build_yard(
             "models/side_gate.glb",
             Transform::from_xyz(GARDEN_WALL_X, 0.0, GARDEN_WALL_Z),
         ),
+        // Blender-authored backyard story props: gnomes, wheelbarrow, compost, toys, hose reel,
+        // possum box, party remains and the roof collector. Their GLB uses world-local yard axes
+        // and remains scenery only, so none of these details silently changes collision.
+        ("models/backyard_finish_props.glb", Transform::default()),
     ] {
         let prop = commands
             .spawn((
@@ -205,6 +283,58 @@ fn build_yard(
             .id();
         commands.entity(yard_root).add_child(prop);
     }
+    if *mode == crate::lighting::LookMode::Polished {
+        let wind = looks_yard::backyard_wind_parts();
+        for (parts, transform, marker) in [
+            (
+                &wind.umbrella_shade,
+                Transform::from_xyz(-20.0, 0.0, 18.2),
+                0u8,
+            ),
+            (
+                &wind.pinwheel_blades,
+                Transform::from_xyz(-11.0, 2.02, 20.0),
+                1,
+            ),
+            (
+                &wind.clothesline_hangers,
+                Transform::from_xyz(HOIST_AT.x, HOIST_AT.y, HOIST_AT.z),
+                2,
+            ),
+            (
+                &wind.sprinkler_rotor,
+                Transform::from_xyz(25.5, 0.53, -7.7),
+                3,
+            ),
+            (
+                &wind.sprinkler_trail,
+                Transform::from_xyz(25.5, 0.53, -7.7),
+                4,
+            ),
+        ] {
+            let prop = cache.spawn_parts(&mut commands, parts, &mut meshes, &mut mats, transform);
+            match marker {
+                0 => {
+                    commands.entity(prop).insert(UmbrellaShade);
+                }
+                1 => {
+                    commands.entity(prop).insert(Pinwheel);
+                }
+                2 => {
+                    commands.entity(prop).insert(BreezyHangers);
+                }
+                3 => {
+                    commands.entity(prop).insert(SprinklerRotor);
+                }
+                _ => {
+                    commands
+                        .entity(prop)
+                        .insert((SprinklerTrail, Visibility::Hidden));
+                }
+            }
+            commands.entity(yard_root).add_child(prop);
+        }
+    }
     if let Some(i) = find(&look.world, Tex::PoolWater) {
         commands.entity(kids[i]).insert(PoolWater);
     }
@@ -213,10 +343,7 @@ fn build_yard(
     }
 
     // the switchable parts
-    for (parts, feature) in [
-        (&look.bar, Feature::Bar),
-        (&look.bbq, Feature::Bbq),
-    ] {
+    for (parts, feature) in [(&look.bar, Feature::Bar), (&look.bbq, Feature::Bbq)] {
         let e = cache.spawn_parts(
             &mut commands,
             parts,
@@ -229,12 +356,30 @@ fn build_yard(
     }
     // what is on the bar depends on the mode: grog in Cheeky mode, soft drinks in family mode
     for (parts, cheeky) in [(&look.bar_grog, true), (&look.bar_soft, false)] {
-        let e = cache.spawn_parts(&mut commands, parts, &mut meshes, &mut mats, Transform::default());
-        commands.entity(e).insert((FeatureTag(Feature::Bar), CheekyOnly(cheeky), Visibility::Hidden));
+        let e = cache.spawn_parts(
+            &mut commands,
+            parts,
+            &mut meshes,
+            &mut mats,
+            Transform::default(),
+        );
+        commands.entity(e).insert((
+            FeatureTag(Feature::Bar),
+            CheekyOnly(cheeky),
+            Visibility::Hidden,
+        ));
         commands.entity(supply_root).add_child(e);
     }
-    let e = cache.spawn_parts(&mut commands, &look.litter, &mut meshes, &mut mats, Transform::default());
-    commands.entity(e).insert((CheekyOnly(true), Visibility::Hidden));
+    let e = cache.spawn_parts(
+        &mut commands,
+        &look.litter,
+        &mut meshes,
+        &mut mats,
+        Transform::default(),
+    );
+    commands
+        .entity(e)
+        .insert((CheekyOnly(true), Visibility::Hidden));
     commands.entity(yard_root).add_child(e);
 
     // The former Smoko area is open lawn. Shared prop builders remain in looks_yard.
@@ -252,7 +397,9 @@ fn build_yard(
     if *mode == crate::lighting::LookMode::Polished {
         // Frame transform shares the authoritative clearance geometry.
         let top = looks_yard::hoist_lean().1;
-        commands.entity(e).insert(Transform::from_xyz(top.x, top.y, top.z));
+        commands
+            .entity(e)
+            .insert(Transform::from_xyz(top.x, top.y, top.z));
     }
 
     // clouds
@@ -316,8 +463,12 @@ fn build_yard(
     commands.insert_resource(MagpiePerch::from_fence(&look.world));
 
     // magpies on the fence, watching you
-    for i in 0..look.magpies.len().max(bbq_core::magpie::MAX_FLOCK+1) {
-        let (at,yaw)=look.magpies.get(i).copied().unwrap_or((bbq_core::magpie::PERCH,0.0));
+    for i in 0..look.magpies.len().max(bbq_core::magpie::MAX_FLOCK + 1) {
+        let (at, yaw) = look
+            .magpies
+            .get(i)
+            .copied()
+            .unwrap_or((bbq_core::magpie::PERCH, 0.0));
         let m = looks_yard::magpie();
         let root = commands
             .spawn((
@@ -328,8 +479,20 @@ fn build_yard(
                 MagpieBody(i as f32),
             ))
             .id();
-        let (body,parts) = cache.spawn_parts_with_children(&mut commands, &m.body, &mut meshes, &mut mats, Transform::default());
-        for (index,side) in [(4,-1.0),(5,-1.0),(8,1.0),(9,1.0)] {commands.entity(parts[index]).insert(MagpieWing{bird:i,side,base:crate::models::transform_of(&m.body[index])});}
+        let (body, parts) = cache.spawn_parts_with_children(
+            &mut commands,
+            &m.body,
+            &mut meshes,
+            &mut mats,
+            Transform::default(),
+        );
+        for (index, side) in [(4, -1.0), (5, -1.0), (8, 1.0), (9, 1.0)] {
+            commands.entity(parts[index]).insert(MagpieWing {
+                bird: i,
+                side,
+                base: crate::models::transform_of(&m.body[index]),
+            });
+        }
         let head = cache.spawn_parts(
             &mut commands,
             &m.head,
@@ -337,18 +500,33 @@ fn build_yard(
             &mut mats,
             Transform::from_xyz(m.neck.x, m.neck.y, m.neck.z),
         );
-        let head_motion = move || MagpieHead { body_yaw: yaw, seed: i as f32 * 3.7, yaw: 0.0, pitch: 0.0 };
+        let head_motion = move || MagpieHead {
+            body_yaw: yaw,
+            seed: i as f32 * 3.7,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
         commands.entity(head).insert(head_motion());
         commands.entity(yard_root).add_child(root);
         commands.entity(root).add_children(&[body, head]);
-        if *mode == crate::lighting::LookMode::Polished && crate::style::current() == crate::style::Style::Pop {
+        if *mode == crate::lighting::LookMode::Polished
+            && crate::style::current() == crate::style::Style::Pop
+        {
             crate::hero_model::swap(
-                &mut commands, &assets, root, "models/magpie_pop.glb", vec![body, head],
+                &mut commands,
+                &assets,
+                root,
+                "models/magpie_pop.glb",
+                vec![body, head],
                 ["MagpieBody", "MagpieHead", "MagpieWingL", "MagpieWingR"],
                 move |commands, [_, (neck, _), left, right]| {
                     commands.entity(neck).insert(head_motion());
                     for ((wing, base), side) in [(left, -1.0), (right, 1.0)] {
-                        commands.entity(wing).insert(MagpieWing { bird: i, side, base });
+                        commands.entity(wing).insert(MagpieWing {
+                            bird: i,
+                            side,
+                            base,
+                        });
                     }
                 },
             );
@@ -362,21 +540,54 @@ fn build_yard(
         for i in 0..2 {
             let yaw = if i == 0 { 0.35 } else { -0.55 };
             let perch = Vec3::new(-14.22 + i as f32 * 0.42, 0.78, 21.48 + i as f32 * 0.10);
-            let escape = Vec3::new(-7.2 + i as f32 * 1.1, looks_yard::FENCE_H, bbq_core::YARD_HALF_Z + 0.05);
-            let root = commands.spawn((
-                Transform::from_translation(perch).with_rotation(Quat::from_rotation_y(yaw)).with_scale(Vec3::splat(0.82)),
-                Visibility::default(),
-                GardenVisitor { index:i, perch, escape, state:GardenVisitorState::Perched },
-            )).id();
-            let (body, parts) = cache.spawn_parts_with_children(&mut commands,&model.body,&mut meshes,&mut mats,Transform::default());
-            for (index,side) in [(4,-1.0),(5,-1.0),(8,1.0),(9,1.0)] {
-                commands.entity(parts[index]).insert(GardenVisitorWing { bird:i, side, base:crate::models::transform_of(&model.body[index]) });
+            let escape = Vec3::new(
+                -7.2 + i as f32 * 1.1,
+                looks_yard::FENCE_H,
+                bbq_core::YARD_HALF_Z + 0.05,
+            );
+            let root = commands
+                .spawn((
+                    Transform::from_translation(perch)
+                        .with_rotation(Quat::from_rotation_y(yaw))
+                        .with_scale(Vec3::splat(0.82)),
+                    Visibility::default(),
+                    GardenVisitor {
+                        index: i,
+                        perch,
+                        escape,
+                        state: GardenVisitorState::Perched,
+                    },
+                ))
+                .id();
+            let (body, parts) = cache.spawn_parts_with_children(
+                &mut commands,
+                &model.body,
+                &mut meshes,
+                &mut mats,
+                Transform::default(),
+            );
+            for (index, side) in [(4, -1.0), (5, -1.0), (8, 1.0), (9, 1.0)] {
+                commands.entity(parts[index]).insert(GardenVisitorWing {
+                    bird: i,
+                    side,
+                    base: crate::models::transform_of(&model.body[index]),
+                });
             }
-            let head = cache.spawn_parts(&mut commands,&model.head,&mut meshes,&mut mats,
-                Transform::from_xyz(model.neck.x,model.neck.y,model.neck.z));
-            commands.entity(head).insert(MagpieHead { body_yaw:yaw, seed:31.0+i as f32*4.7, yaw:0.0, pitch:0.0 });
+            let head = cache.spawn_parts(
+                &mut commands,
+                &model.head,
+                &mut meshes,
+                &mut mats,
+                Transform::from_xyz(model.neck.x, model.neck.y, model.neck.z),
+            );
+            commands.entity(head).insert(MagpieHead {
+                body_yaw: yaw,
+                seed: 31.0 + i as f32 * 4.7,
+                yaw: 0.0,
+                pitch: 0.0,
+            });
             commands.entity(yard_root).add_child(root);
-            commands.entity(root).add_children(&[body,head]);
+            commands.entity(root).add_children(&[body, head]);
         }
     }
 
@@ -384,11 +595,18 @@ fn build_yard(
     for (i, e) in look.eskies.iter().enumerate() {
         let root = commands
             .spawn((
-                Transform::from_xyz(e.at.x, e.at.y, e.at.z).with_rotation(Quat::from_rotation_y(e.turn)),
+                Transform::from_xyz(e.at.x, e.at.y, e.at.z)
+                    .with_rotation(Quat::from_rotation_y(e.turn)),
                 Visibility::default(),
             ))
             .id();
-        let base = cache.spawn_parts(&mut commands, &e.base, &mut meshes, &mut mats, Transform::default());
+        let base = cache.spawn_parts(
+            &mut commands,
+            &e.base,
+            &mut meshes,
+            &mut mats,
+            Transform::default(),
+        );
         let lid = cache.spawn_parts(
             &mut commands,
             &e.lid,
@@ -399,11 +617,16 @@ fn build_yard(
         );
         commands.entity(lid).insert(DecorLid(i));
         commands.entity(supply_root).add_child(root);
-    commands.entity(root).add_children(&[base, lid]);
+        commands.entity(root).add_children(&[base, lid]);
     }
 
     // the sun, with shadows, and the soft light from the sky
-    let sun = commands.spawn((crate::lighting::sun(*mode),crate::servo_finish::YardLight::Sun)).id();
+    let sun = commands
+        .spawn((
+            crate::lighting::sun(*mode),
+            crate::servo_finish::YardLight::Sun,
+        ))
+        .id();
     if *mode == crate::lighting::LookMode::Polished {
         commands.entity(sun).insert(crate::lighting::sun_cascades());
     }
@@ -413,44 +636,73 @@ fn build_yard(
         commands.spawn(crate::lighting::rim_light());
     }
     let (_, sky, sky_at) = crate::lighting::hemisphere(*mode);
-    commands.spawn((sky, sky_at,crate::servo_finish::YardLight::Fill));
+    commands.spawn((sky, sky_at, crate::servo_finish::YardLight::Fill));
 }
 
-/// The pool water slides and clouds drift; the clothesline stays aligned with collision.
+/// Pool water, clouds and small garden details move independently; the solid clothesline frame
+/// stays aligned with its clearance geometry while only the light hangers sway in the breeze.
 fn animate_yard(
     game: Res<Game>,
     mode: Res<crate::lighting::LookMode>,
     time: Res<Time>,
     mut drift: ResMut<Drift>,
-    mut head: Query<&mut Transform, (With<HoistHead>, Without<Cloud>)>,
-    mut clouds: Query<&mut Transform, (With<Cloud>, Without<HoistHead>)>,
+    mut scenery: Query<(
+        &mut Transform,
+        Option<&HoistHead>,
+        Option<&Cloud>,
+        Option<&BreezyHangers>,
+        Option<&Pinwheel>,
+        Option<&SprinklerRotor>,
+        Option<&UmbrellaShade>,
+    )>,
+    mut trail_visibility: Query<&mut Visibility, With<SprinklerTrail>>,
     water: Query<&MeshMaterial3d<StandardMaterial>, (With<PoolWater>, Without<PoolShimmer>)>,
     shimmer: Query<&MeshMaterial3d<StandardMaterial>, (With<PoolShimmer>, Without<PoolWater>)>,
     mut mats: ResMut<Assets<StandardMaterial>>,
 ) {
     let dt = time.delta_secs();
     let t = time.elapsed_secs();
-    for mut tf in &mut head {
-        if game.rules.mode == bbq_core::GameMode::Smoko { continue; }
-        if *mode == crate::lighting::LookMode::Polished {
-            // Fixed frame: no visual-only rotation past its colliders.
-            let q = looks_yard::hoist_lean().0;
-            let lean = Quat::from_xyzw(q.x, q.y, q.z, q.w);
-            let (_, spin, _) = tf.rotation.to_euler(EulerRot::YXZ);
-            let _ = spin;
-            tf.rotation = lean;
-        } else {
-            tf.rotation = Quat::IDENTITY;
+    for (mut tf, head, cloud, hangers, pinwheel, rotor, shade) in &mut scenery {
+        if head.is_some() && game.rules.mode != bbq_core::GameMode::Smoko {
+            tf.rotation = if *mode == crate::lighting::LookMode::Polished {
+                let q = looks_yard::hoist_lean().0;
+                Quat::from_xyzw(q.x, q.y, q.z, q.w)
+            } else {
+                Quat::IDENTITY
+            };
+        }
+        if cloud.is_some() {
+            tf.translation.x += dt * 1.2;
+            if tf.translation.x > 110.0 {
+                tf.translation.x = -110.0;
+            }
+        }
+        if hangers.is_some() && game.rules.mode != bbq_core::GameMode::Smoko {
+            tf.rotation = Quat::from_rotation_z((t * 1.65).sin() * 0.035)
+                * Quat::from_rotation_x((t * 1.12 + 0.7).sin() * 0.022);
+        }
+        if pinwheel.is_some() && game.rules.mode != bbq_core::GameMode::Smoko {
+            tf.rotation = Quat::from_rotation_z(t * 5.7);
+        }
+        if rotor.is_some() && game.rules.mode != bbq_core::GameMode::Smoko {
+            tf.rotation = Quat::from_rotation_y(0.95 + (t * 0.82).sin() * 0.82);
+        }
+        if shade.is_some() && game.rules.mode != bbq_core::GameMode::Smoko {
+            tf.translation.x = -20.0 + (t * 0.12).sin() * 0.24;
+            tf.translation.z = 18.2 + (t * 0.12).cos() * 0.18;
         }
     }
-    for mut tf in &mut clouds {
-        tf.translation.x += dt * 1.2;
-        if tf.translation.x > 110.0 {
-            tf.translation.x = -110.0;
-        }
+    for mut visibility in &mut trail_visibility {
+        *visibility = if game.rules.mode != bbq_core::GameMode::Smoko && t.rem_euclid(5.4) < 1.7 {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
     }
     // Smoko hides the Backyard pool: do not invalidate its GPU materials each frame.
-    if game.rules.mode == bbq_core::GameMode::Smoko { return; }
+    if game.rules.mode == bbq_core::GameMode::Smoko {
+        return;
+    }
     drift.water += Vec2::new(dt * 0.02, dt * 0.013);
     drift.shimmer_y += dt * 0.018;
     for h in &water {
@@ -524,10 +776,16 @@ fn sync_decor_eskies(
     time: Res<Time>,
     mut lids: Query<(&DecorLid, &mut Transform)>,
 ) {
-    if game.rules.mode == bbq_core::GameMode::Smoko { return; }
+    if game.rules.mode == bbq_core::GameMode::Smoko {
+        return;
+    }
     let k = 1.0 - (-6.0 * time.delta_secs()).exp();
     for (l, mut tf) in &mut lids {
-        let want = if game.life.decor_open.get(l.0).copied().unwrap_or(0.0) > 0.0 { -1.15 } else { -0.08 };
+        let want = if game.life.decor_open.get(l.0).copied().unwrap_or(0.0) > 0.0 {
+            -1.15
+        } else {
+            -0.08
+        };
         let (x, _, _) = tf.rotation.to_euler(EulerRot::XYZ);
         tf.rotation = Quat::from_rotation_x(x + (want - x) * k);
     }
@@ -536,23 +794,42 @@ fn sync_decor_eskies(
 /// Magpies turn their heads to follow you, cock them now and then, and bob a little.
 fn animate_magpies(
     time: Res<Time>,
-    game:Res<Game>,
+    game: Res<Game>,
     player: Res<crate::player::Player>,
     mut perch: ResMut<MagpiePerch>,
-    mut heads: Query<(&mut MagpieHead, &mut Transform, &GlobalTransform), (Without<MagpieBody>,Without<MagpieWing>,Without<GardenVisitorWing>)>,
-    mut bodies: Query<(&MagpieBody, &mut Transform, &mut Visibility), (Without<MagpieHead>,Without<MagpieWing>)>,
-    mut wings:Query<(&MagpieWing,&mut Transform),(Without<MagpieBody>,Without<MagpieHead>)>,
+    mut heads: Query<
+        (&mut MagpieHead, &mut Transform, &GlobalTransform),
+        (
+            Without<MagpieBody>,
+            Without<MagpieWing>,
+            Without<GardenVisitorWing>,
+        ),
+    >,
+    mut bodies: Query<
+        (&MagpieBody, &mut Transform, &mut Visibility),
+        (Without<MagpieHead>, Without<MagpieWing>),
+    >,
+    mut wings: Query<(&MagpieWing, &mut Transform), (Without<MagpieBody>, Without<MagpieHead>)>,
 ) {
     // These perched Backyard birds belong to the hidden NormalYard hierarchy.
-    if game.rules.mode == bbq_core::GameMode::Smoko { return; }
+    if game.rules.mode == bbq_core::GameMode::Smoko {
+        return;
+    }
     let t = time.elapsed_secs();
     let k = 1.0 - (-7.0 * time.delta_secs()).exp();
-    let active_magpie = matches!(game.rules.mode, bbq_core::GameMode::FreeForAll | bbq_core::GameMode::Teams);
+    let active_magpie = matches!(
+        game.rules.mode,
+        bbq_core::GameMode::FreeForAll | bbq_core::GameMode::Teams
+    );
     let resting = perch.hop(t);
-    let throw_near = active_magpie && game.magpie.phase == 0 && game.world.items.values().any(|item| {
-        item.state == bbq_core::flight::ItemState::Flying && item.live
-            && Vec3::new(item.pos.x, item.pos.y, item.pos.z).distance_squared(resting) < 2.0_f32.powi(2)
-    });
+    let throw_near = active_magpie
+        && game.magpie.phase == 0
+        && game.world.items.values().any(|item| {
+            item.state == bbq_core::flight::ItemState::Flying
+                && item.live
+                && Vec3::new(item.pos.x, item.pos.y, item.pos.z).distance_squared(resting)
+                    < 2.0_f32.powi(2)
+        });
     // A fast throw spends only a few frames in range. Finish a single flight arc
     // and wingbeat even after the projectile has passed.
     if game.magpie.phase != 0 || !active_magpie {
@@ -566,15 +843,23 @@ fn animate_magpies(
         4.0 * progress * (1.0 - progress)
     });
     for (mut h, mut tf, gt) in &mut heads {
-        if h.seed==0.0 && game.magpie.phase>0 && matches!(game.rules.mode,bbq_core::GameMode::FreeForAll|bbq_core::GameMode::Teams) {
-            tf.rotation=Quat::IDENTITY;continue;
+        if h.seed == 0.0
+            && game.magpie.phase > 0
+            && matches!(
+                game.rules.mode,
+                bbq_core::GameMode::FreeForAll | bbq_core::GameMode::Teams
+            )
+        {
+            tf.rotation = Quat::IDENTITY;
+            continue;
         }
         let at = gt.translation();
         let (dx, dz) = (player.mover.x - at.x, player.mover.z - at.z);
         let dist = dx.hypot(dz).max(0.1);
         // turn towards you, but only as far as a neck goes
         let mut want = dx.atan2(dz) - h.body_yaw;
-        want = (want + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+        want =
+            (want + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
         let want = want.clamp(-1.9, 1.9);
         let pitch = (-(1.5 - at.y).atan2(dist) * 0.6).clamp(-0.5, 0.5);
         h.yaw += (want - h.yaw) * k;
@@ -584,92 +869,140 @@ fn animate_magpies(
         let nod = (t * 3.1 + h.seed).sin().max(0.97) - 0.97;
         tf.rotation = Quat::from_euler(EulerRot::YXZ, h.yaw, h.pitch + nod * 6.0, cock * 0.5);
     }
-    for (w,mut tf) in &mut wings {
-        *tf=w.base;
-        if ((w.bird==0 && (game.magpie.phase>0 || reaction > 0.0)) || (w.bird>0 && game.flock.get(w.bird-1).is_some_and(|b|b.phase>0))) && active_magpie {
-            tf.rotation=Quat::from_rotation_z(w.side*(0.7+(t*24.0).sin()*0.65))*tf.rotation;tf.scale.y*=2.0;
+    for (w, mut tf) in &mut wings {
+        *tf = w.base;
+        if ((w.bird == 0 && (game.magpie.phase > 0 || reaction > 0.0))
+            || (w.bird > 0 && game.flock.get(w.bird - 1).is_some_and(|b| b.phase > 0)))
+            && active_magpie
+        {
+            tf.rotation =
+                Quat::from_rotation_z(w.side * (0.7 + (t * 24.0).sin() * 0.65)) * tf.rotation;
+            tf.scale.y *= 2.0;
         }
     }
-    for (b, mut tf,mut visibility) in &mut bodies {
-        let index=b.0 as usize;
-        if index>0 {
-            if let Some(bird)=game.flock.get(index-1) {
-                *visibility=Visibility::Inherited;let next=Vec3::new(bird.pos.x,bird.pos.y,bird.pos.z);let delta=next-tf.translation;
-                tf.translation=tf.translation.lerp(next,1.0-(-24.0*time.delta_secs()).exp());
-                if delta.length_squared()>0.0001 {tf.rotation=Quat::from_rotation_y(delta.x.atan2(delta.z));}
+    for (b, mut tf, mut visibility) in &mut bodies {
+        let index = b.0 as usize;
+        if index > 0 {
+            if let Some(bird) = game.flock.get(index - 1) {
+                *visibility = Visibility::Inherited;
+                let next = Vec3::new(bird.pos.x, bird.pos.y, bird.pos.z);
+                let delta = next - tf.translation;
+                tf.translation = tf
+                    .translation
+                    .lerp(next, 1.0 - (-24.0 * time.delta_secs()).exp());
+                if delta.length_squared() > 0.0001 {
+                    tf.rotation = Quat::from_rotation_y(delta.x.atan2(delta.z));
+                }
                 continue;
-            } else if index>=2 {*visibility=Visibility::Hidden;continue;}
+            } else if index >= 2 {
+                *visibility = Visibility::Hidden;
+                continue;
+            }
         }
-        *visibility=Visibility::Inherited;
-        if b.0==0.0 && matches!(game.rules.mode,bbq_core::GameMode::FreeForAll|bbq_core::GameMode::Teams) {
-            let bird=&game.magpie;let next=Vec3::new(bird.pos.x,bird.pos.y,bird.pos.z);
+        *visibility = Visibility::Inherited;
+        if b.0 == 0.0
+            && matches!(
+                game.rules.mode,
+                bbq_core::GameMode::FreeForAll | bbq_core::GameMode::Teams
+            )
+        {
+            let bird = &game.magpie;
+            let next = Vec3::new(bird.pos.x, bird.pos.y, bird.pos.z);
             if bird.phase == 0 {
                 tf.translation = resting + Vec3::new(0.32, 0.85, 0.45) * reaction;
                 tf.rotation = Quat::from_rotation_y(std::f32::consts::PI - 0.7 * reaction);
                 continue;
             }
-            let d=next-tf.translation;tf.translation=tf.translation.lerp(next,1.0-(-24.0*time.delta_secs()).exp());
+            let d = next - tf.translation;
+            tf.translation = tf
+                .translation
+                .lerp(next, 1.0 - (-24.0 * time.delta_secs()).exp());
             // Use replicated motion for heading, so guests never need a private target aim.
-            if bird.phase>0 {if d.x*d.x+d.z*d.z>0.000001 {tf.rotation=Quat::from_rotation_y(d.x.atan2(d.z))*Quat::from_rotation_x(if bird.phase==2{0.3}else{-0.15});}}
-            else {tf.rotation=Quat::from_rotation_y(std::f32::consts::PI);}
+            if bird.phase > 0 {
+                if d.x * d.x + d.z * d.z > 0.000001 {
+                    tf.rotation = Quat::from_rotation_y(d.x.atan2(d.z))
+                        * Quat::from_rotation_x(if bird.phase == 2 { 0.3 } else { -0.15 });
+                }
+            } else {
+                tf.rotation = Quat::from_rotation_y(std::f32::consts::PI);
+            }
             continue;
         }
-        if b.0==0.0 {tf.translation.x=14.0;tf.translation.z=bbq_core::YARD_HALF_Z+0.05;tf.rotation=Quat::from_rotation_y(std::f32::consts::PI);}
-        tf.translation.y = bbq_core::looks_yard::FENCE_H + ((t * 1.7 + b.0 * 2.0).sin().max(0.92) - 0.92) * 0.25;
+        if b.0 == 0.0 {
+            tf.translation.x = 14.0;
+            tf.translation.z = bbq_core::YARD_HALF_Z + 0.05;
+            tf.rotation = Quat::from_rotation_y(std::f32::consts::PI);
+        }
+        tf.translation.y =
+            bbq_core::looks_yard::FENCE_H + ((t * 1.7 + b.0 * 2.0).sin().max(0.92) - 0.92) * 0.25;
     }
 }
 
 /// The birdbath visitors react to the local player only. They are decoration, separate from
 /// the authoritative swooping magpie and its multiplayer flock.
 fn animate_garden_visitors(
-    time:Res<Time>,
-    player:Res<crate::player::Player>,
-    mut visitors:Query<(&mut GardenVisitor,&mut Transform)>,
-    mut wings:Query<(&GardenVisitorWing,&mut Transform),Without<GardenVisitor>>,
+    time: Res<Time>,
+    player: Res<crate::player::Player>,
+    mut visitors: Query<(&mut GardenVisitor, &mut Transform)>,
+    mut wings: Query<(&GardenVisitorWing, &mut Transform), Without<GardenVisitor>>,
 ) {
-    let now=time.elapsed_secs();
-    let mut airborne=[false;2];
-    for (mut visitor,mut tf) in &mut visitors {
-        let (px,pz)=(player.mover.x,player.mover.z);
-        let near=((px-tf.translation.x).powi(2)+(pz-tf.translation.z).powi(2)).sqrt();
-        if matches!(visitor.state,GardenVisitorState::Perched) && near<4.8 {
-            visitor.state=GardenVisitorState::FlyingOut(now);
+    let now = time.elapsed_secs();
+    let mut airborne = [false; 2];
+    for (mut visitor, mut tf) in &mut visitors {
+        let (px, pz) = (player.mover.x, player.mover.z);
+        let near = ((px - tf.translation.x).powi(2) + (pz - tf.translation.z).powi(2)).sqrt();
+        if matches!(visitor.state, GardenVisitorState::Perched) && near < 4.8 {
+            visitor.state = GardenVisitorState::FlyingOut(now);
         }
-        if let GardenVisitorState::AtFence(since)=visitor.state {
-            if now-since>2.8 && near>8.0 { visitor.state=GardenVisitorState::FlyingHome(now); }
+        if let GardenVisitorState::AtFence(since) = visitor.state {
+            if now - since > 2.8 && near > 8.0 {
+                visitor.state = GardenVisitorState::FlyingHome(now);
+            }
         }
-        let (from,to,t,at_fence)=match visitor.state {
+        let (from, to, t, at_fence) = match visitor.state {
             GardenVisitorState::Perched => {
-                tf.translation=visitor.perch+Vec3::Y*(0.025*(now*3.0+visitor.index as f32).sin());
-                airborne[visitor.index]=false;
+                tf.translation =
+                    visitor.perch + Vec3::Y * (0.025 * (now * 3.0 + visitor.index as f32).sin());
+                airborne[visitor.index] = false;
                 continue;
             }
             GardenVisitorState::FlyingOut(start) => {
-                let q=((now-start)/0.78).clamp(0.0,1.0);
-                if q>=1.0 { visitor.state=GardenVisitorState::AtFence(now); }
-                (visitor.perch,visitor.escape,q,true)
+                let q = ((now - start) / 0.78).clamp(0.0, 1.0);
+                if q >= 1.0 {
+                    visitor.state = GardenVisitorState::AtFence(now);
+                }
+                (visitor.perch, visitor.escape, q, true)
             }
             GardenVisitorState::AtFence(_) => {
-                tf.translation=visitor.escape+Vec3::Y*(0.035*(now*4.0+visitor.index as f32).sin());
-                airborne[visitor.index]=false;
+                tf.translation =
+                    visitor.escape + Vec3::Y * (0.035 * (now * 4.0 + visitor.index as f32).sin());
+                airborne[visitor.index] = false;
                 continue;
             }
             GardenVisitorState::FlyingHome(start) => {
-                let q=((now-start)/0.86).clamp(0.0,1.0);
-                if q>=1.0 { visitor.state=GardenVisitorState::Perched; }
-                (visitor.escape,visitor.perch,q,false)
+                let q = ((now - start) / 0.86).clamp(0.0, 1.0);
+                if q >= 1.0 {
+                    visitor.state = GardenVisitorState::Perched;
+                }
+                (visitor.escape, visitor.perch, q, false)
             }
         };
-        airborne[visitor.index]=true;
-        tf.translation=from.lerp(to,t)+Vec3::Y*(1.45*4.0*t*(1.0-t));
-        let d=to-from;
-        if d.x*d.x+d.z*d.z>0.0001 { tf.rotation=Quat::from_rotation_y(d.x.atan2(d.z))*Quat::from_rotation_x(if at_fence{-0.18}else{0.12}); }
+        airborne[visitor.index] = true;
+        tf.translation = from.lerp(to, t) + Vec3::Y * (1.45 * 4.0 * t * (1.0 - t));
+        let d = to - from;
+        if d.x * d.x + d.z * d.z > 0.0001 {
+            tf.rotation = Quat::from_rotation_y(d.x.atan2(d.z))
+                * Quat::from_rotation_x(if at_fence { -0.18 } else { 0.12 });
+        }
     }
-    for (wing,mut tf) in &mut wings {
-        tf.rotation=wing.base.rotation;
-        let flutter=if airborne[wing.bird] {0.72+(now*27.0+wing.bird as f32).sin()*0.58}
-            else {(now*3.7+wing.bird as f32*2.1).sin().max(0.0)*0.10};
-        tf.rotation*=Quat::from_rotation_z(wing.side*flutter);
+    for (wing, mut tf) in &mut wings {
+        tf.rotation = wing.base.rotation;
+        let flutter = if airborne[wing.bird] {
+            0.72 + (now * 27.0 + wing.bird as f32).sin() * 0.58
+        } else {
+            (now * 3.7 + wing.bird as f32 * 2.1).sin().max(0.0) * 0.10
+        };
+        tf.rotation *= Quat::from_rotation_z(wing.side * flutter);
     }
 }
 
@@ -678,14 +1011,21 @@ fn toggle_features(
     keys: Res<ButtonInput<KeyCode>>,
     game: Res<crate::game::Game>,
     mut yard_res: ResMut<YardRes>,
-    mut tags: Query<(Option<&FeatureTag>, Option<&CheekyOnly>, &mut Visibility), Or<(With<FeatureTag>, With<CheekyOnly>)>>,
+    mut tags: Query<
+        (Option<&FeatureTag>, Option<&CheekyOnly>, &mut Visibility),
+        Or<(With<FeatureTag>, With<CheekyOnly>)>,
+    >,
     mut supply: Query<(&FeatureTag, &mut Transform)>,
     mut last: Local<Option<(Features, bool)>>,
 ) {
     // the menu changes the features (and Cheeky mode) too, not only the F keys
-    for (tag,mut tf) in &mut supply {
-        if matches!(tag.0,Feature::Bbq) {
-            tf.translation.z = if yard_res.0.features.smoko { bbq_core::bush_servo::BBQ_OFFSET_Z } else { 0. };
+    for (tag, mut tf) in &mut supply {
+        if matches!(tag.0, Feature::Bbq) {
+            tf.translation.z = if yard_res.0.features.smoko {
+                bbq_core::bush_servo::BBQ_OFFSET_Z
+            } else {
+                0.
+            };
         }
     }
     let cheeky = game.options.adult;
@@ -712,7 +1052,11 @@ fn toggle_features(
         *last = Some((feats, cheeky));
         for (tag, only, mut vis) in &mut tags {
             let on = tag.is_none_or(|t| feats.get(t.0)) && only.is_none_or(|o| o.0 == cheeky);
-            *vis = if on { Visibility::Inherited } else { Visibility::Hidden };
+            *vis = if on {
+                Visibility::Inherited
+            } else {
+                Visibility::Hidden
+            };
         }
     }
 }
@@ -721,153 +1065,578 @@ fn toggle_features(
 struct SmokoMap;
 /// Only the selected Smoko map creates these props; other maps keep their open lawn.
 fn sync_smoko_map(
-    mut commands: Commands, game: Res<Game>, roots: Query<Entity, With<SmokoMap>>,
-    mut meshes: ResMut<Assets<Mesh>>, mut mats: ResMut<Assets<StandardMaterial>>,
-    mut cache: ResMut<ModelCache>, mode: Res<crate::lighting::LookMode>, assets: Res<AssetServer>,
-    screen: Res<crate::menu::Screen>, settings: Res<crate::menu::Settings>,
+    mut commands: Commands,
+    game: Res<Game>,
+    roots: Query<Entity, With<SmokoMap>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut mats: ResMut<Assets<StandardMaterial>>,
+    mut cache: ResMut<ModelCache>,
+    mode: Res<crate::lighting::LookMode>,
+    assets: Res<AssetServer>,
+    screen: Res<crate::menu::Screen>,
+    settings: Res<crate::menu::Settings>,
 ) {
-    let active=crate::menu::displayed_mode(*screen, &settings, &game)==bbq_core::GameMode::Smoko;
-    if !active { for e in &roots {commands.entity(e).despawn();} return; }
-    if !roots.is_empty(){return;}
-    let _=mode;
-    let parts=bbq_core::bush_servo::parts_with_shelter(false);
-    let e=cache.spawn_parts(&mut commands,&parts,&mut meshes,&mut mats,Transform::default());
+    let active =
+        crate::menu::displayed_mode(*screen, &settings, &game) == bbq_core::GameMode::Smoko;
+    if !active {
+        for e in &roots {
+            commands.entity(e).despawn();
+        }
+        return;
+    }
+    if !roots.is_empty() {
+        return;
+    }
+    let _ = mode;
+    let parts = bbq_core::bush_servo::parts_with_shelter(false);
+    let e = cache.spawn_parts(
+        &mut commands,
+        &parts,
+        &mut meshes,
+        &mut mats,
+        Transform::default(),
+    );
     commands.entity(e).insert(SmokoMap);
-    let offset = if std::env::args().any(|a| a == "--shot") && std::env::args().any(|a| a == "--servo-ne") {
-        (17., 9.5) // capture-only placement study
-    } else if std::env::args().any(|a| a == "--servo-nw") {
-        (-6., 9.5)
-    } else { bbq_core::bush_servo::SERVO_OFFSET };
-    commands.spawn((WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_servo.glb"))),
-        Transform::from_xyz(offset.0,0.,offset.1), ChildOf(e)));
-    commands.spawn((WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_props.glb"))), Transform::default(), ChildOf(e)));
-    commands.spawn((WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_surroundings.glb"))), Transform::default(), ChildOf(e)));
-    commands.spawn((WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_landscape.glb"))), Transform::default(), ChildOf(e)));
+    let offset =
+        if std::env::args().any(|a| a == "--shot") && std::env::args().any(|a| a == "--servo-ne") {
+            (17., 9.5) // capture-only placement study
+        } else if std::env::args().any(|a| a == "--servo-nw") {
+            (-6., 9.5)
+        } else {
+            bbq_core::bush_servo::SERVO_OFFSET
+        };
     commands.spawn((
-        WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_shelter.glb"))),
-        Transform::from_xyz(0.,0.,10.), ChildOf(e),
+        WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_servo.glb"))),
+        Transform::from_xyz(offset.0, 0., offset.1),
+        ChildOf(e),
+    ));
+    commands.spawn((
+        WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_props.glb"))),
+        Transform::default(),
+        ChildOf(e),
+    ));
+    commands.spawn((
+        WorldAssetRoot(
+            assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_surroundings.glb")),
+        ),
+        Transform::default(),
+        ChildOf(e),
+    ));
+    commands.spawn((
+        WorldAssetRoot(
+            assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_landscape.glb")),
+        ),
+        Transform::default(),
+        ChildOf(e),
+    ));
+    commands.spawn((
+        WorldAssetRoot(
+            assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_shelter.glb")),
+        ),
+        Transform::from_xyz(0., 0., 10.),
+        ChildOf(e),
     ));
 }
 
 fn sync_race_map(
- mut commands:Commands,game:Res<Game>,screen:Res<crate::menu::Screen>,settings:Res<crate::menu::Settings>,yard:Res<YardRes>,mut normal:Query<&mut Visibility,(With<NormalYard>,Without<SharedSupplies>,Without<YardFencePart>,Without<YardLawnPart>)>,
- mut supplies:Query<&mut Visibility,(With<SharedSupplies>,Without<NormalYard>,Without<YardFencePart>,Without<YardLawnPart>)>,
- roots:Query<Entity,With<RaceMap>>,mut fences:Query<&mut Visibility,(With<YardFencePart>,Without<NormalYard>,Without<SharedSupplies>,Without<YardLawnPart>)>,mut lawns:Query<&mut Visibility,(With<YardLawnPart>,Without<NormalYard>,Without<SharedSupplies>,Without<YardFencePart>)>,mut meshes:ResMut<Assets<Mesh>>,mut mats:ResMut<Assets<StandardMaterial>>,mut cache:ResMut<ModelCache>,
+    mut commands: Commands,
+    game: Res<Game>,
+    screen: Res<crate::menu::Screen>,
+    settings: Res<crate::menu::Settings>,
+    yard: Res<YardRes>,
+    mut normal: Query<
+        &mut Visibility,
+        (
+            With<NormalYard>,
+            Without<SharedSupplies>,
+            Without<YardFencePart>,
+            Without<YardLawnPart>,
+        ),
+    >,
+    mut supplies: Query<
+        &mut Visibility,
+        (
+            With<SharedSupplies>,
+            Without<NormalYard>,
+            Without<YardFencePart>,
+            Without<YardLawnPart>,
+        ),
+    >,
+    roots: Query<Entity, With<RaceMap>>,
+    mut fences: Query<
+        &mut Visibility,
+        (
+            With<YardFencePart>,
+            Without<NormalYard>,
+            Without<SharedSupplies>,
+            Without<YardLawnPart>,
+        ),
+    >,
+    mut lawns: Query<
+        &mut Visibility,
+        (
+            With<YardLawnPart>,
+            Without<NormalYard>,
+            Without<SharedSupplies>,
+            Without<YardFencePart>,
+        ),
+    >,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut mats: ResMut<Assets<StandardMaterial>>,
+    mut cache: ResMut<ModelCache>,
 ) {
- let displayed=crate::menu::displayed_mode(*screen, &settings, &game);
- let active=displayed==bbq_core::GameMode::Race;
- for mut v in &mut normal {v.set_if_neq(if active || displayed==bbq_core::GameMode::Smoko {Visibility::Hidden}else{Visibility::Inherited});}
- for mut v in &mut supplies {v.set_if_neq(if active{Visibility::Hidden}else{Visibility::Inherited});}
- for mut v in &mut fences {v.set_if_neq(if displayed==bbq_core::GameMode::Heist{Visibility::Hidden}else{Visibility::Inherited});}
- for mut v in &mut lawns {v.set_if_neq(if yard.0.heist.is_some(){Visibility::Hidden}else{Visibility::Inherited});}
- if !active {for e in &roots{commands.entity(e).despawn();}return;}
- if !roots.is_empty(){return;}
- use bbq_core::looks::{Shape,Surface};
- let block=|w:f32,h:f32,d:f32,x:f32,y:f32,z:f32,c:u32|Part::new(Shape::Cuboid{w,h,d},Surface::matt(c)).at(x,y,z);
- // Reuse the backyard lawn tile across the oval; no extra geometry or texture assets.
- let mut lawn_surface=Surface::matt(0xd4e4b6).textured(bbq_core::looks::Tex::Lawn);
- lawn_surface.repeat=(12.,9.);
- let mut lawn=Part::new(Shape::Cylinder{top:1.,bottom:1.,h:0.2,seg:96,caps:true},lawn_surface).at(0.,-0.12,0.);
- lawn.scale=bbq_core::vec::V3::new(60.,1.,42.);
- let mut parts=vec![lawn];
- // Many short shared strips make a smooth constant-width racing surface.
- for i in 0..96 {
-  let t=i as f32*std::f32::consts::TAU/96.;let u=(i+1) as f32*std::f32::consts::TAU/96.;
-  let a=crate::race::oval(t);let b=crate::race::oval(u);let dx=b.0-a.0;let dz=b.1-a.1;let len=dx.hypot(dz);let yaw=dx.atan2(dz);
-  parts.push(block(crate::race::WIDTH,0.04,len+0.12,(a.0+b.0)*0.5,0.015,(a.1+b.1)*0.5,0xd48b57).turn(0.,yaw,0.));
-  for side in [-1.,1.] {let off=crate::race::WIDTH*0.5*side;parts.push(block(0.12,0.035,len+0.08,(a.0+b.0)*0.5+dz/len*off,0.055,(a.1+b.1)*0.5-dx/len*off,0xfff5cf).turn(0.,yaw,0.));}
-  let a=(50.*t.sin(),-35.*t.cos());let b=(50.*u.sin(),-35.*u.cos());let dx=b.0-a.0;let dz=b.1-a.1;
-  parts.push(block(0.14,1.1,dx.hypot(dz)+0.04,(a.0+b.0)*0.5,0.55,(a.1+b.1)*0.5,0x99623a).turn(0.,dx.atan2(dz),0.));
- }
- for i in 0..8 {
-  let a=crate::race::TRACK[i];let b=crate::race::TRACK[(i+1)%8];let dx=b.0-a.0;let dz=b.1-a.1;let len=dx.hypot(dz);let yaw=dx.atan2(dz);let mid=((a.0+b.0)*0.5,(a.1+b.1)*0.5);
-  // Repeated arrow chevrons on the racing surface communicate direction without colour alone.
-  for t in [0.3,0.65] {let (x,z)=crate::race::oval((i as f32+t)*std::f32::consts::TAU/8.);
-   for side in [-1.,1.] {parts.push(block(0.12,0.04,0.85,x+dz/len*side*0.27,0.08,z-dx/len*side*0.27,0xffdf43).turn(0.,yaw-side*0.7,0.));}
-  }
-  // Checkpoint gate: two posts, overhead numbered panel, open lane below.
-  let n=(i+1)%8;let at=crate::race::TRACK[n];
-  for side in [-1.,1.] {parts.push(block(0.16,3.3,0.16,at.0+dz/len*2.65*side,1.65,at.1-dx/len*2.65*side,0xfdf2c6));}
-  parts.push(block(5.5,0.7,0.16,at.0,3.3,at.1,if n==0{0x173c36}else{0x225c88}).turn(0.,yaw,0.));
-  // Seven-segment gate numbers (finish is 8), made from cheap shared cuboids.
-  let digit=if n==0{8}else{n};let masks=[0,0b0110000,0b1101101,0b1111001,0b0110011,0b1011011,0b1011111,0b1110000,0b1111111];
-  let segments=[(0.,0.24,0.3,0.055),(0.17,0.12,0.055,0.22),(0.17,-0.12,0.055,0.22),(0.,-0.24,0.3,0.055),(-0.17,-0.12,0.055,0.22),(-0.17,0.12,0.055,0.22),(0.,0.,0.3,0.055)];
-  for (k,(x,y,w,h)) in segments.iter().enumerate(){if masks[digit]&(1<<(6-k))!=0 {
-   parts.push(block(*w,*h,0.2,at.0+x*yaw.cos(),3.3+y,at.1-x*yaw.sin(),0xffdc43).turn(0.,yaw,0.));
-  }}
- }
- // Chequered finish stripe across the lane at gate 8.
- for x in 0..2{for z in 0..10 {parts.push(block(0.4,0.04,0.48,-0.2+x as f32*0.4,0.09,-26.4+z as f32*0.48,if (x+z)%2==0{0xffffff}else{0x172823}));}}
- // Timber boundary, trees and spectator seats give the circuit a backyard identity.
- for i in 0..10 {let t=i as f32*std::f32::consts::TAU/10.;let x=48.5*t.sin();let z=-33.5*t.cos();if z < -25. {continue;}
-  parts.push(block(0.5,3.,0.5,x,1.5,z,0x825433));parts.push(Part::new(Shape::Sphere{r:1.7,ws:8,hs:6},Surface::matt(0x386b37)).at(x,4.,z));
- }
- for t in [-0.7_f32,-0.35,0.,0.35,0.7] {parts.extend(looks_yard::place(looks_yard::chair_styled(0),bbq_core::vec::V3::new(48.5*t.sin(),0.,-33.5*t.cos()),bbq_core::vec::Quat::from_euler_xyz(0.,-t,0.),1.0));}
- // Four distinct spectator landmarks beyond the racing lane and throwing sightlines.
- // North: a striped marquee; east: corrugated shed; west: tyre/plant garden.
- for (x,z) in [(-17.0,33.0),(17.0,33.0)] {
-  for dx in [-2.4,2.4] {for dz in [-1.4,1.4] {parts.push(block(0.12,3.2,0.12,x+dx,1.6,z+dz,0xf7eccf));}}
-  for i in 0..8 {parts.push(block(0.64,0.18,3.4,x-2.24+i as f32*0.64,3.2,z,if i%2==0{0xe36e42}else{0xffe4b1}));}
-  parts.push(block(3.5,0.18,1.1,x,0.9,z,0x9a673f));
-  for dx in [-1.4,1.4] {parts.push(block(0.16,0.9,0.7,x+dx,0.45,z,0x493f38));}
- }
- // Garden shed sits beyond the oval boundary; never an invisible track obstacle.
- parts.push(block(5.,3.,4.,55.,1.5,6.,0x849c8c));
- for i in 0..20 {parts.push(block(0.07,2.9,0.05,52.6+i as f32*0.25,1.5,3.97,0xaac0a7));}
- parts.push(block(5.6,0.18,4.6,55.,3.15,6.,0xb65e42).turn(0.,0.,0.08));
- parts.push(block(1.4,2.2,0.08,55.,1.1,3.94,0x3b6665));
- parts.push(block(0.12,0.12,0.12,55.5,1.2,3.86,0xffd457));
- for (x,z) in [(-47.,-11.),(-48.,7.),(43.,18.),(9.,33.)] {
-  for j in 0..3 {let dx=(j as f32-1.)*0.9;
-   parts.push(Part::new(Shape::Cylinder{top:0.45,bottom:0.34,h:0.6,seg:8,caps:true},Surface::matt(0xba764e)).at(x+dx,0.3,z));
-   parts.push(Part::new(Shape::Sphere{r:0.6,ws:8,hs:6},Surface::matt(if j%2==0{0x69834b}else{0x87974b})).at(x+dx,0.95,z));
-  }
- }
- // Bunting sits high above spectators, leaving the near-bend aiming corridor open.
- for side in [-1.,1.] {for i in 0..7 {
-  let x=side*12.+i as f32*0.75;let z=31.;
-  parts.push(block(0.65,0.55,0.06,x,3.5,z,if i%3==0{0xe96c42}else if i%3==1{0xf3cc4e}else{0x4c99a6}).turn(0.,0.,0.08*(i as f32-3.)));
- }}
- let e=cache.spawn_parts(&mut commands,&parts,&mut meshes,&mut mats,Transform::default());commands.entity(e).insert(RaceMap);
- // One vertex-coloured mesh keeps the complete route and both boundary lines inexpensive.
- commands.spawn((Mesh3d(meshes.add(race_terrace_mesh())),
-  MeshMaterial3d(mats.add(StandardMaterial{base_color:Color::WHITE,perceptual_roughness:1.0,..default()})),
-  Transform::default(),ChildOf(e)));
-
+    let displayed = crate::menu::displayed_mode(*screen, &settings, &game);
+    let active = displayed == bbq_core::GameMode::Race;
+    for mut v in &mut normal {
+        v.set_if_neq(if active || displayed == bbq_core::GameMode::Smoko {
+            Visibility::Hidden
+        } else {
+            Visibility::Inherited
+        });
+    }
+    for mut v in &mut supplies {
+        v.set_if_neq(if active {
+            Visibility::Hidden
+        } else {
+            Visibility::Inherited
+        });
+    }
+    for mut v in &mut fences {
+        v.set_if_neq(if displayed == bbq_core::GameMode::Heist {
+            Visibility::Hidden
+        } else {
+            Visibility::Inherited
+        });
+    }
+    for mut v in &mut lawns {
+        v.set_if_neq(if yard.0.heist.is_some() {
+            Visibility::Hidden
+        } else {
+            Visibility::Inherited
+        });
+    }
+    if !active {
+        for e in &roots {
+            commands.entity(e).despawn();
+        }
+        return;
+    }
+    if !roots.is_empty() {
+        return;
+    }
+    use bbq_core::looks::{Shape, Surface};
+    let block = |w: f32, h: f32, d: f32, x: f32, y: f32, z: f32, c: u32| {
+        Part::new(Shape::Cuboid { w, h, d }, Surface::matt(c)).at(x, y, z)
+    };
+    // Reuse the backyard lawn tile across the oval; no extra geometry or texture assets.
+    let mut lawn_surface = Surface::matt(0xd4e4b6).textured(bbq_core::looks::Tex::Lawn);
+    lawn_surface.repeat = (12., 9.);
+    let mut lawn = Part::new(
+        Shape::Cylinder {
+            top: 1.,
+            bottom: 1.,
+            h: 0.2,
+            seg: 96,
+            caps: true,
+        },
+        lawn_surface,
+    )
+    .at(0., -0.12, 0.);
+    lawn.scale = bbq_core::vec::V3::new(60., 1., 42.);
+    let mut parts = vec![lawn];
+    // Many short shared strips make a smooth constant-width racing surface.
+    for i in 0..96 {
+        let t = i as f32 * std::f32::consts::TAU / 96.;
+        let u = (i + 1) as f32 * std::f32::consts::TAU / 96.;
+        let a = crate::race::oval(t);
+        let b = crate::race::oval(u);
+        let dx = b.0 - a.0;
+        let dz = b.1 - a.1;
+        let len = dx.hypot(dz);
+        let yaw = dx.atan2(dz);
+        parts.push(
+            block(
+                crate::race::WIDTH,
+                0.04,
+                len + 0.12,
+                (a.0 + b.0) * 0.5,
+                0.015,
+                (a.1 + b.1) * 0.5,
+                0xd48b57,
+            )
+            .turn(0., yaw, 0.),
+        );
+        for side in [-1., 1.] {
+            let off = crate::race::WIDTH * 0.5 * side;
+            parts.push(
+                block(
+                    0.12,
+                    0.035,
+                    len + 0.08,
+                    (a.0 + b.0) * 0.5 + dz / len * off,
+                    0.055,
+                    (a.1 + b.1) * 0.5 - dx / len * off,
+                    0xfff5cf,
+                )
+                .turn(0., yaw, 0.),
+            );
+        }
+        let a = (50. * t.sin(), -35. * t.cos());
+        let b = (50. * u.sin(), -35. * u.cos());
+        let dx = b.0 - a.0;
+        let dz = b.1 - a.1;
+        parts.push(
+            block(
+                0.14,
+                1.1,
+                dx.hypot(dz) + 0.04,
+                (a.0 + b.0) * 0.5,
+                0.55,
+                (a.1 + b.1) * 0.5,
+                0x99623a,
+            )
+            .turn(0., dx.atan2(dz), 0.),
+        );
+    }
+    for i in 0..8 {
+        let a = crate::race::TRACK[i];
+        let b = crate::race::TRACK[(i + 1) % 8];
+        let dx = b.0 - a.0;
+        let dz = b.1 - a.1;
+        let len = dx.hypot(dz);
+        let yaw = dx.atan2(dz);
+        // Repeated arrow chevrons on the racing surface communicate direction without colour alone.
+        for t in [0.3, 0.65] {
+            let (x, z) = crate::race::oval((i as f32 + t) * std::f32::consts::TAU / 8.);
+            for side in [-1., 1.] {
+                parts.push(
+                    block(
+                        0.12,
+                        0.04,
+                        0.85,
+                        x + dz / len * side * 0.27,
+                        0.08,
+                        z - dx / len * side * 0.27,
+                        0xffdf43,
+                    )
+                    .turn(0., yaw - side * 0.7, 0.),
+                );
+            }
+        }
+        // Checkpoint gate: two posts, overhead numbered panel, open lane below.
+        let n = (i + 1) % 8;
+        let at = crate::race::TRACK[n];
+        for side in [-1., 1.] {
+            parts.push(block(
+                0.16,
+                3.3,
+                0.16,
+                at.0 + dz / len * 2.65 * side,
+                1.65,
+                at.1 - dx / len * 2.65 * side,
+                0xfdf2c6,
+            ));
+        }
+        parts.push(
+            block(
+                5.5,
+                0.7,
+                0.16,
+                at.0,
+                3.3,
+                at.1,
+                if n == 0 { 0x173c36 } else { 0x225c88 },
+            )
+            .turn(0., yaw, 0.),
+        );
+        // Seven-segment gate numbers (finish is 8), made from cheap shared cuboids.
+        let digit = if n == 0 { 8 } else { n };
+        let masks = [
+            0, 0b0110000, 0b1101101, 0b1111001, 0b0110011, 0b1011011, 0b1011111, 0b1110000,
+            0b1111111,
+        ];
+        let segments = [
+            (0., 0.24, 0.3, 0.055),
+            (0.17, 0.12, 0.055, 0.22),
+            (0.17, -0.12, 0.055, 0.22),
+            (0., -0.24, 0.3, 0.055),
+            (-0.17, -0.12, 0.055, 0.22),
+            (-0.17, 0.12, 0.055, 0.22),
+            (0., 0., 0.3, 0.055),
+        ];
+        for (k, (x, y, w, h)) in segments.iter().enumerate() {
+            if masks[digit] & (1 << (6 - k)) != 0 {
+                parts.push(
+                    block(
+                        *w,
+                        *h,
+                        0.2,
+                        at.0 + x * yaw.cos(),
+                        3.3 + y,
+                        at.1 - x * yaw.sin(),
+                        0xffdc43,
+                    )
+                    .turn(0., yaw, 0.),
+                );
+            }
+        }
+    }
+    // Chequered finish stripe across the lane at gate 8.
+    for x in 0..2 {
+        for z in 0..10 {
+            parts.push(block(
+                0.4,
+                0.04,
+                0.48,
+                -0.2 + x as f32 * 0.4,
+                0.09,
+                -26.4 + z as f32 * 0.48,
+                if (x + z) % 2 == 0 { 0xffffff } else { 0x172823 },
+            ));
+        }
+    }
+    // Timber boundary, trees and spectator seats give the circuit a backyard identity.
+    for i in 0..10 {
+        let t = i as f32 * std::f32::consts::TAU / 10.;
+        let x = 48.5 * t.sin();
+        let z = -33.5 * t.cos();
+        if z < -25. {
+            continue;
+        }
+        parts.push(block(0.5, 3., 0.5, x, 1.5, z, 0x825433));
+        parts.push(
+            Part::new(
+                Shape::Sphere {
+                    r: 1.7,
+                    ws: 8,
+                    hs: 6,
+                },
+                Surface::matt(0x386b37),
+            )
+            .at(x, 4., z),
+        );
+    }
+    for t in [-0.7_f32, -0.35, 0., 0.35, 0.7] {
+        parts.extend(looks_yard::place(
+            looks_yard::chair_styled(0),
+            bbq_core::vec::V3::new(48.5 * t.sin(), 0., -33.5 * t.cos()),
+            bbq_core::vec::Quat::from_euler_xyz(0., -t, 0.),
+            1.0,
+        ));
+    }
+    // Four distinct spectator landmarks beyond the racing lane and throwing sightlines.
+    // North: a striped marquee; east: corrugated shed; west: tyre/plant garden.
+    for (x, z) in [(-17.0, 33.0), (17.0, 33.0)] {
+        for dx in [-2.4, 2.4] {
+            for dz in [-1.4, 1.4] {
+                parts.push(block(0.12, 3.2, 0.12, x + dx, 1.6, z + dz, 0xf7eccf));
+            }
+        }
+        for i in 0..8 {
+            parts.push(block(
+                0.64,
+                0.18,
+                3.4,
+                x - 2.24 + i as f32 * 0.64,
+                3.2,
+                z,
+                if i % 2 == 0 { 0xe36e42 } else { 0xffe4b1 },
+            ));
+        }
+        parts.push(block(3.5, 0.18, 1.1, x, 0.9, z, 0x9a673f));
+        for dx in [-1.4, 1.4] {
+            parts.push(block(0.16, 0.9, 0.7, x + dx, 0.45, z, 0x493f38));
+        }
+    }
+    // Garden shed sits beyond the oval boundary; never an invisible track obstacle.
+    parts.push(block(5., 3., 4., 55., 1.5, 6., 0x849c8c));
+    for i in 0..20 {
+        parts.push(block(
+            0.07,
+            2.9,
+            0.05,
+            52.6 + i as f32 * 0.25,
+            1.5,
+            3.97,
+            0xaac0a7,
+        ));
+    }
+    parts.push(block(5.6, 0.18, 4.6, 55., 3.15, 6., 0xb65e42).turn(0., 0., 0.08));
+    parts.push(block(1.4, 2.2, 0.08, 55., 1.1, 3.94, 0x3b6665));
+    parts.push(block(0.12, 0.12, 0.12, 55.5, 1.2, 3.86, 0xffd457));
+    for (x, z) in [(-47., -11.), (-48., 7.), (43., 18.), (9., 33.)] {
+        for j in 0..3 {
+            let dx = (j as f32 - 1.) * 0.9;
+            parts.push(
+                Part::new(
+                    Shape::Cylinder {
+                        top: 0.45,
+                        bottom: 0.34,
+                        h: 0.6,
+                        seg: 8,
+                        caps: true,
+                    },
+                    Surface::matt(0xba764e),
+                )
+                .at(x + dx, 0.3, z),
+            );
+            parts.push(
+                Part::new(
+                    Shape::Sphere {
+                        r: 0.6,
+                        ws: 8,
+                        hs: 6,
+                    },
+                    Surface::matt(if j % 2 == 0 { 0x69834b } else { 0x87974b }),
+                )
+                .at(x + dx, 0.95, z),
+            );
+        }
+    }
+    // Bunting sits high above spectators, leaving the near-bend aiming corridor open.
+    for side in [-1., 1.] {
+        for i in 0..7 {
+            let x = side * 12. + i as f32 * 0.75;
+            let z = 31.;
+            parts.push(
+                block(
+                    0.65,
+                    0.55,
+                    0.06,
+                    x,
+                    3.5,
+                    z,
+                    if i % 3 == 0 {
+                        0xe96c42
+                    } else if i % 3 == 1 {
+                        0xf3cc4e
+                    } else {
+                        0x4c99a6
+                    },
+                )
+                .turn(0., 0., 0.08 * (i as f32 - 3.)),
+            );
+        }
+    }
+    let e = cache.spawn_parts(
+        &mut commands,
+        &parts,
+        &mut meshes,
+        &mut mats,
+        Transform::default(),
+    );
+    commands.entity(e).insert(RaceMap);
+    // One vertex-coloured mesh keeps the complete route and both boundary lines inexpensive.
+    commands.spawn((
+        Mesh3d(meshes.add(race_terrace_mesh())),
+        MeshMaterial3d(mats.add(StandardMaterial {
+            base_color: Color::WHITE,
+            perceptual_roughness: 1.0,
+            ..default()
+        })),
+        Transform::default(),
+        ChildOf(e),
+    ));
 }
 
 fn race_terrace_mesh() -> Mesh {
- use bevy::asset::RenderAssetUsages;
- use bevy::mesh::{Indices,PrimitiveTopology};
- let mut positions=Vec::new();let mut colors=Vec::new();let mut indices=Vec::new();
- let edge=0.003; // About 8–13 cm, matching the legal radial boundaries.
- for (inner,outer,hex) in [(1.0,1.0+edge,0xfff5cf),(1.0+edge,crate::race::TERRACE_OUTER-edge,0xe6bd79),(crate::race::TERRACE_OUTER-edge,crate::race::TERRACE_OUTER,0xfff5cf)] {
-  let color=Color::srgb_u8((hex>>16) as u8,(hex>>8) as u8,hex as u8).to_linear().to_f32_array();
-  let start=positions.len() as u32;
-  for i in 0..=crate::race::TERRACE_SEGMENTS {
-   let angle=i as f32*std::f32::consts::TAU/crate::race::TERRACE_SEGMENTS as f32;
-   for radius in [inner,outer] {let (x,z)=crate::race::terrace_at(angle,radius);positions.push([x,0.04,z]);colors.push(color);}
-   if i<crate::race::TERRACE_SEGMENTS {let n=start+i as u32*2;indices.extend([n,n+2,n+1,n+1,n+2,n+3]);}
-  }
- }
- let count=positions.len();let mut mesh=Mesh::new(PrimitiveTopology::TriangleList,RenderAssetUsages::default());
- mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION,positions);
- mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL,vec![[0.0,1.0,0.0];count]);
- mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR,colors);
- mesh.insert_indices(Indices::U32(indices));mesh
+    use bevy::asset::RenderAssetUsages;
+    use bevy::mesh::{Indices, PrimitiveTopology};
+    let mut positions = Vec::new();
+    let mut colors = Vec::new();
+    let mut indices = Vec::new();
+    let edge = 0.003; // About 8–13 cm, matching the legal radial boundaries.
+    for (inner, outer, hex) in [
+        (1.0, 1.0 + edge, 0xfff5cf),
+        (1.0 + edge, crate::race::TERRACE_OUTER - edge, 0xe6bd79),
+        (
+            crate::race::TERRACE_OUTER - edge,
+            crate::race::TERRACE_OUTER,
+            0xfff5cf,
+        ),
+    ] {
+        let color = Color::srgb_u8((hex >> 16) as u8, (hex >> 8) as u8, hex as u8)
+            .to_linear()
+            .to_f32_array();
+        let start = positions.len() as u32;
+        for i in 0..=crate::race::TERRACE_SEGMENTS {
+            let angle = i as f32 * std::f32::consts::TAU / crate::race::TERRACE_SEGMENTS as f32;
+            for radius in [inner, outer] {
+                let (x, z) = crate::race::terrace_at(angle, radius);
+                positions.push([x, 0.04, z]);
+                colors.push(color);
+            }
+            if i < crate::race::TERRACE_SEGMENTS {
+                let n = start + i as u32 * 2;
+                indices.extend([n, n + 2, n + 1, n + 1, n + 2, n + 3]);
+            }
+        }
+    }
+    let count = positions.len();
+    let mut mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    );
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 1.0, 0.0]; count]);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
+    mesh.insert_indices(Indices::U32(indices));
+    mesh
 }
 
-fn sync_backyard_cover(game:Res<Game>,mut q:Query<&mut Visibility,With<BackyardCover>>) {
- for mut v in &mut q {v.set_if_neq(if matches!(game.rules.mode,bbq_core::GameMode::FreeForAll|bbq_core::GameMode::Teams) {Visibility::Inherited}else{Visibility::Hidden});}
+fn sync_backyard_cover(game: Res<Game>, mut q: Query<&mut Visibility, With<BackyardCover>>) {
+    for mut v in &mut q {
+        v.set_if_neq(
+            if matches!(
+                game.rules.mode,
+                bbq_core::GameMode::FreeForAll | bbq_core::GameMode::Teams
+            ) {
+                Visibility::Inherited
+            } else {
+                Visibility::Hidden
+            },
+        );
+    }
 }
 
 #[derive(Component)]
 struct RaceReturnMarker;
-fn sync_race_return_marker(mut commands:Commands,game:Res<Game>,mut q:Query<(Entity,&mut Transform),With<RaceReturnMarker>>,mut meshes:ResMut<Assets<Mesh>>,mut mats:ResMut<Assets<StandardMaterial>>) {
-    let target=if game.rules.mode==bbq_core::GameMode::Race {game.race.racers.get(&crate::player::PLAYER_ID).and_then(|r|r.return_to)}else{None};
-    let Some((x,z))=target else {for (e,_) in &q {commands.entity(e).despawn();}return;};
-    if let Ok((_,mut tf))=q.single_mut() {tf.translation=Vec3::new(x,0.14,z);return;}
-    commands.spawn((RaceReturnMarker,Mesh3d(meshes.add(Torus::new(0.8,1.0))),MeshMaterial3d(mats.add(StandardMaterial{base_color:Color::srgb(1.0,0.84,0.2),unlit:true,..default()})),Transform::from_xyz(x,0.14,z),bevy::light::NotShadowCaster));
+fn sync_race_return_marker(
+    mut commands: Commands,
+    game: Res<Game>,
+    mut q: Query<(Entity, &mut Transform), With<RaceReturnMarker>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut mats: ResMut<Assets<StandardMaterial>>,
+) {
+    let target = if game.rules.mode == bbq_core::GameMode::Race {
+        game.race
+            .racers
+            .get(&crate::player::PLAYER_ID)
+            .and_then(|r| r.return_to)
+    } else {
+        None
+    };
+    let Some((x, z)) = target else {
+        for (e, _) in &q {
+            commands.entity(e).despawn();
+        }
+        return;
+    };
+    if let Ok((_, mut tf)) = q.single_mut() {
+        tf.translation = Vec3::new(x, 0.14, z);
+        return;
+    }
+    commands.spawn((
+        RaceReturnMarker,
+        Mesh3d(meshes.add(Torus::new(0.8, 1.0))),
+        MeshMaterial3d(mats.add(StandardMaterial {
+            base_color: Color::srgb(1.0, 0.84, 0.2),
+            unlit: true,
+            ..default()
+        })),
+        Transform::from_xyz(x, 0.14, z),
+        bevy::light::NotShadowCaster,
+    ));
 }
 
 #[cfg(test)]
@@ -877,19 +1646,41 @@ mod smoko_polish_tests {
     #[test]
     fn smoko_leaves_hidden_water_unchanged_but_clouds_move_and_backyard_resumes() {
         let mut app = App::new();
-        app.add_plugins(MinimalPlugins).add_plugins(crate::game::GamePlugin);
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(crate::game::GamePlugin);
         app.insert_resource(crate::lighting::LookMode::Polished)
-            .init_resource::<Drift>().init_resource::<Assets<StandardMaterial>>();
+            .init_resource::<Drift>()
+            .init_resource::<Assets<StandardMaterial>>();
         app.world_mut().resource_mut::<Game>().rules.mode = bbq_core::GameMode::Smoko;
-        app.world_mut().resource_mut::<Time>().advance_by(std::time::Duration::from_millis(100));
-        let mat = app.world_mut().resource_mut::<Assets<StandardMaterial>>().add(StandardMaterial::default());
-        app.world_mut().spawn((PoolWater, MeshMaterial3d(mat.clone())));
+        app.world_mut()
+            .resource_mut::<Time>()
+            .advance_by(std::time::Duration::from_millis(100));
+        let mat = app
+            .world_mut()
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial::default());
+        app.world_mut()
+            .spawn((PoolWater, MeshMaterial3d(mat.clone())));
         let cloud = app.world_mut().spawn((Cloud, Transform::default())).id();
         app.world_mut().run_system_once(animate_yard).unwrap();
-        assert_eq!(app.world().resource::<Assets<StandardMaterial>>().get(&mat).unwrap().uv_transform, bevy::math::Affine2::IDENTITY);
+        assert_eq!(
+            app.world()
+                .resource::<Assets<StandardMaterial>>()
+                .get(&mat)
+                .unwrap()
+                .uv_transform,
+            bevy::math::Affine2::IDENTITY
+        );
         assert!(app.world().get::<Transform>(cloud).unwrap().translation.x > 0.0);
         app.world_mut().resource_mut::<Game>().rules.mode = bbq_core::GameMode::FreeForAll;
         app.world_mut().run_system_once(animate_yard).unwrap();
-        assert_ne!(app.world().resource::<Assets<StandardMaterial>>().get(&mat).unwrap().uv_transform, bevy::math::Affine2::IDENTITY);
+        assert_ne!(
+            app.world()
+                .resource::<Assets<StandardMaterial>>()
+                .get(&mat)
+                .unwrap()
+                .uv_transform,
+            bevy::math::Affine2::IDENTITY
+        );
     }
 }

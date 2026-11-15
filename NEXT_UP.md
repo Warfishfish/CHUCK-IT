@@ -14,6 +14,8 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 
 15 November — backyard details #2 (rainwater overflow trench), #3 (poolside shower) and #5 (side gate shortcut) are built for Rust desktop and browser. The props are authored with Blender's native mesh tools, so no third-party library or generation key is needed. The gate has a 1.5 m opening in both the visible wall and player collision; the shower riser is solid but leaves a walkable path beside the pool. Rust tests, asset loading and browser syntax pass. Native captures: [shower](checkpoints/2026-11-15-backyard-details/pool-shower.png), [gate](checkpoints/2026-11-15-backyard-details/side-gate.png), [overflow channel](checkpoints/2026-11-15-backyard-details/rain-channel.png). Marcus's hands-on desktop and browser review remains.
 
+15 November — the remaining backyard prop pass (#6, #8–10, #12–20) is implemented in the Rust desktop and browser: mismatched gnomes, a patched umbrella with drifting shade, wheelbarrow, compost and blue-tongue lizard, chalk drawings, pool-toy rack, breezier Hills Hoist hangers, detailed hose reel, roof solar collector, spinning pinwheel, possum box, party leftovers and animated sprinkler glints. Both house-roof slopes now support walking; the roof traversal exception is limited to the roof area. The main and neighbouring houses gain weatherboard, fascia, gutters, downpipes, dimensional windows and porch/foundation details, with added gum bark and branch detail. Props do not change gameplay collision. Browser prototype is 0.23.16. [Native review captures](checkpoints/2026-11-15-backyard-finishing/review.html); browser preview unavailable in this session, though syntax checking passed.
+
 ## Backyard prop ideas (Marcus's 20-item list)
 
 - ✅ **1. Veggie patch:** tomato stakes, herbs, capsicums and “Mum’s Garden” marker.
@@ -21,21 +23,21 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 - ✅ **3. Poolside outdoor shower:** worn aqua-and-cream tiles, old copper taps, striped towel and drain.
 - ✅ **4. Shed workbench:** pegboard tools, seed packets, bolt jar and mower blade mid-repair.
 - ✅ **5. Side gate shortcut:** open timber gate with a bright latch through the low brick garden wall.
-- ⬜ **6. Garden gnome collection:** several mismatched weathered gnomes arranged as spectators.
+- ✅ **6. Garden gnome collection:** several mismatched weathered gnomes arranged as spectators.
 - ✅ **7. Birdbath and visiting birds:** concrete birdbath and magpies that scatter when approached.
-- 🟡 **8. Patched patio umbrella:** poolside shade already exists; add a visible repair patch and moving shade.
-- ⬜ **9. Wheelbarrow left mid-job:** soil, trowel and weeds beside a garden bed.
-- ⬜ **10. Compost corner:** rough compost bin, clippings and a small lizard or beetle.
+- ✅ **8. Patched patio umbrella:** poolside shade has a visible repair patch and drifts in the breeze.
+- ✅ **9. Wheelbarrow left mid-job:** soil, trowel and weeds beside a garden bed.
+- ✅ **10. Compost corner:** rough compost bin, clippings and a blue-tongue lizard.
 - ✅ **11. Fence repair patches:** weathered, varied palings with bracing and repair details already in the yard pass.
-- ⬜ **12. Kids’ chalk art:** add playful drawings and a chalk tally beyond the existing cricket marks.
-- ⬜ **13. Pool toy rack:** faded kickboard, noodle and flippers hung beside the pool gate.
-- 🟡 **14. Hills Hoist details:** clothesline and pegged washing are present; empty hangers and stronger breeze motion remain.
-- 🟡 **15. Garden hose reel:** hose and sprinkler are present; add a proper weathered reel and kinked coils.
-- ⬜ **16. Solar hot-water unit:** roof-mounted panel and exposed pipework.
-- ⬜ **17. Bird-deterrent pinwheel:** bright homemade pinwheel above the veggie patch.
-- ⬜ **18. Possum box:** claw-marked nesting box in a gum tree with a little leafy mess below.
-- ⬜ **19. Backyard party leftovers:** plates, empty eskies and a handwritten snag note.
-- 🟡 **20. Sprinkler moment:** a stationary sprinkler exists; animate its sweep and brief glistening trail.
+- ✅ **12. Kids’ chalk art:** playful drawings and a chalk tally sit beyond the cricket marks.
+- ✅ **13. Pool toy rack:** faded kickboard, noodle and flippers hang beside the pool gate.
+- ✅ **14. Hills Hoist details:** empty hangers sway in a stronger breeze around the existing pegged washing.
+- ✅ **15. Garden hose reel:** weathered reel and kinked coils sit beside the existing hose and sprinkler.
+- ✅ **16. Solar hot-water unit:** roof-mounted collector with exposed pipework.
+- ✅ **17. Bird-deterrent pinwheel:** bright homemade pinwheel spins above the veggie patch.
+- ✅ **18. Possum box:** claw-marked nesting box in a gum tree with leafy mess below.
+- ✅ **19. Backyard party leftovers:** plates, empty eskies and a handwritten snag note.
+- ✅ **20. Sprinkler moment:** the existing sprinkler sweeps and leaves brief glistening water flecks.
 
 9 November — solo and host bot-count controls (including team allocation), Smoko ute jump surfaces and carried-player exterior camera are implemented, tested and published. Browser review confirmed the solo/team controls and that Smoko starts; the live ute landing and carried-player camera still need a clear hands-on visual check. [Review notes](checkpoints/2026-11-09-browser-graphics-review/REVIEW.md). E19.3 now includes independent [BBQ captures and the Smoko cooking station update](checkpoints/2026-11-09-cookstation/review.html). Follow the arena-first [concept-art graphics backlog](CONCEPT_ART_GRAPHICS_BACKLOG.md).
 

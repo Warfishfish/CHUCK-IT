@@ -37,7 +37,7 @@ pub enum Kind {
     TankLadder,
     /// Solid weatherboard house body.
     House,
-    /// Height-stepped collision patches following the visible front roof slope.
+    /// Height-stepped collision patches following both visible roof slopes.
     HouseRoof,
     /// The rain-worn, sagging veranda awning: walkable from above.
     VerandaRoof,
@@ -71,22 +71,48 @@ impl Kind {
 }
 
 /// Shared with the renderer: two lower boxes and one upper box.
-pub const CRATE_SIZE:f32=1.15;
-pub const CRATE_CENTRES:[(f32,f32,f32);3]=[(-26.1,0.575,-13.5),(-24.9,0.575,-13.5),(-25.5,1.725,-13.5)];
-#[derive(Clone,Copy,Debug)]
-pub struct Beam {pub a:crate::vec::V3,pub b:crate::vec::V3,pub radius:f32}
+pub const CRATE_SIZE: f32 = 1.15;
+pub const CRATE_CENTRES: [(f32, f32, f32); 3] = [
+    (-26.1, 0.575, -13.5),
+    (-24.9, 0.575, -13.5),
+    (-25.5, 1.725, -13.5),
+];
+#[derive(Clone, Copy, Debug)]
+pub struct Beam {
+    pub a: crate::vec::V3,
+    pub b: crate::vec::V3,
+    pub radius: f32,
+}
 /// Fixed frame shared with clothesline rendering. Fabric remains non-solid.
-pub fn clothesline_beams()-> &'static [Beam] {
-    static BEAMS:std::sync::OnceLock<Vec<Beam>>=std::sync::OnceLock::new();
-    BEAMS.get_or_init(|| {
-    use crate::vec::V3;
-    let mut beams=Vec::with_capacity(20);
-    let angles:Vec<f32>=(0..4).map(|k| k as f32*std::f32::consts::FRAC_PI_2+std::f32::consts::FRAC_PI_4).collect();
-    let point=|r:f32,a:f32| V3::new(a.cos()*r,2.32+r*0.09,3.0-a.sin()*r);
-    for &a in &angles {beams.push(Beam{a:point(0.0,a),b:point(2.65,a),radius:0.025});}
-    for r in [0.8,1.4,2.0,2.55] {for k in 0..4 {beams.push(Beam{a:point(r,angles[k]),b:point(r,angles[(k+1)%4]),radius:0.012});}}
-    beams
-    }).as_slice()
+pub fn clothesline_beams() -> &'static [Beam] {
+    static BEAMS: std::sync::OnceLock<Vec<Beam>> = std::sync::OnceLock::new();
+    BEAMS
+        .get_or_init(|| {
+            use crate::vec::V3;
+            let mut beams = Vec::with_capacity(20);
+            let angles: Vec<f32> = (0..4)
+                .map(|k| k as f32 * std::f32::consts::FRAC_PI_2 + std::f32::consts::FRAC_PI_4)
+                .collect();
+            let point = |r: f32, a: f32| V3::new(a.cos() * r, 2.32 + r * 0.09, 3.0 - a.sin() * r);
+            for &a in &angles {
+                beams.push(Beam {
+                    a: point(0.0, a),
+                    b: point(2.65, a),
+                    radius: 0.025,
+                });
+            }
+            for r in [0.8, 1.4, 2.0, 2.55] {
+                for k in 0..4 {
+                    beams.push(Beam {
+                        a: point(r, angles[k]),
+                        b: point(r, angles[(k + 1) % 4]),
+                        radius: 0.012,
+                    });
+                }
+            }
+            beams
+        })
+        .as_slice()
 }
 
 /// A box on the ground.
@@ -124,6 +150,11 @@ pub const ROOF_WIDTH: f32 = 41.0;
 pub const ROOF_FRONT_CENTRE_Y: f32 = 5.62;
 pub const ROOF_FRONT_CENTRE_Z: f32 = -27.4;
 pub const ROOF_FRONT_PITCH: f32 = 0.445;
+/// The back roof plane meets the front plane near the ridge cap and falls to the rear gutter.
+pub const ROOF_BACK_CENTRE_Y: f32 = 5.62;
+pub const ROOF_BACK_CENTRE_Z: f32 = -31.6;
+pub const ROOF_BACK_START_Z: f32 = -29.4;
+pub const ROOF_BACK_EDGE_Z: f32 = -34.05;
 pub const MOWER_X: f32 = 27.6;
 pub const MOWER_Z: f32 = -19.0;
 pub const VERANDA_Z_CENTRE: f32 = -24.05;
@@ -325,16 +356,40 @@ impl Yard {
         c.push(Collider::centred(MOWER_X, MOWER_Z + 0.30, 1.08, 0.94, 0.95).of(Kind::RideOnMower));
         c.push(Collider::centred(MOWER_X, MOWER_Z - 0.45, 0.72, 0.62, 1.28).of(Kind::RideOnMower));
         c.push(Collider::centred(25.5, -15.8, 1.65, 0.82, 0.96).of(Kind::Workbench));
-        c.push(Collider::centred(POOLSIDE_SHOWER_X, POOLSIDE_SHOWER_POST_Z, 0.28, 0.28, 2.2).of(Kind::Shower));
-        c.push(Collider::centred(0.0, HOUSE_Z_CENTRE, HOUSE_X_HALF * 2.0, HOUSE_DEPTH, HOUSE_HEIGHT).of(Kind::House));
-        c.push(Collider::centred(TANK_X, TANK_Z, TANK_RADIUS * 2.1, TANK_RADIUS * 2.1, TANK_TOP).of(Kind::RainTank));
-        c.push(Collider::centred(
-            TANK_X,
-            (TANK_LADDER_BOTTOM_Z + TANK_LADDER_TOP_Z) * 0.5,
-            TANK_LADDER_X_HALF * 2.0,
-            TANK_LADDER_BOTTOM_Z - TANK_LADDER_TOP_Z,
-            TANK_TOP,
-        ).of(Kind::TankLadder));
+        c.push(
+            Collider::centred(POOLSIDE_SHOWER_X, POOLSIDE_SHOWER_POST_Z, 0.28, 0.28, 2.2)
+                .of(Kind::Shower),
+        );
+        c.push(
+            Collider::centred(
+                0.0,
+                HOUSE_Z_CENTRE,
+                HOUSE_X_HALF * 2.0,
+                HOUSE_DEPTH,
+                HOUSE_HEIGHT,
+            )
+            .of(Kind::House),
+        );
+        c.push(
+            Collider::centred(
+                TANK_X,
+                TANK_Z,
+                TANK_RADIUS * 2.1,
+                TANK_RADIUS * 2.1,
+                TANK_TOP,
+            )
+            .of(Kind::RainTank),
+        );
+        c.push(
+            Collider::centred(
+                TANK_X,
+                (TANK_LADDER_BOTTOM_Z + TANK_LADDER_TOP_Z) * 0.5,
+                TANK_LADDER_X_HALF * 2.0,
+                TANK_LADDER_BOTTOM_Z - TANK_LADDER_TOP_Z,
+                TANK_TOP,
+            )
+            .of(Kind::TankLadder),
+        );
         // These tops are small horizontal patches over the sloped mesh. Their sides are ignored
         // by player movement, while the house body below prevents walking through the roof.
         const ROOF_PATCHES: usize = 16;
@@ -343,10 +398,22 @@ impl Yard {
             let z0 = ROOF_RIDGE_Z + i as f32 * roof_step;
             let z1 = z0 + roof_step;
             let z = (z0 + z1) * 0.5;
-            let h = ROOF_FRONT_CENTRE_Y
-                - ROOF_FRONT_PITCH.sin() * (z - ROOF_FRONT_CENTRE_Z)
+            let h = ROOF_FRONT_CENTRE_Y - ROOF_FRONT_PITCH.sin() * (z - ROOF_FRONT_CENTRE_Z)
                 + ROOF_FRONT_PITCH.cos() * 0.08;
             c.push(Collider::centred(0.0, z, ROOF_WIDTH, roof_step, h).of(Kind::HouseRoof));
+        }
+        // The matching back slope was visible but had no floor patches, so players dropped
+        // through it when crossing the ridge. Build the same stepped walkable surface down to
+        // the rear gutter; these remain top surfaces and the solid house body still blocks sides.
+        let back_roof_step = (ROOF_BACK_START_Z - ROOF_BACK_EDGE_Z) / ROOF_PATCHES as f32;
+        for i in 0..ROOF_PATCHES {
+            let z0 = ROOF_BACK_START_Z - i as f32 * back_roof_step;
+            let z1 = z0 - back_roof_step;
+            let z = (z0 + z1) * 0.5;
+            let h = ROOF_BACK_CENTRE_Y
+                + ROOF_FRONT_PITCH.sin() * (z - ROOF_BACK_CENTRE_Z)
+                + ROOF_FRONT_PITCH.cos() * 0.08;
+            c.push(Collider::centred(0.0, z, ROOF_WIDTH, back_roof_step, h).of(Kind::HouseRoof));
         }
         // The veranda roof is four pitched slabs with a slight sag at the centre. Small top
         // patches follow each slab's linear pitch, then the awning's shallow front-to-back tilt.
@@ -360,7 +427,9 @@ impl Yard {
             let x0 = -VERANDA_X_EDGE + ix as f32 * x_step;
             let x1 = x0 + x_step;
             let x = (x0 + x1) * 0.5;
-            let segment = (0..4).find(|i| x >= posts[*i] && x <= posts[*i + 1]).unwrap_or(3);
+            let segment = (0..4)
+                .find(|i| x >= posts[*i] && x <= posts[*i + 1])
+                .unwrap_or(3);
             let t = ((x - posts[segment]) / (posts[segment + 1] - posts[segment])).clamp(0.0, 1.0);
             let roof_y = sag(posts[segment]) * (1.0 - t) + sag(posts[segment + 1]) * t + 0.105;
             for iz in 0..VERANDA_Z_PATCHES {
@@ -373,7 +442,10 @@ impl Yard {
         // Eskies: the box is the axis-aligned bounds of a 1.5 x 1.0 box turned by r.
         for &(x, z, r) in decor_eskies() {
             let (s, co) = (r.sin().abs(), r.cos().abs());
-            c.push(Collider::centred(x, z, 1.5 * co + 1.0 * s, 1.5 * s + 1.0 * co, 0.75).of(Kind::Esky));
+            c.push(
+                Collider::centred(x, z, 1.5 * co + 1.0 * s, 1.5 * s + 1.0 * co, 0.75)
+                    .of(Kind::Esky),
+            );
         }
         c.push(Collider::centred(6.0, -16.5, 2.0, 1.0, 0.8).of(Kind::Table)); // outdoor table
         if features.bbq {
@@ -382,8 +454,11 @@ impl Yard {
             c.push(Collider::centred(x, z, w, d, h).of(Kind::MeatTable));
         }
         c.push(Collider::centred(31.5, 19.5, 1.7, 0.85, 1.1).of(Kind::Bins)); // wheelie bins
-        for (x,y,z) in CRATE_CENTRES {
-            c.push(Collider::centred(x,z,CRATE_SIZE,CRATE_SIZE,y+CRATE_SIZE*0.5).of(Kind::Crates));
+        for (x, y, z) in CRATE_CENTRES {
+            c.push(
+                Collider::centred(x, z, CRATE_SIZE, CRATE_SIZE, y + CRATE_SIZE * 0.5)
+                    .of(Kind::Crates),
+            );
         }
         c.push(Collider::centred(-31.6, -3.0, 1.2, 9.0, 1.3).of(Kind::Hedge)); // hedge
         c.push(Collider::centred(12.0, 2.0, 1.2, 1.2, 1.0).of(Kind::Tyres)); // tyres
@@ -392,8 +467,16 @@ impl Yard {
         // The low garden wall is split around a 1.5 m opening, wide enough for a player to
         // pass through. The open side gate is a visual landmark and short route through the yard.
         for x in GARDEN_WALL_SECTION_CENTRES {
-            c.push(Collider::centred(x, GARDEN_WALL_Z, GARDEN_WALL_SECTION_WIDTH,
-                GARDEN_WALL_DEPTH, GARDEN_WALL_HEIGHT).of(Kind::Wall));
+            c.push(
+                Collider::centred(
+                    x,
+                    GARDEN_WALL_Z,
+                    GARDEN_WALL_SECTION_WIDTH,
+                    GARDEN_WALL_DEPTH,
+                    GARDEN_WALL_HEIGHT,
+                )
+                .of(Kind::Wall),
+            );
         }
         c.push(Collider::centred(-8.0, 20.0, 5.0, 0.9, 0.95).of(Kind::Planter)); // veggie planter
         if features.bar {
@@ -419,12 +502,20 @@ impl Yard {
         Self::heist_variant(features, chest_spot, teams, 0)
     }
 
-    pub fn heist_variant(features: Features, chest_spot: usize, teams: usize, variant: usize) -> Self {
+    pub fn heist_variant(
+        features: Features,
+        chest_spot: usize,
+        teams: usize,
+        variant: usize,
+    ) -> Self {
         let mut y = Self::new(features, chest_spot);
         y.heist = Some(teams.clamp(2, 4));
         y.heist_variant = variant % crate::heist::LAYOUTS_PER_TEAM_COUNT;
-        y.colliders
-            .extend(crate::heist::arena_for(teams, y.heist_variant).into_iter().map(|p| p.collider));
+        y.colliders.extend(
+            crate::heist::arena_for(teams, y.heist_variant)
+                .into_iter()
+                .map(|p| p.collider),
+        );
         y
     }
 
@@ -432,9 +523,14 @@ impl Yard {
     pub fn smoko(features: Features, chest_spot: usize) -> Self {
         let mut y = Self::new(features, chest_spot);
         y.features.smoko = true;
-        y.colliders.retain(|c|matches!(c.kind,Kind::Bar|Kind::Grill|Kind::MeatTable|Kind::Chest|Kind::Esky));
+        y.colliders.retain(|c| {
+            matches!(
+                c.kind,
+                Kind::Bar | Kind::Grill | Kind::MeatTable | Kind::Chest | Kind::Esky
+            )
+        });
         for c in &mut y.colliders {
-            if matches!(c.kind,Kind::Grill|Kind::MeatTable) {
+            if matches!(c.kind, Kind::Grill | Kind::MeatTable) {
                 c.z0 += crate::bush_servo::BBQ_OFFSET_Z;
                 c.z1 += crate::bush_servo::BBQ_OFFSET_Z;
             }
@@ -453,7 +549,10 @@ impl Yard {
             }
         }
         if self.features.smoko {
-            return !self.colliders.iter().any(|c| x>c.x0-r && x<c.x1+r && z>c.z0-r && z<c.z1+r);
+            return !self
+                .colliders
+                .iter()
+                .any(|c| x > c.x0 - r && x < c.x1 + r && z > c.z0 - r && z < c.z1 + r);
         }
         !self.colliders.iter().any(|c| {
             matches!(c.kind, Kind::HeistWall | Kind::Steps | Kind::HeistCrate)
@@ -467,20 +566,30 @@ impl Yard {
     /// Highest standable top under (x, z) for someone at height `y` (and `prev_y` last step).
     /// You can step up onto things when you are at least `h - 0.35` high, or were `h - 0.05` high.
     pub fn floor_at(&self, x: f32, z: f32, y: f32, prev_y: f32) -> f32 {
-        if self.race { return 0.0; }
+        if self.race {
+            return 0.0;
+        }
         let mut floor = 0.0f32;
         for c in &self.colliders {
             let top = match c.kind {
                 Kind::RainTank => {
                     let dx = x - TANK_X;
                     let dz = z - TANK_Z;
-                    if dx * dx + dz * dz > (TANK_CAP_RADIUS - 0.04).powi(2) { continue; }
+                    if dx * dx + dz * dz > (TANK_CAP_RADIUS - 0.04).powi(2) {
+                        continue;
+                    }
                     TANK_TOP
                 }
                 Kind::TankLadder => {
-                    if x < TANK_X - TANK_LADDER_X_HALF || x > TANK_X + TANK_LADDER_X_HALF
-                        || z < TANK_LADDER_TOP_Z || z > TANK_LADDER_BOTTOM_Z { continue; }
-                    let along = (TANK_LADDER_BOTTOM_Z - z) / (TANK_LADDER_BOTTOM_Z - TANK_LADDER_TOP_Z);
+                    if x < TANK_X - TANK_LADDER_X_HALF
+                        || x > TANK_X + TANK_LADDER_X_HALF
+                        || z < TANK_LADDER_TOP_Z
+                        || z > TANK_LADDER_BOTTOM_Z
+                    {
+                        continue;
+                    }
+                    let along =
+                        (TANK_LADDER_BOTTOM_Z - z) / (TANK_LADDER_BOTTOM_Z - TANK_LADDER_TOP_Z);
                     TANK_TOP * along.clamp(0.0, 1.0)
                 }
                 _ => c.h,
@@ -522,20 +631,41 @@ mod tests {
     use super::*;
     #[test]
     fn interior_servo_keeps_supply_and_spawn_queries_consistent() {
-        let yard=Yard::smoko(Features { bbq:true, ..Default::default() },0);
-        assert!(!yard.heist_clear(-24.,-19.5,0.65));
-        assert!(CHAR_SPAWNS.iter().filter(|&&(x,z)|yard.heist_clear(x,z,0.65)).count()>=8);
-        let meat=yard.colliders.iter().find(|c|c.kind==Kind::MeatTable).unwrap();
-        assert!(((meat.z0+meat.z1)/2.0 - (MEAT_TABLE.1+crate::bush_servo::BBQ_OFFSET_Z)).abs()<0.001);
-        let shop=crate::bush_servo::servo_colliders()[0];
-        assert!(meat.z0>shop.z1+2.0);
+        let yard = Yard::smoko(
+            Features {
+                bbq: true,
+                ..Default::default()
+            },
+            0,
+        );
+        assert!(!yard.heist_clear(-24., -19.5, 0.65));
+        assert!(
+            CHAR_SPAWNS
+                .iter()
+                .filter(|&&(x, z)| yard.heist_clear(x, z, 0.65))
+                .count()
+                >= 8
+        );
+        let meat = yard
+            .colliders
+            .iter()
+            .find(|c| c.kind == Kind::MeatTable)
+            .unwrap();
+        assert!(
+            ((meat.z0 + meat.z1) / 2.0 - (MEAT_TABLE.1 + crate::bush_servo::BBQ_OFFSET_Z)).abs()
+                < 0.001
+        );
+        let shop = crate::bush_servo::servo_colliders()[0];
+        assert!(meat.z0 > shop.z1 + 2.0);
     }
-
 
     #[test]
     fn current_maps_ignore_legacy_smoko_flags() {
         assert!(!Features::default().smoko);
-        let legacy = Features { smoko: true, ..Features::default() };
+        let legacy = Features {
+            smoko: true,
+            ..Features::default()
+        };
         assert!(!Yard::new(legacy, 0).features.smoko);
         for teams in 2..=4 {
             let yard = Yard::heist(legacy, 0, teams);
@@ -550,13 +680,17 @@ mod tests {
         // pole, shed, mower deck/bonnet/seat, workbench, house, tank, ladder, roof and veranda,
         // 4 eskies, table, grill, meat table, bins, crates, hedge, 2 tyres, woodpile, wall halves,
         // planter, bar, chest, shower riser
-        assert_eq!(Yard::default().colliders.len(), 62);
+        assert_eq!(Yard::default().colliders.len(), 78);
     }
 
     #[test]
     fn garden_wall_has_a_player_width_side_gate_gap() {
         let yard = Yard::default();
-        let walls: Vec<_> = yard.colliders.iter().filter(|c| c.kind == Kind::Wall).collect();
+        let walls: Vec<_> = yard
+            .colliders
+            .iter()
+            .filter(|c| c.kind == Kind::Wall)
+            .collect();
         assert_eq!(walls.len(), 2);
         let gate_left = GARDEN_WALL_X - SIDE_GATE_WIDTH * 0.5;
         let gate_right = GARDEN_WALL_X + SIDE_GATE_WIDTH * 0.5;
@@ -572,7 +706,7 @@ mod tests {
             chest: false,
             smoko: false,
         };
-        assert_eq!(Yard::new(off, 0).colliders.len(), 62 - 4);
+        assert_eq!(Yard::new(off, 0).colliders.len(), 78 - 4);
     }
 
     #[test]
@@ -635,19 +769,46 @@ mod tests {
 }
 
 /// Modest cover away from starts, pool, clothesline and pickup stations: x,z,width,depth,height.
-pub const BACKYARD_COVER:[(f32,f32,f32,f32,f32);3]=[
- (-8.0,4.5,1.8,1.1,0.9),(7.5,11.0,1.5,1.1,0.75),(17.0,-9.0,1.8,1.1,0.9),
+pub const BACKYARD_COVER: [(f32, f32, f32, f32, f32); 3] = [
+    (-8.0, 4.5, 1.8, 1.1, 0.9),
+    (7.5, 11.0, 1.5, 1.1, 0.75),
+    (17.0, -9.0, 1.8, 1.1, 0.9),
 ];
 impl Yard {
- pub fn set_backyard_cover(&mut self,on:bool) {
-  let has=self.colliders.iter().any(|c|c.kind==Kind::BackyardCover);
-  if has==on{return;}
-  self.colliders.retain(|c|c.kind!=Kind::BackyardCover);
-  if on && !self.race {for (x,z,w,d,h) in BACKYARD_COVER {self.colliders.push(Collider::centred(x,z,w,d,h).of(Kind::BackyardCover));}}
- }
+    pub fn set_backyard_cover(&mut self, on: bool) {
+        let has = self.colliders.iter().any(|c| c.kind == Kind::BackyardCover);
+        if has == on {
+            return;
+        }
+        self.colliders.retain(|c| c.kind != Kind::BackyardCover);
+        if on && !self.race {
+            for (x, z, w, d, h) in BACKYARD_COVER {
+                self.colliders
+                    .push(Collider::centred(x, z, w, d, h).of(Kind::BackyardCover));
+            }
+        }
+    }
 }
 
-#[cfg(test)] mod backyard_cover_tests {
- use super::*;
- #[test] fn cover_is_mode_scoped_and_never_duplicates(){let mut y=Yard::default();let n=y.colliders.len();y.set_backyard_cover(true);y.set_backyard_cover(true);assert_eq!(y.colliders.len(),n+3);for (x,z,w,d,h) in BACKYARD_COVER {assert!(h<=1.05);assert!(CHAR_SPAWNS.iter().all(|(a,b)|(*a-x).abs()>w/2.0+0.5 || (*b-z).abs()>d/2.0+0.5));}y.set_backyard_cover(false);assert_eq!(y.colliders.len(),n);}
+#[cfg(test)]
+mod backyard_cover_tests {
+    use super::*;
+    #[test]
+    fn cover_is_mode_scoped_and_never_duplicates() {
+        let mut y = Yard::default();
+        let n = y.colliders.len();
+        y.set_backyard_cover(true);
+        y.set_backyard_cover(true);
+        assert_eq!(y.colliders.len(), n + 3);
+        for (x, z, w, d, h) in BACKYARD_COVER {
+            assert!(h <= 1.05);
+            assert!(
+                CHAR_SPAWNS
+                    .iter()
+                    .all(|(a, b)| (*a - x).abs() > w / 2.0 + 0.5 || (*b - z).abs() > d / 2.0 + 0.5)
+            );
+        }
+        y.set_backyard_cover(false);
+        assert_eq!(y.colliders.len(), n);
+    }
 }

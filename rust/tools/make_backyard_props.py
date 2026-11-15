@@ -102,6 +102,239 @@ def sphere(name, center, radii, material, segments=12, rings=8):
     return mesh_object(name, verts, faces, material, smooth=True)
 
 
+def box_pitch(name, center, size, pitch, material, bevel=0.0):
+    """A game-axis box tipped about x, used for panels sitting on the rear roof slope."""
+    cx, cy, cz = center
+    sx, sy, sz = size
+    verts = []
+    for y in (-sy / 2, sy / 2):
+        for z in (-sz / 2, sz / 2):
+            for x in (-sx / 2, sx / 2):
+                ry = y * cos(pitch) - z * sin(pitch)
+                rz = y * sin(pitch) + z * cos(pitch)
+                verts.append((cx + x, cy + ry, cz + rz))
+    faces = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1),
+             (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
+    obj = mesh_object(name, verts, faces, material)
+    if bevel:
+        modifier = obj.modifiers.new("Soft panel edges", "BEVEL")
+        modifier.width = bevel
+        modifier.segments = 2
+        obj.modifiers.new("Weighted panel normals", "WEIGHTED_NORMAL")
+    return obj
+
+
+def build_backyard_finish(m):
+    """The next Backyard story props, authored from Blender's native mesh primitives."""
+    # Three sun-faded, mismatched gnomes keep watch beside the fence.
+    for index, (x, z, hat, coat) in enumerate([
+            (-36.0, -20.0, m["gnome_hat_red"], m["gnome_blue"]),
+            (36.0, -18.0, m["gnome_hat_green"], m["gnome_coat_yellow"]),
+            (-35.5, 19.0, m["gnome_hat_yellow"], m["gnome_coat_red"])]):
+        sphere("Gnome boots", (x, .10, z), (.22, .10, .25), m["gnome_boot"], 10, 6)
+        cylinder("Gnome coat", (x, .12, z), (x, .60, z), .21, coat, 10, .13)
+        sphere("Gnome face", (x, .68, z + .015), (.17, .18, .15), m["gnome_skin"], 12, 8)
+        sphere("Gnome nose", (x, .69, z + .16), (.055, .05, .045), m["gnome_skin"], 8, 6)
+        sphere("Gnome beard", (x, .51, z + .10), (.135, .13, .06), m["gnome_beard"], 10, 6)
+        cylinder("Gnome hat brim", (x, .78, z), (x, .85, z), .20, m["gnome_hat_rim"], 12, .18)
+        cylinder("Pointed gnome hat", (x, .83, z), (x + (.025 if index % 2 else -.02), 1.16, z), .17, hat, 10, .012)
+        for eye in (-.055, .055):
+            sphere("Gnome eye", (x + eye, .72, z + .145), (.018, .021, .012), m["dark"], 7, 5)
+        # A different scarf or vest stripe gives each little spectator its own look.
+        box("Gnome scarf", (x, .57, z + .148), (.29, .075, .025), m["gnome_scarf"], yaw=(index - 1) * .08, bevel=.015)
+
+    # A wheelbarrow left in the middle of a garden job, with a dusty steel tray.
+    wx, wz = 4.2, 15.8
+    box("Wheelbarrow shadow", (wx, .012, wz), (1.45, .02, 1.55), m["shadow"])
+    box("Wheelbarrow tray body", (wx, .55, wz), (1.02, .25, .80), m["barrow_steel"], yaw=-.04, bevel=.13)
+    box("Wheelbarrow raised front lip", (wx, .68, wz + .35), (1.02, .22, .12), m["barrow_rust"], yaw=-.05, bevel=.035)
+    box("Barrow soil mound", (wx, .70, wz - .025), (.78, .18, .57), m["soil"], yaw=.06, bevel=.16)
+    # Dark earth clods and a few green cuttings make the tray read from above.
+    for i, off in enumerate([(-.20, .79, -.17), (.08, .80, .04), (.24, .76, -.11), (-.07, .82, .18)]):
+        sphere("Soil clod", (wx + off[0], off[1], wz + off[2]), (.12, .06, .10), m["soil_lump" if i % 2 else "soil"], 8, 5)
+    cylinder("Wheelbarrow axle", (wx - .19, .31, wz + .52), (wx + .19, .31, wz + .52), .045, m["iron"], 8)
+    cylinder("Wheelbarrow rubber wheel", (wx - .15, .31, wz + .52), (wx + .15, .31, wz + .52), .28, m["rubber"], 12, .28)
+    cylinder("Wheelbarrow hub", (wx - .17, .31, wz + .52), (wx + .17, .31, wz + .52), .10, m["steel"], 10, .10)
+    for side in (-1, 1):
+        cylinder("Barrow handle rail", (wx + side*.34, .50, wz - .25), (wx + side*.34, .68, wz - 1.15), .045, m["barrow_steel"], 8, .032)
+        cylinder("Barrow rubber grip", (wx + side*.34, .68, wz - 1.10), (wx + side*.34, .68, wz - 1.35), .065, m["rubber"], 8, .045)
+        cylinder("Barrow leg", (wx + side*.36, .12, wz - .34), (wx + side*.32, .43, wz - .20), .045, m["iron"], 8, .035)
+    # A hand trowel lies across the lip; the spade catches a small highlight.
+    cylinder("Trowel timber grip", (wx + .28, .83, wz + .14), (wx + .42, .85, wz - .26), .035, m["timber"], 8, .028)
+    box("Trowel blade", (wx + .45, .84, wz - .34), (.18, .025, .25), m["steel"], yaw=-.2, bevel=.045)
+    for i in range(5):
+        x = wx - .78 + i*.22
+        cylinder("Loose garden clipping", (x, .03, wz - .82), (x + .08*(i%2-.5), .30+(i%3)*.04, wz - .78), .018, m["clipping"], 6, .006)
+
+    # Open rough compost corner: mismatched slats, clippings, and a blue-tongue lizard.
+    cx, cz = 1.0, 24.2
+    for side in (-1, 1):
+        for row in range(4):
+            box("Compost side slat", (cx + side*.63, .18 + row*.23, cz), (.09, .20, 1.22),
+                m["compost_wood_a" if row % 2 else "compost_wood_b"], yaw=(row-1.5)*.012, bevel=.018)
+    for row in range(4):
+        gap = .16 if row == 3 else 0.0
+        box("Compost front slat", (cx, .18 + row*.23, cz + .60), (1.22-gap, .20, .08),
+            m["compost_wood_b" if row % 2 else "compost_wood_a"], yaw=(row-1.5)*.009, bevel=.018)
+    box("Compost back slat", (cx, .42, cz - .60), (1.22, .66, .08), m["compost_wood_a"], bevel=.02)
+    for i in range(8):
+        x = cx + ((i*37)%7-3)*.13
+        z = cz + ((i*17)%5-2)*.11
+        sphere("Compost leaves", (x, .69+(i%3)*.05, z), (.20+(i%2)*.05, .06, .11), m["clipping" if i%3 else "leaf"], 9, 5)
+    sphere("Blue tongue lizard body", (cx + .95, .10, cz + .35), (.28, .095, .11), m["lizard"], 12, 6)
+    sphere("Blue tongue lizard head", (cx + 1.17, .11, cz + .35), (.12, .10, .10), m["lizard_blue"], 10, 6)
+    cylinder("Lizard tail", (cx + .73, .10, cz + .34), (cx + .43, .07, cz + .25), .035, m["lizard"], 7, .008)
+    for side in (-1, 1):
+        cylinder("Lizard leg", (cx+.99, .06, cz+.29+side*.05), (cx+.88, .04, cz+.18+side*.08), .018, m["lizard"], 6, .012)
+
+    # Small flourishes in sidewalk chalk beyond the cricket crease markings.
+    chalk = m["chalk"]
+    for i in range(5):
+        box("Chalk hopscotch line", (18.3, .014, 12.4+i*.32), (.92, .012, .035), chalk, yaw=.015*(i%2), bevel=.008)
+    for x in (17.85, 18.75):
+        box("Chalk hopscotch side", (x, .014, 13.05), (.035, .012, 1.32), chalk, bevel=.008)
+    # Flower and sun doodles are just irregular linework, rather than a new objective marker.
+    for i in range(8):
+        a = 2*pi*i/8
+        cylinder("Chalk flower petal", (20.0+.16*cos(a), .018, 12.8+.16*sin(a)),
+                 (20.0+.29*cos(a), .018, 12.8+.29*sin(a)), .022, m["chalk_yellow"], 6, .018)
+    sphere("Chalk flower centre", (20.0, .018, 12.8), (.09,.012,.09), m["chalk_yellow"], 10, 5)
+    for i in range(5):
+        box("Chalk tally mark", (20.8+(i%4)*.10, .016, 12.5+(i//4)*.22), (.027,.01,.18), chalk,
+            yaw=.18 if i < 4 else -.45, bevel=.006)
+
+    # Pool-toy rack, with the faded toys hung above splash height by the pool gate.
+    rx, rz = -11.2, 9.4
+    for x in (-.48, .48):
+        box("Pool rack upright", (rx+x, .86, rz), (.075, 1.72, .075), m["pool_rack_wood"], bevel=.02)
+        box("Rack foot", (rx+x, .07, rz), (.38,.10,.25), m["pool_rack_wood"], bevel=.025)
+    box("Pool rack top rail", (rx, 1.62, rz), (1.12,.09,.09), m["pool_rack_wood"], bevel=.025)
+    box("Faded kickboard", (rx-.22, 1.18, rz+.08), (.48,.62,.10), m["kickboard"], yaw=-.06, bevel=.12)
+    cylinder("Pool noodle", (rx+.22, .82, rz+.14), (rx+.22, 1.54, rz+.14), .095, m["noodle"], 12, .095)
+    for x in (rx-.52, rx+.50):
+        box("Hanging pool flipper", (x, .83, rz+.09), (.28,.17,.06), m["flipper"], yaw=(x-rx)*.16, bevel=.06)
+        box("Flipper foot pocket", (x, .98, rz+.09), (.15,.22,.07), m["flipper"], bevel=.055)
+
+    # Rust-specked reel and kinked line by the existing hose and sprinkler.
+    hx, hz = 27.1, -8.35
+    box("Hose reel wall board", (hx, .72, hz), (.74, 1.20, .14), m["timber"], bevel=.045)
+    for side in (-1, 1):
+        cylinder("Hose reel stand", (hx+side*.33,.08,hz), (hx+side*.28,.72,hz), .045, m["iron"], 8, .035)
+    cylinder("Reel axle", (hx-.42,.72,hz), (hx+.42,.72,hz), .075, m["iron"], 8, .075)
+    cylinder("Hose coil", (hx-.25,.72,hz), (hx+.25,.72,hz), .40, m["hose"], 12, .40)
+    cylinder("Reel hub cap", (hx-.31,.72,hz), (hx-.35,.72,hz), .12, m["steel"], 10, .12)
+    for i in range(6):
+        a = 2*pi*i/6
+        cylinder("Reel spoke", (hx-.31,.72,hz), (hx-.31,.72+.34*cos(a),hz+.34*sin(a)), .022, m["steel"], 6, .022)
+    # The hose bows down, catches a kink, then lies over the lawn toward the sprinkler.
+    for a, b in [((hx+.1,.18,hz+.05),(hx+.55,.07,hz+.12)), ((hx+.55,.07,hz+.12),(hx+.42,.06,hz+.42)),
+                 ((hx+.42,.06,hz+.42),(25.65,.05,-7.72)), ((25.65,.05,-7.72),(25.45,.05,-7.82))]:
+        cylinder("Kinked garden hose", a, b, .045, m["hose"], 8, .045)
+
+    # Leaf nest box on the front gum tree, with claw scores and scraps at its roots.
+    bx, by, bz = 13.1, 5.4, 32.7
+    box("Possum box timber body", (bx,by,bz), (.72,.86,.62), m["nest_wood"], bevel=.045)
+    box("Possum box sloping lid", (bx,by+.47,bz), (.82,.12,.72), m["nest_lid"], yaw=.035, bevel=.03)
+    cylinder("Nest box entrance shadow", (bx,by+.06,bz+.317), (bx,by+.06,bz+.326), .14, m["nest_dark"], 14, .14)
+    cylinder("Nest box entrance inner", (bx,by+.06,bz+.328), (bx,by+.06,bz+.332), .09, m["nest_wood"], 12, .09)
+    for side in (-1, 1):
+        box("Nest box mounting strap", (bx+side*.25,by-.02,bz+.33), (.04,.75,.025), m["iron"], bevel=.008)
+    for i in range(4):
+        cylinder("Possum claw mark", (bx-.18+i*.11,by-.18,bz+.327), (bx-.15+i*.11,by+.10,bz+.33), .008, m["nest_dark"], 5, .004)
+    for i in range(9):
+        a = i*2.4
+        sphere("Gum leaves below possum box", (12.3+.42*cos(a),.06,33.0+.30*sin(a)), (.14,.035,.07), m["leaf"], 8, 5)
+
+    # Backyard party remains: plates and an open, empty esky on the prep table.
+    for x,z in [(-9.05,-18.12),(-8.18,-18.25),(-7.75,-18.0)]:
+        cylinder("Enamel snag plate", (x,.835,z), (x,.865,z), .26, m["plate"], 16, .26)
+        cylinder("Plate shallow well", (x,.866,z), (x,.874,z), .19, m["plate_inner"], 16, .19)
+    ex, ez = -10.8, -16.0
+    box("Party esky base", (ex,.31,ez), (.92,.56,.72), m["esky_red"], bevel=.11)
+    box("Party esky rim", (ex,.61,ez), (.98,.09,.78), m["esky_white"], bevel=.035)
+    box("Party esky open lid", (ex,.83,ez-.28), (.96,.12,.22), m["esky_white"], yaw=-.56, bevel=.04)
+    for i in range(3):
+        box("Empty esky dark interior", (ex-.22+i*.22,.66,ez), (.18,.025,.31), m["esky_dark"], bevel=.02)
+    # The note is a cream card with a hand-letter-like dark stroke, readable from the tabletop.
+    box("Snags note paper", (-8.60,.89,-18.68), (.72,.018,.42), m["paper"], yaw=.08, bevel=.018)
+    note = bpy.data.curves.new("Snags 4 later handwritten note", type="FONT")
+    note.body = "Snags 4 later..."
+    note.size = .074
+    note.shear = .18
+    note.extrude = .001
+    note_obj = bpy.data.objects.new("Handwritten snag note lettering", note)
+    bpy.context.collection.objects.link(note_obj)
+    note_obj.location = to_blender((-8.91,.904,-18.80))
+    note.materials.append(m["ink"])
+    bpy.ops.object.select_all(action="DESELECT")
+    note_obj.select_set(True)
+    bpy.context.view_layer.objects.active = note_obj
+    bpy.ops.object.convert(target="MESH")
+    box("Party esky ground shadow", (-10.8,.012,-16.0), (1.2,.02,1.0), m["shadow"])
+
+    # A low-profile solar hot-water collector follows the back side of the house roof.
+    box_pitch("Solar collector dark frame", (-11.5,5.22,-32.75), (2.65,.12,1.65), -.445, m["solar_frame"], .055)
+    box_pitch("Solar collector glass", (-11.5,5.30,-32.75), (2.45,.045,1.45), -.445, m["solar_glass"], .025)
+    for x in (-12.25,-11.75,-11.25,-10.75):
+        box_pitch("Solar collector tube", (x,5.33,-32.75), (.035,.025,1.34), -.445, m["solar_tube"])
+    cylinder("Solar hot water return pipe", (-12.65,5.18,-32.15), (-12.65,4.75,-31.25), .055, m["solar_pipe"], 10, .05)
+    cylinder("Solar hot water feed pipe", (-10.35,5.18,-32.15), (-10.35,4.75,-31.25), .055, m["solar_pipe"], 10, .05)
+
+
+def backyard_finish_materials():
+    return {
+        "gnome_hat_red": make_material("Gnome sun-faded red cap", (.64,.16,.10)),
+        "gnome_hat_green": make_material("Gnome moss-green cap", (.25,.40,.22)),
+        "gnome_hat_yellow": make_material("Gnome old yellow cap", (.75,.55,.16)),
+        "gnome_blue": make_material("Gnome faded blue coat", (.22,.34,.48)),
+        "gnome_coat_red": make_material("Gnome red coat", (.59,.22,.15)),
+        "gnome_coat_green": make_material("Gnome green coat", (.30,.41,.24)),
+        "gnome_coat_yellow": make_material("Gnome mustard coat", (.72,.51,.16)),
+        "gnome_skin": make_material("Gnome painted terracotta skin", (.78,.53,.37)),
+        "gnome_beard": make_material("Gnome chalky cream beard", (.88,.82,.68)),
+        "gnome_boot": make_material("Gnome muddy little boots", (.28,.21,.14)),
+        "gnome_hat_rim": make_material("Gnome hat brim", (.45,.32,.20)),
+        "gnome_scarf": make_material("Gnome faded scarf", (.72,.34,.23)),
+        "dark": make_material("Small dark details", (.10,.12,.11)),
+        "barrow_steel": make_material("Wheelbarrow scratched zinc", (.39,.43,.41), .65, .24),
+        "barrow_rust": make_material("Wheelbarrow rusted rim", (.42,.23,.13), .78, .12),
+        "soil": make_material("Fresh garden soil", (.22,.15,.085)),
+        "soil_lump": make_material("Moist soil clods", (.30,.22,.12)),
+        "rubber": make_material("Old black rubber", (.12,.13,.12), .9),
+        "steel": make_material("Worn hand tool steel", (.57,.60,.57), .5, .52),
+        "iron": make_material("Dark garden iron", (.22,.24,.21), .72, .35),
+        "timber": make_material("Weathered garden timber", (.43,.31,.20)),
+        "clipping": make_material("Fresh green clippings", (.38,.48,.20)),
+        "leaf": make_material("Dry gum leaves", (.56,.50,.30)),
+        "compost_wood_a": make_material("Compost rough timber", (.39,.29,.18)),
+        "compost_wood_b": make_material("Compost sun-bleached slats", (.52,.42,.28)),
+        "lizard": make_material("Blue-tongue mottled olive", (.43,.47,.30)),
+        "lizard_blue": make_material("Lizard blue tongue", (.24,.42,.56)),
+        "chalk": make_material("Old white chalk", (.88,.84,.69)),
+        "chalk_yellow": make_material("Faded yellow chalk", (.85,.65,.20)),
+        "pool_rack_wood": make_material("Pool toy rack timber", (.53,.41,.27)),
+        "kickboard": make_material("Sun-faded orange kickboard", (.82,.36,.20)),
+        "noodle": make_material("Faded turquoise pool noodle", (.19,.59,.61)),
+        "flipper": make_material("Old blue pool flippers", (.20,.36,.53)),
+        "hose": make_material("Olive green kinked hose", (.27,.34,.16)),
+        "nest_wood": make_material("Gum tree nest box timber", (.43,.33,.22)),
+        "nest_lid": make_material("Sun-bleached nest box lid", (.56,.45,.29)),
+        "nest_dark": make_material("Nest entrance and claw scores", (.12,.13,.11)),
+        "plate": make_material("Cream enamel plate", (.79,.76,.64), .32, .15),
+        "plate_inner": make_material("Plate worn centre", (.65,.63,.54), .36, .10),
+        "esky_red": make_material("Party esky sun-faded red", (.67,.22,.15)),
+        "esky_white": make_material("Esky pale plastic rim", (.75,.72,.60)),
+        "esky_dark": make_material("Empty esky interior", (.20,.24,.22)),
+        "paper": make_material("Snags note paper", (.85,.79,.63)),
+        "ink": make_material("Felt pen ink", (.20,.19,.15)),
+        "shadow": make_material("Soft prop contact shadow", (.24,.27,.16)),
+        "solar_frame": make_material("Solar heater dark frame", (.13,.18,.18), .42, .28),
+        "solar_glass": make_material("Blue green solar glass", (.20,.39,.40), .25, .20),
+        "solar_tube": make_material("Solar copper tubes", (.45,.28,.17), .38, .48),
+        "solar_pipe": make_material("Solar exposed copper pipe", (.47,.31,.19), .42, .46),
+    }
+
+
 def build_overflow(m):
     # A shallow, branching garden runnel continues from the tank outlet. Its low stones
     # and water are deliberately decorative and do not create a gameplay barrier.
@@ -255,10 +488,12 @@ try:
     else:
         raise RuntimeError("Blender window is unavailable; refusing to modify the open scene")
     mats = materials()
+    mats.update(backyard_finish_materials())
     builders = [
         ("backyard_overflow.glb", "Backyard rainwater overflow", build_overflow),
         ("poolside_shower.glb", "Poolside outdoor shower", build_shower),
         ("side_gate.glb", "Open brick side gate", build_gate),
+        ("backyard_finish_props.glb", "Backyard story props", build_backyard_finish),
     ]
     OUT.mkdir(parents=True, exist_ok=True)
     for filename, name, build in builders:
@@ -266,6 +501,21 @@ try:
         for obj in list(temp_scene.objects):
             bpy.data.objects.remove(obj, do_unlink=True)
         build(mats)
+        if filename == "backyard_finish_props.glb":
+            # Keep the scene asset light: evaluate small bevels, then combine the decorations into
+            # one multi-material mesh so 177 authored pieces do not become 177 draw calls.
+            meshes = [obj for obj in temp_scene.objects if obj.type == "MESH"]
+            for obj in meshes:
+                bpy.ops.object.select_all(action="DESELECT")
+                obj.select_set(True)
+                bpy.context.view_layer.objects.active = obj
+                for modifier in list(obj.modifiers):
+                    bpy.ops.object.modifier_apply(modifier=modifier.name)
+            bpy.ops.object.select_all(action="DESELECT")
+            for obj in meshes:
+                obj.select_set(True)
+            bpy.context.view_layer.objects.active = meshes[0]
+            bpy.ops.object.join()
         bpy.ops.object.select_all(action="DESELECT")
         for obj in temp_scene.objects:
             obj.select_set(True)

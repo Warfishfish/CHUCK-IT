@@ -4,9 +4,8 @@
 //! around them (`Modifiers`), and gets back where they end up.
 
 use crate::yard::{
-    Kind, POOL_SINK, TANK_LADDER_BOTTOM_Z, TANK_LADDER_TOP_Z, TANK_LADDER_X_HALF,
-    TANK_RADIUS, TANK_TOP, TANK_X, TANK_Z, TRAMP_H, TRAMP_R, TRAMP_X,
-    TRAMP_Z, Yard, in_pool_rect,
+    Kind, POOL_SINK, TANK_LADDER_BOTTOM_Z, TANK_LADDER_TOP_Z, TANK_LADDER_X_HALF, TANK_RADIUS,
+    TANK_TOP, TANK_X, TANK_Z, TRAMP_H, TRAMP_R, TRAMP_X, TRAMP_Z, Yard, in_pool_rect,
 };
 use crate::{YARD_HALF_X, YARD_HALF_Z};
 
@@ -20,7 +19,7 @@ pub const CHAR_RADIUS: f32 = 0.42;
 pub const BASE_SPEED: f32 = 6.2;
 pub const JUMP_V: f32 = 7.5;
 /// Small ledge allowance; avoids rejecting reachable crate tops at the jump apex.
-pub const LEDGE_CLEARANCE:f32=0.15;
+pub const LEDGE_CLEARANCE: f32 = 0.15;
 pub const POOL_JUMP_V: f32 = 5.5;
 /// Swimming (Marcus, 8 Oct 2026): in the pool you tread water at the top, and hold Shift to dive.
 /// Diving goes underwater and you swim where you look: look down to go deeper, up to come up.
@@ -166,8 +165,8 @@ pub struct MoveEvents {
 #[derive(Clone, Copy, Debug)]
 pub struct Mover {
     /// Ground-to-head clearance derived from the approved appearance.
-    pub height:f32,
-    pub eye_lift:f32,
+    pub height: f32,
+    pub eye_lift: f32,
     pub x: f32,
     pub y: f32,
     pub z: f32,
@@ -201,8 +200,8 @@ pub struct Mover {
 impl Mover {
     pub fn new(x: f32, z: f32) -> Self {
         Self {
-            height:1.95,
-            eye_lift:0.0,
+            height: 1.95,
+            eye_lift: 0.0,
             x,
             y: 0.0,
             z,
@@ -229,19 +228,26 @@ impl Mover {
     }
 
     /// Shared collision resolution for local movement and host-validated remote movement.
-    pub fn resolve_obstacles(&mut self, yard:&Yard) {
+    pub fn resolve_obstacles(&mut self, yard: &Yard) {
         // push out of boxes (unless we're above them: then we land on top)
         let r = CHAR_RADIUS;
-        if yard.race { return; }
+        if yard.race {
+            return;
+        }
         for c in &yard.colliders {
             if c.kind == Kind::VerandaRoof {
                 // The awning is walkable from above and still catches the player's head when
                 // jumping from below. Its thin top is not treated as a box wall.
-                let over_patch = self.x + r > c.x0 && self.x - r < c.x1
-                    && self.z + r > c.z0 && self.z - r < c.z1;
+                let over_patch = self.x + r > c.x0
+                    && self.x - r < c.x1
+                    && self.z + r > c.z0
+                    && self.z - r < c.z1;
                 let underside = c.h - 0.05;
-                if over_patch && self.vy > 0.0 && self.prev_y + self.height <= underside
-                    && self.y + self.height > underside {
+                if over_patch
+                    && self.vy > 0.0
+                    && self.prev_y + self.height <= underside
+                    && self.y + self.height > underside
+                {
                     self.y = underside - self.height;
                     self.vy = 0.0;
                 }
@@ -263,22 +269,33 @@ impl Mover {
             if c.kind == Kind::RainTank {
                 let on_ladder = self.x >= TANK_X - TANK_LADDER_X_HALF
                     && self.x <= TANK_X + TANK_LADDER_X_HALF
-                    && self.z >= TANK_LADDER_TOP_Z && self.z <= TANK_LADDER_BOTTOM_Z;
+                    && self.z >= TANK_LADDER_TOP_Z
+                    && self.z <= TANK_LADDER_BOTTOM_Z;
                 if on_ladder {
-                    let along = (TANK_LADDER_BOTTOM_Z - self.z) / (TANK_LADDER_BOTTOM_Z - TANK_LADDER_TOP_Z);
+                    let along = (TANK_LADDER_BOTTOM_Z - self.z)
+                        / (TANK_LADDER_BOTTOM_Z - TANK_LADDER_TOP_Z);
                     let ladder_y = TANK_TOP * along.clamp(0.0, 1.0);
-                    if self.y >= ladder_y - LEDGE_CLEARANCE || self.prev_y >= ladder_y - 0.05 { continue; }
+                    if self.y >= ladder_y - LEDGE_CLEARANCE || self.prev_y >= ladder_y - 0.05 {
+                        continue;
+                    }
                 }
                 let (dx, dz) = (self.x - TANK_X, self.z - TANK_Z);
                 let distance_sq = dx * dx + dz * dz;
                 let min_distance = TANK_RADIUS + r;
                 if distance_sq < min_distance * min_distance {
                     let distance = distance_sq.sqrt();
-                    let (nx, nz) = if distance > 1e-5 { (dx / distance, dz / distance) } else { (1.0, 0.0) };
+                    let (nx, nz) = if distance > 1e-5 {
+                        (dx / distance, dz / distance)
+                    } else {
+                        (1.0, 0.0)
+                    };
                     self.x += nx * (min_distance - distance);
                     self.z += nz * (min_distance - distance);
                     let into = self.vx * nx + self.vz * nz;
-                    if into < 0.0 { self.vx -= into * nx; self.vz -= into * nz; }
+                    if into < 0.0 {
+                        self.vx -= into * nx;
+                        self.vz -= into * nz;
+                    }
                 }
                 continue;
             }
@@ -315,26 +332,49 @@ impl Mover {
             }
         }
 
-        if !yard.race && !yard.features.smoko { self.resolve_overhead(crate::yard::clothesline_beams()); }
+        if !yard.race && !yard.features.smoko {
+            self.resolve_overhead(crate::yard::clothesline_beams());
+        }
     }
 
-    pub fn resolve_overhead(&mut self, beams:&[crate::yard::Beam]) {
-        let height=self.height.clamp(1.0,3.0);
+    pub fn resolve_overhead(&mut self, beams: &[crate::yard::Beam]) {
+        let height = self.height.clamp(1.0, 3.0);
         for beam in beams {
-            let dx=beam.b.x-beam.a.x;let dz=beam.b.z-beam.a.z;
-            let len2=dx*dx+dz*dz;
-            let t=(((self.x-beam.a.x)*dx+(self.z-beam.a.z)*dz)/len2.max(0.0001)).clamp(0.0,1.0);
-            let (x,z,y)=(beam.a.x+dx*t,beam.a.z+dz*t,beam.a.y+(beam.b.y-beam.a.y)*t);
-            let radius=CHAR_RADIUS+beam.radius;
-            let (ox,oz)=(self.x-x,self.z-z);let distance=ox.hypot(oz);
-            if distance>=radius || self.y>=y+beam.radius || self.y+height<=y-beam.radius {continue;}
-            if self.prev_y+height<=y-beam.radius+0.02 && self.vy>0.0 {
-                self.y=(y-beam.radius-height).max(0.0);self.vy=0.0;
+            let dx = beam.b.x - beam.a.x;
+            let dz = beam.b.z - beam.a.z;
+            let len2 = dx * dx + dz * dz;
+            let t = (((self.x - beam.a.x) * dx + (self.z - beam.a.z) * dz) / len2.max(0.0001))
+                .clamp(0.0, 1.0);
+            let (x, z, y) = (
+                beam.a.x + dx * t,
+                beam.a.z + dz * t,
+                beam.a.y + (beam.b.y - beam.a.y) * t,
+            );
+            let radius = CHAR_RADIUS + beam.radius;
+            let (ox, oz) = (self.x - x, self.z - z);
+            let distance = ox.hypot(oz);
+            if distance >= radius || self.y >= y + beam.radius || self.y + height <= y - beam.radius
+            {
                 continue;
             }
-            let (nx,nz)=if distance>0.0001 {(ox/distance,oz/distance)}else{let l=len2.sqrt();(-dz/l,dx/l)};
-            self.x+=nx*(radius-distance+0.001);self.z+=nz*(radius-distance+0.001);
-            let v=self.vx*nx+self.vz*nz;if v<0.0 {self.vx-=v*nx;self.vz-=v*nz;}
+            if self.prev_y + height <= y - beam.radius + 0.02 && self.vy > 0.0 {
+                self.y = (y - beam.radius - height).max(0.0);
+                self.vy = 0.0;
+                continue;
+            }
+            let (nx, nz) = if distance > 0.0001 {
+                (ox / distance, oz / distance)
+            } else {
+                let l = len2.sqrt();
+                (-dz / l, dx / l)
+            };
+            self.x += nx * (radius - distance + 0.001);
+            self.z += nz * (radius - distance + 0.001);
+            let v = self.vx * nx + self.vz * nz;
+            if v < 0.0 {
+                self.vx -= v * nx;
+                self.vz -= v * nz;
+            }
         }
     }
 
@@ -394,7 +434,8 @@ impl Mover {
         let mut ev = MoveEvents::default();
 
         // pool
-        self.in_pool = !yard.race && !yard.features.smoko && in_pool_rect(self.x, self.z) && self.y < 0.1;
+        self.in_pool =
+            !yard.race && !yard.features.smoko && in_pool_rect(self.x, self.z) && self.y < 0.1;
         if self.in_pool && !self.was_in_pool {
             ev.splash = true;
         }
@@ -403,11 +444,13 @@ impl Mover {
         // diving: Shift in the pool, while you have breath; buoyancy floats you up otherwise
         let was_diving = self.diving;
         self.swim_t += dt;
-        let can_dive = self.in_pool && !m.stunned && !m.frozen && !m.carried && !m.carrying && !m.at_smoko;
+        let can_dive =
+            self.in_pool && !m.stunned && !m.frozen && !m.carried && !m.carrying && !m.at_smoko;
         // someone else's dive (a puppet) stays as they said until they say otherwise
         let told = std::mem::take(&mut self.told);
         if !told {
-            self.diving = can_dive && m.dive && self.breath > if was_diving { 0.0 } else { BREATH_MIN };
+            self.diving =
+                can_dive && m.dive && self.breath > if was_diving { 0.0 } else { BREATH_MIN };
         }
         if told {
         } else if self.diving {
@@ -513,7 +556,21 @@ impl Mover {
                 self.vz = 0.0;
             }
         } else {
-            let (half_x,half_z)=if yard.race {(52.,37.)}else if smoko_ute_gate {(YARD_HALF_X,44.0)}else{(YARD_HALF_X,YARD_HALF_Z)};
+            let (half_x, half_z) = if yard.race {
+                (52., 37.)
+            } else if self.y > crate::yard::HOUSE_HEIGHT + 0.15
+                && self.x.abs() <= crate::yard::ROOF_WIDTH * 0.5 + CHAR_RADIUS
+                && self.z >= crate::yard::ROOF_BACK_EDGE_Z - CHAR_RADIUS
+                && self.z <= crate::yard::ROOF_EDGE_Z + CHAR_RADIUS
+            {
+                // The house sits just beyond the northern fence line. Keep the normal yard
+                // boundary everywhere else, but let players traverse the roof to its back eave.
+                (YARD_HALF_X, -crate::yard::ROOF_BACK_EDGE_Z)
+            } else if smoko_ute_gate {
+                (YARD_HALF_X, 44.0)
+            } else {
+                (YARD_HALF_X, YARD_HALF_Z)
+            };
             self.x = self.x.clamp(-half_x + 0.45, half_x - 0.45);
             self.z = self.z.clamp(-half_z + 0.45, half_z - 0.45);
         }
@@ -529,7 +586,12 @@ impl Mover {
         // floor, trampoline and landing
         let floor = yard.floor_at(self.x, self.z, self.y, self.prev_y);
         let (tdx, tdz) = (self.x - TRAMP_X, self.z - TRAMP_Z);
-        if !yard.race && !yard.features.smoko && tdx * tdx + tdz * tdz < TRAMP_R * TRAMP_R && self.y <= TRAMP_H + 0.02 && self.vy <= 0.0 {
+        if !yard.race
+            && !yard.features.smoko
+            && tdx * tdx + tdz * tdz < TRAMP_R * TRAMP_R
+            && self.y <= TRAMP_H + 0.02
+            && self.vy <= 0.0
+        {
             let n = if self.tramp_chain {
                 (self.tramp_n + 1).min(TRAMP_MAX)
             } else {
@@ -562,7 +624,9 @@ impl Mover {
         // sink in the pool (eased)
         let target = if self.in_pool {
             // a little bob while treading water
-            POOL_SINK + self.dive * DIVE_EXTRA + (self.swim_t * 2.4).sin() * 0.035 * (1.0 - self.dive)
+            POOL_SINK
+                + self.dive * DIVE_EXTRA
+                + (self.swim_t * 2.4).sin() * 0.035 * (1.0 - self.dive)
         } else {
             0.0
         };
@@ -641,42 +705,88 @@ mod tests {
 
     fn walk(m: &mut Mover, yard: &Yard, wish: (f32, f32), secs: f32, mods: &Modifiers) {
         for _ in 0..(secs / DT) as usize {
-            m.step(DT, MoveInput { wish, ..Default::default() }, mods, yard);
+            m.step(
+                DT,
+                MoveInput {
+                    wish,
+                    ..Default::default()
+                },
+                mods,
+                yard,
+            );
         }
     }
 
     #[test]
     fn all_three_crates_are_reachable_with_the_existing_jump() {
-        let yard=Yard::default();
-        for (x,y,dir,top) in [(-27.1,0.0,1.0,1.15),(-23.9,0.0,-1.0,1.15),(-26.5,1.15,1.0,2.30)] {
-            let mut m=Mover::new(x,-13.5);m.y=y;m.prev_y=y;m.try_jump(false);
-            let mut landed=false;
+        let yard = Yard::default();
+        for (x, y, dir, top) in [
+            (-27.1, 0.0, 1.0, 1.15),
+            (-23.9, 0.0, -1.0, 1.15),
+            (-26.5, 1.15, 1.0, 2.30),
+        ] {
+            let mut m = Mover::new(x, -13.5);
+            m.y = y;
+            m.prev_y = y;
+            m.try_jump(false);
+            let mut landed = false;
             for _ in 0..100 {
-                m.step(DT,MoveInput{wish:(dir,0.0),..Default::default()},&Modifiers::default(),&yard);
-                if m.grounded && (m.y-top).abs()<0.02 {landed=true;break;}
+                m.step(
+                    DT,
+                    MoveInput {
+                        wish: (dir, 0.0),
+                        ..Default::default()
+                    },
+                    &Modifiers::default(),
+                    &yard,
+                );
+                if m.grounded && (m.y - top).abs() < 0.02 {
+                    landed = true;
+                    break;
+                }
             }
-            assert!(landed,"cannot reach {top}: x={} y={}",m.x,m.y);
-            m.vx=0.0; m.vz=0.0;
-            for _ in 0..60 {m.step(DT,MoveInput::default(),&Modifiers::default(),&yard);}
-            assert!((m.y-top).abs()<0.02 && m.grounded,"unstable landing");
+            assert!(landed, "cannot reach {top}: x={} y={}", m.x, m.y);
+            m.vx = 0.0;
+            m.vz = 0.0;
+            for _ in 0..60 {
+                m.step(DT, MoveInput::default(), &Modifiers::default(), &yard);
+            }
+            assert!((m.y - top).abs() < 0.02 && m.grounded, "unstable landing");
         }
     }
     #[test]
     fn clothesline_clearance_matches_height_and_does_not_block_empty_space() {
-        let beams=crate::yard::clothesline_beams();let b=beams[0];
-        let at=(b.a+b.b)*0.5;
-        let mut short=Mover::new(at.x,at.z);short.height=1.95;short.resolve_overhead(beams);
-        assert_eq!((short.x,short.z),(at.x,at.z));
-        let mut tall=short.clone();tall.height=2.70;tall.resolve_overhead(beams);
-        assert!((tall.x-at.x).hypot(tall.z-at.z)>0.1);
-        let mut outside=Mover::new(5.0,3.0);outside.height=2.70;outside.resolve_overhead(beams);
-        assert_eq!((outside.x,outside.z),(5.0,3.0));
+        let beams = crate::yard::clothesline_beams();
+        let b = beams[0];
+        let at = (b.a + b.b) * 0.5;
+        let mut short = Mover::new(at.x, at.z);
+        short.height = 1.95;
+        short.resolve_overhead(beams);
+        assert_eq!((short.x, short.z), (at.x, at.z));
+        let mut tall = short.clone();
+        tall.height = 2.70;
+        tall.resolve_overhead(beams);
+        assert!((tall.x - at.x).hypot(tall.z - at.z) > 0.1);
+        let mut outside = Mover::new(5.0, 3.0);
+        outside.height = 2.70;
+        outside.resolve_overhead(beams);
+        assert_eq!((outside.x, outside.z), (5.0, 3.0));
     }
     #[test]
     fn jumping_into_an_overhead_bar_stops_upward_motion() {
-        let beam=crate::yard::Beam{a:crate::vec::V3::new(-1.0,2.3,0.0),b:crate::vec::V3::new(1.0,2.3,0.0),radius:0.025};
-        let mut m=Mover::new(0.0,0.0);m.height=1.95;m.prev_y=0.2;m.y=0.4;m.vy=4.0;
-        m.resolve_overhead(&[beam]);assert_eq!(m.vy,0.0);assert!(m.y+m.height<=2.2751);
+        let beam = crate::yard::Beam {
+            a: crate::vec::V3::new(-1.0, 2.3, 0.0),
+            b: crate::vec::V3::new(1.0, 2.3, 0.0),
+            radius: 0.025,
+        };
+        let mut m = Mover::new(0.0, 0.0);
+        m.height = 1.95;
+        m.prev_y = 0.2;
+        m.y = 0.4;
+        m.vy = 4.0;
+        m.resolve_overhead(&[beam]);
+        assert_eq!(m.vy, 0.0);
+        assert!(m.y + m.height <= 2.2751);
     }
 
     #[test]
@@ -720,14 +830,24 @@ mod tests {
         let mut m = Mover::new(crate::yard::GARDEN_WALL_X, crate::yard::GARDEN_WALL_Z - 2.0);
         settle(&mut m, &yard);
         walk(&mut m, &yard, (0.0, 1.0), 1.2, &Modifiers::default());
-        assert!(m.z > crate::yard::GARDEN_WALL_Z + 1.0,
-            "player could not use the gate opening: x={}, z={}", m.x, m.z);
+        assert!(
+            m.z > crate::yard::GARDEN_WALL_Z + 1.0,
+            "player could not use the gate opening: x={}, z={}",
+            m.x,
+            m.z
+        );
 
-        let mut blocked = Mover::new(crate::yard::GARDEN_WALL_X - 2.0, crate::yard::GARDEN_WALL_Z - 2.0);
+        let mut blocked = Mover::new(
+            crate::yard::GARDEN_WALL_X - 2.0,
+            crate::yard::GARDEN_WALL_Z - 2.0,
+        );
         settle(&mut blocked, &yard);
         walk(&mut blocked, &yard, (0.0, 1.0), 1.2, &Modifiers::default());
-        assert!(blocked.z < crate::yard::GARDEN_WALL_Z - 0.5,
-            "wall was no longer solid beside the gate: z={}", blocked.z);
+        assert!(
+            blocked.z < crate::yard::GARDEN_WALL_Z - 0.5,
+            "wall was no longer solid beside the gate: z={}",
+            blocked.z
+        );
     }
 
     #[test]
@@ -736,37 +856,77 @@ mod tests {
         let mut m = Mover::new(-8.5, crate::yard::POOLSIDE_SHOWER_POST_Z);
         settle(&mut m, &yard);
         walk(&mut m, &yard, (-1.0, 0.0), 1.0, &Modifiers::default());
-        assert!(m.x > crate::yard::POOLSIDE_SHOWER_X - 0.5,
-            "player passed through the shower riser: x={}", m.x);
+        assert!(
+            m.x > crate::yard::POOLSIDE_SHOWER_X - 0.5,
+            "player passed through the shower riser: x={}",
+            m.x
+        );
 
         let mut poolside = Mover::new(-11.5, 16.0);
         settle(&mut poolside, &yard);
-        walk(&mut poolside, &yard, (0.0, -1.0), 0.6, &Modifiers::default());
-        assert!(poolside.z < 13.0,
-            "shower should leave a walkable route beside the pool: z={}", poolside.z);
+        walk(
+            &mut poolside,
+            &yard,
+            (0.0, -1.0),
+            0.6,
+            &Modifiers::default(),
+        );
+        assert!(
+            poolside.z < 13.0,
+            "shower should leave a walkable route beside the pool: z={}",
+            poolside.z
+        );
     }
 
     #[test]
     fn rain_tank_blocks_walk_through_and_ladder_is_walkable() {
         let yard = Yard::default();
-        assert!((yard.floor_at(crate::yard::TANK_X, crate::yard::TANK_Z, crate::yard::TANK_TOP, crate::yard::TANK_TOP)
-            - crate::yard::TANK_TOP).abs() < 1e-4);
+        assert!(
+            (yard.floor_at(
+                crate::yard::TANK_X,
+                crate::yard::TANK_Z,
+                crate::yard::TANK_TOP,
+                crate::yard::TANK_TOP
+            ) - crate::yard::TANK_TOP)
+                .abs()
+                < 1e-4
+        );
 
         let mut against = Mover::new(crate::yard::TANK_X, crate::yard::TANK_Z + 2.0);
         settle(&mut against, &yard);
         walk(&mut against, &yard, (0.0, -1.0), 1.0, &Modifiers::default());
         let distance = (against.x - crate::yard::TANK_X).hypot(against.z - crate::yard::TANK_Z);
-        assert!(distance >= crate::yard::TANK_RADIUS + CHAR_RADIUS - 0.02,
-            "player passed through tank wall: distance={distance}");
+        assert!(
+            distance >= crate::yard::TANK_RADIUS + CHAR_RADIUS - 0.02,
+            "player passed through tank wall: distance={distance}"
+        );
 
-        let mut climber = Mover::new(crate::yard::TANK_X, crate::yard::TANK_LADDER_BOTTOM_Z + 0.15);
+        let mut climber = Mover::new(
+            crate::yard::TANK_X,
+            crate::yard::TANK_LADDER_BOTTOM_Z + 0.15,
+        );
         settle(&mut climber, &yard);
         let mut reached_lid = false;
         for _ in 0..180 {
-            climber.step(DT, MoveInput { wish: (0.0, -1.0), ..Default::default() }, &Modifiers::default(), &yard);
-            if climber.grounded && climber.y >= crate::yard::TANK_TOP - 0.01 { reached_lid = true; break; }
+            climber.step(
+                DT,
+                MoveInput {
+                    wish: (0.0, -1.0),
+                    ..Default::default()
+                },
+                &Modifiers::default(),
+                &yard,
+            );
+            if climber.grounded && climber.y >= crate::yard::TANK_TOP - 0.01 {
+                reached_lid = true;
+                break;
+            }
         }
-        assert!(reached_lid, "ladder ramp did not reach the tank lid: y={}, z={}", climber.y, climber.z);
+        assert!(
+            reached_lid,
+            "ladder ramp did not reach the tank lid: y={}, z={}",
+            climber.y, climber.z
+        );
     }
 
     #[test]
@@ -780,16 +940,70 @@ mod tests {
         let wish = (-0.55, -0.84);
         let mut landed = false;
         for _ in 0..120 {
-            m.step(DT, MoveInput { wish, ..Default::default() }, &Modifiers::default(), &yard);
+            m.step(
+                DT,
+                MoveInput {
+                    wish,
+                    ..Default::default()
+                },
+                &Modifiers::default(),
+                &yard,
+            );
             if m.grounded && m.y > crate::yard::HOUSE_HEIGHT {
                 landed = true;
                 break;
             }
         }
-        assert!(landed, "jump missed the front roof: pos=({}, {}, {}), grounded={}", m.x, m.y, m.z, m.grounded);
-        for _ in 0..30 { m.step(DT, MoveInput::default(), &Modifiers::default(), &yard); }
-        assert!(m.grounded && m.y > crate::yard::HOUSE_HEIGHT,
-            "roof did not hold a stable landing: pos=({}, {}, {})", m.x, m.y, m.z);
+        assert!(
+            landed,
+            "jump missed the front roof: pos=({}, {}, {}), grounded={}",
+            m.x, m.y, m.z, m.grounded
+        );
+        for _ in 0..30 {
+            m.step(DT, MoveInput::default(), &Modifiers::default(), &yard);
+        }
+        assert!(
+            m.grounded && m.y > crate::yard::HOUSE_HEIGHT,
+            "roof did not hold a stable landing: pos=({}, {}, {})",
+            m.x,
+            m.y,
+            m.z
+        );
+    }
+
+    #[test]
+    fn player_can_cross_the_ridge_and_walk_down_the_back_roof() {
+        let yard = Yard::default();
+        let mut m = Mover::new(0.0, -29.7);
+        let roof = yard.floor_at(m.x, m.z, 7.0, 7.0);
+        assert!(
+            roof > crate::yard::HOUSE_HEIGHT,
+            "no walkable front roof near ridge: {roof}"
+        );
+        m.y = roof;
+        m.prev_y = roof;
+        m.grounded = true;
+        walk(&mut m, &yard, (0.0, -1.0), 0.5, &Modifiers::default());
+        settle(&mut m, &yard);
+        assert!(
+            m.z < -31.0,
+            "player did not cross onto back roof: z={}",
+            m.z
+        );
+        assert!(
+            m.grounded && m.y > crate::yard::HOUSE_HEIGHT,
+            "player fell through rear roof: pos=({}, {}, {}), grounded={}",
+            m.x,
+            m.y,
+            m.z,
+            m.grounded
+        );
+        let rear_surface = yard.floor_at(m.x, m.z, m.y + 1.0, m.y + 1.0);
+        assert!(
+            rear_surface > crate::yard::HOUSE_HEIGHT,
+            "rear roof has no supporting top surface at z={}: {rear_surface}",
+            m.z
+        );
     }
 
     #[test]
@@ -798,17 +1012,36 @@ mod tests {
         let mut against = Mover::new(crate::yard::MOWER_X, crate::yard::MOWER_Z + 2.2);
         settle(&mut against, &yard);
         walk(&mut against, &yard, (0.0, -1.0), 1.0, &Modifiers::default());
-        assert!(against.z > crate::yard::MOWER_Z + 1.05, "player passed through mower: z={}", against.z);
+        assert!(
+            against.z > crate::yard::MOWER_Z + 1.05,
+            "player passed through mower: z={}",
+            against.z
+        );
 
         let mut jumper = Mover::new(crate::yard::MOWER_X, crate::yard::MOWER_Z + 1.1);
         settle(&mut jumper, &yard);
         jumper.try_jump(false);
         let mut landed_on_mower = false;
         for _ in 0..100 {
-            jumper.step(DT, MoveInput { wish: (0.0, -0.45), ..Default::default() }, &Modifiers::default(), &yard);
-            if jumper.grounded && jumper.y >= 0.5 { landed_on_mower = true; break; }
+            jumper.step(
+                DT,
+                MoveInput {
+                    wish: (0.0, -0.45),
+                    ..Default::default()
+                },
+                &Modifiers::default(),
+                &yard,
+            );
+            if jumper.grounded && jumper.y >= 0.5 {
+                landed_on_mower = true;
+                break;
+            }
         }
-        assert!(landed_on_mower, "jump failed to land on mower: y={}, z={}", jumper.y, jumper.z);
+        assert!(
+            landed_on_mower,
+            "jump failed to land on mower: y={}, z={}",
+            jumper.y, jumper.z
+        );
     }
 
     #[test]
@@ -817,13 +1050,23 @@ mod tests {
         let x = 4.0;
         let z = crate::yard::VERANDA_Z_CENTRE;
         let top = yard.floor_at(x, z, 3.0, 3.0);
-        assert!(top > 2.7 && top < crate::yard::VERANDA_ROOF_TOP, "unexpected awning top: {top}");
+        assert!(
+            top > 2.7 && top < crate::yard::VERANDA_ROOF_TOP,
+            "unexpected awning top: {top}"
+        );
         let mut m = Mover::new(x, z);
         m.y = top;
         m.prev_y = top;
         m.grounded = true;
-        for _ in 0..30 { m.step(DT, MoveInput::default(), &Modifiers::default(), &yard); }
-        assert!(m.grounded && m.y > 2.7, "player did not stay on awning: y={}, z={}", m.y, m.z);
+        for _ in 0..30 {
+            m.step(DT, MoveInput::default(), &Modifiers::default(), &yard);
+        }
+        assert!(
+            m.grounded && m.y > 2.7,
+            "player did not stay on awning: y={}, z={}",
+            m.y,
+            m.z
+        );
     }
 
     #[test]
@@ -833,9 +1076,19 @@ mod tests {
         settle(&mut m, &yard);
         m.try_jump(false);
         let mut peak = 0.0f32;
-        for _ in 0..90 { m.step(DT, MoveInput::default(), &Modifiers::default(), &yard); peak=peak.max(m.y); }
-        assert!(peak < 1.2, "player jumped through the awning: peak feet y={peak}");
-        assert!(m.grounded && m.y == 0.0, "player did not land back on the yard: y={}", m.y);
+        for _ in 0..90 {
+            m.step(DT, MoveInput::default(), &Modifiers::default(), &yard);
+            peak = peak.max(m.y);
+        }
+        assert!(
+            peak < 1.2,
+            "player jumped through the awning: peak feet y={peak}"
+        );
+        assert!(
+            m.grounded && m.y == 0.0,
+            "player did not land back on the yard: y={}",
+            m.y
+        );
     }
 
     #[test]
@@ -991,25 +1244,35 @@ mod tests {
 
     #[test]
     fn servo_removes_invisible_backyard_hazards() {
-        let yard=Yard::smoko(Default::default(),0);
-        for (x,z) in [(-20.,10.),(TRAMP_X,TRAMP_Z),(0.,3.)] {
-            let mut m=Mover::new(x,z);settle(&mut m,&yard);
-            assert!(!m.in_pool);assert_eq!(m.sink,0.);assert!(!m.tramp_chain);
-            assert!(m.y.abs()<0.01);
+        let yard = Yard::smoko(Default::default(), 0);
+        for (x, z) in [(-20., 10.), (TRAMP_X, TRAMP_Z), (0., 3.)] {
+            let mut m = Mover::new(x, z);
+            settle(&mut m, &yard);
+            assert!(!m.in_pool);
+            assert_eq!(m.sink, 0.);
+            assert!(!m.tramp_chain);
+            assert!(m.y.abs() < 0.01);
         }
     }
 
     #[test]
     fn race_arena_has_wider_bounds_and_no_backyard_water_or_trampoline() {
-        let mut yard=Yard::default();yard.race=true;yard.colliders.clear();
-        let mut m=Mover::new(35.0,0.0);settle(&mut m,&yard);
-        assert!(m.x>34.9);
-        walk(&mut m,&yard,(1.,0.),10.,&Modifiers::default());
-        assert!((m.x-51.55).abs()<0.01);
-        let mut water=Mover::new(-20.,10.);settle(&mut water,&yard);
-        assert!(!water.in_pool);assert_eq!(water.sink,0.);
-        let mut tramp=Mover::new(TRAMP_X,TRAMP_Z);settle(&mut tramp,&yard);
-        assert!(!tramp.tramp_chain);assert!(tramp.y.abs()<0.01);
+        let mut yard = Yard::default();
+        yard.race = true;
+        yard.colliders.clear();
+        let mut m = Mover::new(35.0, 0.0);
+        settle(&mut m, &yard);
+        assert!(m.x > 34.9);
+        walk(&mut m, &yard, (1., 0.), 10., &Modifiers::default());
+        assert!((m.x - 51.55).abs() < 0.01);
+        let mut water = Mover::new(-20., 10.);
+        settle(&mut water, &yard);
+        assert!(!water.in_pool);
+        assert_eq!(water.sink, 0.);
+        let mut tramp = Mover::new(TRAMP_X, TRAMP_Z);
+        settle(&mut tramp, &yard);
+        assert!(!tramp.tramp_chain);
+        assert!(tramp.y.abs() < 0.01);
     }
 
     #[test]
@@ -1034,7 +1297,15 @@ mod tests {
             if i == 0 {
                 m.try_jump(false);
             }
-            m.step(DT, MoveInput { wish: (0.0, -1.0), ..Default::default() }, &mods, &yard);
+            m.step(
+                DT,
+                MoveInput {
+                    wish: (0.0, -1.0),
+                    ..Default::default()
+                },
+                &mods,
+                &yard,
+            );
             if m.grounded && (m.y - 0.8).abs() < 1e-4 {
                 return; // landed on top of the table
             }
@@ -1044,35 +1315,59 @@ mod tests {
 
     #[test]
     fn smoko_fence_access_lane() {
-        let yard=Yard::smoko(Features::default(),0);
-        let mut through=Mover::new(0.0,22.0);
-        settle(&mut through,&yard);
-        walk(&mut through,&yard,(0.0,1.0),4.0,&Modifiers::default());
-        assert!(through.z>YARD_HALF_Z+5.0,"gate should lead outside: z={}",through.z);
-        let mut outside=Mover::new(12.0,22.0);
-        settle(&mut outside,&yard);
-        walk(&mut outside,&yard,(0.0,1.0),2.0,&Modifiers::default());
-        assert!(outside.z<=YARD_HALF_Z-0.4,"closed fence remains a boundary: z={}",outside.z);
-
+        let yard = Yard::smoko(Features::default(), 0);
+        let mut through = Mover::new(0.0, 22.0);
+        settle(&mut through, &yard);
+        walk(&mut through, &yard, (0.0, 1.0), 4.0, &Modifiers::default());
+        assert!(
+            through.z > YARD_HALF_Z + 5.0,
+            "gate should lead outside: z={}",
+            through.z
+        );
+        let mut outside = Mover::new(12.0, 22.0);
+        settle(&mut outside, &yard);
+        walk(&mut outside, &yard, (0.0, 1.0), 2.0, &Modifiers::default());
+        assert!(
+            outside.z <= YARD_HALF_Z - 0.4,
+            "closed fence remains a boundary: z={}",
+            outside.z
+        );
     }
 
     #[test]
     fn smoko_ute_can_be_boarded_and_stood_on_beside_servo() {
         let yard = Yard::smoko(Features::default(), 0);
         assert_eq!(yard.floor_at(2.4, 40.9, 0.85, 0.85), 0.0);
-        for (x,top) in [(-1.1,1.41),(0.4,2.33),(2.4,0.85)] {
-            assert!((yard.floor_at(x,-21.9,top,top)-top).abs()<0.01);
+        for (x, top) in [(-1.1, 1.41), (0.4, 2.33), (2.4, 0.85)] {
+            assert!((yard.floor_at(x, -21.9, top, top) - top).abs() < 0.01);
         }
-        let mut jumper=Mover::new(2.4,-20.3);
-        settle(&mut jumper,&yard);
+        let mut jumper = Mover::new(2.4, -20.3);
+        settle(&mut jumper, &yard);
         jumper.try_jump(false);
-        let mut landed=false;
+        let mut landed = false;
         for _ in 0..180 {
-            jumper.step(DT,MoveInput{wish:(0.0,-0.25),..Default::default()},&Modifiers::default(),&yard);
-            if jumper.grounded && (jumper.y-0.85).abs()<0.02 {landed=true;break;}
+            jumper.step(
+                DT,
+                MoveInput {
+                    wish: (0.0, -0.25),
+                    ..Default::default()
+                },
+                &Modifiers::default(),
+                &yard,
+            );
+            if jumper.grounded && (jumper.y - 0.85).abs() < 0.02 {
+                landed = true;
+                break;
+            }
         }
-        assert!(landed,"existing jump should land on the ute tray; y={} z={}",jumper.y,jumper.z);
-        for _ in 0..60 { jumper.step(DT, MoveInput::default(), &Modifiers::default(), &yard); }
+        assert!(
+            landed,
+            "existing jump should land on the ute tray; y={} z={}",
+            jumper.y, jumper.z
+        );
+        for _ in 0..60 {
+            jumper.step(DT, MoveInput::default(), &Modifiers::default(), &yard);
+        }
         assert!(jumper.grounded && (jumper.y - 0.85).abs() < 0.02);
     }
 
@@ -1137,7 +1432,10 @@ mod tests {
         // you glide in the water, so it takes a moment to reach full speed
         walk(&mut m, &yard, (1.0, 0.0), 2.0, &Modifiers::default());
         assert!((m.speed() - 3.1).abs() < 0.05, "{}", m.speed());
-        assert!((m.sink - POOL_SINK).abs() < 0.08, "treading water bobs a little");
+        assert!(
+            (m.sink - POOL_SINK).abs() < 0.08,
+            "treading water bobs a little"
+        );
         m.try_jump(false);
         m.step(DT, MoveInput::default(), &Modifiers::default(), &yard);
         assert!((m.vy - (POOL_JUMP_V - CHAR_GRAVITY * DT)).abs() < 1e-4);
@@ -1151,7 +1449,10 @@ mod tests {
     }
 
     fn swim(m: &mut Mover, yard: &Yard, secs: f32, dive: bool, pitch: f32, wish: (f32, f32)) {
-        let mods = Modifiers { dive, ..Default::default() };
+        let mods = Modifiers {
+            dive,
+            ..Default::default()
+        };
         for _ in 0..(secs / DT) as usize {
             m.step(DT, MoveInput { wish, pitch }, &mods, yard);
         }
@@ -1189,7 +1490,11 @@ mod tests {
         assert!(!m.diving, "out of breath, so you cannot keep diving");
         assert!(m.breath < BREATH_MIN);
         swim(&mut m, &yard, 3.0, false, 0.0, (0.0, 0.0));
-        assert!(m.breath > BREATH_MIN, "breath is back at the surface: {}", m.breath);
+        assert!(
+            m.breath > BREATH_MIN,
+            "breath is back at the surface: {}",
+            m.breath
+        );
     }
 
     #[test]
@@ -1198,7 +1503,10 @@ mod tests {
         m.x = -26.0; // the long way along the pool
         swim(&mut m, &yard, 1.5, true, 0.0, (1.0, 0.0));
         let flat = m.speed();
-        assert!(flat > BASE_SPEED * 0.5, "diving is faster than treading water: {flat}");
+        assert!(
+            flat > BASE_SPEED * 0.5,
+            "diving is faster than treading water: {flat}"
+        );
         // let go of the stick: you carry on gliding for a moment, not stopping dead
         m.diving = false;
         swim(&mut m, &yard, 0.15, false, 0.0, (0.0, 0.0));

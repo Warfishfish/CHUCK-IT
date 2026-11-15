@@ -9,10 +9,10 @@ use crate::looks::{self, Part, Shape, Surface, Tex};
 use crate::rng::Rng;
 use crate::vec::{Quat, V3, cross};
 use crate::yard::{
-    BAR, CHEST_SPOTS, DECOR_ESKIES, MEAT_TABLE, POOL_DEPTH, POOL_X0, POOL_X1, POOL_Z0, POOL_Z1, SMOKO_X, SMOKO_Z,
-    HOUSE_DEPTH, HOUSE_HEIGHT, HOUSE_X_HALF, HOUSE_Z_CENTRE, TANK_BODY_HEIGHT,
-    MOWER_X, MOWER_Z, TANK_LADDER_BOTTOM_Z, TANK_LADDER_TOP_Z, TANK_RADIUS, TANK_TOP, TANK_X, TANK_Z,
-    TRAMP_H, TRAMP_R, TRAMP_X, TRAMP_Z, WATER_Y,
+    BAR, CHEST_SPOTS, DECOR_ESKIES, HOUSE_DEPTH, HOUSE_HEIGHT, HOUSE_X_HALF, HOUSE_Z_CENTRE,
+    MEAT_TABLE, MOWER_X, MOWER_Z, POOL_DEPTH, POOL_X0, POOL_X1, POOL_Z0, POOL_Z1, SMOKO_X, SMOKO_Z,
+    TANK_BODY_HEIGHT, TANK_LADDER_BOTTOM_Z, TANK_LADDER_TOP_Z, TANK_RADIUS, TANK_TOP, TANK_X,
+    TANK_Z, TRAMP_H, TRAMP_R, TRAMP_X, TRAMP_Z, WATER_Y,
 };
 use crate::{YARD_HALF_X as W, YARD_HALF_Z as D};
 
@@ -68,6 +68,16 @@ pub struct YardLook {
     pub magpies: Vec<(V3, f32)>,
     /// Clouds: where each one starts, and its puffs (local).
     pub clouds: Vec<(V3, Vec<Part>)>,
+}
+
+/// Separate little groups that turn or sway without moving their supporting yard geometry.
+#[derive(Clone, Debug, Default)]
+pub struct BackyardWindParts {
+    pub umbrella_shade: Vec<Part>,
+    pub pinwheel_blades: Vec<Part>,
+    pub clothesline_hangers: Vec<Part>,
+    pub sprinkler_rotor: Vec<Part>,
+    pub sprinkler_trail: Vec<Part>,
 }
 
 fn matt(c: u32) -> Surface {
@@ -190,7 +200,12 @@ pub fn sun_bake(parts: Vec<Part>) -> Vec<Part> {
         .into_iter()
         .map(|mut p| {
             let sf = &mut p.surface;
-            if sf.tex.is_some_and(|t| !t.is_material()) || sf.unlit || sf.additive || sf.alpha < 1.0 || sf.emissive != 0 {
+            if sf.tex.is_some_and(|t| !t.is_material())
+                || sf.unlit
+                || sf.additive
+                || sf.alpha < 1.0
+                || sf.emissive != 0
+            {
                 return p;
             }
             let ch = |s: u32| ((sf.color >> s) & 0xff) as f32;
@@ -215,7 +230,11 @@ fn fence_styled(len: f32, horizontal: bool, x: f32, z: f32, rng: &mut Rng) -> Ve
         let t = -len / 2.0 + sec * (i as f32 + 0.5);
         let h = FENCE_H + rng.range(-0.12, 0.08);
         let tint = [0xf2ece4u32, 0xe6dccf, 0xdad0c2, 0xeee6d8, 0xd2c8bb][rng.index(5)];
-        let (w, d) = if horizontal { (sec - 0.04, 0.1) } else { (0.1, sec - 0.04) };
+        let (w, d) = if horizontal {
+            (sec - 0.04, 0.1)
+        } else {
+            (0.1, sec - 0.04)
+        };
         let s = matt(tint).textured(Tex::Paling).repeating(sec / 2.0, 1.0);
         let (cx, cz) = if horizontal { (x + t, z) } else { (x, z + t) };
         let lean = rng.range(-0.035, 0.035);
@@ -223,19 +242,51 @@ fn fence_styled(len: f32, horizontal: bool, x: f32, z: f32, rng: &mut Rng) -> Ve
         let boards = (sec / 0.14).round().max(4.0) as u32;
         // A few sections get one missing, snapped-short, or loose board. This coordinate hash
         // does not consume the world-generation stream or change any gameplay boundary.
-        let hash = x.to_bits().rotate_left(7) ^ z.to_bits().rotate_right(11) ^ (i as u32).wrapping_mul(0x9e37_79b9);
+        let hash = x.to_bits().rotate_left(7)
+            ^ z.to_bits().rotate_right(11)
+            ^ (i as u32).wrapping_mul(0x9e37_79b9);
         let pick = hash % 47;
-        let damage = if pick < 3 { (pick + 1) * 64 + ((hash / 47) % boards) } else { 0 };
-        let part = Part::new(Shape::PalingPanel { w, h, d, boards, damage }, s).at(cx, h / 2.0, cz);
+        let damage = if pick < 3 {
+            (pick + 1) * 64 + ((hash / 47) % boards)
+        } else {
+            0
+        };
+        let part = Part::new(
+            Shape::PalingPanel {
+                w,
+                h,
+                d,
+                boards,
+                damage,
+            },
+            s,
+        )
+        .at(cx, h / 2.0, cz);
         // lean sideways (toward or away from the yard) and tip a hair along the run
-        let part = if horizontal { part.turn(lean, 0.0, roll) } else { part.turn(roll, 0.0, lean) };
+        let part = if horizontal {
+            part.turn(lean, 0.0, roll)
+        } else {
+            part.turn(roll, 0.0, lean)
+        };
         v.push(part);
         // a fat post at each join
         let post_phase = ((i * 7 + if horizontal { 3 } else { 8 }) % 11) as f32 / 10.0;
         let post_h = FENCE_H + 0.1 + (post_phase - 0.5) * 0.08;
-        let post = cuboid(0.16, post_h, 0.16, matt(0x7a5e3f).material(Tex::Wood, 1.5), if horizontal { cx + sec / 2.0 } else { cx }, post_h / 2.0, if horizontal { cz } else { cz + sec / 2.0 });
+        let post = cuboid(
+            0.16,
+            post_h,
+            0.16,
+            matt(0x7a5e3f).material(Tex::Wood, 1.5),
+            if horizontal { cx + sec / 2.0 } else { cx },
+            post_h / 2.0,
+            if horizontal { cz } else { cz + sec / 2.0 },
+        );
         // Posts echo the neighbouring paling run's slight lean, so the line does not look ruler-straight.
-        v.push(if horizontal { post.turn(lean * 0.5, 0.0, roll * 0.5) } else { post.turn(roll * 0.5, 0.0, lean * 0.5) });
+        v.push(if horizontal {
+            post.turn(lean * 0.5, 0.0, roll * 0.5)
+        } else {
+            post.turn(roll * 0.5, 0.0, lean * 0.5)
+        });
     }
     v
 }
@@ -253,9 +304,21 @@ fn fence_battens() -> Vec<Part> {
         (false, 2.0 * D, W + 0.05, 0.0, -1.0),
     ] {
         for y in [0.46_f32, 1.30] {
-            let (x, z) = if horizontal { (cx, cz + inward * 0.085) } else { (cx + inward * 0.085, cz) };
-            let (w, d) = if horizontal { (len, 0.055) } else { (0.055, len) };
-            v.push(cuboid(w, 0.075, d, timber, x, y, z).bevel(0.008).weathered());
+            let (x, z) = if horizontal {
+                (cx, cz + inward * 0.085)
+            } else {
+                (cx + inward * 0.085, cz)
+            };
+            let (w, d) = if horizontal {
+                (len, 0.055)
+            } else {
+                (0.055, len)
+            };
+            v.push(
+                cuboid(w, 0.075, d, timber, x, y, z)
+                    .bevel(0.008)
+                    .weathered(),
+            );
             // Four pairs of dark nail heads give the long rail enough scale and join detail.
             for fraction in [-0.36_f32, -0.12, 0.12, 0.36] {
                 let along = len * fraction;
@@ -289,10 +352,16 @@ fn weeds(rng: &mut Rng) -> Vec<Part> {
         } else {
             (rng.range(-W + 2.0, W - 2.0), rng.range(-D + 2.0, D - 2.0))
         };
-        if (POOL_X0 - 0.6..POOL_X1 + 0.6).contains(&x) && (POOL_Z0 - 0.6..POOL_Z1 + 0.6).contains(&z) {
+        if (POOL_X0 - 0.6..POOL_X1 + 0.6).contains(&x)
+            && (POOL_Z0 - 0.6..POOL_Z1 + 0.6).contains(&z)
+        {
             continue;
         }
-        let c = if rng.chance(0.78) { dry[rng.index(3)] } else { green[rng.index(2)] };
+        let c = if rng.chance(0.78) {
+            dry[rng.index(3)]
+        } else {
+            green[rng.index(2)]
+        };
         // a tuft is a few thin cones fanned out
         let blades = 3 + rng.index(3);
         for _ in 0..blades {
@@ -301,11 +370,22 @@ fn weeds(rng: &mut Rng) -> Vec<Part> {
             let (h, r) = (rng.range(0.16, 0.42), rng.range(0.025, 0.05));
             let (a, tilt) = (rng.range(0.0, 2.0 * PI), rng.range(0.1, 0.5));
             v.push(
-                Part::new(Shape::Cone { r: 0.04, h: 0.3, seg: 4 }, matt(c))
-                    .at(x + rng.range(-0.08, 0.08), h / 2.0, z + rng.range(-0.08, 0.08))
-                    .turn(tilt * a.cos(), 0.0, tilt * a.sin())
-                    .stretch(r / 0.04, h / 0.3, r / 0.04)
-                    .no_shadow_part(),
+                Part::new(
+                    Shape::Cone {
+                        r: 0.04,
+                        h: 0.3,
+                        seg: 4,
+                    },
+                    matt(c),
+                )
+                .at(
+                    x + rng.range(-0.08, 0.08),
+                    h / 2.0,
+                    z + rng.range(-0.08, 0.08),
+                )
+                .turn(tilt * a.cos(), 0.0, tilt * a.sin())
+                .stretch(r / 0.04, h / 0.3, r / 0.04)
+                .no_shadow_part(),
             );
         }
     }
@@ -313,7 +393,14 @@ fn weeds(rng: &mut Rng) -> Vec<Part> {
 }
 
 /// A leaf outline lying flat on the ground (x across, z along).
-const LEAF: &[(f32, f32)] = &[(0.0, -0.5), (0.22, -0.22), (0.26, 0.08), (0.0, 0.5), (-0.26, 0.08), (-0.22, -0.22)];
+const LEAF: &[(f32, f32)] = &[
+    (0.0, -0.5),
+    (0.22, -0.22),
+    (0.26, 0.08),
+    (0.0, 0.5),
+    (-0.26, 0.08),
+    (-0.22, -0.22),
+];
 
 /// A fallen gum leaf or a strip of bark at `(x, z)`, turned by `yaw`. Same shape for every leaf
 /// (stretched per leaf) so they all share one mesh.
@@ -326,10 +413,17 @@ fn litter_piece(kind: u32, x: f32, z: f32, yaw: f32, size: f32, colour: u32) -> 
             .stretch(0.13 * size, 0.38 * size, 1.0)
     } else {
         // a curled strip of bark: a thin flat box, one end a little lifted
-        Part::new(Shape::Cuboid { w: 0.08, h: 0.014, d: 0.5 }, matt(colour).material(Tex::Bark, 2.0).no_shadow())
-            .at(0.0, 0.016, 0.0)
-            .turn(0.12, 0.0, 0.0)
-            .stretch(size, 1.0, size)
+        Part::new(
+            Shape::Cuboid {
+                w: 0.08,
+                h: 0.014,
+                d: 0.5,
+            },
+            matt(colour).material(Tex::Bark, 2.0).no_shadow(),
+        )
+        .at(0.0, 0.016, 0.0)
+        .turn(0.12, 0.0, 0.0)
+        .stretch(size, 1.0, size)
     };
     flat.inside(V3::new(x, 0.0, z), turn_y(yaw), 1.0)
 }
@@ -339,11 +433,19 @@ fn litter_piece(kind: u32, x: f32, z: f32, yaw: f32, size: f32, colour: u32) -> 
 /// Flat, tiny, no shadow, and clear of the pool. Visual only.
 fn leaf_litter(trees: &[(f32, f32)], seed: u64) -> Vec<Part> {
     let mut rng = Rng::new(seed ^ 0x1EAF);
-    let leaf_cols = [0x6f6f3a_u32, 0x5f5f30, 0x8a7a3e, 0x7e5e32, 0x56442a, 0x9a7438];
+    let leaf_cols = [
+        0x6f6f3a_u32,
+        0x5f5f30,
+        0x8a7a3e,
+        0x7e5e32,
+        0x56442a,
+        0x9a7438,
+    ];
     let bark_cols = [0x9a8460_u32, 0x8a7656, 0x7a766a];
     let mut v = Vec::new();
     let clear = |x: f32, z: f32| {
-        let in_pool = (POOL_X0 - 0.5..POOL_X1 + 0.5).contains(&x) && (POOL_Z0 - 0.5..POOL_Z1 + 0.5).contains(&z);
+        let in_pool = (POOL_X0 - 0.5..POOL_X1 + 0.5).contains(&x)
+            && (POOL_Z0 - 0.5..POOL_Z1 + 0.5).contains(&z);
         !in_pool
     };
     // along the fences: the closer to the fence, the more
@@ -360,15 +462,33 @@ fn leaf_litter(trees: &[(f32, f32)], seed: u64) -> Vec<Part> {
             continue;
         }
         let kind = if rng.chance(0.2) { 1 } else { 0 };
-        let col = if kind == 1 { bark_cols[rng.index(3)] } else { leaf_cols[rng.index(6)] };
-        v.push(litter_piece(kind, x, z, rng.range(0.0, PI), rng.range(0.7, 1.3), col));
+        let col = if kind == 1 {
+            bark_cols[rng.index(3)]
+        } else {
+            leaf_cols[rng.index(6)]
+        };
+        v.push(litter_piece(
+            kind,
+            x,
+            z,
+            rng.range(0.0, PI),
+            rng.range(0.7, 1.3),
+            col,
+        ));
     }
     // a scatter on the open lawn (a few leaves that blew further in)
     for _ in 0..20 {
         let (x, z) = (rng.range(-W + 4.0, W - 4.0), rng.range(-D + 4.0, D - 4.0));
         if clear(x, z) {
             let col = leaf_cols[rng.index(6)];
-            v.push(litter_piece(0, x, z, rng.range(0.0, PI), rng.range(0.7, 1.2), col));
+            v.push(litter_piece(
+                0,
+                x,
+                z,
+                rng.range(0.0, PI),
+                rng.range(0.7, 1.2),
+                col,
+            ));
         }
     }
     // under each tree (mostly out in the paddock, but they show over the fence)
@@ -377,8 +497,19 @@ fn leaf_litter(trees: &[(f32, f32)], seed: u64) -> Vec<Part> {
             let (a, d) = (rng.range(0.0, 2.0 * PI), rng.range(0.0, 1.0).sqrt() * 3.4);
             let (x, z) = (tx + a.cos() * d, tz + a.sin() * d);
             let kind = if rng.chance(0.15) { 1 } else { 0 };
-            let col = if kind == 1 { bark_cols[rng.index(3)] } else { leaf_cols[rng.index(6)] };
-            v.push(litter_piece(kind, x, z, rng.range(0.0, PI), rng.range(0.8, 1.4), col));
+            let col = if kind == 1 {
+                bark_cols[rng.index(3)]
+            } else {
+                leaf_cols[rng.index(6)]
+            };
+            v.push(litter_piece(
+                kind,
+                x,
+                z,
+                rng.range(0.0, PI),
+                rng.range(0.8, 1.4),
+                col,
+            ));
         }
     }
     v
@@ -392,29 +523,99 @@ fn clutter(_rng: &mut Rng) -> Vec<Part> {
     // cricket stumps and a bat, left leaning
     let (cx, cz) = (17.0f32, 10.0f32);
     for dx in [-0.11f32, 0.0, 0.11] {
-        v.push(cyl(0.016, 0.016, 0.72, 6, matt(0xd8c08a), cx + dx, 0.36, cz).turn(0.0, 0.0, if dx == 0.0 { 0.0 } else { dx * 0.5 }));
+        v.push(
+            cyl(0.016, 0.016, 0.72, 6, matt(0xd8c08a), cx + dx, 0.36, cz).turn(
+                0.0,
+                0.0,
+                if dx == 0.0 { 0.0 } else { dx * 0.5 },
+            ),
+        );
     }
-    v.push(cuboid(0.12, 0.02, 0.02, matt(0xb8a070), cx - 0.05, 0.73, cz));
+    v.push(cuboid(
+        0.12,
+        0.02,
+        0.02,
+        matt(0xb8a070),
+        cx - 0.05,
+        0.73,
+        cz,
+    ));
     v.push(cuboid(0.11, 0.5, 0.035, matt(0xcfae78), cx + 0.5, 0.2, cz + 0.2).turn(0.0, 0.4, 1.2));
-    v.push(cyl(0.017, 0.017, 0.28, 6, matt(0x2a2a2a), cx + 0.78, 0.1, cz + 0.28).turn(0.0, 0.4, 1.2));
+    v.push(
+        cyl(
+            0.017,
+            0.017,
+            0.28,
+            6,
+            matt(0x2a2a2a),
+            cx + 0.78,
+            0.1,
+            cz + 0.28,
+        )
+        .turn(0.0, 0.4, 1.2),
+    );
     // Faded chalk creases mark out the little pitch; they are paint only, with no collision.
     for z in [cz - 0.52, cz + 0.52] {
-        v.push(cuboid(1.65, 0.006, 0.028, matt(0xe7dfc8).no_shadow(), cx, 0.009, z));
+        v.push(cuboid(
+            1.65,
+            0.006,
+            0.028,
+            matt(0xe7dfc8).no_shadow(),
+            cx,
+            0.009,
+            z,
+        ));
     }
     for x in [cx - 0.82, cx + 0.82] {
-        v.push(cuboid(0.028, 0.006, 0.30, matt(0xe7dfc8).no_shadow(), x, 0.009, cz - 0.52));
+        v.push(cuboid(
+            0.028,
+            0.006,
+            0.30,
+            matt(0xe7dfc8).no_shadow(),
+            x,
+            0.009,
+            cz - 0.52,
+        ));
     }
     // the dog bowl and a bone
-    v.push(cyl(0.19, 0.15, 0.08, 14, matt(0xc0392b), -14.0, 0.04, -19.5));
-    v.push(cyl(0.14, 0.14, 0.01, 14, matt(0x6b4a2a), -14.0, 0.083, -19.5));
+    v.push(cyl(
+        0.19,
+        0.15,
+        0.08,
+        14,
+        matt(0xc0392b),
+        -14.0,
+        0.04,
+        -19.5,
+    ));
+    v.push(cyl(
+        0.14,
+        0.14,
+        0.01,
+        14,
+        matt(0x6b4a2a),
+        -14.0,
+        0.083,
+        -19.5,
+    ));
     v.push(cuboid(0.18, 0.04, 0.05, matt(0xf1eadb), -13.5, 0.025, -19.2).turn(0.0, 0.5, 0.0));
     // a pair of thongs by the back door, one kicked over
-    for (k, (x, z, flip)) in [(3.6f32, -23.5f32, 0.0f32), (4.2, -23.2, 0.6)].into_iter().enumerate() {
+    for (k, (x, z, flip)) in [(3.6f32, -23.5f32, 0.0f32), (4.2, -23.2, 0.6)]
+        .into_iter()
+        .enumerate()
+    {
         v.push(
-            Part::new(Shape::Sphere { r: 0.12, ws: 10, hs: 6 }, matt([0xe8443a, 0x2f8ee8][k]))
-                .at(x, 0.012, z)
-                .stretch(1.0, 0.1, 2.1)
-                .turn(0.0, 0.3 + flip, 0.0),
+            Part::new(
+                Shape::Sphere {
+                    r: 0.12,
+                    ws: 10,
+                    hs: 6,
+                },
+                matt([0xe8443a, 0x2f8ee8][k]),
+            )
+            .at(x, 0.012, z)
+            .stretch(1.0, 0.1, 2.1)
+            .turn(0.0, 0.3 + flip, 0.0),
         );
     }
     // a washing basket on its side near the hoist, with a sock beside it
@@ -431,9 +632,16 @@ fn cricket_scoreboard() -> Vec<Part> {
     let (x, y, z) = (40.32f32, 2.70f32, 10.0f32);
     let yaw = -HALF_PI; // the written face looks back into the yard
     let mut v = vec![
-        cuboid(2.8, 1.34, 0.16, timber, x, y, z).bevel(0.035).weathered().turn(0.0, yaw, 0.0),
-        Part::new(Shape::Quad { w: 2.56, h: 1.10 }, matt(0xffffff).textured(Tex::CricketBoard))
-            .at(40.22, y, z).turn(0.0, yaw, 0.0),
+        cuboid(2.8, 1.34, 0.16, timber, x, y, z)
+            .bevel(0.035)
+            .weathered()
+            .turn(0.0, yaw, 0.0),
+        Part::new(
+            Shape::Quad { w: 2.56, h: 1.10 },
+            matt(0xffffff).textured(Tex::CricketBoard),
+        )
+        .at(40.22, y, z)
+        .turn(0.0, yaw, 0.0),
     ];
     // Two bent strap hinges pin the board back to the paling fence.
     for dz in [-0.91f32, 0.91] {
@@ -449,11 +657,23 @@ fn grog_litter(rng: &mut Rng) -> Vec<Part> {
     let mut v = Vec::new();
     for _ in 0..7 {
         let (x, z) = (rng.range(-W + 3.0, W - 3.0), rng.range(-D + 3.0, D - 3.0));
-        if (POOL_X0 - 1.0..POOL_X1 + 1.0).contains(&x) && (POOL_Z0 - 1.0..POOL_Z1 + 1.0).contains(&z) {
+        if (POOL_X0 - 1.0..POOL_X1 + 1.0).contains(&x)
+            && (POOL_Z0 - 1.0..POOL_Z1 + 1.0).contains(&z)
+        {
             continue;
         }
-        v.push(cyl(0.032, 0.032, 0.2, 8, matt(0x6a4a1a), x, 0.034, z).turn(0.0, rng.range(0.0, PI), HALF_PI));
-        v.push(cyl(0.016, 0.016, 0.07, 6, matt(0x6a4a1a), x + 0.13, 0.03, z).turn(0.0, rng.range(0.0, PI), HALF_PI));
+        v.push(cyl(0.032, 0.032, 0.2, 8, matt(0x6a4a1a), x, 0.034, z).turn(
+            0.0,
+            rng.range(0.0, PI),
+            HALF_PI,
+        ));
+        v.push(
+            cyl(0.016, 0.016, 0.07, 6, matt(0x6a4a1a), x + 0.13, 0.03, z).turn(
+                0.0,
+                rng.range(0.0, PI),
+                HALF_PI,
+            ),
+        );
         let (cx2, cz2) = (x + rng.range(-1.0, 1.0), z + rng.range(-1.0, 1.0));
         v.push(cyl(0.017, 0.017, 0.006, 8, matt(0xc9ced3), cx2, 0.004, cz2));
     }
@@ -463,20 +683,40 @@ fn grog_litter(rng: &mut Rng) -> Vec<Part> {
 /// The red sauce bottle and the yellow mustard bottle, standing on the outdoor table (step 2c).
 fn table_bottles() -> Vec<Part> {
     let mut v = Vec::new();
-    for (x, z, body, cap) in [(6.55f32, -16.2f32, 0xd6291e_u32, 0xf4f1e8_u32), (6.8, -16.35, 0xf4c20d, 0xd6291e)] {
+    for (x, z, body, cap) in [
+        (6.55f32, -16.2f32, 0xd6291e_u32, 0xf4f1e8_u32),
+        (6.8, -16.35, 0xf4c20d, 0xd6291e),
+    ] {
         v.push(cyl(0.04, 0.045, 0.17, 10, matt(body), x, 0.885, z));
         v.push(cyl(0.017, 0.04, 0.05, 10, matt(body), x, 0.995, z));
         v.push(cyl(0.012, 0.014, 0.035, 8, matt(cap), x, 1.035, z));
-        v.push(cyl(0.041, 0.041, 0.07, 10, matt(0xfaf6e6), x, 0.885, z + 0.003).stretch(1.0, 1.0, 1.0));
+        v.push(
+            cyl(0.041, 0.041, 0.07, 10, matt(0xfaf6e6), x, 0.885, z + 0.003).stretch(1.0, 1.0, 1.0),
+        );
     }
     // A pair of old barbecue tongs left beside the sauces on the picnic table.
     let steel = matt(0x777f82).material(Tex::Metal, 1.2);
     let grip = matt(0x8e563b).material(Tex::Wood, 1.4);
     for side in [-1.0f32, 1.0] {
-        v.push(rod(V3::new(6.15 + side * 0.04, 0.84, -16.92), V3::new(6.48 + side * 0.10, 0.85, -16.62), 0.018, steel));
-        v.push(rod(V3::new(6.15 + side * 0.04, 0.84, -16.92), V3::new(6.00 + side * 0.06, 0.85, -17.05), 0.032, grip));
+        v.push(rod(
+            V3::new(6.15 + side * 0.04, 0.84, -16.92),
+            V3::new(6.48 + side * 0.10, 0.85, -16.62),
+            0.018,
+            steel,
+        ));
+        v.push(rod(
+            V3::new(6.15 + side * 0.04, 0.84, -16.92),
+            V3::new(6.00 + side * 0.06, 0.85, -17.05),
+            0.032,
+            grip,
+        ));
     }
-    v.push(rod(V3::new(6.56, 0.85, -16.54), V3::new(6.64, 0.85, -16.48), 0.02, steel));
+    v.push(rod(
+        V3::new(6.56, 0.85, -16.54),
+        V3::new(6.64, 0.85, -16.48),
+        0.02,
+        steel,
+    ));
     v
 }
 
@@ -486,27 +726,104 @@ fn rain_tank_and_ladder(polished: bool) -> Vec<Part> {
     let mut v = Vec::new();
     let metal = |colour| {
         let s = matt(colour);
-        if polished { s.material(Tex::Metal, 1.35) } else { s }
+        if polished {
+            s.material(Tex::Metal, 1.35)
+        } else {
+            s
+        }
     };
     let tank = metal(0x9eafa3);
     let zinc = metal(0x858d89);
     let dark = matt(0x56645e);
-    let body = cyl(TANK_RADIUS, TANK_RADIUS, TANK_BODY_HEIGHT, 24, tank, TANK_X, TANK_BODY_HEIGHT * 0.5, TANK_Z).bevel(0.07);
+    let body = cyl(
+        TANK_RADIUS,
+        TANK_RADIUS,
+        TANK_BODY_HEIGHT,
+        24,
+        tank,
+        TANK_X,
+        TANK_BODY_HEIGHT * 0.5,
+        TANK_Z,
+    )
+    .bevel(0.07);
     v.push(if polished { body.weathered() } else { body });
-    v.push(cyl(1.35, 1.35, 0.10, 24, metal(0x87958c), TANK_X, TANK_BODY_HEIGHT + 0.05, TANK_Z).bevel(0.035));
+    v.push(
+        cyl(
+            1.35,
+            1.35,
+            0.10,
+            24,
+            metal(0x87958c),
+            TANK_X,
+            TANK_BODY_HEIGHT + 0.05,
+            TANK_Z,
+        )
+        .bevel(0.035),
+    );
     // Folded horizontal seams, a slightly raised lid lip, and the outlet on the exposed east face.
     for y in [0.28f32, 0.72, 1.36, 2.02, 2.70, 3.22, 3.46] {
-        v.push(torus(1.29, 0.023, 6, 24, 2.0 * PI, zinc).at(TANK_X, y, TANK_Z).turn(HALF_PI, 0.0, 0.0));
+        v.push(
+            torus(1.29, 0.023, 6, 24, 2.0 * PI, zinc)
+                .at(TANK_X, y, TANK_Z)
+                .turn(HALF_PI, 0.0, 0.0),
+        );
     }
-    v.push(rod(V3::new(TANK_X + 1.26, 0.50, TANK_Z), V3::new(TANK_X + 1.58, 0.50, TANK_Z), 0.07, zinc));
-    v.push(rod(V3::new(TANK_X + 1.58, 0.50, TANK_Z), V3::new(TANK_X + 1.58, 0.50, TANK_Z + 0.23), 0.07, zinc));
-    v.push(cyl(0.04, 0.04, 0.12, 8, metal(0xb28d55), TANK_X + 1.58, 0.62, TANK_Z + 0.12));
+    v.push(rod(
+        V3::new(TANK_X + 1.26, 0.50, TANK_Z),
+        V3::new(TANK_X + 1.58, 0.50, TANK_Z),
+        0.07,
+        zinc,
+    ));
+    v.push(rod(
+        V3::new(TANK_X + 1.58, 0.50, TANK_Z),
+        V3::new(TANK_X + 1.58, 0.50, TANK_Z + 0.23),
+        0.07,
+        zinc,
+    ));
+    v.push(cyl(
+        0.04,
+        0.04,
+        0.12,
+        8,
+        metal(0xb28d55),
+        TANK_X + 1.58,
+        0.62,
+        TANK_Z + 0.12,
+    ));
     // Subtle rain streaks and a little faded inspection plate make the tank look used, not new.
-    for (x, y, h) in [(-0.44f32, 2.64f32, 0.38f32), (0.28, 2.35, 0.24), (0.52, 1.72, 0.31)] {
-        v.push(cuboid(0.035, h, 0.008, matt(0x765947).no_shadow(), TANK_X + x, y - h * 0.5, TANK_Z + 1.26));
+    for (x, y, h) in [
+        (-0.44f32, 2.64f32, 0.38f32),
+        (0.28, 2.35, 0.24),
+        (0.52, 1.72, 0.31),
+    ] {
+        v.push(cuboid(
+            0.035,
+            h,
+            0.008,
+            matt(0x765947).no_shadow(),
+            TANK_X + x,
+            y - h * 0.5,
+            TANK_Z + 1.26,
+        ));
     }
-    v.push(cuboid(0.45, 0.25, 0.035, matt(0xddd1ae), TANK_X - 0.52, 2.88, TANK_Z + 1.27));
-    v.push(cuboid(0.27, 0.035, 0.045, matt(0x557469), TANK_X - 0.52, 2.90, TANK_Z + 1.30));
+    v.push(cuboid(
+        0.45,
+        0.25,
+        0.035,
+        matt(0xddd1ae),
+        TANK_X - 0.52,
+        2.88,
+        TANK_Z + 1.27,
+    ));
+    v.push(cuboid(
+        0.27,
+        0.035,
+        0.045,
+        matt(0x557469),
+        TANK_X - 0.52,
+        2.90,
+        TANK_Z + 1.30,
+    ));
 
     // A steep but walkable set of ladder rungs: the narrow sloped support follows these rails,
     // so normal movement walks up it and lands on the tank's circular lid.
@@ -527,7 +844,15 @@ fn rain_tank_and_ladder(polished: bool) -> Vec<Part> {
         v.push(cuboid(0.91, 0.055, 0.075, zinc, TANK_X, y, z).bevel(0.012));
         if i == 3 || i == 7 || i == 11 {
             for side in [-0.46f32, 0.46] {
-                v.push(cuboid(0.055, 0.045, 0.09, dark, TANK_X + side, y, z + 0.035));
+                v.push(cuboid(
+                    0.055,
+                    0.045,
+                    0.09,
+                    dark,
+                    TANK_X + side,
+                    y,
+                    z + 0.035,
+                ));
             }
         }
     }
@@ -544,36 +869,86 @@ fn rain_tank_and_ladder(polished: bool) -> Vec<Part> {
 }
 
 fn house_styled() -> Vec<Part> {
-    let roof = matt(0xb36149).textured(Tex::Corrugated).repeating(20.0, 2.0);
+    let roof = matt(0xb36149)
+        .textured(Tex::Corrugated)
+        .repeating(20.0, 2.0);
     let mut v = vec![
-        cuboid(HOUSE_X_HALF * 2.0, HOUSE_HEIGHT, HOUSE_DEPTH, matt(0xf3ead4).textured(Tex::Weatherboard).repeating(20.0, 3.0), 0.0, HOUSE_HEIGHT * 0.5, HOUSE_Z_CENTRE),
+        cuboid(
+            HOUSE_X_HALF * 2.0,
+            HOUSE_HEIGHT,
+            HOUSE_DEPTH,
+            matt(0xf3ead4)
+                .textured(Tex::Weatherboard)
+                .repeating(20.0, 3.0),
+            0.0,
+            HOUSE_HEIGHT * 0.5,
+            HOUSE_Z_CENTRE,
+        ),
         // two roof slabs, one a hair lower and tilted so the ridge is not dead straight
         cuboid(41.0, 0.16, 4.9, roof, 0.0, 5.62, -27.4).turn(0.445, 0.0, 0.006),
-        cuboid(41.0, 0.16, 4.9, shade_surface(roof, 0.94), 0.0, 5.58, -31.6).turn(-0.445, 0.0, -0.004),
+        cuboid(41.0, 0.16, 4.9, shade_surface(roof, 0.94), 0.0, 5.62, -31.6)
+            .turn(-0.445, 0.0, -0.004),
     ];
     // A modest ridge cap and rolled Colorbond gutters make the roof read as a built roof,
     // while staying entirely above/behind the existing playable yard and collision shapes.
     let galv = matt(0x858e8c).material(Tex::Metal, 1.3);
-    v.push(cuboid(41.2, 0.12, 0.22, matt(0x9b4d3b).material(Tex::Metal, 1.6), 0.0, 5.78, -29.5));
+    v.push(cuboid(
+        41.2,
+        0.12,
+        0.22,
+        matt(0x9b4d3b).material(Tex::Metal, 1.6),
+        0.0,
+        5.78,
+        -29.5,
+    ));
     for z in [-24.96f32, -34.04] {
         v.push(cuboid(40.8, 0.11, 0.16, galv, 0.0, 4.34, z));
         // short brackets, regularly spaced but not over-detailed at game distance
         for x in (-18..=18).step_by(6) {
-            v.push(cuboid(0.055, 0.12, 0.20, matt(0x6f7775).material(Tex::Metal, 1.2), x as f32, 4.25, z));
+            v.push(cuboid(
+                0.055,
+                0.12,
+                0.20,
+                matt(0x6f7775).material(Tex::Metal, 1.2),
+                x as f32,
+                4.25,
+                z,
+            ));
         }
     }
     // Downpipes hug the gable ends. The last elbow points away from the weatherboards.
     for (x, side) in [(-19.62f32, -1.0f32), (19.62, 1.0)] {
         v.push(cuboid(0.11, 3.95, 0.11, galv, x, 2.32, -24.98));
-        v.push(rod(V3::new(x, 0.38, -24.98), V3::new(x + side * 0.20, 0.28, -24.98), 0.055, galv));
+        v.push(rod(
+            V3::new(x, 0.38, -24.98),
+            V3::new(x + side * 0.20, 0.28, -24.98),
+            0.055,
+            galv,
+        ));
         for y in [0.8f32, 2.0, 3.25] {
-            v.push(cuboid(0.17, 0.045, 0.15, matt(0x737b79).material(Tex::Metal, 1.2), x, y, -24.98));
+            v.push(cuboid(
+                0.17,
+                0.045,
+                0.15,
+                matt(0x737b79).material(Tex::Metal, 1.2),
+                x,
+                y,
+                -24.98,
+            ));
         }
     }
     // A slim sill drip and dark reveal give the existing windows a little depth.
     for x in [-15.0f32, -9.0, -4.0, 8.0, 13.5] {
         v.push(cuboid(1.78, 0.08, 0.18, matt(0xd1c4a7), x, 1.70, -25.43));
-        v.push(cuboid(0.025, 0.54, 0.006, matt(0x9b8667).no_shadow(), x + 0.62, 2.18, -25.425));
+        v.push(cuboid(
+            0.025,
+            0.54,
+            0.006,
+            matt(0x9b8667).no_shadow(),
+            x + 0.62,
+            2.18,
+            -25.425,
+        ));
     }
     for (i, x) in [-15.0f32, -9.0, -4.0, 8.0, 13.5].into_iter().enumerate() {
         let wob = ((i * 3 % 5) as f32 - 2.0) * 0.012;
@@ -583,13 +958,23 @@ fn house_styled() -> Vec<Part> {
     v.push(cuboid(1.1, 2.2, 0.08, matt(0x7a4b2e), 3.0, 1.1, -25.44));
     // the flyscreen door over it
     v.push(cuboid(1.2, 2.3, 0.03, matt(0x9aa09c), 3.0, 1.15, -25.38));
-    v.push(cuboid(1.0, 2.1, 0.01, matt(0xdfe6e3).see_through(0.3).both_sides(), 3.0, 1.15, -25.36));
+    v.push(cuboid(
+        1.0,
+        2.1,
+        0.01,
+        matt(0xdfe6e3).see_through(0.3).both_sides(),
+        3.0,
+        1.15,
+        -25.36,
+    ));
     // the veranda: posts and a roof that sags in the middle (five stretches, the middle lowest)
     let (vz, vd) = (-24.8f32, 1.5f32);
     let posts = [-17.5f32, -9.0, 0.0, 9.0, 17.5];
     for (i, x) in posts.iter().enumerate() {
         let lean = ((i * 7 % 5) as f32 - 2.0) * 0.012;
-        v.push(cuboid(0.15, 3.0, 0.15, matt(0x7a5e3f), *x, 1.5, vz + vd / 2.0).turn(lean, 0.0, -lean));
+        v.push(
+            cuboid(0.15, 3.0, 0.15, matt(0x7a5e3f), *x, 1.5, vz + vd / 2.0).turn(lean, 0.0, -lean),
+        );
     }
     for i in 0..4 {
         let (x0, x1) = (posts[i], posts[i + 1]);
@@ -598,44 +983,130 @@ fn house_styled() -> Vec<Part> {
         let (mx, my) = ((x0 + x1) / 2.0, (y0 + y1) / 2.0);
         let len = ((x1 - x0).powi(2) + (y1 - y0).powi(2)).sqrt();
         let ang = ((y1 - y0) / (x1 - x0)).atan();
-        v.push(cuboid(len + 0.1, 0.1, vd + 0.2, matt(0x8a6a4a), mx, my, vz + vd / 2.0).turn(0.0, 0.0, ang));
-        v.push(cuboid(len + 0.1, 0.05, vd + 0.25, roof, mx, my + 0.08, vz + vd / 2.0).turn(0.12, 0.0, ang));
+        v.push(
+            cuboid(
+                len + 0.1,
+                0.1,
+                vd + 0.2,
+                matt(0x8a6a4a),
+                mx,
+                my,
+                vz + vd / 2.0,
+            )
+            .turn(0.0, 0.0, ang),
+        );
+        v.push(
+            cuboid(
+                len + 0.1,
+                0.05,
+                vd + 0.25,
+                roof,
+                mx,
+                my + 0.08,
+                vz + vd / 2.0,
+            )
+            .turn(0.12, 0.0, ang),
+        );
     }
     // Broad readable trims; no fine noise or new texture assets.
-    for z in [-25.42,-33.58] {v.push(cuboid(40.4,0.20,0.14,matt(0xf4e4c6),0.0,4.55,z));}
-    for x in [-19.9,19.9] {v.push(cuboid(0.16,4.5,0.16,matt(0xe6d2aa),x,2.25,-25.43));}
+    for z in [-25.42, -33.58] {
+        v.push(cuboid(40.4, 0.20, 0.14, matt(0xf4e4c6), 0.0, 4.55, z));
+    }
+    for x in [-19.9, 19.9] {
+        v.push(cuboid(0.16, 4.5, 0.16, matt(0xe6d2aa), x, 2.25, -25.43));
+    }
     // A low painted footing, meter box and a small louvred vent give the wall a few practical
     // details without introducing new collision or changing the house footprint.
-    v.push(cuboid(39.8, 0.20, 0.24, matt(0xbeb39d).material(Tex::Concrete, 0.8), 0.0, 0.10, -25.49));
-    v.push(cuboid(0.56, 0.76, 0.11, matt(0xddd9c9).material(Tex::Metal, 1.8), 5.35, 1.18, -25.43));
-    v.push(cuboid(0.42, 0.60, 0.025, matt(0xc9c8b9), 5.35, 1.18, -25.36));
+    v.push(cuboid(
+        39.8,
+        0.20,
+        0.24,
+        matt(0xbeb39d).material(Tex::Concrete, 0.8),
+        0.0,
+        0.10,
+        -25.49,
+    ));
+    v.push(cuboid(
+        0.56,
+        0.76,
+        0.11,
+        matt(0xddd9c9).material(Tex::Metal, 1.8),
+        5.35,
+        1.18,
+        -25.43,
+    ));
+    v.push(cuboid(
+        0.42,
+        0.60,
+        0.025,
+        matt(0xc9c8b9),
+        5.35,
+        1.18,
+        -25.36,
+    ));
     v.push(cuboid(0.10, 0.10, 0.02, matt(0x587667), 5.35, 1.27, -25.34));
     for y in [0.95f32, 1.02, 1.09] {
         v.push(cuboid(0.25, 0.018, 0.02, matt(0x777b72), -18.0, y, -25.36));
     }
-    for x in [-15.0,-9.0,-4.0,8.0,13.5] {
-        v.push(cuboid(0.065,1.22,0.04,matt(0xf8eddb),x,2.5,-25.37));
-        v.push(cuboid(1.65,0.065,0.04,matt(0xf8eddb),x,2.5,-25.37));
-        v.push(cuboid(2.02,0.12,0.20,matt(0xd6c29b),x,1.72,-25.39));
+    for x in [-15.0, -9.0, -4.0, 8.0, 13.5] {
+        v.push(cuboid(0.065, 1.22, 0.04, matt(0xf8eddb), x, 2.5, -25.37));
+        v.push(cuboid(1.65, 0.065, 0.04, matt(0xf8eddb), x, 2.5, -25.37));
+        v.push(cuboid(2.02, 0.12, 0.20, matt(0xd6c29b), x, 1.72, -25.39));
     }
     // A couple of dusty rain runs and chipped paint below the sills break up the long wall.
     // They are deliberately low contrast and sit on the decorative face of the house.
     for (x, h, c) in [
-        (-14.62f32, 0.25f32, 0xb9ae99u32), (-14.48, 0.16, 0xd2c6b0),
-        (-8.72, 0.20, 0xbdb29e), (8.36, 0.28, 0xc7baa2), (13.04, 0.18, 0xb8aa91),
+        (-14.62f32, 0.25f32, 0xb9ae99u32),
+        (-14.48, 0.16, 0xd2c6b0),
+        (-8.72, 0.20, 0xbdb29e),
+        (8.36, 0.28, 0xc7baa2),
+        (13.04, 0.18, 0xb8aa91),
     ] {
-        v.push(cuboid(0.035, h, 0.006, matt(c).no_shadow(), x, 1.53 - h * 0.5, -25.535));
+        v.push(cuboid(
+            0.035,
+            h,
+            0.006,
+            matt(c).no_shadow(),
+            x,
+            1.53 - h * 0.5,
+            -25.535,
+        ));
     }
     // Two small Colorbond whirlybirds make the roofline read as an inhabited Australian home.
     let zinc = matt(0xa6aaa4).material(Tex::Metal, 1.2);
     for (x, z, y) in [(-16.0f32, -29.5f32, 6.1f32), (15.0, -29.5, 6.0)] {
         v.push(cyl(0.045, 0.055, 0.50, 8, zinc, x, y - 0.25, z));
-        v.push(torus(0.28, 0.025, 8, 16, 2.0 * PI, zinc).at(x, y, z).turn(HALF_PI, 0.0, 0.0));
-        v.push(Part::new(Shape::Sphere { r: 0.20, ws: 10, hs: 6 }, zinc).at(x, y + 0.08, z).stretch(1.0, 0.55, 1.0));
+        v.push(
+            torus(0.28, 0.025, 8, 16, 2.0 * PI, zinc)
+                .at(x, y, z)
+                .turn(HALF_PI, 0.0, 0.0),
+        );
+        v.push(
+            Part::new(
+                Shape::Sphere {
+                    r: 0.20,
+                    ws: 10,
+                    hs: 6,
+                },
+                zinc,
+            )
+            .at(x, y + 0.08, z)
+            .stretch(1.0, 0.55, 1.0),
+        );
         for a in 0..6 {
             let ang = a as f32 * PI / 3.0;
-            v.push(cuboid(0.25, 0.018, 0.055, shade_surface(zinc, 0.90),
-                x + ang.cos() * 0.13, y + 0.06, z + ang.sin() * 0.13).turn(0.0, -ang, 0.0));
+            v.push(
+                cuboid(
+                    0.25,
+                    0.018,
+                    0.055,
+                    shade_surface(zinc, 0.90),
+                    x + ang.cos() * 0.13,
+                    y + 0.06,
+                    z + ang.sin() * 0.13,
+                )
+                .turn(0.0, -ang, 0.0),
+            );
         }
     }
     v.extend(rain_tank_and_ladder(true));
@@ -663,7 +1134,18 @@ pub fn chair_styled(i: usize) -> Vec<Part> {
     ];
     // a back made of three fat slats, leaning back
     for k in 0..3 {
-        v.push(cuboid(0.52, 0.12, 0.04, fab, 0.0, 0.62 + k as f32 * 0.15, -0.25 - k as f32 * 0.025).turn(-0.2, 0.0, 0.0));
+        v.push(
+            cuboid(
+                0.52,
+                0.12,
+                0.04,
+                fab,
+                0.0,
+                0.62 + k as f32 * 0.15,
+                -0.25 - k as f32 * 0.025,
+            )
+            .turn(-0.2, 0.0, 0.0),
+        );
     }
     for x in [-0.25f32, 0.25] {
         v.push(cuboid(0.05, 0.5, 0.05, frame, x, 0.7, -0.27).turn(-0.2, 0.0, 0.0));
@@ -672,16 +1154,30 @@ pub fn chair_styled(i: usize) -> Vec<Part> {
         v.push(cuboid(0.05, 0.2, 0.05, frame, x * 1.12, 0.52, 0.17));
     }
     // fat legs, splayed outwards; one of them is a little bent, differently on each chair
-    for (n, (x, z)) in [(-0.24f32, -0.2f32), (0.24, -0.2), (-0.24, 0.2), (0.24, 0.2)].into_iter().enumerate() {
+    for (n, (x, z)) in [(-0.24f32, -0.2f32), (0.24, -0.2), (-0.24, 0.2), (0.24, 0.2)]
+        .into_iter()
+        .enumerate()
+    {
         let bend = if n == (i % 4) { 0.05 + f * 0.01 } else { 0.0 };
-        v.push(cyl(0.032, 0.04, 0.44, 8, frame, x * 1.08, 0.22, z * 1.1).turn(z * 0.12 + bend, 0.0, -x * 0.14));
+        v.push(
+            cyl(0.032, 0.04, 0.44, 8, frame, x * 1.08, 0.22, z * 1.1).turn(
+                z * 0.12 + bend,
+                0.0,
+                -x * 0.14,
+            ),
+        );
         v.push(cyl(0.045, 0.045, 0.03, 8, dark, x * 1.15, 0.015, z * 1.2));
     }
     // a bit of grime where the seat meets the back
     v.push(cuboid(0.4, 0.012, 0.1, matt(0x6f7f8a), 0.0, 0.482, -0.2));
     // each chair sits a little crooked
     let tilt = ((i * 7 % 9) as f32 - 4.0) * 0.007;
-    looks::mark_hero(place(v, V3::ZERO, Quat::from_euler_xyz(tilt, 0.0, -tilt * 1.4), 1.0))
+    looks::mark_hero(place(
+        v,
+        V3::ZERO,
+        Quat::from_euler_xyz(tilt, 0.0, -tilt * 1.4),
+        1.0,
+    ))
 }
 
 /// The outdoor table (the step 2c look): fat warped timber planks running its length in slightly
@@ -695,25 +1191,61 @@ fn table_styled() -> Vec<Part> {
     for (k, c) in woods.iter().enumerate() {
         let warp = ((k * 5 % 7) as f32 - 3.0) * 0.004;
         let z = tz - 0.4 + k as f32 * 0.2;
-        v.push(cuboid(2.0, 0.1, 0.192, wood(*c), tx, 0.75 + warp, z).turn(warp * 3.0, warp * 1.5, 0.0));
+        v.push(cuboid(2.0, 0.1, 0.192, wood(*c), tx, 0.75 + warp, z).turn(
+            warp * 3.0,
+            warp * 1.5,
+            0.0,
+        ));
         // the planks end a little uneven, with darker end grain
-        v.push(cuboid(0.05, 0.1, 0.192, wood(looks::shade(*c, 0.78)), tx + 1.0 + warp * 4.0, 0.75 + warp, z));
+        v.push(cuboid(
+            0.05,
+            0.1,
+            0.192,
+            wood(looks::shade(*c, 0.78)),
+            tx + 1.0 + warp * 4.0,
+            0.75 + warp,
+            z,
+        ));
     }
     // battens under the top (across it), with a nail head in every plank over them
     for x in [-0.7f32, 0.7] {
         v.push(cuboid(0.1, 0.07, 0.95, wood(0x7a5a38), tx + x, 0.66, tz));
         for k in 0..5 {
-            v.push(cyl(0.013, 0.013, 0.006, 6, matt(0x2b2b2b), tx + x, 0.802, tz - 0.4 + k as f32 * 0.2 + 0.03));
+            v.push(cyl(
+                0.013,
+                0.013,
+                0.006,
+                6,
+                matt(0x2b2b2b),
+                tx + x,
+                0.802,
+                tz - 0.4 + k as f32 * 0.2 + 0.03,
+            ));
         }
     }
     // beer rings and a spill on the top
     for (x, z) in [(-0.5f32, 0.1f32), (0.3, -0.25), (0.62, 0.3)] {
-        v.push(torus(0.045, 0.004, 4, 16, 2.0 * PI, matt(0x7b5a33)).at(tx + x, 0.803, tz + z).turn(HALF_PI, 0.0, 0.0));
+        v.push(
+            torus(0.045, 0.004, 4, 16, 2.0 * PI, matt(0x7b5a33))
+                .at(tx + x, 0.803, tz + z)
+                .turn(HALF_PI, 0.0, 0.0),
+        );
     }
-    v.push(Part::new(Shape::Disc { r: 0.12, seg: 12 }, matt(0x9a7442)).at(tx - 0.2, 0.803, tz - 0.3).turn(-HALF_PI, 0.0, 0.0).stretch(1.6, 1.0, 1.0));
+    v.push(
+        Part::new(Shape::Disc { r: 0.12, seg: 12 }, matt(0x9a7442))
+            .at(tx - 0.2, 0.803, tz - 0.3)
+            .turn(-HALF_PI, 0.0, 0.0)
+            .stretch(1.6, 1.0, 1.0),
+    );
     // chunky legs splayed outwards, and a stretcher between the long sides
     for (a, b) in [(-0.9f32, -0.4f32), (0.9, -0.4), (-0.9, 0.4), (0.9, 0.4)] {
-        v.push(cuboid(0.12, 0.72, 0.12, wood(0x8a6538), tx + a, 0.36, tz + b).turn(b * 0.1, 0.0, -a * 0.06));
+        v.push(
+            cuboid(0.12, 0.72, 0.12, wood(0x8a6538), tx + a, 0.36, tz + b).turn(
+                b * 0.1,
+                0.0,
+                -a * 0.06,
+            ),
+        );
     }
     v.push(cuboid(1.8, 0.07, 0.07, wood(0x7a5a38), tx, 0.22, tz - 0.4));
     v.push(cuboid(1.8, 0.07, 0.07, wood(0x7a5a38), tx, 0.2, tz + 0.4));
@@ -734,7 +1266,11 @@ pub fn texture_pass(parts: Vec<Part>) -> Vec<Part> {
             let ch = |s: u32| ((sf.color >> s) & 0xff) as i32;
             let (r, g, b) = (ch(16), ch(8), ch(0));
             let (mx, mn) = (r.max(g).max(b), r.min(g).min(b));
-            let brown = r > g && g > b && r - b > 30 && (0x50..0xe8).contains(&mx) && (mx - mn) * 10 < mx * 7;
+            let brown = r > g
+                && g > b
+                && r - b > 30
+                && (0x50..0xe8).contains(&mx)
+                && (mx - mn) * 10 < mx * 7;
             let grey = mx - mn < 16 && (0x70..0xe0).contains(&mx);
             if brown {
                 sf.tex = Some(Tex::Wood);
@@ -756,7 +1292,12 @@ fn bbq_styled() -> Vec<Part> {
     // Dazza cooks from the north side (the fence side), so the knobs, the hood handle and the
     // open side face him: the whole thing is built facing the yard and turned half way round
     let (bx, bz) = (-6.0f32, -18.0f32);
-    let v = place(bbq_styled_facing_yard(), V3::new(-bx, 0.0, -bz), Quat::IDENTITY, 1.0);
+    let v = place(
+        bbq_styled_facing_yard(),
+        V3::new(-bx, 0.0, -bz),
+        Quat::IDENTITY,
+        1.0,
+    );
     place(v, V3::new(bx, 0.0, bz), turn_y(PI), 1.0)
 }
 
@@ -782,22 +1323,59 @@ fn bbq_styled_facing_yard() -> Vec<Part> {
         cyl(0.165, 0.165, 0.06, 12, matt(0x4a7fc0), -7.05, 0.32, -18.0),
     ];
     // stubby legs
-    for (x, z) in [(-0.55f32, -0.25f32), (0.55, -0.25), (-0.55, 0.25), (0.55, 0.25)] {
+    for (x, z) in [
+        (-0.55f32, -0.25f32),
+        (0.55, -0.25),
+        (-0.55, 0.25),
+        (0.55, 0.25),
+    ] {
         v.push(cyl(0.05, 0.065, 0.22, 8, steel, bx + x, 0.12, bz + z));
     }
     // oversized wheels at the back (one a touch bigger: nothing is exactly even)
     for (sx, r) in [(-1.0f32, 0.26f32), (1.0, 0.24)] {
-        v.push(cyl(r, r, 0.1, 16, matt(0x1b1c1e), bx + sx * 0.7, r, bz - 0.3).turn(0.0, 0.0, HALF_PI));
-        v.push(cyl(r * 0.5, r * 0.5, 0.115, 10, steel, bx + sx * 0.7, r, bz - 0.3).turn(0.0, 0.0, HALF_PI));
+        v.push(
+            cyl(r, r, 0.1, 16, matt(0x1b1c1e), bx + sx * 0.7, r, bz - 0.3).turn(0.0, 0.0, HALF_PI),
+        );
+        v.push(
+            cyl(
+                r * 0.5,
+                r * 0.5,
+                0.115,
+                10,
+                steel,
+                bx + sx * 0.7,
+                r,
+                bz - 0.3,
+            )
+            .turn(0.0, 0.0, HALF_PI),
+        );
         v.push(cyl(0.03, 0.03, 0.13, 6, dark, bx + sx * 0.7, r, bz - 0.3).turn(0.0, 0.0, HALF_PI));
     }
     // Individual steel bars sit just above the plate and just below the resting food.
     for z in [-0.28f32, -0.13, 0.02, 0.17, 0.29] {
-        v.push(rod(V3::new(bx - 0.61, 1.216, bz + z), V3::new(bx + 0.61, 1.216, bz + z), 0.022, silver));
+        v.push(rod(
+            V3::new(bx - 0.61, 1.216, bz + z),
+            V3::new(bx + 0.61, 1.216, bz + z),
+            0.022,
+            silver,
+        ));
     }
     // The rounded lid sits further back and higher so the grate remains visible beneath it.
     let hood_z = bz - 0.55;
-    v.push(Part::new(Shape::Capsule { r: 0.34, len: 1.0, cap: 6, radial: 12 }, red).at(bx + 0.03, 1.62, hood_z).turn(0.0, 0.0, HALF_PI).stretch(1.0, 1.0, 0.8));
+    v.push(
+        Part::new(
+            Shape::Capsule {
+                r: 0.34,
+                len: 1.0,
+                cap: 6,
+                radial: 12,
+            },
+            red,
+        )
+        .at(bx + 0.03, 1.62, hood_z)
+        .turn(0.0, 0.0, HALF_PI)
+        .stretch(1.0, 1.0, 0.8),
+    );
     // Raised enamel thermometer on the side visible from the yard. Layer the face
     // just beyond the curved hood so the needle stays legible from the approach.
     let face_z = hood_z - 0.29;
@@ -812,18 +1390,38 @@ fn bbq_styled_facing_yard() -> Vec<Part> {
         let tick = |r: f32| V3::new(bx + r * angle.sin(), 1.64 + r * angle.cos(), ink_z);
         v.push(rod(tick(0.075), tick(0.101), 0.009, dark));
     }
-    v.push(rod(V3::new(bx, 1.62, ink_z), V3::new(bx - 0.052, 1.692, ink_z), 0.012, red));
+    v.push(rod(
+        V3::new(bx, 1.62, ink_z),
+        V3::new(bx - 0.052, 1.692, ink_z),
+        0.012,
+        red,
+    ));
     // Two compact hinges make the raised lid read as attached to the firebox.
     for x in [-0.48f32, 0.48] {
         v.push(cyl(0.055, 0.055, 0.16, 10, steel, bx + x, 1.31, bz - 0.34).turn(0.0, 0.0, HALF_PI));
         v.push(cyl(0.023, 0.023, 0.19, 8, dark, bx + x, 1.31, bz - 0.34).turn(0.0, 0.0, HALF_PI));
-        v.push(rod(V3::new(bx + x, 1.34, bz - 0.34), V3::new(bx + x, 1.70, hood_z), 0.035, dark));
+        v.push(rod(
+            V3::new(bx + x, 1.34, bz - 0.34),
+            V3::new(bx + x, 1.70, hood_z),
+            0.035,
+            dark,
+        ));
     }
     // A straight steel grip and short standoffs read clearly against the red hood.
     for x in [-0.20f32, 0.20] {
-        v.push(rod(V3::new(bx + x, 1.76, bz - 0.25), V3::new(bx + x, 1.86, bz - 0.20), 0.028, steel));
+        v.push(rod(
+            V3::new(bx + x, 1.76, bz - 0.25),
+            V3::new(bx + x, 1.86, bz - 0.20),
+            0.028,
+            steel,
+        ));
     }
-    v.push(rod(V3::new(bx - 0.25, 1.86, bz - 0.20), V3::new(bx + 0.25, 1.86, bz - 0.20), 0.042, dark));
+    v.push(rod(
+        V3::new(bx - 0.25, 1.86, bz - 0.20),
+        V3::new(bx + 0.25, 1.86, bz - 0.20),
+        0.042,
+        dark,
+    ));
     // Five shallow black slots sit on the lid's crown as simple heat vents.
     for x in [-0.25f32, -0.13, 0.0, 0.13, 0.25] {
         v.push(cuboid(0.11, 0.02, 0.04, dark, bx + x, 1.965, hood_z));
@@ -832,7 +1430,19 @@ fn bbq_styled_facing_yard() -> Vec<Part> {
     v.push(cyl(0.05, 0.05, 0.06, 8, steel, bx + 0.7, 1.4, bz - 0.4).turn(0.0, 0.0, HALF_PI));
     // stubby control knobs on the front, each a little different
     for (k, x) in [-0.42f32, -0.12, 0.18, 0.46].into_iter().enumerate() {
-        v.push(cyl(0.065, 0.075, 0.09, 10, red, bx + x, 0.66 + (k as f32 - 1.5) * 0.008, bz + 0.34).turn(HALF_PI, 0.0, k as f32 * 0.4));
+        v.push(
+            cyl(
+                0.065,
+                0.075,
+                0.09,
+                10,
+                red,
+                bx + x,
+                0.66 + (k as f32 - 1.5) * 0.008,
+                bz + 0.34,
+            )
+            .turn(HALF_PI, 0.0, k as f32 * 0.4),
+        );
         v.push(cuboid(0.012, 0.045, 0.012, dark, bx + x, 0.66, bz + 0.395));
     }
     // wear: grease and burn marks on the plate, heat staining on the firebox, bolts and rust
@@ -846,24 +1456,100 @@ fn bbq_styled_facing_yard() -> Vec<Part> {
     }
     v.push(cuboid(1.3, 0.2, 0.012, matt(0x57493a), bx, 1.0, bz + 0.364)); // heat stain
     for (x, y) in [(-0.6f32, 0.26f32), (0.6, 0.26), (-0.6, 0.74), (0.6, 0.74)] {
-        v.push(cyl(0.022, 0.022, 0.015, 6, matt(0x6d747a), bx + x, y, bz + 0.315).turn(HALF_PI, 0.0, 0.0));
+        v.push(
+            cyl(
+                0.022,
+                0.022,
+                0.015,
+                6,
+                matt(0x6d747a),
+                bx + x,
+                y,
+                bz + 0.315,
+            )
+            .turn(HALF_PI, 0.0, 0.0),
+        );
     }
-    for (x, y, w) in [(-0.5f32, 0.22f32, 0.22f32), (0.35, 0.2, 0.3), (0.58, 0.55, 0.12)] {
+    for (x, y, w) in [
+        (-0.5f32, 0.22f32, 0.22f32),
+        (0.35, 0.2, 0.3),
+        (0.58, 0.55, 0.12),
+    ] {
         v.push(cuboid(w, 0.1, 0.012, matt(0x9a5a2a), bx + x, y, bz + 0.318)); // rust
     }
     // Old, sun-faded maker and service stickers on the cabinet front; little worn marks
     // suggest labels without adding new readable text to the yard.
-    v.push(cuboid(0.22, 0.13, 0.008, matt(0xcbbd91), bx - 0.39, 0.55, bz + 0.326));
-    v.push(cuboid(0.16, 0.11, 0.008, matt(0x9eafa1), bx + 0.42, 0.55, bz + 0.326));
-    v.push(cuboid(0.12, 0.012, 0.004, matt(0x82775c), bx - 0.39, 0.57, bz + 0.333));
-    v.push(cuboid(0.075, 0.009, 0.004, matt(0x82775c), bx - 0.39, 0.54, bz + 0.333));
-    v.push(cuboid(0.085, 0.009, 0.004, matt(0x64746b), bx + 0.42, 0.56, bz + 0.333));
+    v.push(cuboid(
+        0.22,
+        0.13,
+        0.008,
+        matt(0xcbbd91),
+        bx - 0.39,
+        0.55,
+        bz + 0.326,
+    ));
+    v.push(cuboid(
+        0.16,
+        0.11,
+        0.008,
+        matt(0x9eafa1),
+        bx + 0.42,
+        0.55,
+        bz + 0.326,
+    ));
+    v.push(cuboid(
+        0.12,
+        0.012,
+        0.004,
+        matt(0x82775c),
+        bx - 0.39,
+        0.57,
+        bz + 0.333,
+    ));
+    v.push(cuboid(
+        0.075,
+        0.009,
+        0.004,
+        matt(0x82775c),
+        bx - 0.39,
+        0.54,
+        bz + 0.333,
+    ));
+    v.push(cuboid(
+        0.085,
+        0.009,
+        0.004,
+        matt(0x64746b),
+        bx + 0.42,
+        0.56,
+        bz + 0.333,
+    ));
     // Cooked-on sauce and grease have run down the lip below the grill plate.
-    for (x, h, c) in [(-0.22f32, 0.045f32, 0x553322), (0.27, 0.07, 0x704126), (0.5, 0.035, 0x47301f)] {
-        v.push(cuboid(0.025, h, 0.006, matt(c), bx + x, 1.105 - h * 0.5, bz + 0.367));
+    for (x, h, c) in [
+        (-0.22f32, 0.045f32, 0x553322),
+        (0.27, 0.07, 0x704126),
+        (0.5, 0.035, 0x47301f),
+    ] {
+        v.push(cuboid(
+            0.025,
+            h,
+            0.006,
+            matt(c),
+            bx + x,
+            1.105 - h * 0.5,
+            bz + 0.367,
+        ));
     }
     // weld seam down the middle of the cabinet
-    v.push(cuboid(0.02, 0.6, 0.012, matt(0x7e868b), bx + 0.1, 0.5, bz + 0.316));
+    v.push(cuboid(
+        0.02,
+        0.6,
+        0.012,
+        matt(0x7e868b),
+        bx + 0.1,
+        0.5,
+        bz + 0.316,
+    ));
     v
 }
 
@@ -897,8 +1583,26 @@ pub fn magpie() -> MagpieModel {
         orb(0.2, black, 0.0, 0.12, 0.04),
         orb(0.125, white, 0.0, 0.235, -0.06).stretch(1.0, 0.42, 1.0),
         // the big beak, with a dark tip
-        Part::new(Shape::Cone { r: 0.055, h: 0.22, seg: 8 }, beak).at(0.0, 0.1, 0.25).turn(HALF_PI, 0.0, 0.0),
-        Part::new(Shape::Cone { r: 0.022, h: 0.06, seg: 6 }, matt(0x2a2a2a)).at(0.0, 0.1, 0.355).turn(HALF_PI, 0.0, 0.0),
+        Part::new(
+            Shape::Cone {
+                r: 0.055,
+                h: 0.22,
+                seg: 8,
+            },
+            beak,
+        )
+        .at(0.0, 0.1, 0.25)
+        .turn(HALF_PI, 0.0, 0.0),
+        Part::new(
+            Shape::Cone {
+                r: 0.022,
+                h: 0.06,
+                seg: 6,
+            },
+            matt(0x2a2a2a),
+        )
+        .at(0.0, 0.1, 0.355)
+        .turn(HALF_PI, 0.0, 0.0),
     ];
     for sx in [-1.0f32, 1.0] {
         head.push(orb(0.058, white, sx * 0.1, 0.17, 0.14));
@@ -906,7 +1610,11 @@ pub fn magpie() -> MagpieModel {
         head.push(orb(0.019, black, sx * 0.112, 0.17, 0.2));
         head.push(orb(0.007, white, sx * 0.116 + 0.004, 0.178, 0.212));
     }
-    MagpieModel { body: looks::mark_hero(body), head: looks::mark_hero(head), neck: V3::new(0.0, 0.36, 0.08) }
+    MagpieModel {
+        body: looks::mark_hero(body),
+        head: looks::mark_hero(head),
+        neck: V3::new(0.0, 0.36, 0.08),
+    }
 }
 
 /// Where the magpies sit on the fence (x, z) and which way they face (a turn about y; they
@@ -950,7 +1658,13 @@ pub fn smoko_pad(radius: f32) -> Part {
 fn limb(a: V3, b: V3, r0: f32, r1: f32, seg: u32, s: Surface) -> Part {
     let mut p = rod(a, b, 1.0, s);
     let len = (b - a).len();
-    p.shape = Shape::Cylinder { top: r1, bottom: r0, h: len, seg, caps: true };
+    p.shape = Shape::Cylinder {
+        top: r1,
+        bottom: r0,
+        h: len,
+        seg,
+        caps: true,
+    };
     p
 }
 
@@ -963,16 +1677,29 @@ fn limb(a: V3, b: V3, r0: f32, r1: f32, seg: u32, s: Surface) -> Part {
 fn gum_tree_dusty(rng: &mut Rng, x: f32, z: f32, dust: f32) -> Vec<Part> {
     let bark = matt(0xffffff).material(Tex::Bark, 1.0);
     // sun-bleached gum greens: olive, sage and blue-grey, a few darker
-    let leaves = [0x78966e_u32, 0x91a57e, 0x83a08a, 0x708d65, 0x8fa68b, 0x617f59, 0x9eae87];
+    let leaves = [
+        0x78966e_u32,
+        0x91a57e,
+        0x83a08a,
+        0x708d65,
+        0x8fa68b,
+        0x617f59,
+        0x9eae87,
+    ];
     let tall = rng.range(0.0, 1.0);
     let h = 5.5 + tall * 4.5;
     let r = 0.2 + rng.range(0.0, 0.14);
     // Use a position-derived stream for silhouette accents so adding an occasional twin trunk
     // cannot reshuffle the yard's seeded tree positions or the rest of its scenery.
-    let mut silhouette = Rng::new((x.to_bits() as u64).rotate_left(23) ^ z.to_bits() as u64 ^ 0xA11C_E6A1);
+    let mut silhouette =
+        Rng::new((x.to_bits() as u64).rotate_left(23) ^ z.to_bits() as u64 ^ 0xA11C_E6A1);
     let mut v = Vec::new();
     // the trunk, in two bent sections
-    let lean_scale = if silhouette.chance(0.2) { silhouette.range(1.7, 2.2) } else { 1.0 };
+    let lean_scale = if silhouette.chance(0.2) {
+        silhouette.range(1.7, 2.2)
+    } else {
+        1.0
+    };
     let lean = V3::new(
         silhouette.range(-0.5, 0.5) * lean_scale,
         0.0,
@@ -984,7 +1711,17 @@ fn gum_tree_dusty(rng: &mut Rng, x: f32, z: f32, dust: f32) -> Vec<Part> {
     v.push(limb(base, mid, r * 1.25, r, 9, bark));
     v.push(limb(mid, fork, r, r * 0.85, 9, bark));
     // a root flare at the ground
-    v.push(Part::new(Shape::Cone { r: r * 2.1, h: 0.5, seg: 9 }, bark).at(x, 0.25, z));
+    v.push(
+        Part::new(
+            Shape::Cone {
+                r: r * 2.1,
+                h: 0.5,
+                seg: 9,
+            },
+            bark,
+        )
+        .at(x, 0.25, z),
+    );
     // A few nearer gums split low into a second pale stem. Keep the accent wholly visual and
     // out of the far dusty tree line; the chosen positions do not affect world/gameplay data.
     if dust < 0.72 && silhouette.chance(0.16) {
@@ -994,12 +1731,26 @@ fn gum_tree_dusty(rng: &mut Rng, x: f32, z: f32, dust: f32) -> Vec<Part> {
         let split_fork = split_base + V3::new(side * 0.5, h * 0.48, -0.22);
         v.push(limb(split_base, split_mid, r * 0.82, r * 0.72, 8, bark));
         v.push(limb(split_mid, split_fork, r * 0.72, r * 0.48, 8, bark));
-        for (i, color) in [0x78966e_u32, 0x91a57e, 0x708d65, 0x8fa68b, 0x617f59].into_iter().enumerate() {
+        for (i, color) in [0x78966e_u32, 0x91a57e, 0x708d65, 0x8fa68b, 0x617f59]
+            .into_iter()
+            .enumerate()
+        {
             let side_offset = (i as f32 - 2.0) * 0.33;
             v.push(
-                Part::new(Shape::Sphere { r: 0.62, ws: 10, hs: 6 }, matt(mix_colour(color, 0x9ea27c, dust * 0.5)))
-                    .at(split_fork.x + side_offset, split_fork.y + (i % 2) as f32 * 0.32, split_fork.z + side_offset * 0.45)
-                    .stretch(1.1, 0.66, 1.15),
+                Part::new(
+                    Shape::Sphere {
+                        r: 0.62,
+                        ws: 10,
+                        hs: 6,
+                    },
+                    matt(mix_colour(color, 0x9ea27c, dust * 0.5)),
+                )
+                .at(
+                    split_fork.x + side_offset,
+                    split_fork.y + (i % 2) as f32 * 0.32,
+                    split_fork.z + side_offset * 0.45,
+                )
+                .stretch(1.1, 0.66, 1.15),
             );
         }
     }
@@ -1026,38 +1777,102 @@ fn gum_tree_dusty(rng: &mut Rng, x: f32, z: f32, dust: f32) -> Vec<Part> {
         let clumps = 6 + rng.index(4);
         for c in 0..clumps {
             let s = rng.range(0.45, 0.95) * (0.85 + spread * 0.12);
-            let off = V3::new(rng.range(-1.7, 1.7), rng.range(-0.5, 0.8), rng.range(-1.7, 1.7));
-            let hang = if c >= clumps - 2 { -rng.range(0.5, 1.2) } else { 0.0 };
+            let off = V3::new(
+                rng.range(-1.7, 1.7),
+                rng.range(-0.5, 0.8),
+                rng.range(-1.7, 1.7),
+            );
+            let hang = if c >= clumps - 2 {
+                -rng.range(0.5, 1.2)
+            } else {
+                0.0
+            };
             let col = leaves[rng.index(leaves.len())];
             let col = mix_colour(col, 0x9ea27c, dust * 0.5);
-            let col = if dry_crown { mix_colour(col, 0xb69a6c, 0.34) } else { col };
-            let col = if hang < 0.0 || off.y < -0.1 { looks::shade(col, 0.8) } else { col };
-            let leaf = Part::new(Shape::Sphere { r: s, ws: 10, hs: 6 }, matt(col))
-                .at(top.x + off.x, top.y + off.y + hang, top.z + off.z)
-                .stretch(rng.range(0.9, 1.3), rng.range(0.5, 0.75), rng.range(0.9, 1.3))
-                .turn(0.0, rng.range(0.0, PI), 0.0);
-            if !dry_crown || c % 3 != 1 { v.push(leaf); }
+            let col = if dry_crown {
+                mix_colour(col, 0xb69a6c, 0.34)
+            } else {
+                col
+            };
+            let col = if hang < 0.0 || off.y < -0.1 {
+                looks::shade(col, 0.8)
+            } else {
+                col
+            };
+            let leaf = Part::new(
+                Shape::Sphere {
+                    r: s,
+                    ws: 10,
+                    hs: 6,
+                },
+                matt(col),
+            )
+            .at(top.x + off.x, top.y + off.y + hang, top.z + off.z)
+            .stretch(
+                rng.range(0.9, 1.3),
+                rng.range(0.5, 0.75),
+                rng.range(0.9, 1.3),
+            )
+            .turn(0.0, rng.range(0.0, PI), 0.0);
+            if !dry_crown || c % 3 != 1 {
+                v.push(leaf);
+            }
         }
         for i in 0..2 {
             let t = rng.range(0.4, 0.85);
             let p = bend + (top - bend) * t;
             let col = leaves[rng.index(leaves.len())];
-            let col = if dry_crown { mix_colour(col, 0xb69a6c, 0.34) } else { col };
-            let leaf = Part::new(Shape::Sphere { r: rng.range(0.35, 0.6), ws: 10, hs: 6 }, matt(col))
-                .at(p.x + rng.range(-0.5, 0.5), p.y, p.z + rng.range(-0.5, 0.5))
-                .stretch(1.2, 0.6, 1.2);
-            if !dry_crown || i == 0 { v.push(leaf); }
+            let col = if dry_crown {
+                mix_colour(col, 0xb69a6c, 0.34)
+            } else {
+                col
+            };
+            let leaf = Part::new(
+                Shape::Sphere {
+                    r: rng.range(0.35, 0.6),
+                    ws: 10,
+                    hs: 6,
+                },
+                matt(col),
+            )
+            .at(p.x + rng.range(-0.5, 0.5), p.y, p.z + rng.range(-0.5, 0.5))
+            .stretch(1.2, 0.6, 1.2);
+            if !dry_crown || i == 0 {
+                v.push(leaf);
+            }
         }
     }
     // A few trees carry small cream and pink gum blossoms, a restrained species cue at distance.
     if dust < 0.70 && silhouette.chance(0.34) {
-        let flower = fork + V3::new(silhouette.range(-1.2, 1.2), h * 0.18, silhouette.range(-1.2, 1.2));
+        let flower = fork
+            + V3::new(
+                silhouette.range(-1.2, 1.2),
+                h * 0.18,
+                silhouette.range(-1.2, 1.2),
+            );
         for cluster in 0..3 {
-            let c = flower + V3::new((cluster as f32 - 1.0) * 0.32, (cluster % 2) as f32 * 0.18, (cluster as f32 - 1.0) * -0.18);
-            v.push(orb(0.065, matt(if cluster == 1 { 0xd88979 } else { 0xf0dfc0 }), c.x, c.y, c.z));
+            let c = flower
+                + V3::new(
+                    (cluster as f32 - 1.0) * 0.32,
+                    (cluster % 2) as f32 * 0.18,
+                    (cluster as f32 - 1.0) * -0.18,
+                );
+            v.push(orb(
+                0.065,
+                matt(if cluster == 1 { 0xd88979 } else { 0xf0dfc0 }),
+                c.x,
+                c.y,
+                c.z,
+            ));
             for petal in 0..4 {
                 let a = petal as f32 * HALF_PI;
-                v.push(orb(0.048, matt(0xf2e4c9), c.x + a.cos() * 0.07, c.y + 0.025, c.z + a.sin() * 0.07));
+                v.push(orb(
+                    0.048,
+                    matt(0xf2e4c9),
+                    c.x + a.cos() * 0.07,
+                    c.y + 0.025,
+                    c.z + a.sin() * 0.07,
+                ));
             }
         }
     }
@@ -1087,7 +1902,11 @@ fn cloud(rng: &mut Rng) -> (V3, Vec<Part>) {
     let mut puffs = Vec::new();
     let count = 3 + rng.index(4);
     for i in 0..count {
-        let r = if i == 0 { rng.range(2.8, 4.8) } else { rng.range(1.5, 3.3) };
+        let r = if i == 0 {
+            rng.range(2.8, 4.8)
+        } else {
+            rng.range(1.5, 3.3)
+        };
         let (px, py, pz) = (
             rng.range(-5.0, 5.0),
             rng.range(-0.75, 0.75),
@@ -1108,9 +1927,16 @@ fn cloud(rng: &mut Rng) -> (V3, Vec<Part>) {
     if rng.chance(0.35) {
         let r = rng.range(2.4, 4.0);
         puffs.push(
-            Part::new(Shape::Sphere { r, ws: 16, hs: 10 }, matt(0xe7edf1).glow(0x20262b).no_shadow())
-                .at(rng.range(-2.5, 2.5), rng.range(-0.1, 0.4), rng.range(-1.0, 1.0))
-                .stretch(2.4, 0.24, 0.62),
+            Part::new(
+                Shape::Sphere { r, ws: 16, hs: 10 },
+                matt(0xe7edf1).glow(0x20262b).no_shadow(),
+            )
+            .at(
+                rng.range(-2.5, 2.5),
+                rng.range(-0.1, 0.4),
+                rng.range(-1.0, 1.0),
+            )
+            .stretch(2.4, 0.24, 0.62),
         );
     }
     let at = V3::new(
@@ -1126,19 +1952,37 @@ fn cloud(rng: &mut Rng) -> (V3, Vec<Part>) {
 pub const HOIST_LEAN: (f32, f32) = (0.06, 0.04);
 
 /// The lean as a turn, and where the top of the pole ends up (the head sits there).
-pub fn hoist_lean() -> (Quat, V3) { (Quat::IDENTITY, HOIST_AT) }
+pub fn hoist_lean() -> (Quat, V3) {
+    (Quat::IDENTITY, HOIST_AT)
+}
 
 fn clothesline(polished: bool) -> (Vec<Part>, Vec<Part>) {
     // rusty in the polished look
-    let grey = if polished { matt(0x9a7a5c) } else { matt(0x9aa3a6) };
+    let grey = if polished {
+        matt(0x9a7a5c)
+    } else {
+        matt(0x9aa3a6)
+    };
     let pole = vec![cyl(0.05, 0.07, 2.3, 8, grey, 0.0, 1.15, 0.0)];
-    let lean = if polished { hoist_lean().0 } else { Quat::IDENTITY };
+    let lean = if polished {
+        hoist_lean().0
+    } else {
+        Quat::IDENTITY
+    };
     let pole = place(pole, V3::new(0.0, 0.0, HOIST_AT.z), lean, 1.0);
     let mut head = Vec::new();
-    for (i,beam) in crate::yard::clothesline_beams().iter().enumerate() {
-        let surface=if i<4 {grey}else{matt(0xeef0ee).unlit().no_shadow()};
-        let mut part=rod(beam.a-HOIST_AT,beam.b-HOIST_AT,beam.radius,surface);
-        if i<4 {if let Shape::Cylinder{ref mut seg,..}=part.shape {*seg=6;}}
+    for (i, beam) in crate::yard::clothesline_beams().iter().enumerate() {
+        let surface = if i < 4 {
+            grey
+        } else {
+            matt(0xeef0ee).unlit().no_shadow()
+        };
+        let mut part = rod(beam.a - HOIST_AT, beam.b - HOIST_AT, beam.radius, surface);
+        if i < 4 {
+            if let Shape::Cylinder { ref mut seg, .. } = part.shape {
+                *seg = 6;
+            }
+        }
         head.push(part);
     }
     if polished {
@@ -1151,9 +1995,15 @@ fn clothesline(polished: bool) -> (Vec<Part>, Vec<Part>) {
     {
         let a = k as f32 * HALF_PI;
         head.push(
-            Part::new(Shape::Quad { w: 1.1, h: 0.85 }, matt(c).both_sides().textured(Tex::Fabric).repeating(4.0, 3.0))
-                .at(a.cos() * 1.5, -0.3, -a.sin() * 1.5)
-                .turn(0.0, a + HALF_PI, 0.0),
+            Part::new(
+                Shape::Quad { w: 1.1, h: 0.85 },
+                matt(c)
+                    .both_sides()
+                    .textured(Tex::Fabric)
+                    .repeating(4.0, 3.0),
+            )
+            .at(a.cos() * 1.5, -0.3, -a.sin() * 1.5)
+            .turn(0.0, a + HALF_PI, 0.0),
         );
     }
     (pole, head)
@@ -1162,24 +2012,49 @@ fn clothesline(polished: bool) -> (Vec<Part>, Vec<Part>) {
 /// Each garment is built with its pinned edge at y=0, then placed on an outer cord.
 fn pegged_washing() -> Vec<Part> {
     const TEE: &[(f32, f32)] = &[
-        (-0.29, 0.0), (-0.55, -0.15), (-0.45, -0.35), (-0.31, -0.29),
-        (-0.32, -0.86), (0.31, -0.83), (0.31, -0.29), (0.45, -0.34),
-        (0.56, -0.14), (0.29, 0.0), (0.13, -0.01), (0.08, -0.10),
-        (-0.09, -0.10), (-0.14, -0.01),
+        (-0.29, 0.0),
+        (-0.55, -0.15),
+        (-0.45, -0.35),
+        (-0.31, -0.29),
+        (-0.32, -0.86),
+        (0.31, -0.83),
+        (0.31, -0.29),
+        (0.45, -0.34),
+        (0.56, -0.14),
+        (0.29, 0.0),
+        (0.13, -0.01),
+        (0.08, -0.10),
+        (-0.09, -0.10),
+        (-0.14, -0.01),
     ];
     const SOCK: &[(f32, f32)] = &[
-        (-0.08, 0.0), (-0.08, -0.26), (-0.18, -0.32), (-0.20, -0.37),
-        (-0.15, -0.41), (0.06, -0.36), (0.09, -0.30), (0.08, 0.0),
+        (-0.08, 0.0),
+        (-0.08, -0.26),
+        (-0.18, -0.32),
+        (-0.20, -0.37),
+        (-0.15, -0.41),
+        (0.06, -0.36),
+        (0.09, -0.30),
+        (0.08, 0.0),
     ];
-    let cloth = |colour| matt(colour).both_sides().textured(Tex::Fabric).repeating(3.0, 3.0);
+    let cloth = |colour| {
+        matt(colour)
+            .both_sides()
+            .textured(Tex::Fabric)
+            .repeating(3.0, 3.0)
+    };
     let peg_wood = matt(0xdcb481).material(Tex::Wood, 3.0);
     let peg = |x: f32, tilt: f32| {
         cuboid(0.044, 0.14, 0.048, peg_wood, x, 0.014, 0.0).turn(0.0, 0.0, tilt)
     };
     let mut washing = Vec::new();
     // The last four beams form the outer square, in perimeter order.
-    for (side, cord) in crate::yard::clothesline_beams().rchunks_exact(4).next()
-        .expect("the clothesline has an outer ring").iter().enumerate()
+    for (side, cord) in crate::yard::clothesline_beams()
+        .rchunks_exact(4)
+        .next()
+        .expect("the clothesline has an outer ring")
+        .iter()
+        .enumerate()
     {
         let mut parts = Vec::new();
         match side {
@@ -1187,17 +2062,33 @@ fn pegged_washing() -> Vec<Part> {
                 let colour = if side == 2 { 0x208c95 } else { 0xca6254 };
                 // Each stripe is a section of the folded towel, visible from either side.
                 let mut top = 0.0;
-                for (height, tint) in [(0.62, colour), (0.07, 0xffe7ad), (0.05, colour),
-                                       (0.035, 0xffe7ad), (0.085, colour)] {
-                    parts.push(cuboid(1.04, height, 0.024, cloth(tint), 0.0, top - height * 0.5, 0.0));
+                for (height, tint) in [
+                    (0.62, colour),
+                    (0.07, 0xffe7ad),
+                    (0.05, colour),
+                    (0.035, 0xffe7ad),
+                    (0.085, colour),
+                ] {
+                    parts.push(cuboid(
+                        1.04,
+                        height,
+                        0.024,
+                        cloth(tint),
+                        0.0,
+                        top - height * 0.5,
+                        0.0,
+                    ));
                     top -= height;
                 }
                 parts.extend([peg(-0.43, -0.09), peg(0.43, 0.12)]);
             }
             1 => {
                 for (x, tilt) in [(-0.16, 0.07), (0.20, -0.12)] {
-                    parts.push(Part::new(Shape::Poly(SOCK), cloth(0xf4e7ce))
-                        .at(x, 0.0, 0.0).turn(0.0, 0.0, tilt));
+                    parts.push(
+                        Part::new(Shape::Poly(SOCK), cloth(0xf4e7ce))
+                            .at(x, 0.0, 0.0)
+                            .turn(0.0, 0.0, tilt),
+                    );
                     parts.push(peg(x, tilt));
                 }
             }
@@ -1213,13 +2104,20 @@ fn pegged_washing() -> Vec<Part> {
             parts.push(cyl(0.15, 0.115, 0.17, 12, basket, x, -0.215, 0.0));
             parts.push(cyl(0.133, 0.133, 0.005, 12, matt(0x6b392c), x, -0.128, 0.0));
             for (offset, tilt) in [(-0.065, -0.35), (0.02, 0.5), (0.08, -0.18)] {
-                parts.push(cuboid(0.032, 0.09, 0.032, peg_wood, x + offset, -0.13, 0.0)
-                    .turn(0.0, 0.0, tilt));
+                parts.push(
+                    cuboid(0.032, 0.09, 0.032, peg_wood, x + offset, -0.13, 0.0)
+                        .turn(0.0, 0.0, tilt),
+                );
             }
         }
         let direction = cord.b - cord.a;
         let yaw = (-direction.z).atan2(direction.x);
-        washing.extend(place(parts, (cord.a + cord.b) * 0.5 - HOIST_AT, turn_y(yaw), 1.0));
+        washing.extend(place(
+            parts,
+            (cord.a + cord.b) * 0.5 - HOIST_AT,
+            turn_y(yaw),
+            1.0,
+        ));
     }
     washing
 }
@@ -1336,7 +2234,10 @@ fn pool() -> Vec<Part> {
     // pool's edge half way up the screen
     v.push(
         Part::new(
-            Shape::Quad { w: 1800.0, h: 1800.0 },
+            Shape::Quad {
+                w: 1800.0,
+                h: 1800.0,
+            },
             matt(0x2f93c4).unlit().no_shadow(),
         )
         .at(pcx, WATER_Y - 0.004, pcz)
@@ -1374,17 +2275,65 @@ fn pool() -> Vec<Part> {
     // Hairline grout joints catch the light on the old cream coping without widening it.
     let grout = matt(0xb7b9b0).no_shadow();
     for x in (POOL_X0 as i32..=POOL_X1 as i32).step_by(1) {
-        v.push(cuboid(0.012, 0.004, 0.27, grout, x as f32, 0.143, POOL_Z0 - 0.15));
-        v.push(cuboid(0.012, 0.004, 0.27, grout, x as f32, 0.143, POOL_Z1 + 0.15));
+        v.push(cuboid(
+            0.012,
+            0.004,
+            0.27,
+            grout,
+            x as f32,
+            0.143,
+            POOL_Z0 - 0.15,
+        ));
+        v.push(cuboid(
+            0.012,
+            0.004,
+            0.27,
+            grout,
+            x as f32,
+            0.143,
+            POOL_Z1 + 0.15,
+        ));
     }
     for z in (POOL_Z0 as i32..=POOL_Z1 as i32).step_by(1) {
-        v.push(cuboid(0.27, 0.004, 0.012, grout, POOL_X0 - 0.15, 0.143, z as f32));
-        v.push(cuboid(0.27, 0.004, 0.012, grout, POOL_X1 + 0.15, 0.143, z as f32));
+        v.push(cuboid(
+            0.27,
+            0.004,
+            0.012,
+            grout,
+            POOL_X0 - 0.15,
+            0.143,
+            z as f32,
+        ));
+        v.push(cuboid(
+            0.27,
+            0.004,
+            0.012,
+            grout,
+            POOL_X1 + 0.15,
+            0.143,
+            z as f32,
+        ));
     }
     // A skimmer lid and narrow intake slots sit flush with the outer side of the coping.
-    v.push(cuboid(0.24, 0.006, 0.42, matt(0x9ba39f), POOL_X1 + 0.19, 0.145, pcz - 1.25));
+    v.push(cuboid(
+        0.24,
+        0.006,
+        0.42,
+        matt(0x9ba39f),
+        POOL_X1 + 0.19,
+        0.145,
+        pcz - 1.25,
+    ));
     for dz in [-0.13f32, -0.045, 0.045, 0.13] {
-        v.push(cuboid(0.13, 0.004, 0.012, matt(0x58636a), POOL_X1 + 0.19, 0.15, pcz - 1.25 + dz));
+        v.push(cuboid(
+            0.13,
+            0.004,
+            0.012,
+            matt(0x58636a),
+            POOL_X1 + 0.19,
+            0.15,
+            pcz - 1.25 + dz,
+        ));
     }
     v
 }
@@ -1393,15 +2342,49 @@ fn pool() -> Vec<Part> {
 fn poolside_props() -> Vec<Part> {
     let mut v = Vec::new();
     for (i, x, yaw) in [(0usize, -25.5f32, PI), (1, -14.5, PI)] {
-        v.extend(place(chair_styled(i + 2), V3::new(x, 0.0, 17.2), turn_y(yaw), 1.0));
+        v.extend(place(
+            chair_styled(i + 2),
+            V3::new(x, 0.0, 17.2),
+            turn_y(yaw),
+            1.0,
+        ));
     }
     let (ux, uz) = (-20.0f32, 18.2f32);
     let frame = matt(0xe9e4d6).material(Tex::Plastic, 2.0);
     v.push(cyl(0.035, 0.035, 2.55, 8, frame, ux, 1.275, uz));
     v.push(
-        Part::new(Shape::Cone { r: 1.45, h: 0.55, seg: 10 }, matt(0x34a9aa).material(Tex::Fabric, 2.5))
-            .at(ux, 2.24, uz),
+        Part::new(
+            Shape::Cone {
+                r: 1.45,
+                h: 0.55,
+                seg: 10,
+            },
+            matt(0x34a9aa).material(Tex::Fabric, 2.5),
+        )
+        .at(ux, 2.24, uz),
     );
+    // A small canvas repair patch, visibly stitched onto the sun-faded umbrella panel.
+    v.push(
+        cuboid(
+            0.38,
+            0.025,
+            0.24,
+            matt(0xd6b879).material(Tex::Fabric, 2.0),
+            ux,
+            2.48,
+            uz + 0.58,
+        )
+        .turn(0.36, 0.0, 0.0)
+        .bevel(0.025),
+    );
+    for dx in [-0.14f32, -0.07, 0.0, 0.07, 0.14] {
+        v.push(rod(
+            V3::new(ux + dx, 2.50, uz + 0.46),
+            V3::new(ux + dx, 2.50, uz + 0.70),
+            0.008,
+            matt(0x7e7355),
+        ));
+    }
     let apex = V3::new(ux, 2.79, uz);
     let rim: Vec<V3> = (0..10)
         .map(|i| {
@@ -1409,17 +2392,153 @@ fn poolside_props() -> Vec<Part> {
             V3::new(ux + 1.45 * a.sin(), 2.24, uz + 1.45 * a.cos())
         })
         .collect();
-    for i in 0..10 { v.push(rod(apex, rim[i], 0.018, matt(0xe9e4d6))); }
+    for i in 0..10 {
+        v.push(rod(apex, rim[i], 0.018, matt(0xe9e4d6)));
+    }
     // A bright inflatable ring and a scuffed beach ball, both decorative and collision-free.
     v.push(
-        torus(0.32, 0.1, 10, 20, 2.0 * PI, matt(0xf2c230).material(Tex::Plastic, 2.0))
-            .at(-26.0, 0.13, 15.8)
-            .turn(HALF_PI, 0.0, 0.0),
+        torus(
+            0.32,
+            0.1,
+            10,
+            20,
+            2.0 * PI,
+            matt(0xf2c230).material(Tex::Plastic, 2.0),
+        )
+        .at(-26.0, 0.13, 15.8)
+        .turn(HALF_PI, 0.0, 0.0),
     );
     v.push(
-        Part::new(Shape::Sphere { r: 0.22, ws: 12, hs: 8 }, matt(0xe8443a).material(Tex::Plastic, 2.0))
-            .at(-15.2, 0.22, 15.4),
+        Part::new(
+            Shape::Sphere {
+                r: 0.22,
+                ws: 12,
+                hs: 8,
+            },
+            matt(0xe8443a).material(Tex::Plastic, 2.0),
+        )
+        .at(-15.2, 0.22, 15.4),
     );
+    v
+}
+
+/// Model pieces whose transforms are gently animated by the yard scene system.
+pub fn backyard_wind_parts() -> BackyardWindParts {
+    let metal = matt(0x818a82).material(Tex::Metal, 1.0);
+    let bright = [0xe9483b_u32, 0xf3c236, 0x2ba9a2, 0x4e83ce];
+    let mut pinwheel_blades = Vec::new();
+    const BLADE: &[(f32, f32)] = &[
+        (0.01, 0.01),
+        (0.09, 0.055),
+        (0.31, 0.22),
+        (0.23, 0.34),
+        (0.00, 0.10),
+    ];
+    for i in 0..4 {
+        pinwheel_blades.push(
+            Part::new(Shape::Poly(BLADE), matt(bright[i]))
+                .at(0.0, 0.0, 0.0)
+                .turn(0.0, 0.0, i as f32 * HALF_PI),
+        );
+    }
+    pinwheel_blades.push(
+        Part::new(
+            Shape::Sphere {
+                r: 0.10,
+                ws: 10,
+                hs: 7,
+            },
+            matt(0xf5e5a5),
+        )
+        .at(0.0, 0.0, 0.012),
+    );
+
+    let mut clothesline_hangers = Vec::new();
+    for (x, z, swing) in [
+        (-1.75f32, -1.68f32, -0.04f32),
+        (1.74, -1.7, 0.035),
+        (0.15, 1.72, -0.02),
+    ] {
+        let top = V3::new(x, 0.76, z);
+        let left = V3::new(x - 0.20, 0.43 + swing, z);
+        let right = V3::new(x + 0.20, 0.43 - swing, z);
+        clothesline_hangers.push(rod(V3::new(x, 0.80, z), V3::new(x, 0.72, z), 0.011, metal));
+        clothesline_hangers.push(rod(top, left, 0.011, metal));
+        clothesline_hangers.push(rod(left, right, 0.011, metal));
+        clothesline_hangers.push(rod(right, top, 0.011, metal));
+    }
+
+    let steel = matt(0x77786c).material(Tex::Metal, 0.9);
+    let sprinkler_rotor = vec![
+        cuboid(0.48, 0.035, 0.045, steel, 0.0, 0.0, 0.0),
+        cuboid(0.10, 0.07, 0.07, matt(0xb3a371), -0.15, 0.03, 0.0),
+        cuboid(0.075, 0.09, 0.07, matt(0x9ab3ac), 0.21, 0.045, 0.0),
+    ];
+    let spray = matt(0x8dd9ec).unlit().see_through(0.52).no_shadow();
+    let sprinkler_trail = [0.44f32, 0.67, 0.91, 1.14, 1.35]
+        .into_iter()
+        .enumerate()
+        .map(|(i, x)| {
+            Part::new(
+                Shape::Sphere {
+                    r: if i % 2 == 0 { 0.045 } else { 0.032 },
+                    ws: 8,
+                    hs: 5,
+                },
+                spray,
+            )
+            .at(
+                x,
+                0.06 + (i % 3) as f32 * 0.12,
+                0.05 + (i as f32 * 0.19).sin() * 0.30,
+            )
+            .no_shadow_part()
+        })
+        .collect();
+    let shade = Part::new(
+        Shape::Disc { r: 1.0, seg: 20 },
+        matt(0x2c3528).see_through(0.24).no_shadow(),
+    )
+    .at(0.0, 0.014, 0.0)
+    .turn(-HALF_PI, 0.0, 0.0)
+    .stretch(1.48, 0.96, 1.0);
+    BackyardWindParts {
+        umbrella_shade: vec![shade],
+        pinwheel_blades,
+        clothesline_hangers,
+        sprinkler_rotor,
+        sprinkler_trail,
+    }
+}
+
+fn pinwheel_mount() -> Vec<Part> {
+    let x = -11.0f32;
+    let z = 20.0f32;
+    let metal = matt(0x72776a).material(Tex::Metal, 0.8);
+    let mut v = vec![
+        cuboid(
+            0.10,
+            1.95,
+            0.10,
+            matt(0x806443).material(Tex::Wood, 1.1),
+            x,
+            0.99,
+            z,
+        ),
+        cuboid(0.16, 0.10, 0.16, metal, x, 1.91, z),
+        cuboid(0.32, 0.035, 0.035, metal, x, 1.98, z),
+    ];
+    for side in [-1.0f32, 1.0] {
+        v.push(cuboid(
+            0.18,
+            0.045,
+            0.14,
+            matt(0x594d3a),
+            x + side * 0.18,
+            0.08,
+            z,
+        ));
+    }
     v
 }
 
@@ -1446,12 +2565,16 @@ fn house() -> Vec<Part> {
     }
     v.push(cuboid(1.1, 2.2, 0.08, matt(0x7a4b2e), 3.0, 1.1, -25.44));
     // Broad readable trims; no fine noise or new texture assets.
-    for z in [-25.42,-33.58] {v.push(cuboid(40.4,0.20,0.14,matt(0xf4e4c6),0.0,4.55,z));}
-    for x in [-19.9,19.9] {v.push(cuboid(0.16,4.5,0.16,matt(0xe6d2aa),x,2.25,-25.43));}
-    for x in [-15.0,-9.0,-4.0,8.0,13.5] {
-        v.push(cuboid(0.065,1.22,0.04,matt(0xf8eddb),x,2.5,-25.37));
-        v.push(cuboid(1.65,0.065,0.04,matt(0xf8eddb),x,2.5,-25.37));
-        v.push(cuboid(2.02,0.12,0.20,matt(0xd6c29b),x,1.72,-25.39));
+    for z in [-25.42, -33.58] {
+        v.push(cuboid(40.4, 0.20, 0.14, matt(0xf4e4c6), 0.0, 4.55, z));
+    }
+    for x in [-19.9, 19.9] {
+        v.push(cuboid(0.16, 4.5, 0.16, matt(0xe6d2aa), x, 2.25, -25.43));
+    }
+    for x in [-15.0, -9.0, -4.0, 8.0, 13.5] {
+        v.push(cuboid(0.065, 1.22, 0.04, matt(0xf8eddb), x, 2.5, -25.37));
+        v.push(cuboid(1.65, 0.065, 0.04, matt(0xf8eddb), x, 2.5, -25.37));
+        v.push(cuboid(2.02, 0.12, 0.20, matt(0xd6c29b), x, 1.72, -25.39));
     }
     v.extend(rain_tank_and_ladder(false));
     v
@@ -1461,16 +2584,23 @@ fn props(polished: bool) -> Vec<Part> {
     let mut v = Vec::new();
     let finish = |r| if polished { r } else { 0.0 };
     // trampoline
-    v.push(cyl(
-        TRAMP_R,
-        TRAMP_R,
-        0.04,
-        28,
-        if polished { matt(0x1d1f22).textured(Tex::Fabric).repeating(10.0, 10.0) } else { matt(0x1d1f22) },
-        TRAMP_X,
-        TRAMP_H,
-        TRAMP_Z,
-    ).bevel(finish(0.012)));
+    v.push(
+        cyl(
+            TRAMP_R,
+            TRAMP_R,
+            0.04,
+            28,
+            if polished {
+                matt(0x1d1f22).textured(Tex::Fabric).repeating(10.0, 10.0)
+            } else {
+                matt(0x1d1f22)
+            },
+            TRAMP_X,
+            TRAMP_H,
+            TRAMP_Z,
+        )
+        .bevel(finish(0.012)),
+    );
     v.push(
         torus(TRAMP_R + 0.05, 0.12, 8, 28, 2.0 * PI, matt(0x1f6fd1))
             .at(TRAMP_X, TRAMP_H + 0.02, TRAMP_Z)
@@ -1483,7 +2613,11 @@ fn props(polished: bool) -> Vec<Part> {
             0.04,
             TRAMP_H,
             6,
-            if polished { matt(0x444a50).material(Tex::Metal, 1.2) } else { matt(0x444a50) },
+            if polished {
+                matt(0x444a50).material(Tex::Metal, 1.2)
+            } else {
+                matt(0x444a50)
+            },
             TRAMP_X + a.cos() * TRAMP_R,
             TRAMP_H / 2.0,
             TRAMP_Z + a.sin() * TRAMP_R,
@@ -1496,8 +2630,16 @@ fn props(polished: bool) -> Vec<Part> {
             let a = k as f32 * (2.0 * PI / 24.0);
             let (ca, sa) = (a.cos(), a.sin());
             v.push(rod(
-                V3::new(TRAMP_X + ca * (TRAMP_R - 0.20), TRAMP_H + 0.018, TRAMP_Z + sa * (TRAMP_R - 0.20)),
-                V3::new(TRAMP_X + ca * (TRAMP_R + 0.015), TRAMP_H + 0.018, TRAMP_Z + sa * (TRAMP_R + 0.015)),
+                V3::new(
+                    TRAMP_X + ca * (TRAMP_R - 0.20),
+                    TRAMP_H + 0.018,
+                    TRAMP_Z + sa * (TRAMP_R - 0.20),
+                ),
+                V3::new(
+                    TRAMP_X + ca * (TRAMP_R + 0.015),
+                    TRAMP_H + 0.018,
+                    TRAMP_Z + sa * (TRAMP_R + 0.015),
+                ),
                 0.025,
                 spring,
             ));
@@ -1521,24 +2663,80 @@ fn props(polished: bool) -> Vec<Part> {
         for x in [20.95f32, 21.45, 23.55, 24.05] {
             v.push(cuboid(0.035, 2.15, 0.018, rib, x, 1.24, -14.965));
         }
-        v.push(cuboid(1.36, 0.055, 0.025, matt(0x754630), 22.5, 2.44, -14.958));
-        v.push(cuboid(1.28, 1.96, 0.065, matt(0x56645d).material(Tex::Wood, 2.0), 22.5, 0.99, -14.94).bevel(0.023).weathered().turn(0.012, 0.0, -0.008));
+        v.push(cuboid(
+            1.36,
+            0.055,
+            0.025,
+            matt(0x754630),
+            22.5,
+            2.44,
+            -14.958,
+        ));
+        v.push(
+            cuboid(
+                1.28,
+                1.96,
+                0.065,
+                matt(0x56645d).material(Tex::Wood, 2.0),
+                22.5,
+                0.99,
+                -14.94,
+            )
+            .bevel(0.023)
+            .weathered()
+            .turn(0.012, 0.0, -0.008),
+        );
         for x in [21.9f32, 23.1] {
-            v.push(cuboid(0.045, 0.22, 0.035, matt(0x8d7650).material(Tex::Metal, 1.0), x, 0.88, -14.895));
+            v.push(cuboid(
+                0.045,
+                0.22,
+                0.035,
+                matt(0x8d7650).material(Tex::Metal, 1.0),
+                x,
+                0.88,
+                -14.895,
+            ));
         }
         // Old mower parked beside the shed: visual only, off the central play area.
         let (mx, mz) = (18.7f32, -17.4f32);
         let green = matt(0x526b3b).material(Tex::Plastic, 1.5);
         let dark = matt(0x272a27).material(Tex::Plastic, 2.0);
         v.push(cuboid(0.72, 0.28, 0.68, green, mx, 0.34, mz));
-        v.push(cuboid(0.38, 0.22, 0.38, matt(0xc09a4c).material(Tex::Metal, 1.5), mx, 0.58, mz + 0.05));
-        for (sx, sz) in [(-0.35f32, -0.24f32), (0.35, -0.24), (-0.35, 0.24), (0.35, 0.24)] {
-            v.push(torus(0.16, 0.055, 8, 14, 2.0 * PI, dark).at(mx + sx, 0.17, mz + sz).turn(HALF_PI, 0.0, 0.0));
+        v.push(cuboid(
+            0.38,
+            0.22,
+            0.38,
+            matt(0xc09a4c).material(Tex::Metal, 1.5),
+            mx,
+            0.58,
+            mz + 0.05,
+        ));
+        for (sx, sz) in [
+            (-0.35f32, -0.24f32),
+            (0.35, -0.24),
+            (-0.35, 0.24),
+            (0.35, 0.24),
+        ] {
+            v.push(
+                torus(0.16, 0.055, 8, 14, 2.0 * PI, dark)
+                    .at(mx + sx, 0.17, mz + sz)
+                    .turn(HALF_PI, 0.0, 0.0),
+            );
         }
         for sx in [-0.2f32, 0.2] {
-            v.push(rod(V3::new(mx + sx, 0.52, mz - 0.23), V3::new(mx + sx * 1.4, 1.15, mz - 0.68), 0.035, dark));
+            v.push(rod(
+                V3::new(mx + sx, 0.52, mz - 0.23),
+                V3::new(mx + sx * 1.4, 1.15, mz - 0.68),
+                0.035,
+                dark,
+            ));
         }
-        v.push(rod(V3::new(mx - 0.29, 1.15, mz - 0.68), V3::new(mx + 0.29, 1.15, mz - 0.68), 0.045, dark));
+        v.push(rod(
+            V3::new(mx - 0.29, 1.15, mz - 0.68),
+            V3::new(mx + 0.29, 1.15, mz - 0.68),
+            0.045,
+            dark,
+        ));
         // A second, distinctly ride-on mower lives in the open shed-side corner. It has a pressed
         // deck, chunky rear tyres, steering wheel, faded vinyl seat, headlights and muffler.
         // Player collision follows the deck, bonnet and seat as three climbable steps.
@@ -1547,60 +2745,266 @@ fn props(polished: bool) -> Vec<Part> {
         let faded = matt(0x788456).material(Tex::Metal, 2.0);
         let tyre = matt(0x282a27).material(Tex::Plastic, 2.0);
         let steel = matt(0x818783).material(Tex::Metal, 1.4);
-        v.push(ground_patch(rx, rz + 0.35, 1.45, 1.9, 0.006, 0x695d40, 0.12, 0.035).no_shadow_part());
-        v.push(cuboid(1.32, 0.25, 1.55, enamel, rx, 0.39, rz).bevel(0.07).weathered());
-        v.push(cuboid(1.02, 0.44, 0.88, faded, rx, 0.70, rz + 0.33).bevel(0.12).weathered());
-        v.push(cuboid(1.62, 0.18, 0.90, enamel, rx, 0.22, rz + 0.67).bevel(0.07).weathered());
-        v.push(cuboid(0.66, 0.20, 0.46, matt(0x493f30).material(Tex::Plastic, 2.2), rx, 0.90, rz - 0.39).bevel(0.045));
-        v.push(cuboid(0.62, 0.30, 0.09, matt(0x594b37).material(Tex::Plastic, 2.2), rx, 1.13, rz - 0.59).turn(-0.10, 0.0, 0.0).bevel(0.035));
+        v.push(
+            ground_patch(rx, rz + 0.35, 1.45, 1.9, 0.006, 0x695d40, 0.12, 0.035).no_shadow_part(),
+        );
+        v.push(
+            cuboid(1.32, 0.25, 1.55, enamel, rx, 0.39, rz)
+                .bevel(0.07)
+                .weathered(),
+        );
+        v.push(
+            cuboid(1.02, 0.44, 0.88, faded, rx, 0.70, rz + 0.33)
+                .bevel(0.12)
+                .weathered(),
+        );
+        v.push(
+            cuboid(1.62, 0.18, 0.90, enamel, rx, 0.22, rz + 0.67)
+                .bevel(0.07)
+                .weathered(),
+        );
+        v.push(
+            cuboid(
+                0.66,
+                0.20,
+                0.46,
+                matt(0x493f30).material(Tex::Plastic, 2.2),
+                rx,
+                0.90,
+                rz - 0.39,
+            )
+            .bevel(0.045),
+        );
+        v.push(
+            cuboid(
+                0.62,
+                0.30,
+                0.09,
+                matt(0x594b37).material(Tex::Plastic, 2.2),
+                rx,
+                1.13,
+                rz - 0.59,
+            )
+            .turn(-0.10, 0.0, 0.0)
+            .bevel(0.035),
+        );
         for side in [-1.0f32, 1.0] {
-            let rear = torus(0.39, 0.10, 8, 18, 2.0 * PI, tyre).at(rx + side * 0.72, 0.40, rz - 0.34).turn(0.0, HALF_PI, 0.0);
-            let front = torus(0.29, 0.075, 8, 16, 2.0 * PI, tyre).at(rx + side * 0.60, 0.30, rz + 0.57).turn(0.0, HALF_PI, 0.0);
-            v.push(rear); v.push(front);
-            v.push(torus(0.13, 0.027, 6, 14, 2.0 * PI, steel).at(rx + side * 0.73, 0.40, rz - 0.34).turn(0.0, HALF_PI, 0.0));
-            v.push(torus(0.10, 0.022, 6, 14, 2.0 * PI, steel).at(rx + side * 0.61, 0.30, rz + 0.57).turn(0.0, HALF_PI, 0.0));
-            v.push(cuboid(0.20, 0.12, 0.06, matt(0xd8d0a4), rx + side * 0.27, 0.77, rz + 0.77));
+            let rear = torus(0.39, 0.10, 8, 18, 2.0 * PI, tyre)
+                .at(rx + side * 0.72, 0.40, rz - 0.34)
+                .turn(0.0, HALF_PI, 0.0);
+            let front = torus(0.29, 0.075, 8, 16, 2.0 * PI, tyre)
+                .at(rx + side * 0.60, 0.30, rz + 0.57)
+                .turn(0.0, HALF_PI, 0.0);
+            v.push(rear);
+            v.push(front);
+            v.push(
+                torus(0.13, 0.027, 6, 14, 2.0 * PI, steel)
+                    .at(rx + side * 0.73, 0.40, rz - 0.34)
+                    .turn(0.0, HALF_PI, 0.0),
+            );
+            v.push(
+                torus(0.10, 0.022, 6, 14, 2.0 * PI, steel)
+                    .at(rx + side * 0.61, 0.30, rz + 0.57)
+                    .turn(0.0, HALF_PI, 0.0),
+            );
+            v.push(cuboid(
+                0.20,
+                0.12,
+                0.06,
+                matt(0xd8d0a4),
+                rx + side * 0.27,
+                0.77,
+                rz + 0.77,
+            ));
         }
-        v.push(rod(V3::new(rx, 0.78, rz + 0.04), V3::new(rx, 1.16, rz + 0.58), 0.035, steel));
-        v.push(torus(0.20, 0.025, 8, 16, 2.0 * PI, dark).at(rx, 1.17, rz + 0.58).turn(0.16, 0.0, 0.0));
-        v.push(cyl(0.055, 0.055, 0.32, 8, steel, rx - 0.43, 0.86, rz - 0.42));
-        v.push(rod(V3::new(rx - 0.43, 1.02, rz - 0.42), V3::new(rx - 0.43, 1.20, rz - 0.52), 0.045, dark));
-        v.push(cuboid(0.30, 0.20, 0.24, matt(0x77766c).material(Tex::Metal, 1.8), rx - 0.42, 0.79, rz - 0.65).bevel(0.04).weathered());
-        v.push(rod(V3::new(rx + 0.43, 0.68, rz - 0.47), V3::new(rx + 0.43, 1.04, rz - 0.47), 0.04, steel));
+        v.push(rod(
+            V3::new(rx, 0.78, rz + 0.04),
+            V3::new(rx, 1.16, rz + 0.58),
+            0.035,
+            steel,
+        ));
+        v.push(
+            torus(0.20, 0.025, 8, 16, 2.0 * PI, dark)
+                .at(rx, 1.17, rz + 0.58)
+                .turn(0.16, 0.0, 0.0),
+        );
+        v.push(cyl(
+            0.055,
+            0.055,
+            0.32,
+            8,
+            steel,
+            rx - 0.43,
+            0.86,
+            rz - 0.42,
+        ));
+        v.push(rod(
+            V3::new(rx - 0.43, 1.02, rz - 0.42),
+            V3::new(rx - 0.43, 1.20, rz - 0.52),
+            0.045,
+            dark,
+        ));
+        v.push(
+            cuboid(
+                0.30,
+                0.20,
+                0.24,
+                matt(0x77766c).material(Tex::Metal, 1.8),
+                rx - 0.42,
+                0.79,
+                rz - 0.65,
+            )
+            .bevel(0.04)
+            .weathered(),
+        );
+        v.push(rod(
+            V3::new(rx + 0.43, 0.68, rz - 0.47),
+            V3::new(rx + 0.43, 1.04, rz - 0.47),
+            0.04,
+            steel,
+        ));
         // Shed-side repair bench: the mower blade is on the timber top and its spanner outline
         // still hangs on the pegboard. Seed packets and a jar of bolts make it feel in use.
         let (bx, bz) = (25.5f32, -15.8f32);
         let bench_wood = matt(0x79583a).material(Tex::Wood, 1.6);
         let bench_top = matt(0x9b7953).material(Tex::Wood, 1.6);
-        for sx in [-0.64f32, 0.64] { for sz in [-0.24f32, 0.24] {
-            v.push(cuboid(0.09, 0.78, 0.09, bench_wood, bx + sx, 0.39, bz + sz).weathered());
-        }}
-        v.push(cuboid(1.65, 0.13, 0.72, bench_top, bx, 0.82, bz).bevel(0.025).weathered());
-        v.push(cuboid(1.65, 0.82, 0.075, matt(0x786448).material(Tex::Wood, 1.4), bx, 1.31, bz - 0.36).weathered());
-        for x in [-0.72f32, -0.34, 0.04, 0.42] {
-            v.push(cuboid(0.20, 0.25, 0.025, matt(0xb8a47d).material(Tex::Fabric, 1.0), bx + x, 0.93, bz + 0.16).turn(0.0, 0.0, x * 0.05));
-            v.push(cuboid(0.13, 0.018, 0.008, matt(0x627249), bx + x, 0.98, bz + 0.175));
+        for sx in [-0.64f32, 0.64] {
+            for sz in [-0.24f32, 0.24] {
+                v.push(cuboid(0.09, 0.78, 0.09, bench_wood, bx + sx, 0.39, bz + sz).weathered());
+            }
         }
-        let bolt_jar = Surface::shiny(0x9fb7ae, 0xe2f0e8, 25.0).both_sides().see_through(0.32);
-        v.push(cyl(0.13, 0.13, 0.25, 12, bolt_jar, bx + 0.57, 1.01, bz + 0.06));
-        v.push(cyl(0.14, 0.14, 0.045, 12, steel, bx + 0.57, 1.16, bz + 0.06));
-        for k in 0..5 { v.push(rod(V3::new(bx + 0.51 + k as f32 * 0.028, 0.94, bz + 0.06), V3::new(bx + 0.51 + k as f32 * 0.028, 1.07, bz + 0.06), 0.012, dark)); }
+        v.push(
+            cuboid(1.65, 0.13, 0.72, bench_top, bx, 0.82, bz)
+                .bevel(0.025)
+                .weathered(),
+        );
+        v.push(
+            cuboid(
+                1.65,
+                0.82,
+                0.075,
+                matt(0x786448).material(Tex::Wood, 1.4),
+                bx,
+                1.31,
+                bz - 0.36,
+            )
+            .weathered(),
+        );
+        for x in [-0.72f32, -0.34, 0.04, 0.42] {
+            v.push(
+                cuboid(
+                    0.20,
+                    0.25,
+                    0.025,
+                    matt(0xb8a47d).material(Tex::Fabric, 1.0),
+                    bx + x,
+                    0.93,
+                    bz + 0.16,
+                )
+                .turn(0.0, 0.0, x * 0.05),
+            );
+            v.push(cuboid(
+                0.13,
+                0.018,
+                0.008,
+                matt(0x627249),
+                bx + x,
+                0.98,
+                bz + 0.175,
+            ));
+        }
+        let bolt_jar = Surface::shiny(0x9fb7ae, 0xe2f0e8, 25.0)
+            .both_sides()
+            .see_through(0.32);
+        v.push(cyl(
+            0.13,
+            0.13,
+            0.25,
+            12,
+            bolt_jar,
+            bx + 0.57,
+            1.01,
+            bz + 0.06,
+        ));
+        v.push(cyl(
+            0.14,
+            0.14,
+            0.045,
+            12,
+            steel,
+            bx + 0.57,
+            1.16,
+            bz + 0.06,
+        ));
+        for k in 0..5 {
+            v.push(rod(
+                V3::new(bx + 0.51 + k as f32 * 0.028, 0.94, bz + 0.06),
+                V3::new(bx + 0.51 + k as f32 * 0.028, 1.07, bz + 0.06),
+                0.012,
+                dark,
+            ));
+        }
         // A half-finished mower blade, still missing its sharpening pass.
-        v.push(rod(V3::new(bx - 0.38, 0.91, bz - 0.04), V3::new(bx + 0.26, 0.91, bz - 0.04), 0.035, steel));
-        v.push(cyl(0.075, 0.075, 0.035, 12, dark, bx - 0.43, 0.91, bz - 0.04));
-        v.push(cyl(0.075, 0.075, 0.035, 12, dark, bx + 0.31, 0.91, bz - 0.04));
+        v.push(rod(
+            V3::new(bx - 0.38, 0.91, bz - 0.04),
+            V3::new(bx + 0.26, 0.91, bz - 0.04),
+            0.035,
+            steel,
+        ));
+        v.push(cyl(
+            0.075,
+            0.075,
+            0.035,
+            12,
+            dark,
+            bx - 0.43,
+            0.91,
+            bz - 0.04,
+        ));
+        v.push(cyl(
+            0.075,
+            0.075,
+            0.035,
+            12,
+            dark,
+            bx + 0.31,
+            0.91,
+            bz - 0.04,
+        ));
         // A worn concrete birdbath is close enough to the veggie patch to give the visiting
         // magpies somewhere to land and drink.
         let (bird_x, bird_z) = (-14.0f32, 21.5f32);
         let stone = matt(0x969386).material(Tex::Concrete, 1.1);
         v.push(cyl(0.17, 0.22, 0.61, 12, stone, bird_x, 0.305, bird_z).weathered());
         v.push(cyl(0.49, 0.43, 0.18, 16, stone, bird_x, 0.66, bird_z).weathered());
-        v.push(cyl(0.38, 0.36, 0.025, 16, matt(0x78b6b5), bird_x, 0.765, bird_z));
+        v.push(cyl(
+            0.38,
+            0.36,
+            0.025,
+            16,
+            matt(0x78b6b5),
+            bird_x,
+            0.765,
+            bird_z,
+        ));
         v.push(torus(0.46, 0.035, 7, 20, 2.0 * PI, matt(0xb2ad9c)).at(bird_x, 0.75, bird_z));
         // Coiled garden hose and a rotary sprinkler along the east fence.
         let hose = matt(0x596b3c).material(Tex::Plastic, 2.0);
-        v.push(torus(0.36, 0.035, 8, 18, 2.0 * PI, hose).at(26.7, 0.045, -8.3).turn(HALF_PI, 0.0, 0.0).no_shadow_part());
-        v.push(rod(V3::new(26.5, 0.04, -8.0), V3::new(25.5, 0.04, -7.7), 0.055, hose).no_shadow_part());
+        v.push(
+            torus(0.36, 0.035, 8, 18, 2.0 * PI, hose)
+                .at(26.7, 0.045, -8.3)
+                .turn(HALF_PI, 0.0, 0.0)
+                .no_shadow_part(),
+        );
+        v.push(
+            rod(
+                V3::new(26.5, 0.04, -8.0),
+                V3::new(25.5, 0.04, -7.7),
+                0.055,
+                hose,
+            )
+            .no_shadow_part(),
+        );
         let (sx, sz) = (25.5f32, -7.7f32);
         v.push(cyl(0.11, 0.12, 0.16, 8, matt(0x6b6b5f), sx, 0.08, sz));
         v.push(cyl(0.045, 0.045, 0.38, 8, matt(0x77786c), sx, 0.33, sz));
@@ -1655,25 +3059,70 @@ fn props(polished: bool) -> Vec<Part> {
     // wheelie bins
     for (x, c) in [(31.1, 0xd63a2f), (31.95, 0xf2c230)] {
         // A3.8: in the polished look the bins are a stronger, lighter green so they stand out
-        v.push(cuboid(0.72, 1.0, 0.76, matt(if polished { 0x2f9a4c } else { 0x2e6b3a }), x, 0.5, 19.5));
+        v.push(cuboid(
+            0.72,
+            1.0,
+            0.76,
+            matt(if polished { 0x2f9a4c } else { 0x2e6b3a }),
+            x,
+            0.5,
+            19.5,
+        ));
         v.push(cuboid(0.76, 0.07, 0.82, matt(c), x, 1.04, 19.5));
     }
     // Shared box geometry: warm timber, inset panels and light landing edges.
-    for (x,y,z) in crate::yard::CRATE_CENTRES {
-        let size=crate::yard::CRATE_SIZE;
-        v.push(cuboid(size,size,size,matt(0xc89a60).textured(Tex::Wood),x,y,z));
+    for (x, y, z) in crate::yard::CRATE_CENTRES {
+        let size = crate::yard::CRATE_SIZE;
+        v.push(cuboid(
+            size,
+            size,
+            size,
+            matt(0xc89a60).textured(Tex::Wood),
+            x,
+            y,
+            z,
+        ));
         if polished {
-            let trim=matt(0xe0b67d);let seam=matt(0x997044);
-            for side in [-1.0,1.0] {
-                v.push(cuboid(size,0.055,0.045,trim,x,y+size*0.5-0.025,z+side*(size*0.5+0.003)));
-                v.push(cuboid(0.045,0.055,size,trim,x+side*(size*0.5+0.003),y+size*0.5-0.025,z));
-                for band in [-0.32,0.32] {v.push(cuboid(0.045,size,0.018,seam,x+band,y,z+side*(size*0.5+0.004)));}
+            let trim = matt(0xe0b67d);
+            let seam = matt(0x997044);
+            for side in [-1.0, 1.0] {
+                v.push(cuboid(
+                    size,
+                    0.055,
+                    0.045,
+                    trim,
+                    x,
+                    y + size * 0.5 - 0.025,
+                    z + side * (size * 0.5 + 0.003),
+                ));
+                v.push(cuboid(
+                    0.045,
+                    0.055,
+                    size,
+                    trim,
+                    x + side * (size * 0.5 + 0.003),
+                    y + size * 0.5 - 0.025,
+                    z,
+                ));
+                for band in [-0.32, 0.32] {
+                    v.push(cuboid(
+                        0.045,
+                        size,
+                        0.018,
+                        seam,
+                        x + band,
+                        y,
+                        z + side * (size * 0.5 + 0.004),
+                    ));
+                }
             }
         }
     }
     if polished {
         // Subtle contact at the upper box's feet; the exposed ledges stay bright.
-        v.push(ground_patch(-25.5,-13.5,0.64,0.60,0.0,0x32261a,0.25,1.156));
+        v.push(ground_patch(
+            -25.5, -13.5, 0.64, 0.60, 0.0, 0x32261a, 0.25, 1.156,
+        ));
     }
     // hedge
     v.push(cuboid(
@@ -1686,7 +3135,11 @@ fn props(polished: bool) -> Vec<Part> {
         -3.0,
     ));
     // stack of old tyres
-    let tyre = if polished { matt(0x26282b).material(Tex::Plastic, 1.5) } else { matt(0x26282b) };
+    let tyre = if polished {
+        matt(0x26282b).material(Tex::Plastic, 1.5)
+    } else {
+        matt(0x26282b)
+    };
     for (n, (x, z)) in [(12.0f32, 2.0f32), (13.2, 2.4)].into_iter().enumerate() {
         for k in 0..(if n == 1 { 2 } else { 3 }) {
             v.push(
@@ -1702,7 +3155,11 @@ fn props(polished: bool) -> Vec<Part> {
         for k in 0..(5 - row) {
             let lx = -12.0 - 1.0 + k as f32 * 0.5 + row as f32 * 0.25;
             let ly = 0.22 + row as f32 * 0.36;
-            v.push(cyl(0.2, 0.2, 1.0, 9, log_m, lx, ly, -3.0).bevel(finish(0.011)).turn(HALF_PI, 0.0, 0.0));
+            v.push(
+                cyl(0.2, 0.2, 1.0, 9, log_m, lx, ly, -3.0)
+                    .bevel(finish(0.011))
+                    .turn(HALF_PI, 0.0, 0.0),
+            );
             for e in [-0.5f32, 0.5] {
                 v.push(
                     Part::new(Shape::Disc { r: 0.19, seg: 9 }, end_m)
@@ -1712,14 +3169,26 @@ fn props(polished: bool) -> Vec<Part> {
                 if polished {
                     let face = -3.0 + e * 1.014;
                     v.push(torus(0.125, 0.012, 5, 10, 2.0 * PI, matt(0xa77a4c)).at(lx, ly, face));
-                    v.push(Part::new(Shape::Disc { r: 0.035, seg: 7 }, matt(0x9a7048)).at(lx + 0.035, ly + 0.02, face + if e > 0.0 { 0.002 } else { -0.002 }).turn(0.0, if e > 0.0 { 0.0 } else { PI }, 0.0));
+                    v.push(
+                        Part::new(Shape::Disc { r: 0.035, seg: 7 }, matt(0x9a7048))
+                            .at(
+                                lx + 0.035,
+                                ly + 0.02,
+                                face + if e > 0.0 { 0.002 } else { -0.002 },
+                            )
+                            .turn(0.0, if e > 0.0 { 0.0 } else { PI }, 0.0),
+                    );
                 }
             }
         }
     }
     // The walk-through side gate and split brick wall are a Blender-authored GLB in yard_scene.
     // Raised veggie planter; individual weathered boards and dark, uneven soil in the polished yard.
-    let planter_wood = if polished { matt(0x806044).material(Tex::Wood, 2.0) } else { matt(0x7a5a3a) };
+    let planter_wood = if polished {
+        matt(0x806044).material(Tex::Wood, 2.0)
+    } else {
+        matt(0x7a5a3a)
+    };
     v.push(cuboid(5.0, 0.6, 0.9, planter_wood, -8.0, 0.3, 20.0).bevel(finish(0.04)));
     if polished {
         for x in [-10.25f32, -8.0, -5.75] {
@@ -1730,12 +3199,36 @@ fn props(polished: bool) -> Vec<Part> {
             for z in [19.72f32, 20.28] {
                 let height = post_rng.range(0.68, 0.76);
                 let lean = post_rng.range(-0.035, 0.035);
-                v.push(cuboid(0.10, height, 0.10, matt(0x705138).material(Tex::Wood, 1.4), x, height * 0.5, z)
-                    .bevel(0.016).weathered().turn(0.0, 0.0, lean));
+                v.push(
+                    cuboid(
+                        0.10,
+                        height,
+                        0.10,
+                        matt(0x705138).material(Tex::Wood, 1.4),
+                        x,
+                        height * 0.5,
+                        z,
+                    )
+                    .bevel(0.016)
+                    .weathered()
+                    .turn(0.0, 0.0, lean),
+                );
             }
         }
     }
-    v.push(cuboid(4.8, 0.1, 0.75, if polished { matt(0x403021) } else { matt(0x4a3322) }, -8.0, 0.61, 20.0));
+    v.push(cuboid(
+        4.8,
+        0.1,
+        0.75,
+        if polished {
+            matt(0x403021)
+        } else {
+            matt(0x4a3322)
+        },
+        -8.0,
+        0.61,
+        20.0,
+    ));
     if polished {
         // Tomatoes climb rough stakes; basil and capsicums give the raised bed distinct crops.
         let stake = matt(0x806344).material(Tex::Wood, 1.2);
@@ -1743,32 +3236,77 @@ fn props(polished: bool) -> Vec<Part> {
         let leaf = matt(0x4f8a3d).faceted();
         for (x, lean) in [(-9.35f32, -0.035f32), (-8.18, 0.025)] {
             v.push(cuboid(0.045, 1.18, 0.045, stake, x, 1.16, 19.92).turn(0.0, 0.0, lean));
-            v.push(rod(V3::new(x, 0.68, 19.96), V3::new(x + lean * 2.0, 1.50, 20.02), 0.032, stem));
-            for (y, side) in [(0.88f32,-1.0f32),(1.08,1.0),(1.28,-1.0),(1.45,1.0)] {
-                v.push(orb(0.17, leaf, x + side * 0.18, y, 20.0).stretch(1.2,0.45,0.75).turn(0.0,side*0.4,side*0.12));
+            v.push(rod(
+                V3::new(x, 0.68, 19.96),
+                V3::new(x + lean * 2.0, 1.50, 20.02),
+                0.032,
+                stem,
+            ));
+            for (y, side) in [(0.88f32, -1.0f32), (1.08, 1.0), (1.28, -1.0), (1.45, 1.0)] {
+                v.push(
+                    orb(0.17, leaf, x + side * 0.18, y, 20.0)
+                        .stretch(1.2, 0.45, 0.75)
+                        .turn(0.0, side * 0.4, side * 0.12),
+                );
             }
-            for (y, side) in [(0.91f32,-1.0f32),(1.19,1.0),(1.38,-1.0)] {
-                v.push(orb(0.105, matt(0xc83f32), x + side * 0.12, y, 20.06).stretch(0.9,1.0,0.9));
+            for (y, side) in [(0.91f32, -1.0f32), (1.19, 1.0), (1.38, -1.0)] {
+                v.push(
+                    orb(0.105, matt(0xc83f32), x + side * 0.12, y, 20.06).stretch(0.9, 1.0, 0.9),
+                );
                 v.push(orb(0.025, stem, x + side * 0.12, y + 0.10, 20.06));
             }
         }
         for x in [-7.15f32, -6.45] {
-            for k in 0..5 { let a=k as f32*2.0*PI/5.0;
-                v.push(orb(0.15,leaf,x+a.cos()*0.16,0.82+a.sin()*0.03,20.0+a.sin()*0.13).stretch(1.4,0.45,0.75)); }
+            for k in 0..5 {
+                let a = k as f32 * 2.0 * PI / 5.0;
+                v.push(
+                    orb(
+                        0.15,
+                        leaf,
+                        x + a.cos() * 0.16,
+                        0.82 + a.sin() * 0.03,
+                        20.0 + a.sin() * 0.13,
+                    )
+                    .stretch(1.4, 0.45, 0.75),
+                );
+            }
         }
-        for (x,c) in [(-5.98f32,0xd94b32u32),(-6.50,0xe0a640)] {
-            v.push(orb(0.24,matt(c).faceted(),x,0.82,19.98).stretch(0.86,0.92,0.82));
-            for k in 0..4 {let a=k as f32*PI/2.0;v.push(rod(V3::new(x,0.99,19.98),V3::new(x+a.cos()*0.10,1.04,19.98+a.sin()*0.10),0.016,stem));}
+        for (x, c) in [(-5.98f32, 0xd94b32u32), (-6.50, 0xe0a640)] {
+            v.push(orb(0.24, matt(c).faceted(), x, 0.82, 19.98).stretch(0.86, 0.92, 0.82));
+            for k in 0..4 {
+                let a = k as f32 * PI / 2.0;
+                v.push(rod(
+                    V3::new(x, 0.99, 19.98),
+                    V3::new(x + a.cos() * 0.10, 1.04, 19.98 + a.sin() * 0.10),
+                    0.016,
+                    stem,
+                ));
+            }
         }
         // Weathered marker faces the lawn, with an in-house painted label texture.
-        let signwood = matt(0x8a6944).material(Tex::Wood,1.2);
-        v.push(cuboid(0.9,0.36,0.045,signwood,-10.0,0.96,19.54).weathered());
-        v.push(cuboid(0.82,0.27,0.014,matt(0xffffff).textured(Tex::GardenSign),-10.0,0.96,19.509));
-        for x in [-10.38f32,-9.62] {v.push(cuboid(0.045,0.62,0.045,stake,x,0.57,19.56));}
+        let signwood = matt(0x8a6944).material(Tex::Wood, 1.2);
+        v.push(cuboid(0.9, 0.36, 0.045, signwood, -10.0, 0.96, 19.54).weathered());
+        v.push(cuboid(
+            0.82,
+            0.27,
+            0.014,
+            matt(0xffffff).textured(Tex::GardenSign),
+            -10.0,
+            0.96,
+            19.509,
+        ));
+        for x in [-10.38f32, -9.62] {
+            v.push(cuboid(0.045, 0.62, 0.045, stake, x, 0.57, 19.56));
+        }
     } else {
         let mut rng = Rng::new(0x7E6);
-        for k in 0..7 {v.push(Part::new(Shape::Ico { r: 0.28, detail: 0 }, matt(0x4f9a3c).faceted())
-            .at(-10.2 + k as f32 * 0.72, 0.82, 20.0 + rng.range(-0.12, 0.12)).stretch(1.0, 0.8, 1.0));}
+        for k in 0..7 {
+            v.push(
+                Part::new(Shape::Ico { r: 0.28, detail: 0 }, matt(0x4f9a3c).faceted())
+                    .at(-10.2 + k as f32 * 0.72, 0.82, 20.0 + rng.range(-0.12, 0.12))
+                    .stretch(1.0, 0.8, 1.0),
+            );
+        }
     }
     v
 }
@@ -1786,7 +3324,11 @@ fn bar(polished: bool) -> Vec<Part> {
     let top = matt(0xc79a61);
     let mut v = vec![
         cuboid(bw, bh - 0.08, bd, wood, bx, (bh - 0.08) / 2.0, bz),
-        cuboid(bw + 0.2, 0.08, bd + 0.2, top, bx, bh - 0.04, bz).bevel(if polished { 0.032 } else { 0.0 }),
+        cuboid(bw + 0.2, 0.08, bd + 0.2, top, bx, bh - 0.04, bz).bevel(if polished {
+            0.032
+        } else {
+            0.0
+        }),
     ];
     for k in 0..6 {
         v.push(cuboid(
@@ -1819,15 +3361,34 @@ fn bar(polished: bool) -> Vec<Part> {
     for x in [-0.55f32, 0.55] {
         let z = bz - bd * 0.28;
         v.push(cyl(0.035, 0.04, 0.24, 8, tap, bx + x, bh + 0.12, z));
-        v.push(rod(V3::new(bx + x, bh + 0.22, z), V3::new(bx + x, bh + 0.22, z + 0.14), 0.045, tap));
-        v.push(cyl(0.035, 0.035, 0.045, 8, matt(0x6c5131), bx + x, bh + 0.255, z + 0.14));
+        v.push(rod(
+            V3::new(bx + x, bh + 0.22, z),
+            V3::new(bx + x, bh + 0.22, z + 0.14),
+            0.045,
+            tap,
+        ));
+        v.push(cyl(
+            0.035,
+            0.035,
+            0.045,
+            8,
+            matt(0x6c5131),
+            bx + x,
+            bh + 0.255,
+            z + 0.14,
+        ));
     }
     v
 }
 
 /// Cheeky mode's bar: "THE BAR" sign, the VP / WINE / RUM tags and the drinks on top.
 fn bar_grog() -> Vec<Part> {
-    let (bx, bz, bd, bh) = ((BAR.x0 + BAR.x1) / 2.0, (BAR.z0 + BAR.z1) / 2.0, BAR.z1 - BAR.z0, BAR.h);
+    let (bx, bz, bd, bh) = (
+        (BAR.x0 + BAR.x1) / 2.0,
+        (BAR.z0 + BAR.z1) / 2.0,
+        BAR.z1 - BAR.z0,
+        BAR.h,
+    );
     let mut v = Vec::new();
     v.push(cuboid(
         2.6,
@@ -1907,18 +3468,43 @@ fn bar_grog() -> Vec<Part> {
 /// sign, LEMONADE / JUICE / WATER tags, and lemonade cans, a jug of orange juice with glasses,
 /// and bottles of water on top.
 fn bar_soft() -> Vec<Part> {
-    let (bx, bz, bd, bh) = ((BAR.x0 + BAR.x1) / 2.0, (BAR.z0 + BAR.z1) / 2.0, BAR.z1 - BAR.z0, BAR.h);
-    let mut v = vec![cuboid(2.6, 0.55, 0.06, matt(0xffffff).textured(Tex::SignDrinks), bx, 2.45, bz - 0.35)];
-    for (t, x) in [(Tex::TagLemonade, -1.2), (Tex::TagJuice, 0.0), (Tex::TagWater, 1.2)] {
+    let (bx, bz, bd, bh) = (
+        (BAR.x0 + BAR.x1) / 2.0,
+        (BAR.z0 + BAR.z1) / 2.0,
+        BAR.z1 - BAR.z0,
+        BAR.h,
+    );
+    let mut v = vec![cuboid(
+        2.6,
+        0.55,
+        0.06,
+        matt(0xffffff).textured(Tex::SignDrinks),
+        bx,
+        2.45,
+        bz - 0.35,
+    )];
+    for (t, x) in [
+        (Tex::TagLemonade, -1.2),
+        (Tex::TagJuice, 0.0),
+        (Tex::TagWater, 1.2),
+    ] {
         v.push(
-            Part::new(Shape::Quad { w: 0.62, h: 0.2 }, matt(0xffffff).textured(t).unlit().no_shadow())
-                .at(bx + x, bh - 0.2, bz + bd / 2.0 + 0.03),
+            Part::new(
+                Shape::Quad { w: 0.62, h: 0.2 },
+                matt(0xffffff).textured(t).unlit().no_shadow(),
+            )
+            .at(bx + x, bh - 0.2, bz + bd / 2.0 + 0.03),
         );
     }
     // lemonade cans on the left
     for k in 0..4 {
         let z = bz + if k % 2 == 1 { 0.12 } else { -0.1 };
-        v.extend(place(looks::lemonade_can(), V3::new(bx - 1.55 + k as f32 * 0.22, bh + 0.1, z), Quat::IDENTITY, 1.0));
+        v.extend(place(
+            looks::lemonade_can(),
+            V3::new(bx - 1.55 + k as f32 * 0.22, bh + 0.1, z),
+            Quat::IDENTITY,
+            1.0,
+        ));
     }
     // a jug of orange juice and two glasses of it in the middle
     let glass = matt(0xdfe8ea).see_through(0.5);
@@ -1935,7 +3521,10 @@ fn bar_soft() -> Vec<Part> {
     ));
     for x in [0.12f32, 0.32] {
         v.extend(place(
-            vec![cyl(0.04, 0.035, 0.12, 12, glass, 0.0, 0.06, 0.0), cyl(0.036, 0.032, 0.08, 12, juice, 0.0, 0.045, 0.0)],
+            vec![
+                cyl(0.04, 0.035, 0.12, 12, glass, 0.0, 0.06, 0.0),
+                cyl(0.036, 0.032, 0.08, 12, juice, 0.0, 0.045, 0.0),
+            ],
             V3::new(bx + x, bh, bz + 0.15),
             Quat::IDENTITY,
             1.0,
@@ -1945,8 +3534,26 @@ fn bar_soft() -> Vec<Part> {
     for (x, z) in [(1.0f32, -0.1f32), (1.2, 0.12), (1.4, -0.05)] {
         v.extend(place(
             vec![
-                cyl(0.045, 0.045, 0.2, 12, matt(0xcfe8f2).see_through(0.6), 0.0, 0.1, 0.0),
-                cyl(0.018, 0.045, 0.05, 12, matt(0xcfe8f2).see_through(0.6), 0.0, 0.225, 0.0),
+                cyl(
+                    0.045,
+                    0.045,
+                    0.2,
+                    12,
+                    matt(0xcfe8f2).see_through(0.6),
+                    0.0,
+                    0.1,
+                    0.0,
+                ),
+                cyl(
+                    0.018,
+                    0.045,
+                    0.05,
+                    12,
+                    matt(0xcfe8f2).see_through(0.6),
+                    0.0,
+                    0.225,
+                    0.0,
+                ),
                 cyl(0.019, 0.019, 0.025, 10, matt(0x2f7fe0), 0.0, 0.26, 0.0),
                 cyl(0.046, 0.046, 0.06, 12, matt(0x5fb4ea), 0.0, 0.1, 0.0),
             ],
@@ -1997,7 +3604,18 @@ fn bbq(polished: bool) -> Vec<Part> {
         // to the legs inside the original table footprint.
         let painted = matt(0x526e5b).material(Tex::Wood, 1.4);
         let timber = matt(0xae8559).material(Tex::Wood, 1.3);
-        v.push(cuboid(mw - 0.06, 0.29, 0.055, painted, mx, mh - 0.18, mz + md / 2.0 - 0.024).bevel(0.009));
+        v.push(
+            cuboid(
+                mw - 0.06,
+                0.29,
+                0.055,
+                painted,
+                mx,
+                mh - 0.18,
+                mz + md / 2.0 - 0.024,
+            )
+            .bevel(0.009),
+        );
         for x in [-0.65, 0.65] {
             v.push(cuboid(0.075, 0.075, 0.70, painted, mx + x, 0.19, mz));
         }
@@ -2082,7 +3700,11 @@ fn smoko(polished: bool) -> Vec<Part> {
             },
             // in the polished look the top is one-sided: its underside is a separate glowing
             // cone a little lower (two surfaces in the same place flickered)
-            if polished { matt(0xf2c230).textured(Tex::Fabric).repeating(5.0, 2.0) } else { matt(0xf2c230).both_sides() },
+            if polished {
+                matt(0xf2c230).textured(Tex::Fabric).repeating(5.0, 2.0)
+            } else {
+                matt(0xf2c230).both_sides()
+            },
         )
         .at(sx, 2.55, sz),
     );
@@ -2120,15 +3742,26 @@ fn smoko(polished: bool) -> Vec<Part> {
         for k in 0..4 {
             let a = k as f32 * HALF_PI;
             let (dx, dz) = (a.sin() * hw, a.cos() * hw);
-            v.push(Part::new(Shape::Quad { w: 0.84, h: 0.28 }, face).at(sx + dx, y, sz + dz).turn(0.0, a, 0.0));
+            v.push(
+                Part::new(Shape::Quad { w: 0.84, h: 0.28 }, face)
+                    .at(sx + dx, y, sz + dz)
+                    .turn(0.0, a, 0.0),
+            );
         }
         let frame = matt(0x1f2a1e);
         v.push(cuboid(0.9, 0.04, 0.9, frame, sx, y + 0.16, sz));
         v.push(cuboid(0.9, 0.04, 0.9, frame, sx, y - 0.16, sz));
         // the canopy's underside: sunlight glows through the yellow cloth, with darker ribs
         v.push(
-            Part::new(Shape::Cone { r: 1.62, h: 0.5, seg: 10 }, matt(0xd9a51c).glow(0x6b4e0c).both_sides().no_shadow())
-                .at(sx, 2.47, sz),
+            Part::new(
+                Shape::Cone {
+                    r: 1.62,
+                    h: 0.5,
+                    seg: 10,
+                },
+                matt(0xd9a51c).glow(0x6b4e0c).both_sides().no_shadow(),
+            )
+            .at(sx, 2.47, sz),
         );
     } else {
         // the SMOKO sign, both ways
@@ -2219,9 +3852,7 @@ pub fn esky_with(body: u32, dark: u32) -> (Vec<Part>, Vec<Part>) {
     }
     // the fat hinges at the back
     for sx in [-1.0f32, 1.0] {
-        base.push(
-            cyl(0.055, 0.055, 0.2, 8, grey, sx * 0.45, 0.64, -0.47).turn(0.0, 0.0, HALF_PI),
-        );
+        base.push(cyl(0.055, 0.055, 0.2, 8, grey, sx * 0.45, 0.64, -0.47).turn(0.0, 0.0, HALF_PI));
     }
     // stickers on the front (z is the front face)
     let z = 0.468;
@@ -2233,13 +3864,36 @@ pub fn esky_with(body: u32, dark: u32) -> (Vec<Part>, Vec<Part>) {
     // Sun-faded abrasion at the four front corners, plus short scratches that follow the plastic.
     for sx in [-1.0f32, 1.0] {
         for y in [0.14f32, 0.52] {
-            base.push(cuboid(0.085, 0.035, 0.009, faded_plastic, sx * 0.68, y, 0.473).turn(0.0, 0.0, sx * -0.28));
+            base.push(
+                cuboid(0.085, 0.035, 0.009, faded_plastic, sx * 0.68, y, 0.473).turn(
+                    0.0,
+                    0.0,
+                    sx * -0.28,
+                ),
+            );
         }
-        base.push(cuboid(0.12, 0.012, 0.009, deep_scuff, sx * 0.57, 0.27, 0.474).turn(0.0, 0.0, sx * 0.16));
-        base.push(cuboid(0.1, 0.01, 0.009, faded_plastic, sx * 0.49, 0.47, 0.474).turn(0.0, 0.0, sx * -0.12));
+        base.push(
+            cuboid(0.12, 0.012, 0.009, deep_scuff, sx * 0.57, 0.27, 0.474).turn(
+                0.0,
+                0.0,
+                sx * 0.16,
+            ),
+        );
+        base.push(
+            cuboid(0.1, 0.01, 0.009, faded_plastic, sx * 0.49, 0.47, 0.474).turn(
+                0.0,
+                0.0,
+                sx * -0.12,
+            ),
+        );
     }
     // Dirt caught where the body meets the darker foot band.
-    for (x, w) in [(-0.48f32, 0.16f32), (-0.16, 0.11), (0.31, 0.2), (0.58, 0.08)] {
+    for (x, w) in [
+        (-0.48f32, 0.16f32),
+        (-0.16, 0.11),
+        (0.31, 0.2),
+        (0.58, 0.08),
+    ] {
         base.push(cuboid(w, 0.025, 0.009, grime, x, 0.105, 0.474));
     }
     // the lid, local to ESKY_PIVOT: a slab with a raised blue plate and an arched handle
@@ -2251,7 +3905,15 @@ pub fn esky_with(body: u32, dark: u32) -> (Vec<Part>, Vec<Part>) {
     let lid_detail_start = lid.len();
     // A pair of worn corners on the lid's blue inset and a rubbed edge near the handle.
     for sx in [-1.0f32, 1.0] {
-        lid.push(cuboid(0.12, 0.008, 0.055, faded_plastic, sx * 0.46, 0.18, 0.73));
+        lid.push(cuboid(
+            0.12,
+            0.008,
+            0.055,
+            faded_plastic,
+            sx * 0.46,
+            0.18,
+            0.73,
+        ));
     }
     lid.push(cuboid(0.2, 0.008, 0.018, deep_scuff, 0.25, 0.18, 0.48));
     lid.push(
@@ -2282,7 +3944,10 @@ pub fn esky_with(body: u32, dark: u32) -> (Vec<Part>, Vec<Part>) {
 /// The toy in slot `k` of the chest (the sizes cycle: classic, mini, jumbo).
 pub fn chest_toy(k: usize) -> Vec<Part> {
     let v = DildoVariant::ALL[k % DildoVariant::ALL.len()];
-    let toy = looks::dildo_skin(v, looks::DildoSkin::ALL[(k * 2 + 1) % looks::DildoSkin::ALL.len()]);
+    let toy = looks::dildo_skin(
+        v,
+        looks::DildoSkin::ALL[(k * 2 + 1) % looks::DildoSkin::ALL.len()],
+    );
     let (at, rot, s) = chest_toy_place(k);
     place(toy, at, rot, s)
 }
@@ -2345,12 +4010,18 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
     use crate::heist::{self, Tint};
     let mut v = Vec::new();
     // Extend the playable lawn beneath the larger oval. Keep the swimming pool cut out of it.
-    v.push(Part::new(Shape::OvalGround {
-        a: heist::ARENA_A,
-        b: heist::ARENA_B,
-        hole: (POOL_X0, POOL_X1, POOL_Z0, POOL_Z1),
-        per_m: 1.0 / 16.0,
-    }, matt(0xffffff).textured(Tex::Lawn).no_shadow().ground()).at(0.0, 0.015, 0.0));
+    v.push(
+        Part::new(
+            Shape::OvalGround {
+                a: heist::ARENA_A,
+                b: heist::ARENA_B,
+                hole: (POOL_X0, POOL_X1, POOL_Z0, POOL_Z1),
+                per_m: 1.0 / 16.0,
+            },
+            matt(0xffffff).textured(Tex::Lawn).no_shadow().ground(),
+        )
+        .at(0.0, 0.015, 0.0),
+    );
     for piece in heist::arena_for(teams, variant) {
         let c = piece.collider;
         let colour = match piece.tint {
@@ -2369,7 +4040,13 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
                     0x8a5a36
                 }
             }
-            Tint::Maze(light) => if light { 0xd17b36 } else { 0xa9552e },
+            Tint::Maze(light) => {
+                if light {
+                    0xd17b36
+                } else {
+                    0xa9552e
+                }
+            }
         };
         v.push(cuboid(
             c.x1 - c.x0,
@@ -2551,7 +4228,11 @@ pub fn dirt_spots(seed: u64) -> Vec<DirtSpot> {
                 let wob = (t * 6.0 + a.0).sin() * 0.3;
                 let (nx, nz) = ((b.1 - a.1) / len, -(b.0 - a.0) / len);
                 let mid = 1.0 - (2.0 * t - 1.0).abs() * 0.4;
-                let (j1, j2, rr) = (rng.range(-0.3, 0.3), rng.range(-0.3, 0.3), rng.range(0.6, 1.0));
+                let (j1, j2, rr) = (
+                    rng.range(-0.3, 0.3),
+                    rng.range(-0.3, 0.3),
+                    rng.range(0.6, 1.0),
+                );
                 spot(
                     &mut rng,
                     a.0 + (b.0 - a.0) * t + nx * (wob + j1),
@@ -2591,11 +4272,17 @@ pub fn dirt_spots(seed: u64) -> Vec<DirtSpot> {
             2 => (-W + rng.range(1.0, 3.5), rng.range(-D + 3.0, D - 3.0)),
             _ => (W - rng.range(1.0, 3.5), rng.range(-D + 3.0, D - 3.0)),
         };
-        if (POOL_X0 - 3.0..POOL_X1 + 3.0).contains(&x) && (POOL_Z0 - 3.0..POOL_Z1 + 3.0).contains(&z) {
+        if (POOL_X0 - 3.0..POOL_X1 + 3.0).contains(&x)
+            && (POOL_Z0 - 3.0..POOL_Z1 + 3.0).contains(&z)
+        {
             continue;
         }
         for _ in 0..rng.index(3) + 3 {
-            let (dx, dz, rr) = (rng.range(-1.6, 1.6), rng.range(-1.6, 1.6), rng.range(0.5, 1.4));
+            let (dx, dz, rr) = (
+                rng.range(-1.6, 1.6),
+                rng.range(-1.6, 1.6),
+                rng.range(0.5, 1.4),
+            );
             spot(&mut rng, x + dx, z + dz, rr, 0.35);
         }
     }
@@ -2614,8 +4301,24 @@ fn mix_colour(a: u32, b: u32, t: f32) -> u32 {
 /// One neighbour's house (visual only, outside the fence): a plain box with a gable roof, a few
 /// windows, a door, sometimes a chimney or a tank. Built facing +z, `w` wide and `d` deep.
 fn neighbour_house(rng: &mut Rng, w: f32, d: f32) -> Vec<Part> {
-    let walls = [0xf1e6cc_u32, 0xe9d9b8, 0xd8e0e2, 0xe8c9b8, 0xcfd9c0, 0xf4efe2, 0xc9d3dc, 0xe5d2a8];
-    let roofs = [0x9a4636_u32, 0x7a4a3c, 0x5f6b72, 0x6b7a5a, 0x8a3f33, 0x4f5a66];
+    let walls = [
+        0xf1e6cc_u32,
+        0xe9d9b8,
+        0xd8e0e2,
+        0xe8c9b8,
+        0xcfd9c0,
+        0xf4efe2,
+        0xc9d3dc,
+        0xe5d2a8,
+    ];
+    let roofs = [
+        0x9a4636_u32,
+        0x7a4a3c,
+        0x5f6b72,
+        0x6b7a5a,
+        0x8a3f33,
+        0x4f5a66,
+    ];
     let wall = walls[rng.index(walls.len())];
     let roof = roofs[rng.index(roofs.len())];
     let h = rng.range(3.4, 4.2);
@@ -2623,27 +4326,225 @@ fn neighbour_house(rng: &mut Rng, w: f32, d: f32) -> Vec<Part> {
     let slab_d = (d * 0.5 + 0.7) / a.cos();
     let rise = d * 0.25 * a.tan();
     let mut v = vec![
-        cuboid(w, h, d, matt(wall).textured(Tex::Weatherboard).repeating(w*0.5,2.5), 0.0, h / 2.0, 0.0),
-        cuboid(w + 0.9, 0.15, slab_d, matt(roof).textured(Tex::Corrugated).repeating(w*0.5,2.0), 0.0, h + rise + 0.08, d * 0.25).turn(a, 0.0, 0.0),
-        cuboid(w + 0.9, 0.15, slab_d, matt(shade_surface(matt(roof), 0.92).color), 0.0, h + rise + 0.08, -d * 0.25).turn(-a, 0.0, 0.0),
+        cuboid(
+            w,
+            h,
+            d,
+            matt(wall)
+                .textured(Tex::Weatherboard)
+                .repeating(w * 0.5, 2.5),
+            0.0,
+            h / 2.0,
+            0.0,
+        ),
+        cuboid(
+            w + 0.9,
+            0.15,
+            slab_d,
+            matt(roof).textured(Tex::Corrugated).repeating(w * 0.5, 2.0),
+            0.0,
+            h + rise + 0.08,
+            d * 0.25,
+        )
+        .turn(a, 0.0, 0.0),
+        cuboid(
+            w + 0.9,
+            0.15,
+            slab_d,
+            matt(shade_surface(matt(roof), 0.92).color),
+            0.0,
+            h + rise + 0.08,
+            -d * 0.25,
+        )
+        .turn(-a, 0.0, 0.0),
         // the roof's end triangles are left open, so close them with a wall slab under the ridge
-        cuboid(w, rise * 1.1, d * 0.5, matt(shade_surface(matt(wall), 0.96).color), 0.0, h + rise * 0.5, 0.0),
+        cuboid(
+            w,
+            rise * 1.1,
+            d * 0.5,
+            matt(shade_surface(matt(wall), 0.96).color),
+            0.0,
+            h + rise * 0.5,
+            0.0,
+        ),
     ];
     let n = ((w / 4.5) as usize).max(2);
     for i in 0..n {
         let x = -w / 2.0 + w * (i as f32 + 0.5) / n as f32;
         if i == n / 2 {
-            v.push(cuboid(1.0, 2.1, 0.1, matt(0x6f4a30), x, 1.05, d / 2.0 + 0.02));
+            v.push(cuboid(
+                1.0,
+                2.1,
+                0.1,
+                matt(0x6f4a30),
+                x,
+                1.05,
+                d / 2.0 + 0.02,
+            ));
         } else {
-            v.push(cuboid(1.7, 1.3, 0.08, matt(0xeeeadc), x, 2.0, d / 2.0 + 0.02));
-            v.push(cuboid(1.45, 1.05, 0.1, matt(0x2d4b66), x, 2.0, d / 2.0 + 0.03));
+            v.push(cuboid(
+                1.7,
+                1.3,
+                0.08,
+                matt(0xeeeadc),
+                x,
+                2.0,
+                d / 2.0 + 0.02,
+            ));
+            v.push(cuboid(
+                1.45,
+                1.05,
+                0.1,
+                matt(0x2d4b66),
+                x,
+                2.0,
+                d / 2.0 + 0.03,
+            ));
         }
     }
     if rng.chance(0.5) {
-        v.push(cuboid(0.7, 1.6, 0.7, matt(0xb0705a), rng.range(-w * 0.3, w * 0.3), h + rise + 0.9, -d * 0.2));
+        v.push(cuboid(
+            0.7,
+            1.6,
+            0.7,
+            matt(0xb0705a),
+            rng.range(-w * 0.3, w * 0.3),
+            h + rise + 0.9,
+            -d * 0.2,
+        ));
     }
     if rng.chance(0.4) {
-        v.push(cyl(1.0, 1.0, 2.2, 14, matt(0x9fb0a4), w / 2.0 + 1.6, 1.1, 0.0));
+        v.push(cyl(
+            1.0,
+            1.0,
+            2.2,
+            14,
+            matt(0x9fb0a4),
+            w / 2.0 + 1.6,
+            1.1,
+            0.0,
+        ));
+    }
+    // Practical Australian house details: gutters, square downpipes, corner boards and a low
+    // brick footing stop the distant neighbours reading as plain boxes. These remain visual.
+    let zinc = matt(0x929b96).material(Tex::Metal, 1.1);
+    let trim = matt(shade_surface(matt(wall), 1.05).color);
+    for z in [-d * 0.5 - 0.16, d * 0.5 + 0.16] {
+        v.push(cuboid(w + 0.9, 0.10, 0.17, zinc, 0.0, h + 0.03, z));
+        for x in (-((w * 0.42) as i32)..=((w * 0.42) as i32)).step_by(4) {
+            v.push(cuboid(
+                0.06,
+                0.12,
+                0.18,
+                matt(0x68716d),
+                x as f32,
+                h - 0.035,
+                z,
+            ));
+        }
+    }
+    for x in [-w * 0.5 - 0.08, w * 0.5 + 0.08] {
+        for z in [-d * 0.5 - 0.18, d * 0.5 + 0.18] {
+            v.push(cuboid(0.11, h - 0.15, 0.11, zinc, x, (h - 0.15) * 0.5, z));
+            for y in [0.75f32, 1.8, 2.9] {
+                if y < h - 0.15 {
+                    v.push(cuboid(0.16, 0.045, 0.15, matt(0x767c76), x, y, z));
+                }
+            }
+            v.push(cuboid(0.18, h, 0.15, trim, x, h * 0.5, z));
+        }
+    }
+    v.push(cuboid(
+        w - 0.25,
+        0.18,
+        d - 0.25,
+        matt(0xb4a991).material(Tex::Concrete, 0.8),
+        0.0,
+        0.09,
+        0.0,
+    ));
+    // Weather strips beneath the existing windows, split panes and slightly uneven timber sills.
+    for i in 0..n {
+        if i == n / 2 {
+            continue;
+        }
+        let x = -w / 2.0 + w * (i as f32 + 0.5) / n as f32;
+        v.push(cuboid(1.82, 0.07, 0.14, trim, x, 1.32, d / 2.0 + 0.11));
+        v.push(cuboid(0.045, 1.16, 0.025, trim, x, 2.0, d / 2.0 + 0.105));
+        v.push(cuboid(1.5, 0.045, 0.025, trim, x, 2.0, d / 2.0 + 0.105));
+        v.push(cuboid(
+            0.025,
+            1.0,
+            0.012,
+            matt(0xc7d6d5),
+            x,
+            2.0,
+            d / 2.0 + 0.145,
+        ));
+    }
+    // A modest entry awning with a faded edge and two narrow posts.
+    let door_x = 0.0;
+    let porch_z = d * 0.5 + 0.7;
+    v.push(cuboid(
+        2.15,
+        0.11,
+        1.25,
+        matt(0x7d6751).material(Tex::Wood, 1.4),
+        door_x,
+        h.min(3.0) - 0.10,
+        porch_z,
+    ));
+    v.push(cuboid(
+        2.30,
+        0.055,
+        1.32,
+        matt(roof).material(Tex::Corrugated, 1.5),
+        door_x,
+        h.min(3.0) - 0.025,
+        porch_z,
+    ));
+    for x in [-0.92f32, 0.92] {
+        v.push(cuboid(
+            0.10,
+            h.min(3.0) - 0.18,
+            0.10,
+            matt(0x806447).material(Tex::Wood, 1.1),
+            x,
+            (h.min(3.0) - 0.18) * 0.5,
+            porch_z + 0.47,
+        ));
+    }
+    v.push(cuboid(
+        1.28,
+        0.09,
+        0.50,
+        matt(0xb4a48a).material(Tex::Concrete, 0.8),
+        door_x,
+        0.045,
+        d * 0.5 + 0.24,
+    ));
+    // A couple of small dark vents give the roofline a useful break in the long wall.
+    for x in [-w * 0.28, w * 0.29] {
+        v.push(cuboid(
+            0.52,
+            0.27,
+            0.045,
+            matt(0x6f7772),
+            x,
+            h - 0.82,
+            d * 0.5 + 0.065,
+        ));
+        for y in [h - 0.90, h - 0.82, h - 0.74] {
+            v.push(cuboid(
+                0.40,
+                0.018,
+                0.015,
+                matt(0x3c4541),
+                x,
+                y,
+                d * 0.5 + 0.095,
+            ));
+        }
     }
     v
 }
@@ -2655,7 +4556,13 @@ pub fn neighbour_spots() -> Vec<(f32, f32, f32, f32, f32)> {
     let mut rng = Rng::new(0x4E16B0);
     let mut v = Vec::new();
     let mut add = |x: f32, z: f32, yaw: f32, w: f32, d: f32, rng: &mut Rng| {
-        v.push((x + rng.range(-2.0, 2.0), z + rng.range(-2.0, 2.0), yaw + rng.range(-0.05, 0.05), w * rng.range(0.9, 1.15), d * rng.range(0.9, 1.1)));
+        v.push((
+            x + rng.range(-2.0, 2.0),
+            z + rng.range(-2.0, 2.0),
+            yaw + rng.range(-0.05, 0.05),
+            w * rng.range(0.9, 1.15),
+            d * rng.range(0.9, 1.1),
+        ));
     };
     for z in [-14.0f32, 12.0] {
         add(50.0, z, -HALF_PI, 14.0, 9.0, &mut rng);
@@ -2684,10 +4591,16 @@ fn neighbourhood(seed: u64) -> Vec<Part> {
 /// `rz` wide, turned by `yaw`. `y` is its height above the ground: every kind of patch has its own
 /// height so two of them never sit in exactly the same plane (that flickered before).
 fn ground_patch(x: f32, z: f32, rx: f32, rz: f32, yaw: f32, col: u32, alpha: f32, y: f32) -> Part {
-    Part::new(Shape::Disc { r: 1.0, seg: 12 }, matt(col).textured(Tex::SoftDot).see_through(alpha).no_shadow())
-        .at(x, y, z)
-        .turn(-HALF_PI, 0.0, yaw)
-        .stretch(rx, rz, 1.0)
+    Part::new(
+        Shape::Disc { r: 1.0, seg: 12 },
+        matt(col)
+            .textured(Tex::SoftDot)
+            .see_through(alpha)
+            .no_shadow(),
+    )
+    .at(x, y, z)
+    .turn(-HALF_PI, 0.0, yaw)
+    .stretch(rx, rz, 1.0)
 }
 
 /// A little tuft of dry grass or weed.
@@ -2697,11 +4610,22 @@ fn tuft(rng: &mut Rng, x: f32, z: f32, c: u32) -> Vec<Part> {
         let (h, r) = (rng.range(0.16, 0.4), rng.range(0.025, 0.05));
         let (a, tilt) = (rng.range(0.0, 2.0 * PI), rng.range(0.1, 0.5));
         v.push(
-            Part::new(Shape::Cone { r: 0.04, h: 0.3, seg: 4 }, matt(c))
-                .at(x + rng.range(-0.08, 0.08), h / 2.0, z + rng.range(-0.08, 0.08))
-                .turn(tilt * a.cos(), 0.0, tilt * a.sin())
-                .stretch(r / 0.04, h / 0.3, r / 0.04)
-                .no_shadow_part(),
+            Part::new(
+                Shape::Cone {
+                    r: 0.04,
+                    h: 0.3,
+                    seg: 4,
+                },
+                matt(c),
+            )
+            .at(
+                x + rng.range(-0.08, 0.08),
+                h / 2.0,
+                z + rng.range(-0.08, 0.08),
+            )
+            .turn(tilt * a.cos(), 0.0, tilt * a.sin())
+            .stretch(r / 0.04, h / 0.3, r / 0.04)
+            .no_shadow_part(),
         );
     }
     v
@@ -2727,24 +4651,67 @@ fn ground_story(seed: u64) -> Vec<Part> {
         for k in 0..n {
             let t = -len / 2.0 + len * (k as f32 + rng.range(0.2, 0.8)) / n as f32;
             let off = rng.range(0.25, 0.5);
-            let (x, z) = if horizontal { (cx + t, cz + sz * off) } else { (cx + sx * off, cz + t) };
+            let (x, z) = if horizontal {
+                (cx + t, cz + sz * off)
+            } else {
+                (cx + sx * off, cz + t)
+            };
             let yaw = if horizontal { 0.0 } else { HALF_PI };
             let (rx, rz) = (rng.range(0.8, 1.3), rng.range(0.3, 0.5));
-            v.push(ground_patch(x, z, rx, rz, yaw, 0x4a3b24, rng.range(0.4, 0.65), 0.008));
+            v.push(ground_patch(
+                x,
+                z,
+                rx,
+                rz,
+                yaw,
+                0x4a3b24,
+                rng.range(0.4, 0.65),
+                0.008,
+            ));
             if rng.chance(0.55) {
-                let c = if rng.chance(0.7) { dry[rng.index(3)] } else { green[rng.index(2)] };
-                let (x2, z2) = if horizontal { (x + rng.range(-0.6, 0.6), cz + sz * rng.range(0.1, 0.35)) } else { (cx + sx * rng.range(0.1, 0.35), z + rng.range(-0.6, 0.6)) };
+                let c = if rng.chance(0.7) {
+                    dry[rng.index(3)]
+                } else {
+                    green[rng.index(2)]
+                };
+                let (x2, z2) = if horizontal {
+                    (x + rng.range(-0.6, 0.6), cz + sz * rng.range(0.1, 0.35))
+                } else {
+                    (cx + sx * rng.range(0.1, 0.35), z + rng.range(-0.6, 0.6))
+                };
                 v.extend(tuft(&mut rng, x2, z2, c));
             }
         }
     }
     // A4.3: round the BBQ and the meat table: flattened, greasy ground, scraps and bottle caps
-    for (x, z, rx, rz) in [(-6.0f32, -17.2f32, 1.5f32, 1.0f32), (-8.7, -17.6, 1.2, 0.9), (-7.3, -16.6, 1.8, 0.7)] {
-        v.push(ground_patch(x, z, rx, rz, rng.range(0.0, PI), 0x6a5a38, 0.5, 0.010));
+    for (x, z, rx, rz) in [
+        (-6.0f32, -17.2f32, 1.5f32, 1.0f32),
+        (-8.7, -17.6, 1.2, 0.9),
+        (-7.3, -16.6, 1.8, 0.7),
+    ] {
+        v.push(ground_patch(
+            x,
+            z,
+            rx,
+            rz,
+            rng.range(0.0, PI),
+            0x6a5a38,
+            0.5,
+            0.010,
+        ));
     }
     for _ in 0..7 {
         let (x, z) = (-7.2 + rng.range(-2.0, 2.0), -17.0 + rng.range(-1.0, 1.0));
-        v.push(ground_patch(x, z, rng.range(0.15, 0.4), rng.range(0.12, 0.3), rng.range(0.0, PI), 0x1f1810, rng.range(0.45, 0.7), 0.012));
+        v.push(ground_patch(
+            x,
+            z,
+            rng.range(0.15, 0.4),
+            rng.range(0.12, 0.3),
+            rng.range(0.0, PI),
+            0x1f1810,
+            rng.range(0.45, 0.7),
+            0.012,
+        ));
     }
     for k in 0..9 {
         let (x, z) = (-7.2 + rng.range(-2.2, 2.2), -17.0 + rng.range(-1.1, 1.1));
@@ -2752,18 +4719,55 @@ fn ground_story(seed: u64) -> Vec<Part> {
             // a bottle cap
             0 => v.push(cyl(0.017, 0.017, 0.006, 8, matt(0xc9ced3), x, 0.006, z)),
             // a bit of sausage or steak that missed the plate
-            1 => v.push(Part::new(Shape::Cuboid { w: 0.09, h: 0.025, d: 0.035 }, matt(0x8a4a30)).at(x, 0.014, z).turn(0.0, rng.range(0.0, PI), 0.0).no_shadow_part()),
+            1 => v.push(
+                Part::new(
+                    Shape::Cuboid {
+                        w: 0.09,
+                        h: 0.025,
+                        d: 0.035,
+                    },
+                    matt(0x8a4a30),
+                )
+                .at(x, 0.014, z)
+                .turn(0.0, rng.range(0.0, PI), 0.0)
+                .no_shadow_part(),
+            ),
             // an onion ring of grease-soaked bread
-            _ => v.push(Part::new(Shape::Cuboid { w: 0.07, h: 0.012, d: 0.07 }, matt(0xd7b777)).at(x, 0.008, z).turn(0.0, rng.range(0.0, PI), 0.0).no_shadow_part()),
+            _ => v.push(
+                Part::new(
+                    Shape::Cuboid {
+                        w: 0.07,
+                        h: 0.012,
+                        d: 0.07,
+                    },
+                    matt(0xd7b777),
+                )
+                .at(x, 0.008, z)
+                .turn(0.0, rng.range(0.0, PI), 0.0)
+                .no_shadow_part(),
+            ),
         }
     }
     // A4.4: the tyre stacks sit on a worn dark patch with weeds growing round them
     for (x, z) in [(12.0f32, 2.0f32), (13.2, 2.4)] {
         v.push(ground_patch(x, z, 0.85, 0.85, 0.0, 0x241c12, 0.6, 0.010));
-        v.push(ground_patch(x + rng.range(-0.1, 0.1), z, 1.3, 1.2, 0.5, 0x3a2e1c, 0.35, 0.009));
+        v.push(ground_patch(
+            x + rng.range(-0.1, 0.1),
+            z,
+            1.3,
+            1.2,
+            0.5,
+            0x3a2e1c,
+            0.35,
+            0.009,
+        ));
         for _ in 0..3 {
             let a = rng.range(0.0, 2.0 * PI);
-            let c = if rng.chance(0.6) { green[rng.index(2)] } else { dry[rng.index(3)] };
+            let c = if rng.chance(0.6) {
+                green[rng.index(2)]
+            } else {
+                dry[rng.index(3)]
+            };
             v.extend(tuft(&mut rng, x + a.cos() * 0.75, z + a.sin() * 0.75, c));
         }
     }
@@ -2780,40 +4784,118 @@ fn ground_story(seed: u64) -> Vec<Part> {
     for side in [-1.0f32, 1.0] {
         for k in 0..6 {
             let t = -pw / 2.0 + pw * (k as f32 + 0.5) / 6.0;
-            v.push(ground_patch(pcx + t, pcz + side * (pd / 2.0 + 0.65), 1.55, 0.6, 0.0, 0x39452a, 0.55, 0.014));
-            v.push(ground_patch(pcx + t, pcz + side * (pd / 2.0 + 1.5), 1.6, 0.7, 0.0, 0xa89868, 0.28, 0.011));
+            v.push(ground_patch(
+                pcx + t,
+                pcz + side * (pd / 2.0 + 0.65),
+                1.55,
+                0.6,
+                0.0,
+                0x39452a,
+                0.55,
+                0.014,
+            ));
+            v.push(ground_patch(
+                pcx + t,
+                pcz + side * (pd / 2.0 + 1.5),
+                1.6,
+                0.7,
+                0.0,
+                0xa89868,
+                0.28,
+                0.011,
+            ));
         }
         for k in 0..4 {
             let t = -pd / 2.0 + pd * (k as f32 + 0.5) / 4.0;
-            v.push(ground_patch(pcx + side * (pw / 2.0 + 0.65), pcz + t, 0.6, 1.1, 0.0, 0x39452a, 0.55, 0.014));
-            v.push(ground_patch(pcx + side * (pw / 2.0 + 1.5), pcz + t, 0.7, 1.15, 0.0, 0xa89868, 0.28, 0.011));
+            v.push(ground_patch(
+                pcx + side * (pw / 2.0 + 0.65),
+                pcz + t,
+                0.6,
+                1.1,
+                0.0,
+                0x39452a,
+                0.55,
+                0.014,
+            ));
+            v.push(ground_patch(
+                pcx + side * (pw / 2.0 + 1.5),
+                pcz + t,
+                0.7,
+                1.15,
+                0.0,
+                0xa89868,
+                0.28,
+                0.011,
+            ));
         }
     }
     // towels left on the pool's edge (striped cloth) and a pair of thongs
-    let towels = [(0xe8443a_u32, 0xf1ead8_u32, -22.5f32, 14.75f32, 0.2f32), (0x2f8ee8, 0xf4c20d, -19.0, 14.7, -0.15), (0x3fa9a0, 0xf1ead8, -15.2, 5.25, 0.3)];
+    let towels = [
+        (0xe8443a_u32, 0xf1ead8_u32, -22.5f32, 14.75f32, 0.2f32),
+        (0x2f8ee8, 0xf4c20d, -19.0, 14.7, -0.15),
+        (0x3fa9a0, 0xf1ead8, -15.2, 5.25, 0.3),
+    ];
     for (a, b, x, z, yaw) in towels {
         let cloth = matt(a).material(Tex::Fabric, 2.5);
         v.push(cuboid(0.85, 0.035, 0.45, cloth, x, 0.02, z).turn(0.0, yaw, 0.0));
         // two stripes across it
         for sx in [-0.22f32, 0.22] {
             let o = V3::new(x + sx * yaw.cos(), 0.0, z - sx * yaw.sin());
-            v.push(cuboid(0.08, 0.037, 0.46, matt(b).material(Tex::Fabric, 2.5), o.x, 0.021, o.z).turn(0.0, yaw, 0.0));
+            v.push(
+                cuboid(
+                    0.08,
+                    0.037,
+                    0.46,
+                    matt(b).material(Tex::Fabric, 2.5),
+                    o.x,
+                    0.021,
+                    o.z,
+                )
+                .turn(0.0, yaw, 0.0),
+            );
         }
     }
     // Four worn concrete pavers form a believable footpath from the back step towards the BBQ.
     for (i, (x, z, yaw, tint)) in [
         (2.2f32, -21.2f32, -0.10f32, 0xcac3b4u32),
-        (0.8, -20.2, 0.06, 0xbdb8aa), (-0.9, -19.3, -0.08, 0xc8c2b2), (-2.7, -18.6, 0.12, 0xbdb7a8),
-    ].into_iter().enumerate() {
-        v.push(cuboid(0.92, 0.045, 0.58, matt(tint).material(Tex::Concrete, 0.8), x, 0.022 + i as f32 * 0.001, z).turn(0.0, yaw, 0.0).bevel(0.025));
+        (0.8, -20.2, 0.06, 0xbdb8aa),
+        (-0.9, -19.3, -0.08, 0xc8c2b2),
+        (-2.7, -18.6, 0.12, 0xbdb7a8),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        v.push(
+            cuboid(
+                0.92,
+                0.045,
+                0.58,
+                matt(tint).material(Tex::Concrete, 0.8),
+                x,
+                0.022 + i as f32 * 0.001,
+                z,
+            )
+            .turn(0.0, yaw, 0.0)
+            .bevel(0.025),
+        );
         v.push(ground_patch(x, z, 0.70, 0.44, yaw, 0x806e4a, 0.16, 0.010));
     }
-    for (k, (x, z, yaw)) in [(-24.6f32, 14.9f32, 0.5f32), (-24.2, 15.2, 2.2)].into_iter().enumerate() {
+    for (k, (x, z, yaw)) in [(-24.6f32, 14.9f32, 0.5f32), (-24.2, 15.2, 2.2)]
+        .into_iter()
+        .enumerate()
+    {
         v.push(
-            Part::new(Shape::Sphere { r: 0.12, ws: 10, hs: 6 }, matt([0xf4c20d, 0xe8443a][k]))
-                .at(x, 0.012, z)
-                .stretch(1.0, 0.1, 2.1)
-                .turn(0.0, yaw, 0.0),
+            Part::new(
+                Shape::Sphere {
+                    r: 0.12,
+                    ws: 10,
+                    hs: 6,
+                },
+                matt([0xf4c20d, 0xe8443a][k]),
+            )
+            .at(x, 0.012, z)
+            .stretch(1.0, 0.1, 2.1)
+            .turn(0.0, yaw, 0.0),
         );
     }
     // A4.6: soft blob shadows under the bigger props (shed, bins, bar, crates, woodpile, trampoline,
@@ -2907,7 +4989,9 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
                 per_m: 0.0,
             },
             // the paddock: dry khaki grass in the polished look
-            matt(if polished { 0x7f9058 } else { 0x8aaa62 }).no_shadow().ground(),
+            matt(if polished { 0x7f9058 } else { 0x8aaa62 })
+                .no_shadow()
+                .ground(),
         )
         .at(0.0, -0.02, 0.0),
     );
@@ -2919,12 +5003,24 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
             if x.abs() < W + 4.0 && z.abs() < D + 4.0 {
                 continue;
             }
-            let col = if n % 3 == 0 { 0x8f9a5c } else if n % 3 == 1 { 0xbdb27e } else { 0xa59b68 };
+            let col = if n % 3 == 0 {
+                0x8f9a5c
+            } else if n % 3 == 1 {
+                0xbdb27e
+            } else {
+                0xa59b68
+            };
             world.push(
-                Part::new(Shape::Disc { r: 1.0, seg: 12 }, matt(col).textured(Tex::SoftDot).see_through(0.7).no_shadow())
-                    .at(x, 0.0, z)
-                    .turn(-HALF_PI, 0.0, pr.range(0.0, PI))
-                    .stretch(pr.range(5.0, 14.0), pr.range(4.0, 10.0), 1.0),
+                Part::new(
+                    Shape::Disc { r: 1.0, seg: 12 },
+                    matt(col)
+                        .textured(Tex::SoftDot)
+                        .see_through(0.7)
+                        .no_shadow(),
+                )
+                .at(x, 0.0, z)
+                .turn(-HALF_PI, 0.0, pr.range(0.0, PI))
+                .stretch(pr.range(5.0, 14.0), pr.range(4.0, 10.0), 1.0),
             );
         }
     }
@@ -2949,7 +5045,18 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         world.extend(ground_story(seed));
         world.extend(table_bottles());
         // a cracked concrete pad inside the back gate, where the paths start
-        world.push(cuboid(3.4, 0.04, 2.0, matt(0xc9c4b8).material(Tex::Concrete, 0.7), 3.0, 0.02, -22.9).no_shadow_part());
+        world.push(
+            cuboid(
+                3.4,
+                0.04,
+                2.0,
+                matt(0xc9c4b8).material(Tex::Concrete, 0.7),
+                3.0,
+                0.02,
+                -22.9,
+            )
+            .no_shadow_part(),
+        );
     } else {
         world.push(fence(2.0 * W + 0.2, true, 0.0, -D - 0.05));
         world.push(fence(2.0 * W + 0.2, true, 0.0, D + 0.05));
@@ -2958,7 +5065,11 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         world.extend(house());
     }
     // the neighbours' houses (polished look only)
-    let neighbours = if polished { neighbour_spots() } else { Vec::new() };
+    let neighbours = if polished {
+        neighbour_spots()
+    } else {
+        Vec::new()
+    };
     if polished {
         world.extend(neighbourhood(seed));
     }
@@ -3003,10 +5114,17 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
                         let mut leaf = part;
                         let a = k as f32 * 2.0 * PI / 5.0;
                         leaf.scale = part.scale * 0.40;
-                        leaf.pos = part.pos + V3::new(a.cos() * r * 0.85, (k % 2) as f32 * 0.18, a.sin() * r * 0.85);
+                        leaf.pos = part.pos
+                            + V3::new(
+                                a.cos() * r * 0.85,
+                                (k % 2) as f32 * 0.18,
+                                a.sin() * r * 0.85,
+                            );
                         airy.push(leaf);
                     }
-                } else { airy.push(part); }
+                } else {
+                    airy.push(part);
+                }
             }
             world.extend(place(airy, V3::new(x, 0.0, z), turn_y(0.0), 1.55));
         }
@@ -3022,7 +5140,10 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
     let (pole, hoist_head) = clothesline(polished);
     world.extend(pole);
     world.extend(pool());
-    if polished { world.extend(poolside_props()); }
+    if polished {
+        world.extend(poolside_props());
+        world.extend(pinwheel_mount());
+    }
     world.extend(props(polished));
     let (chest_base, chest_lid) = if polished { chest_esky() } else { chest() };
     let eskies = if polished {
@@ -3031,16 +5152,29 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
             .copied()
             .enumerate()
             .map(|(n, (x, z, r))| {
-                let (body, dark) = [(0xc9392f, 0x7d1f19), (0x2f8a55, 0x1b5232), (0xd9822b, 0x8a4c10), (0x7d8a93, 0x4a545c)][n % 4];
+                let (body, dark) = [
+                    (0xc9392f, 0x7d1f19),
+                    (0x2f8a55, 0x1b5232),
+                    (0xd9822b, 0x8a4c10),
+                    (0x7d8a93, 0x4a545c),
+                ][n % 4];
                 let (base, lid) = esky_with(body, dark);
-                Esky { at: V3::new(x, 0.0, z), turn: r, base, lid }
+                Esky {
+                    at: V3::new(x, 0.0, z),
+                    turn: r,
+                    base,
+                    lid,
+                }
             })
             .collect()
     } else {
         Vec::new()
     };
     let magpies = if polished {
-        MAGPIE_SPOTS.iter().map(|(x, z, yaw)| (V3::new(*x, FENCE_H, *z), *yaw)).collect()
+        MAGPIE_SPOTS
+            .iter()
+            .map(|(x, z, yaw)| (V3::new(*x, FENCE_H, *z), *yaw))
+            .collect()
     } else {
         Vec::new()
     };
@@ -3056,12 +5190,32 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         chest_pivot: if polished { ESKY_PIVOT } else { CHEST_PIVOT },
         world,
         hoist_head,
-        bar: if polished { looks::mark_hero(sun_bake(texture_pass(bar(true)))) } else { bar(false) },
-        bar_grog: if polished { looks::mark_hero(sun_bake(texture_pass(bar_grog()))) } else { bar_grog() },
-        bar_soft: if polished { looks::mark_hero(sun_bake(texture_pass(bar_soft()))) } else { bar_soft() },
+        bar: if polished {
+            looks::mark_hero(sun_bake(texture_pass(bar(true))))
+        } else {
+            bar(false)
+        },
+        bar_grog: if polished {
+            looks::mark_hero(sun_bake(texture_pass(bar_grog())))
+        } else {
+            bar_grog()
+        },
+        bar_soft: if polished {
+            looks::mark_hero(sun_bake(texture_pass(bar_soft())))
+        } else {
+            bar_soft()
+        },
         litter,
-        bbq: if polished { looks::mark_hero(sun_bake(texture_pass(bbq(true)))) } else { bbq(false) },
-        smoko: if polished { looks::mark_hero(sun_bake(texture_pass(smoko(true)))) } else { smoko(false) },
+        bbq: if polished {
+            looks::mark_hero(sun_bake(texture_pass(bbq(true))))
+        } else {
+            bbq(false)
+        },
+        smoko: if polished {
+            looks::mark_hero(sun_bake(texture_pass(smoko(true))))
+        } else {
+            smoko(false)
+        },
         chest_base,
         chest_lid,
         clouds,
@@ -3207,10 +5361,16 @@ mod tests {
     #[test]
     fn backyard_cricket_scoreboard_is_visible_above_the_fence() {
         let board = cricket_scoreboard();
-        let face = board.iter().find(|p| p.surface.tex == Some(Tex::CricketBoard)).unwrap();
+        let face = board
+            .iter()
+            .find(|p| p.surface.tex == Some(Tex::CricketBoard))
+            .unwrap();
         let normal = face.rot.rotate(V3::new(0.0, 0.0, 1.0));
         assert!((normal.x + 1.0).abs() < 1e-5, "board should face the yard");
-        assert!(face.pos.y > FENCE_H, "board sits above the fence, away from player collisions");
+        assert!(
+            face.pos.y > FENCE_H,
+            "board sits above the fence, away from player collisions"
+        );
         assert!((face.pos.x - 40.22).abs() < 1e-5);
     }
 
@@ -3224,11 +5384,17 @@ mod tests {
             // from the sign posts' x (-1.9, 1.9) plus the drinks, all near the bar's z
             assert!(lo.z > BAR.z0 - 1.0 && hi.z < BAR.z1 + 1.0);
             assert!(hi.y > 2.4, "the sign is 2.45 m up");
-            let tags = dressing.iter().filter(|p| p.surface.unlit && p.surface.tex.is_some()).count();
+            let tags = dressing
+                .iter()
+                .filter(|p| p.surface.unlit && p.surface.tex.is_some())
+                .count();
             assert_eq!(tags, 3);
         }
         // family mode's stand has no grog signs
-        assert!(y.bar_soft.iter().all(|p| !matches!(p.surface.tex, Some(Tex::SignBar | Tex::TagVp | Tex::TagWine | Tex::TagRum))));
+        assert!(y.bar_soft.iter().all(|p| !matches!(
+            p.surface.tex,
+            Some(Tex::SignBar | Tex::TagVp | Tex::TagWine | Tex::TagRum)
+        )));
     }
 
     #[test]
@@ -3384,14 +5550,38 @@ mod tests {
 }
 
 /// Visible faces and collision use the same sizes; lid trim stays inside the bounding box.
-pub fn backyard_cover()->Vec<Part> {
- let mut parts=Vec::new();
- for (x,z,w,d,h) in crate::yard::BACKYARD_COVER {
-  parts.push(cuboid(w,h,d,matt(0xb98c58).textured(Tex::Wood),x,h/2.0,z));
-  for side in [-1.0,1.0] {
-   parts.push(cuboid(w,0.065,0.06,matt(0xe1b981),x,h-0.0325,z+side*(d/2.0-0.03)));
-   parts.push(cuboid(0.065,h,0.065,matt(0x94653e),x+side*(w/2.0-0.0325),h/2.0,z+d/2.0-0.0325));
-  }
- }
- parts
+pub fn backyard_cover() -> Vec<Part> {
+    let mut parts = Vec::new();
+    for (x, z, w, d, h) in crate::yard::BACKYARD_COVER {
+        parts.push(cuboid(
+            w,
+            h,
+            d,
+            matt(0xb98c58).textured(Tex::Wood),
+            x,
+            h / 2.0,
+            z,
+        ));
+        for side in [-1.0, 1.0] {
+            parts.push(cuboid(
+                w,
+                0.065,
+                0.06,
+                matt(0xe1b981),
+                x,
+                h - 0.0325,
+                z + side * (d / 2.0 - 0.03),
+            ));
+            parts.push(cuboid(
+                0.065,
+                h,
+                0.065,
+                matt(0x94653e),
+                x + side * (w / 2.0 - 0.0325),
+                h / 2.0,
+                z + d / 2.0 - 0.0325,
+            ));
+        }
+    }
+    parts
 }
