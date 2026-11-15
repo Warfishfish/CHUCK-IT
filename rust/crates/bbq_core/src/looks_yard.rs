@@ -238,6 +238,37 @@ fn fence_styled(len: f32, horizontal: bool, x: f32, z: f32, rng: &mut Rng) -> Ve
     v
 }
 
+/// Rails and old fixings on the yard-facing side of the paling fence. The gameplay fence stays
+/// the same straight collider; these small details are only part of the picture.
+fn fence_battens() -> Vec<Part> {
+    let timber = matt(0x826143).material(Tex::Wood, 2.0);
+    let iron = matt(0x554a3c).material(Tex::Metal, 1.0);
+    let mut v = Vec::new();
+    for (horizontal, len, cx, cz, inward) in [
+        (true, 2.0 * W, 0.0, -D - 0.05, 1.0),
+        (true, 2.0 * W, 0.0, D + 0.05, -1.0),
+        (false, 2.0 * D, -W - 0.05, 0.0, 1.0),
+        (false, 2.0 * D, W + 0.05, 0.0, -1.0),
+    ] {
+        for y in [0.46_f32, 1.30] {
+            let (x, z) = if horizontal { (cx, cz + inward * 0.085) } else { (cx + inward * 0.085, cz) };
+            let (w, d) = if horizontal { (len, 0.055) } else { (0.055, len) };
+            v.push(cuboid(w, 0.075, d, timber, x, y, z).bevel(0.008).weathered());
+            // Four pairs of dark nail heads give the long rail enough scale and join detail.
+            for fraction in [-0.36_f32, -0.12, 0.12, 0.36] {
+                let along = len * fraction;
+                let (nx, nz, turn) = if horizontal {
+                    (cx + along, z + inward * 0.031, (HALF_PI, 0.0, 0.0))
+                } else {
+                    (x + inward * 0.031, cz + along, (0.0, 0.0, HALF_PI))
+                };
+                v.push(cyl(0.016, 0.016, 0.008, 8, iron, nx, y, nz).turn(turn.0, turn.1, turn.2));
+            }
+        }
+    }
+    v
+}
+
 /// Tufts of dry grass and weeds (step 2c), thickest along the fence lines and the edges of the
 /// worn paths. Visual only.
 fn weeds(rng: &mut Rng) -> Vec<Part> {
@@ -436,6 +467,14 @@ fn table_bottles() -> Vec<Part> {
         v.push(cyl(0.012, 0.014, 0.035, 8, matt(cap), x, 1.035, z));
         v.push(cyl(0.041, 0.041, 0.07, 10, matt(0xfaf6e6), x, 0.885, z + 0.003).stretch(1.0, 1.0, 1.0));
     }
+    // A pair of old barbecue tongs left beside the sauces on the picnic table.
+    let steel = matt(0x777f82).material(Tex::Metal, 1.2);
+    let grip = matt(0x8e563b).material(Tex::Wood, 1.4);
+    for side in [-1.0f32, 1.0] {
+        v.push(rod(V3::new(6.15 + side * 0.04, 0.84, -16.92), V3::new(6.48 + side * 0.10, 0.85, -16.62), 0.018, steel));
+        v.push(rod(V3::new(6.15 + side * 0.04, 0.84, -16.92), V3::new(6.00 + side * 0.06, 0.85, -17.05), 0.032, grip));
+    }
+    v.push(rod(V3::new(6.56, 0.85, -16.54), V3::new(6.64, 0.85, -16.48), 0.02, steel));
     v
 }
 
@@ -515,6 +554,26 @@ fn house_styled() -> Vec<Part> {
         v.push(cuboid(0.065,1.22,0.04,matt(0xf8eddb),x,2.5,-25.37));
         v.push(cuboid(1.65,0.065,0.04,matt(0xf8eddb),x,2.5,-25.37));
         v.push(cuboid(2.02,0.12,0.20,matt(0xd6c29b),x,1.72,-25.39));
+    }
+    // A couple of dusty rain runs and chipped paint below the sills break up the long wall.
+    // They are deliberately low contrast and sit on the decorative face of the house.
+    for (x, h, c) in [
+        (-14.62f32, 0.25f32, 0xb9ae99u32), (-14.48, 0.16, 0xd2c6b0),
+        (-8.72, 0.20, 0xbdb29e), (8.36, 0.28, 0xc7baa2), (13.04, 0.18, 0xb8aa91),
+    ] {
+        v.push(cuboid(0.035, h, 0.006, matt(c).no_shadow(), x, 1.53 - h * 0.5, -25.535));
+    }
+    // Two small Colorbond whirlybirds make the roofline read as an inhabited Australian home.
+    let zinc = matt(0xa6aaa4).material(Tex::Metal, 1.2);
+    for (x, z, y) in [(-16.0f32, -29.5f32, 6.1f32), (15.0, -29.5, 6.0)] {
+        v.push(cyl(0.045, 0.055, 0.50, 8, zinc, x, y - 0.25, z));
+        v.push(torus(0.28, 0.025, 8, 16, 2.0 * PI, zinc).at(x, y, z).turn(HALF_PI, 0.0, 0.0));
+        v.push(Part::new(Shape::Sphere { r: 0.20, ws: 10, hs: 6 }, zinc).at(x, y + 0.08, z).stretch(1.0, 0.55, 1.0));
+        for a in 0..6 {
+            let ang = a as f32 * PI / 3.0;
+            v.push(cuboid(0.25, 0.018, 0.055, shade_surface(zinc, 0.90),
+                x + ang.cos() * 0.13, y + 0.06, z + ang.sin() * 0.13).turn(0.0, -ang, 0.0));
+        }
     }
     // the rainwater tank
     let tank = matt(0x9fb0a4).material(Tex::Metal, 1.4);
@@ -944,6 +1003,18 @@ fn gum_tree_dusty(rng: &mut Rng, x: f32, z: f32, dust: f32) -> Vec<Part> {
             if !dry_crown || i == 0 { v.push(leaf); }
         }
     }
+    // A few trees carry small cream and pink gum blossoms, a restrained species cue at distance.
+    if dust < 0.70 && silhouette.chance(0.34) {
+        let flower = fork + V3::new(silhouette.range(-1.2, 1.2), h * 0.18, silhouette.range(-1.2, 1.2));
+        for cluster in 0..3 {
+            let c = flower + V3::new((cluster as f32 - 1.0) * 0.32, (cluster % 2) as f32 * 0.18, (cluster as f32 - 1.0) * -0.18);
+            v.push(orb(0.065, matt(if cluster == 1 { 0xd88979 } else { 0xf0dfc0 }), c.x, c.y, c.z));
+            for petal in 0..4 {
+                let a = petal as f32 * HALF_PI;
+                v.push(orb(0.048, matt(0xf2e4c9), c.x + a.cos() * 0.07, c.y + 0.025, c.z + a.sin() * 0.07));
+            }
+        }
+    }
     v
 }
 
@@ -1254,6 +1325,21 @@ fn pool() -> Vec<Part> {
     v.push(cuboid(pw + 0.6, 0.14, 0.3, cope, pcx, 0.07, POOL_Z1 + 0.15));
     v.push(cuboid(0.3, 0.14, pd, cope, POOL_X0 - 0.15, 0.07, pcz));
     v.push(cuboid(0.3, 0.14, pd, cope, POOL_X1 + 0.15, 0.07, pcz));
+    // Hairline grout joints catch the light on the old cream coping without widening it.
+    let grout = matt(0xb7b9b0).no_shadow();
+    for x in (POOL_X0 as i32..=POOL_X1 as i32).step_by(1) {
+        v.push(cuboid(0.012, 0.004, 0.27, grout, x as f32, 0.143, POOL_Z0 - 0.15));
+        v.push(cuboid(0.012, 0.004, 0.27, grout, x as f32, 0.143, POOL_Z1 + 0.15));
+    }
+    for z in (POOL_Z0 as i32..=POOL_Z1 as i32).step_by(1) {
+        v.push(cuboid(0.27, 0.004, 0.012, grout, POOL_X0 - 0.15, 0.143, z as f32));
+        v.push(cuboid(0.27, 0.004, 0.012, grout, POOL_X1 + 0.15, 0.143, z as f32));
+    }
+    // A skimmer lid and narrow intake slots sit flush with the outer side of the coping.
+    v.push(cuboid(0.24, 0.006, 0.42, matt(0x9ba39f), POOL_X1 + 0.19, 0.145, pcz - 1.25));
+    for dz in [-0.13f32, -0.045, 0.045, 0.13] {
+        v.push(cuboid(0.13, 0.004, 0.012, matt(0x58636a), POOL_X1 + 0.19, 0.15, pcz - 1.25 + dz));
+    }
     v
 }
 
@@ -2595,6 +2681,14 @@ fn ground_story(seed: u64) -> Vec<Part> {
             v.push(cuboid(0.08, 0.037, 0.46, matt(b).material(Tex::Fabric, 2.5), o.x, 0.021, o.z).turn(0.0, yaw, 0.0));
         }
     }
+    // Four worn concrete pavers form a believable footpath from the back step towards the BBQ.
+    for (i, (x, z, yaw, tint)) in [
+        (2.2f32, -21.2f32, -0.10f32, 0xcac3b4u32),
+        (0.8, -20.2, 0.06, 0xbdb8aa), (-0.9, -19.3, -0.08, 0xc8c2b2), (-2.7, -18.6, 0.12, 0xbdb7a8),
+    ].into_iter().enumerate() {
+        v.push(cuboid(0.92, 0.045, 0.58, matt(tint).material(Tex::Concrete, 0.8), x, 0.022 + i as f32 * 0.001, z).turn(0.0, yaw, 0.0).bevel(0.025));
+        v.push(ground_patch(x, z, 0.70, 0.44, yaw, 0x806e4a, 0.16, 0.010));
+    }
     for (k, (x, z, yaw)) in [(-24.6f32, 14.9f32, 0.5f32), (-24.2, 15.2, 2.2)].into_iter().enumerate() {
         v.push(
             Part::new(Shape::Sphere { r: 0.12, ws: 10, hs: 6 }, matt([0xf4c20d, 0xe8443a][k]))
@@ -2726,6 +2820,7 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         ] {
             world.extend(fence_styled(len, horizontal, x, z, &mut fr));
         }
+        world.extend(fence_battens());
         world.extend(house_styled());
         let mut sr = Rng::new(seed ^ 0x5CA7);
         world.extend(weeds(&mut sr));

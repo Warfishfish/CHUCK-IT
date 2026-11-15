@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.23.11</span>
+      <span class="tag">Backyard Brawl · prototype 0.23.12</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -680,8 +680,12 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
 
 (function buildWorld(){
   // lawn with mowing stripes
-  const lawn=canvasTex(256,256,(x,w,h)=>{for(let i=0;i<8;i++){x.fillStyle=i%2?'#6aa84c':'#5e9b43';x.fillRect(i*32,0,32,h);}
-    for(let i=0;i<2400;i++){x.fillStyle=Math.random()<.5?'rgba(40,90,30,.18)':'rgba(180,220,120,.15)';x.fillRect(Math.random()*w,Math.random()*h,2,3);}},2*W/16,2*D/16);
+  const lawn=canvasTex(256,256,(x,w,h)=>{for(let i=0;i<8;i++){x.fillStyle=i%2?'#719c50':'#668e46';x.fillRect(i*32,0,32,h);}
+    // Sun-baked, irregular dry patches soften the mowing stripes without hiding the grass.
+    for(let i=0;i<42;i++){const px=Math.random()*w,py=Math.random()*h,rx=3+Math.random()*17,ry=2+Math.random()*10;
+      const g=x.createRadialGradient(px,py,1,px,py,rx);g.addColorStop(0,Math.random()<.55?'rgba(183,157,94,.26)':'rgba(119,142,71,.22)');g.addColorStop(1,'rgba(183,157,94,0)');
+      x.fillStyle=g;x.save();x.translate(px,py);x.scale(1,ry/rx);x.beginPath();x.arc(0,0,rx,0,Math.PI*2);x.fill();x.restore();}
+    for(let i=0;i<2600;i++){x.fillStyle=Math.random()<.5?'rgba(40,75,28,.19)':'rgba(205,206,133,.16)';x.fillRect(Math.random()*w,Math.random()*h,1+Math.random()*2,2+Math.random()*3);}},2*W/16,2*D/16);
   // the lawn and the paddock both have a hole cut where the pool is, so the pool can actually be deep
   const holed=(x0,x1,y0,y1)=>{const sh=new THREE.Shape();sh.moveTo(x0,y0);sh.lineTo(x1,y0);sh.lineTo(x1,y1);sh.lineTo(x0,y1);sh.lineTo(x0,y0);
     const hole=new THREE.Path();hole.moveTo(POOL.x0,-POOL.z1);hole.lineTo(POOL.x0,-POOL.z0);hole.lineTo(POOL.x1,-POOL.z0);hole.lineTo(POOL.x1,-POOL.z1);hole.lineTo(POOL.x0,-POOL.z1);
@@ -693,14 +697,26 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   outer.rotation.x=-Math.PI/2;outer.position.y=-.02;outer.receiveShadow=true;scene.add(outer);
 
   // paling fence
-  const paling=(x,w,h)=>{x.fillStyle='#8a5a36';x.fillRect(0,0,w,h);for(let i=0;i<w;i+=16){x.fillStyle=`hsl(${22+Math.random()*6},${34+Math.random()*10}%,${40+Math.random()*9}%)`;x.fillRect(i+1,0,14,h);
-    for(let k=0;k<4;k++){x.fillStyle='rgba(60,30,15,.16)';x.fillRect(i+2+Math.random()*11,0,1,h);}}};
+  const paling=(x,w,h)=>{x.fillStyle='#806143';x.fillRect(0,0,w,h);for(let i=0;i<w;i+=16){const light=36+Math.random()*14;x.fillStyle=`hsl(${25+Math.random()*10},${22+Math.random()*13}%,${light}%)`;x.fillRect(i+1,0,14,h);
+    x.fillStyle='rgba(238,219,181,.14)';x.fillRect(i+2,2,1,h-4);x.fillStyle='rgba(42,31,22,.22)';x.fillRect(i+13,0,1,h);
+    for(let k=0;k<5;k++){x.fillStyle=k%2?'rgba(53,39,27,.10)':'rgba(229,209,176,.10)';x.fillRect(i+2+Math.random()*10,Math.random()*h,1,5+Math.random()*15);}}};
   function fence(len,horiz,x,z){const t=canvasTex(256,64,paling,len/2,1);const geo=horiz?new THREE.BoxGeometry(len,1.8,.1):new THREE.BoxGeometry(.1,1.8,len);
     const m=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({map:t}));m.position.set(x,.9,z);m.castShadow=m.receiveShadow=true;scene.add(m);yardFence.push(m);}
   fence(2*W+.2,true,0,-D-.05);fence(2*W+.2,true,0,D+.05);fence(2*D,false,-W-.05,0);fence(2*D,false,W+.05,0);
+  // Inner support rails and old dark fixings make the fence read as joined timber panels.
+  const fenceWood=mat(0x826143),fenceIron=mat(0x554a3c);
+  [[true,2*W,0,-D-.05,1],[true,2*W,0,D+.05,-1],[false,2*D,-W-.05,0,1],[false,2*D,W+.05,0,-1]].forEach(([horizontal,len,cx,cz,inward])=>{
+    for(const y of [.46,1.30]){const x=horizontal?cx:cx+inward*.085,z=horizontal?cz+inward*.085:cz;
+      mesh(new THREE.BoxGeometry(horizontal?len:.055,.075,horizontal?.055:len),fenceWood,x,y,z);
+      for(const fraction of [-.36,-.12,.12,.36]){const along=len*fraction,nx=horizontal?cx+along:x+inward*.031,nz=horizontal?z+inward*.031:cz+along;
+        const nail=mesh(new THREE.CylinderGeometry(.014,.014,.008,8),fenceIron,nx,y,nz);nail.rotation.x=horizontal?Math.PI/2:0;nail.rotation.z=horizontal?0:Math.PI/2;}
+    }
+  });
 
   // house (weatherboard + Colorbond roof), just over the back fence
-  const wb=canvasTex(128,128,(x,w,h)=>{x.fillStyle='#d3dccd';x.fillRect(0,0,w,h);for(let y=0;y<h;y+=16){x.fillStyle='rgba(50,70,50,.28)';x.fillRect(0,y+14,w,2);x.fillStyle='rgba(255,255,255,.3)';x.fillRect(0,y,w,2);}},20,3);
+  const wb=canvasTex(128,128,(x,w,h)=>{x.fillStyle='#c8d0c1';x.fillRect(0,0,w,h);for(let y=0;y<h;y+=16){const shade=[-8,0,5,-3,2,7,-5,1][(y/16)%8];x.fillStyle=`rgba(${shade<0?'54,61,48':'238,226,197'},${Math.abs(shade)/100+.04})`;x.fillRect(0,y,w,16);
+      x.fillStyle='rgba(69,70,54,.25)';x.fillRect(0,y+14,w,1.5);x.fillStyle='rgba(255,249,225,.36)';x.fillRect(0,y,w,1);
+      for(let k=0;k<4;k++){const xx=Math.random()*w;x.fillStyle='rgba(111,83,58,.08)';x.fillRect(xx,y+2,1,5+Math.random()*8);}}},20,3);
   mesh(new THREE.BoxGeometry(40,4.6,8),new THREE.MeshLambertMaterial({map:wb}),0,2.3,-29.5);
   const roofM=mat(0x8f3a2b);
   const r1=mesh(new THREE.BoxGeometry(41,.16,4.9),roofM,0,5.62,-27.4);r1.rotation.x=.445;
@@ -713,6 +729,14 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
     mesh(new THREE.BoxGeometry(.11,3.95,.11),galv,x,2.32,-24.98);
     mesh(new THREE.BoxGeometry(.25,.055,.055),galv,x+side*.1,.31,-24.98);
     [.8,2,3.25].forEach(y=>mesh(new THREE.BoxGeometry(.17,.045,.15),mat(0x737b79),x,y,-24.98));});
+  // Small dusty rain trails beneath selected sills and two subdued Colorbond whirlybirds.
+  [[-14.62,1.40,.25,0xb9ae99],[-14.48,1.45,.16,0xd2c6b0],[-8.72,1.43,.20,0xbdb29e],[8.36,1.39,.28,0xc7baa2],[13.04,1.44,.18,0xb8aa91]].forEach(([x,y,h,c])=>mesh(new THREE.BoxGeometry(.035,h,.006),mat(c),x,y,-25.535));
+  const zinc=mat(0xa6aaa4);
+  [[-16,6.1],[15,6.0]].forEach(([x,y])=>{mesh(new THREE.CylinderGeometry(.045,.055,.5,8),zinc,x,y-.25,-29.5);
+    const cap=mesh(new THREE.SphereGeometry(.2,10,6),zinc,x,y+.08,-29.5);cap.scale.y=.55;
+    const ring=mesh(new THREE.TorusGeometry(.28,.025,8,16),zinc,x,y,-29.5);ring.rotation.x=Math.PI/2;
+    for(let a=0;a<6;a++){const t=a*Math.PI/3,blade=mesh(new THREE.BoxGeometry(.25,.018,.055),mat(0x929991),x+Math.cos(t)*.13,y+.06,-29.5+Math.sin(t)*.13);blade.rotation.y=-t;}
+  });
   [-15,-9,-4,8,13.5].forEach(x=>{mesh(new THREE.BoxGeometry(1.9,1.5,.06),mat(0xf4f6f2),x,2.5,-25.47);mesh(new THREE.BoxGeometry(1.6,1.2,.08),mat(0x2d4b66),x,2.5,-25.44);
     mesh(new THREE.BoxGeometry(1.78,.08,.18),mat(0xd1c4a7),x,1.70,-25.43);
     mesh(new THREE.BoxGeometry(.025,.54,.006),mat(0x9b8667),x+.62,2.18,-25.425);});
@@ -730,9 +754,17 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
 
   // gum trees
   const leaf=[0x7d9460,0x6b8656,0x8ea46b].map(c=>new THREE.MeshLambertMaterial({color:c,flatShading:true}));
+  const barkTex=canvasTex(64,128,(x,w,h)=>{x.fillStyle='#c7bcaa';x.fillRect(0,0,w,h);for(let i=0;i<46;i++){const xx=Math.random()*w,yy=Math.random()*h;x.fillStyle=['rgba(246,237,218,.48)','rgba(103,86,67,.24)','rgba(166,131,93,.25)'][i%3];x.fillRect(xx,yy,2+Math.random()*7,7+Math.random()*36);}for(let i=0;i<9;i++){x.strokeStyle='rgba(90,79,63,.25)';x.lineWidth=1;x.beginPath();const xx=Math.random()*w;x.moveTo(xx,0);x.lineTo(xx+(Math.random()-.5)*8,h);x.stroke();}},1,1);
+  const bark=new THREE.MeshLambertMaterial({map:barkTex});
   for(let i=0;i<34;i++){let x,z;do{x=rand(-72,72);z=rand(-66,66);}while((Math.abs(x)<W+3&&Math.abs(z)<D+3)||(Math.abs(x)<22&&z<-23&&z>-36));
-    const h=rand(6,10);mesh(new THREE.CylinderGeometry(.16,.32,h,7),mat(0xd8cfbf),x,h/2,z);
-    for(let k=0;k<3;k++){const s=rand(1.6,2.6);const c=mesh(new THREE.IcosahedronGeometry(s,0),pick(leaf),x+rand(-1.4,1.4),h+rand(-.5,1.5),z+rand(-1.4,1.4));c.scale.y=.7;}}
+    const h=rand(6,10);mesh(new THREE.CylinderGeometry(.16,.32,h,8),bark,x,h/2,z);
+    // Sparse, angled limbs make each gum silhouette less like a trunk with balls on top.
+    for(let k=0;k<3;k++){const a=k*Math.PI*2/3+rand(-.35,.35),start=new THREE.Vector3(x,h*.48,z),end=new THREE.Vector3(x+Math.cos(a)*rand(1.2,2.1),h*.84,z+Math.sin(a)*rand(1.2,2.1));
+      const d=end.clone().sub(start),limb=mesh(new THREE.CylinderGeometry(.035,.10,d.length(),7),bark,(start.x+end.x)/2,(start.y+end.y)/2,(start.z+end.z)/2);limb.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());
+      const s=rand(1.25,2.05),c=mesh(new THREE.IcosahedronGeometry(s,0),pick(leaf),end.x+rand(-.7,.7),end.y+rand(-.6,.9),end.z+rand(-.7,.7));c.scale.set(1.1,.62,1.0);
+      if(Math.random()<.22){const fc=mat(Math.random()<.6?0xe9ddbc:0xd88979);for(let j=0;j<5;j++){const t=j*Math.PI*2/5;mesh(new THREE.SphereGeometry(.075,6,5),fc,end.x+Math.cos(t)*.16,end.y+.18,end.z+Math.sin(t)*.16);}}}
+    // One extra clump keeps the canopy open and irregular.
+    const s=rand(1.1,1.8),c=mesh(new THREE.IcosahedronGeometry(s,0),pick(leaf),x+rand(-1.6,1.6),h+rand(-.4,1.2),z+rand(-1.6,1.6));c.scale.set(1.2,.62,.9);}
   // clouds
   for(let i=0;i<9;i++){const grp=new THREE.Group();for(let k=0;k<4;k++){const c=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(2.5,4.5),1),new THREE.MeshLambertMaterial({color:0xffffff,flatShading:true,emissive:0x8899aa}));
     c.position.set(rand(-5,5),rand(-.6,.6),rand(-2,2));c.scale.y=.45;grp.add(c);}grp.position.set(rand(-90,90),rand(32,46),rand(-90,60));scene.add(grp);clouds.push(grp);}
@@ -747,7 +779,11 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
     const arm=mesh(new THREE.CylinderGeometry(.025,.025,2.7,6),grey,1.3,.12,0,piv);arm.rotation.z=-Math.PI/2+.09;armPts.push(a);}
   const lineM=new THREE.LineBasicMaterial({color:0xeef0ee});
   [.8,1.4,2.0,2.55].forEach(r=>{const pts=armPts.map(a=>new THREE.Vector3(Math.cos(a)*r,.12+r*.09,-Math.sin(a)*r));hoistHead.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),lineM));});
-  [0xf25c54,0x4cc9f0,0xffd23f,0xffffff].forEach((c,k)=>{const a=k*Math.PI/2;const s=mesh(new THREE.PlaneGeometry(1.1,.85),new THREE.MeshLambertMaterial({color:c,side:THREE.DoubleSide}),Math.cos(a)*1.5,-.3,-Math.sin(a)*1.5,hoistHead);s.rotation.y=a+Math.PI/2;});
+  [0xca6254,0x208c95,0xe7ac46,0xf4e7ce].forEach((c,k)=>{const a=k*Math.PI/2,g=new THREE.Group();g.position.set(Math.cos(a)*1.5,-.3,-Math.sin(a)*1.5);g.rotation.y=a+Math.PI/2;hoistHead.add(g);
+    mesh(new THREE.PlaneGeometry(1.04,k===1?1.02:.82),new THREE.MeshLambertMaterial({color:c,side:THREE.DoubleSide}),0,-.31,.006,g);
+    if(k<2){for(const stripeY of [-.17,-.43])mesh(new THREE.PlaneGeometry(1.04,.055),new THREE.MeshLambertMaterial({color:0xf3d99e,side:THREE.DoubleSide}),0,stripeY,.009,g);}
+    for(const px of [-.39,.39]){const peg=mesh(new THREE.BoxGeometry(.045,.12,.045),mat(0xdcb481),px,.035,.02,g);peg.rotation.z=px<0?-.09:.12;}
+  });
   col(0,3,.3,.3,2.3);colliders[colliders.length-1].noTop=true; // the clothesline pole: too thin to stand on
 
   // shed
@@ -755,6 +791,18 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   mesh(new THREE.BoxGeometry(4,2.5,3),new THREE.MeshLambertMaterial({map:corr}),22.5,1.25,-16.5);
   mesh(new THREE.BoxGeometry(4.4,.12,3.4),mat(0x7f8b85),22.5,2.56,-16.5);
   mesh(new THREE.BoxGeometry(1.3,2,.06),mat(0x56645d),22.5,1,-14.98);
+  // Bent door trim, an old latch and a rusty roof drip edge.
+  mesh(new THREE.BoxGeometry(1.42,.09,.08),mat(0x7d7764),22.5,2.05,-14.92);
+  [-.72,.72].forEach(dx=>mesh(new THREE.BoxGeometry(.08,2.12,.08),mat(0x7d7764),22.5+dx,1.0,-14.92));
+  mesh(new THREE.BoxGeometry(.11,.20,.025),mat(0xb07a42),23.02,1.05,-14.90);
+  mesh(new THREE.BoxGeometry(4.15,.045,.035),mat(0x80553a),22.5,2.48,-14.96);
+  for(let x=20.7;x<24.5;x+=.55)mesh(new THREE.BoxGeometry(.025,2.25,.018),mat(0x88958a),x,1.24,-14.945);
+  // A battered mower left by the shed; it is a decorative landmark, not a new obstacle.
+  const mower=mat(0x526b3b),rubber=mat(0x282925),handle=mat(0x555b57);
+  mesh(new THREE.BoxGeometry(.68,.24,.58),mower,19.55,.32,-16.55);mesh(new THREE.BoxGeometry(.34,.16,.32),mat(0xb49a54),19.55,.51,-16.55);
+  for(const [dx,dz] of [[-.32,-.24],[.32,-.24],[-.32,.24],[.32,.24]]){const wheel=mesh(new THREE.TorusGeometry(.13,.045,7,12),rubber,19.55+dx,.15,-16.55+dz);wheel.rotation.y=Math.PI/2;}
+  for(const dx of [-.16,.16]){const bar=mesh(new THREE.CylinderGeometry(.025,.025,.64,6),handle,19.55+dx,.83,-16.90);bar.rotation.x=-.35;}
+  mesh(new THREE.CylinderGeometry(.025,.025,.36,6),handle,19.55,.98,-16.79);
   col(22.5,-16.5,4,3,2.6);
 
   // pool
@@ -790,7 +838,13 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   const cope=mat(0xe4e9e5);
   {const pw=POOL.x1-POOL.x0,pd=POOL.z1-POOL.z0,cx=(POOL.x0+POOL.x1)/2,cz=(POOL.z0+POOL.z1)/2;
   mesh(new THREE.BoxGeometry(pw+.6,.14,.3),cope,cx,.07,POOL.z0-.15);mesh(new THREE.BoxGeometry(pw+.6,.14,.3),cope,cx,.07,POOL.z1+.15);
-  mesh(new THREE.BoxGeometry(.3,.14,pd),cope,POOL.x0-.15,.07,cz);mesh(new THREE.BoxGeometry(.3,.14,pd),cope,POOL.x1+.15,.07,cz);}
+  mesh(new THREE.BoxGeometry(.3,.14,pd),cope,POOL.x0-.15,.07,cz);mesh(new THREE.BoxGeometry(.3,.14,pd),cope,POOL.x1+.15,.07,cz);
+  // Fine grout joints and skimmer slots make the cream coping look tiled and maintained.
+  const grout=mat(0xb7b9b0);for(let x=Math.ceil(POOL.x0);x<=POOL.x1;x++){mesh(new THREE.BoxGeometry(.012,.004,.27),grout,x,.143,POOL.z0-.15);mesh(new THREE.BoxGeometry(.012,.004,.27),grout,x,.143,POOL.z1+.15);}
+  for(let z=Math.ceil(POOL.z0);z<=POOL.z1;z++){mesh(new THREE.BoxGeometry(.27,.004,.012),grout,POOL.x0-.15,.143,z);mesh(new THREE.BoxGeometry(.27,.004,.012),grout,POOL.x1+.15,.143,z);}
+  mesh(new THREE.BoxGeometry(.24,.006,.42),mat(0x9ba39f),POOL.x1+.19,.145,cz-1.25);
+  for(const dz of [-.13,-.045,.045,.13])mesh(new THREE.BoxGeometry(.13,.004,.012),mat(0x58636a),POOL.x1+.19,.15,cz-1.25+dz);
+  }
 
   // trampoline
   mesh(new THREE.CylinderGeometry(TRAMP.r,TRAMP.r,.04,28),mat(0x1d1f22),TRAMP.x,TRAMP.h,TRAMP.z);
@@ -805,12 +859,32 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   mesh(new THREE.BoxGeometry(2,.08,1),mat(0xc79a61),6,.76,-16.5);
   [[-.9,-.4],[.9,-.4],[-.9,.4],[.9,.4]].forEach(([a,b])=>mesh(new THREE.BoxGeometry(.07,.72,.07),mat(0x8f6a3e),6+a,.36,-16.5+b));
   col(6,-16.5,2,1,.8);
+  // A pair of tongs and a faded sauce ring left on the timber tabletop.
+  const tongSteel=mat(0x777f82),tongGrip=mat(0x8e563b);
+  for(const side of [-1,1]){const shaft=mesh(new THREE.BoxGeometry(.018,.018,.45),tongSteel,6.31+side*.05,.815,-16.77);shaft.rotation.y=-.75;
+    const grip=mesh(new THREE.BoxGeometry(.035,.025,.18),tongGrip,6.09+side*.05,.82,-16.99);grip.rotation.y=-.75;}
+  mesh(new THREE.TorusGeometry(.09,.008,5,14),mat(0x896d4c,{transparent:true,opacity:.30}),6.77,.812,-16.35).rotation.x=-Math.PI/2;
+  // Worn, slightly uneven concrete pavers connect the back step to the cooking corner.
+  [[2.2,-21.2,-.10,0xcac3b4],[.8,-20.2,.06,0xbdb8aa],[-.9,-19.3,-.08,0xc8c2b2],[-2.7,-18.6,.12,0xbdb7a8]].forEach(([x,z,yaw,c],i)=>{
+    const slab=mesh(new THREE.BoxGeometry(.92,.045,.58),mat(c),x,.023+i*.001,z);slab.rotation.y=yaw;
+    mesh(new THREE.BoxGeometry(.98,.012,.64),new THREE.MeshLambertMaterial({color:0x8b7755,transparent:true,opacity:.16}),x,.008,z).rotation.y=yaw;
+  });
   featMark('bbq');
   // BBQ
   mesh(new THREE.BoxGeometry(1.2,.7,.6),mat(0x3a3f45),-6,.35,-18);
   mesh(new THREE.BoxGeometry(1.6,.28,.8),mat(0x1f2226),-6,.84,-18);
   mesh(new THREE.BoxGeometry(1.5,.24,.72),mat(0xb33a2c),-6,1.1,-18);
+  // Steel grate, four red enamel knobs, grease-worn labels and the blue-striped LPG bottle.
+  const grillSteel=mat(0xaab0ad),grillDark=mat(0x353638),knobM=mat(0xc94a36);
+  for(let z=-18.30;z<=-17.70;z+=.14){const bar=mesh(new THREE.CylinderGeometry(.012,.012,1.12,6),grillSteel,-6,.995,z);bar.rotation.z=Math.PI/2;}
+  for(const x of [-6.55,-6.25,-5.95,-5.65]){const k=mesh(new THREE.CylinderGeometry(.055,.065,.07,10),knobM,x,.66,-17.60);k.rotation.x=Math.PI/2;
+    mesh(new THREE.BoxGeometry(.012,.035,.012),grillDark,x,.66,-17.555);}
+  mesh(new THREE.BoxGeometry(.26,.12,.012),mat(0xc9bb91),-6.35,.48,-17.606);
+  mesh(new THREE.BoxGeometry(.18,.02,.006),mat(0x575448),-6.35,.50,-17.598);
   mesh(new THREE.CylinderGeometry(.16,.16,.55,12),mat(0xd9dfe0),-7.05,.28,-18);
+  mesh(new THREE.CylinderGeometry(.165,.165,.06,12),mat(0x4a7fc0),-7.05,.32,-18);
+  mesh(new THREE.CylinderGeometry(.07,.07,.05,8),mat(0xb33a2c),-7.05,.58,-18);
+  mesh(new THREE.CylinderGeometry(.035,.035,.14,8),grillSteel,-7.05,.68,-18);
   col(-6,-18,1.7,.8,1.25);
   featMark('bbq',1);
   // wheelie bins
