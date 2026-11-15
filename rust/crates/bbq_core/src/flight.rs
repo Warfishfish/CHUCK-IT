@@ -873,10 +873,10 @@ mod tests {
     #[test]
     fn a_hard_throw_into_a_wall_bounces_back_and_slows() {
         let yard = Yard::default();
-        // brick wall (20,-4), 4.5 wide: x 17.75..22.25, z -4.175..-3.825, h 1.1
+        // Left brick section beside the open gate: x 17.75..19.25, z -4.175..-3.825, h 1.1
         let mut it = thrown(
             ItemKind::Teddy,
-            V3::new(20.0, 0.7, 0.0),
+            V3::new(18.5, 0.7, 0.0),
             V3::new(0.0, 0.0, -20.0),
         );
         let mut rng = Rng::new(3);

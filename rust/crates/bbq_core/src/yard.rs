@@ -45,6 +45,8 @@ pub enum Kind {
     RideOnMower,
     /// Workbench beside the garden shed.
     Workbench,
+    /// The poolside shower riser; its floor tile pad stays walkable.
+    Shower,
 }
 
 /// The four map features the host can switch off.
@@ -128,6 +130,18 @@ pub const VERANDA_Z_CENTRE: f32 = -24.05;
 pub const VERANDA_Z_DEPTH: f32 = 1.75;
 pub const VERANDA_X_EDGE: f32 = 17.5;
 pub const VERANDA_ROOF_TOP: f32 = 3.1;
+/// Low garden wall with a real player-width shortcut through its centre.
+pub const GARDEN_WALL_X: f32 = 20.0;
+pub const GARDEN_WALL_Z: f32 = -4.0;
+pub const GARDEN_WALL_DEPTH: f32 = 0.35;
+pub const GARDEN_WALL_HEIGHT: f32 = 1.1;
+pub const GARDEN_WALL_SECTION_WIDTH: f32 = 1.5;
+pub const GARDEN_WALL_SECTION_CENTRES: [f32; 2] = [18.5, 21.5];
+pub const SIDE_GATE_WIDTH: f32 = 1.5;
+/// The freestanding outdoor shower sits beside the pool's eastern coping.
+pub const POOLSIDE_SHOWER_X: f32 = -10.5;
+pub const POOLSIDE_SHOWER_Z: f32 = 13.3;
+pub const POOLSIDE_SHOWER_POST_Z: f32 = POOLSIDE_SHOWER_Z - 0.31;
 
 impl Collider {
     /// Box from a centre and width (x) and depth (z), like the JavaScript `col()`.
@@ -311,6 +325,7 @@ impl Yard {
         c.push(Collider::centred(MOWER_X, MOWER_Z + 0.30, 1.08, 0.94, 0.95).of(Kind::RideOnMower));
         c.push(Collider::centred(MOWER_X, MOWER_Z - 0.45, 0.72, 0.62, 1.28).of(Kind::RideOnMower));
         c.push(Collider::centred(25.5, -15.8, 1.65, 0.82, 0.96).of(Kind::Workbench));
+        c.push(Collider::centred(POOLSIDE_SHOWER_X, POOLSIDE_SHOWER_POST_Z, 0.28, 0.28, 2.2).of(Kind::Shower));
         c.push(Collider::centred(0.0, HOUSE_Z_CENTRE, HOUSE_X_HALF * 2.0, HOUSE_DEPTH, HOUSE_HEIGHT).of(Kind::House));
         c.push(Collider::centred(TANK_X, TANK_Z, TANK_RADIUS * 2.1, TANK_RADIUS * 2.1, TANK_TOP).of(Kind::RainTank));
         c.push(Collider::centred(
@@ -374,7 +389,12 @@ impl Yard {
         c.push(Collider::centred(12.0, 2.0, 1.2, 1.2, 1.0).of(Kind::Tyres)); // tyres
         c.push(Collider::centred(13.2, 2.4, 1.2, 1.2, 0.68).of(Kind::Tyres));
         c.push(Collider::centred(-12.0, -3.0, 2.6, 1.05, 1.0).of(Kind::Woodpile)); // woodpile
-        c.push(Collider::centred(20.0, -4.0, 4.5, 0.35, 1.1).of(Kind::Wall)); // brick wall
+        // The low garden wall is split around a 1.5 m opening, wide enough for a player to
+        // pass through. The open side gate is a visual landmark and short route through the yard.
+        for x in GARDEN_WALL_SECTION_CENTRES {
+            c.push(Collider::centred(x, GARDEN_WALL_Z, GARDEN_WALL_SECTION_WIDTH,
+                GARDEN_WALL_DEPTH, GARDEN_WALL_HEIGHT).of(Kind::Wall));
+        }
         c.push(Collider::centred(-8.0, 20.0, 5.0, 0.9, 0.95).of(Kind::Planter)); // veggie planter
         if features.bar {
             c.push(BAR);
@@ -528,9 +548,20 @@ mod tests {
     #[test]
     fn full_yard_has_all_the_boxes() {
         // pole, shed, mower deck/bonnet/seat, workbench, house, tank, ladder, roof and veranda,
-        // 4 eskies, table, grill, meat table, bins, crates, hedge, 2 tyres, woodpile, wall,
-        // planter, bar, chest
-        assert_eq!(Yard::default().colliders.len(), 60);
+        // 4 eskies, table, grill, meat table, bins, crates, hedge, 2 tyres, woodpile, wall halves,
+        // planter, bar, chest, shower riser
+        assert_eq!(Yard::default().colliders.len(), 62);
+    }
+
+    #[test]
+    fn garden_wall_has_a_player_width_side_gate_gap() {
+        let yard = Yard::default();
+        let walls: Vec<_> = yard.colliders.iter().filter(|c| c.kind == Kind::Wall).collect();
+        assert_eq!(walls.len(), 2);
+        let gate_left = GARDEN_WALL_X - SIDE_GATE_WIDTH * 0.5;
+        let gate_right = GARDEN_WALL_X + SIDE_GATE_WIDTH * 0.5;
+        assert!((walls[0].x1 - gate_left).abs() < 1e-5);
+        assert!((walls[1].x0 - gate_right).abs() < 1e-5);
     }
 
     #[test]
@@ -541,7 +572,7 @@ mod tests {
             chest: false,
             smoko: false,
         };
-        assert_eq!(Yard::new(off, 0).colliders.len(), 60 - 4);
+        assert_eq!(Yard::new(off, 0).colliders.len(), 62 - 4);
     }
 
     #[test]
@@ -566,10 +597,10 @@ mod tests {
     #[test]
     fn floor_is_the_box_top_when_high_enough() {
         let y = Yard::default();
-        // standing over the wall at (20,-4), h 1.1
-        assert_eq!(y.floor_at(20.0, -4.0, 1.2, 1.2), 1.1);
+        // standing over the left wall section beside the gate, h 1.1
+        assert_eq!(y.floor_at(18.5, -4.0, 1.2, 1.2), 1.1);
         // on the ground next to it you are too low to step up
-        assert_eq!(y.floor_at(20.0, -4.0, 0.0, 0.0), 0.0);
+        assert_eq!(y.floor_at(18.5, -4.0, 0.0, 0.0), 0.0);
         // pole can't be stood on
         assert_eq!(y.floor_at(0.0, 3.0, 5.0, 5.0), 0.0);
     }

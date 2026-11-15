@@ -715,6 +715,38 @@ mod tests {
     }
 
     #[test]
+    fn side_gate_is_a_clear_walkable_shortcut_through_the_garden_wall() {
+        let yard = Yard::default();
+        let mut m = Mover::new(crate::yard::GARDEN_WALL_X, crate::yard::GARDEN_WALL_Z - 2.0);
+        settle(&mut m, &yard);
+        walk(&mut m, &yard, (0.0, 1.0), 1.2, &Modifiers::default());
+        assert!(m.z > crate::yard::GARDEN_WALL_Z + 1.0,
+            "player could not use the gate opening: x={}, z={}", m.x, m.z);
+
+        let mut blocked = Mover::new(crate::yard::GARDEN_WALL_X - 2.0, crate::yard::GARDEN_WALL_Z - 2.0);
+        settle(&mut blocked, &yard);
+        walk(&mut blocked, &yard, (0.0, 1.0), 1.2, &Modifiers::default());
+        assert!(blocked.z < crate::yard::GARDEN_WALL_Z - 0.5,
+            "wall was no longer solid beside the gate: z={}", blocked.z);
+    }
+
+    #[test]
+    fn poolside_shower_riser_is_solid_without_blocking_the_pool_approach() {
+        let yard = Yard::default();
+        let mut m = Mover::new(-8.5, crate::yard::POOLSIDE_SHOWER_POST_Z);
+        settle(&mut m, &yard);
+        walk(&mut m, &yard, (-1.0, 0.0), 1.0, &Modifiers::default());
+        assert!(m.x > crate::yard::POOLSIDE_SHOWER_X - 0.5,
+            "player passed through the shower riser: x={}", m.x);
+
+        let mut poolside = Mover::new(-11.5, 16.0);
+        settle(&mut poolside, &yard);
+        walk(&mut poolside, &yard, (0.0, -1.0), 0.6, &Modifiers::default());
+        assert!(poolside.z < 13.0,
+            "shower should leave a walkable route beside the pool: z={}", poolside.z);
+    }
+
+    #[test]
     fn rain_tank_blocks_walk_through_and_ladder_is_walkable() {
         let yard = Yard::default();
         assert!((yard.floor_at(crate::yard::TANK_X, crate::yard::TANK_Z, crate::yard::TANK_TOP, crate::yard::TANK_TOP)
@@ -983,8 +1015,8 @@ mod tests {
     #[test]
     fn walls_push_you_out_and_kill_the_velocity_into_them() {
         let yard = Yard::default();
-        // brick wall at (20,-4), 4.5 x 0.35: walk into it from the south (+z side is z1 = -3.825)
-        let mut m = Mover::new(20.0, 0.0);
+        // Brick section beside the open gate: walk into it from the south (+z side is z1 = -3.825)
+        let mut m = Mover::new(18.5, 0.0);
         settle(&mut m, &yard);
         walk(&mut m, &yard, (0.0, -1.0), 3.0, &Modifiers::default());
         assert!(m.z >= -3.825 + 0.4, "z = {}", m.z);

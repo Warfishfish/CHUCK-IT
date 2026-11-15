@@ -1717,16 +1717,7 @@ fn props(polished: bool) -> Vec<Part> {
             }
         }
     }
-    // low brick garden wall
-    v.push(cuboid(
-        4.5,
-        1.1,
-        0.35,
-        matt(0xffffff).textured(Tex::Brick).repeating(4.0, 1.0),
-        20.0,
-        0.55,
-        -4.0,
-    ));
+    // The walk-through side gate and split brick wall are a Blender-authored GLB in yard_scene.
     // Raised veggie planter; individual weathered boards and dark, uneven soil in the polished yard.
     let planter_wood = if polished { matt(0x806044).material(Tex::Wood, 2.0) } else { matt(0x7a5a3a) };
     v.push(cuboid(5.0, 0.6, 0.9, planter_wood, -8.0, 0.3, 20.0).bevel(finish(0.04)));

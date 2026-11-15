@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.23.14</span>
+      <span class="tag">Backyard Brawl · prototype 0.23.15</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -839,6 +839,24 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   for(const side of [-.46,.46])rod(new THREE.Vector3(TANK.x+side,TANK.top+.04,TANK.ladderTop),new THREE.Vector3(TANK.x+side,TANK.top+.04,TANK.z+1.43),.035,tankZinc);
   col(TANK.x,(TANK.ladderBottom+TANK.ladderTop)/2,TANK.ladderHalf*2,TANK.ladderBottom-TANK.ladderTop,TANK.top);colliders[colliders.length-1].tankLadder=true;
 
+  // A shallow stone-lined overflow channel continues from the tank downpipe into a rain bed.
+  // It is decorative only and remains low enough to walk across.
+  const creekX=TANK.x+1.58,creekZ=TANK.z+.23,creekEarth=mat(0x453b2c),creekWater=mat(0x468b8a),creekStone=[mat(0x887f6b),mat(0xa69d87)];
+  mesh(new THREE.BoxGeometry(5.82,.045,.58),creekEarth,creekX+2.86,.025,creekZ+1.04);
+  mesh(new THREE.BoxGeometry(5.55,.018,.19),creekWater,creekX+2.88,.055,creekZ+1.04);
+  mesh(new THREE.BoxGeometry(.48,.045,.82),creekEarth,creekX,.025,creekZ+.63);
+  mesh(new THREE.BoxGeometry(.19,.018,.55),creekWater,creekX,.055,creekZ+.63);
+  mesh(new THREE.BoxGeometry(.46,.026,.54),creekWater,creekX,.04,creekZ+.23);
+  for(const side of [-1,1])for(let i=0;i<18;i++){
+    const x=creekX-.12+i*.34,z=creekZ+(side<0?.74:1.34)+.025*Math.sin(i*1.7+side);
+    const stone=mesh(new THREE.IcosahedronGeometry(.13,0),creekStone[i%3===0?1:0],x,.09,z);stone.scale.set(1.35,.68,.9);stone.rotation.y=(i%4-1.5)*.09;
+  }
+  const reedMat=mat(0x657c43);
+  for(let i=0;i<3;i++)for(let j=0;j<3;j++){
+    const x=creekX+5.1+i*.38+(j-1)*.09,z=creekZ+.79+j*.24;
+    rod(new THREE.Vector3(x,.04,z),new THREE.Vector3(x+(j-1)*.04,.48+(i%2)*.07,z),.018,reedMat);
+  }
+
   // gum trees
   const leaf=[0x7d9460,0x6b8656,0x8ea46b].map(c=>new THREE.MeshLambertMaterial({color:c,flatShading:true}));
   const barkTex=canvasTex(64,128,(x,w,h)=>{x.fillStyle='#c7bcaa';x.fillRect(0,0,w,h);for(let i=0;i<46;i++){const xx=Math.random()*w,yy=Math.random()*h;x.fillStyle=['rgba(246,237,218,.48)','rgba(103,86,67,.24)','rgba(166,131,93,.25)'][i%3];x.fillRect(xx,yy,2+Math.random()*7,7+Math.random()*36);}for(let i=0;i<9;i++){x.strokeStyle='rgba(90,79,63,.25)';x.lineWidth=1;x.beginPath();const xx=Math.random()*w;x.moveTo(xx,0);x.lineTo(xx+(Math.random()-.5)*8,h);x.stroke();}},1,1);
@@ -982,6 +1000,31 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   for(const dz of [-.13,-.045,.045,.13])mesh(new THREE.BoxGeometry(.13,.004,.012),mat(0x58636a),POOL.x1+.19,.15,cz-1.25+dz);
   }
 
+  // Poolside rinse station: sun-faded tiles, aged taps, galvanized riser and a striped towel.
+  const sx=-10.5,sz=13.3,showerMetal=mat(0x87918e),showerDark=mat(0x454e4a),showerCopper=mat(0x925c3c),showerTile=mat(0xd6d1bd);
+  mesh(new THREE.BoxGeometry(1.16,.11,1.22),showerTile,sx,.055,sz);
+  for(const dx of [-.39,0,.39])for(const dz of [-.40,0,.40])mesh(new THREE.BoxGeometry(.36,.012,.37),((Math.round((dx+dz)*10)%2)===0?mat(0x6c9b9e):mat(0xe2d7b7)),sx+dx,.114,sz+dz);
+  mesh(new THREE.BoxGeometry(.14,.012,.14),showerDark,sx+.34,.126,sz+.43);
+  for(const dx of [-.04,.04])mesh(new THREE.BoxGeometry(.012,.006,.115),showerMetal,sx+.34+dx,.134,sz+.43);
+  rod(new THREE.Vector3(sx,.12,sz-.31),new THREE.Vector3(sx,2.20,sz-.31),.045,showerMetal);
+  rod(new THREE.Vector3(sx-.09,.35,sz-.31),new THREE.Vector3(sx+.09,.35,sz-.31),.025,showerDark);
+  rod(new THREE.Vector3(sx,1.94,sz-.31),new THREE.Vector3(sx+.18,1.94,sz-.31),.025,showerDark);
+  rod(new THREE.Vector3(sx,2.18,sz-.31),new THREE.Vector3(sx+.36,2.18,sz-.31),.035,showerMetal);
+  rod(new THREE.Vector3(sx+.36,2.18,sz-.31),new THREE.Vector3(sx+.36,2.02,sz-.31),.03,showerMetal);
+  mesh(new THREE.CylinderGeometry(.16,.16,.025,16),showerDark,sx+.36,2.0,sz-.31);
+  const rose=mesh(new THREE.CylinderGeometry(.13,.13,.014,16),showerMetal,sx+.36,1.985,sz-.31);rose.rotation.x=Math.PI/2;
+  for(let a=-2;a<=2;a++)for(let b=-2;b<=2;b++)mesh(new THREE.SphereGeometry(.009,6,4),showerDark,sx+.36+a*.045,1.973,sz-.31+b*.045);
+  for(const dx of [-.19,.19]){
+    rod(new THREE.Vector3(sx+dx,.87,sz-.30),new THREE.Vector3(sx+dx,.87,sz-.46),.045,showerCopper);
+    const hub=mesh(new THREE.CylinderGeometry(.055,.055,.05,10),mat(0x976b3f),sx+dx,.87,sz-.51);hub.rotation.x=Math.PI/2;
+    rod(new THREE.Vector3(sx+dx-.10,.87,sz-.53),new THREE.Vector3(sx+dx+.10,.87,sz-.53),.022,showerCopper);
+  }
+  rod(new THREE.Vector3(sx+.08,1.63,sz-.31),new THREE.Vector3(sx+.43,1.63,sz-.31),.018,showerMetal);
+  rod(new THREE.Vector3(sx+.43,1.63,sz-.31),new THREE.Vector3(sx+.43,1.55,sz-.31),.018,showerMetal);
+  mesh(new THREE.BoxGeometry(.40,.95,.045),mat(0xb28c58),sx+.63,1.08,sz-.30).rotation.z=-.06;
+  for(const y of [.73,1.08,1.43])mesh(new THREE.BoxGeometry(.40,.055,.008),mat(0xe3d0a5),sx+.63,y,sz-.272).rotation.z=-.06;
+  col(sx,sz-.31,.28,.28,2.2);
+
   // trampoline
   mesh(new THREE.CylinderGeometry(TRAMP.r,TRAMP.r,.04,28),mat(0x1d1f22),TRAMP.x,TRAMP.h,TRAMP.z);
   const pad=mesh(new THREE.TorusGeometry(TRAMP.r+.05,.12,8,28),mat(0x1f6fd1),TRAMP.x,TRAMP.h+.02,TRAMP.z);pad.rotation.x=Math.PI/2;
@@ -1073,10 +1116,29 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
     mesh(new THREE.BoxGeometry(.08,.48,.05),mat(0x8d9189),.03,-.82,z,board);
     [-.47,.47].forEach(y=>mesh(new THREE.SphereGeometry(.035,8,6),mat(0x665b48),.095,y,z,board));
   });
-  // low brick garden wall
+  // Low garden wall becomes a real walk-through shortcut. Brick piers and the open gate
+  // match the split colliders in the Rust yard rules; the gate leaf is swung clear of the gap.
   const brick=canvasTex(64,32,(x,w,h)=>{x.fillStyle='#d8cfc0';x.fillRect(0,0,w,h);for(let r=0;r<4;r++)for(let c=-1;c<4;c++){x.fillStyle=`hsl(${10+Math.random()*8},${45+Math.random()*10}%,${38+Math.random()*8}%)`;x.fillRect(c*18+(r%2)*9+1,r*8+1,16,6);}},4,1);
-  mesh(new THREE.BoxGeometry(4.5,1.1,.35),new THREE.MeshLambertMaterial({map:brick}),20,.55,-4);
-  col(20,-4,4.5,.35,1.1);
+  const brickM=new THREE.MeshLambertMaterial({map:brick});
+  for(const x of [18.5,21.5]){
+    mesh(new THREE.BoxGeometry(1.5,1.08,.35),brickM,x,.54,-4);
+    mesh(new THREE.BoxGeometry(1.57,.12,.43),mat(0x95614d),x,1.11,-4);
+    const px=x===18.5?19.25:20.75;
+    mesh(new THREE.BoxGeometry(.14,1.27,.16),mat(0x76583a),px,.635,-4);
+    mesh(new THREE.BoxGeometry(.22,.08,.23),mat(0x9b7650),px,1.30,-4);
+    col(x,-4,1.5,.35,1.1);
+  }
+  const gateX=19.25,gateWood=mat(0x806044),gatePale=mat(0xa1845c),gateIron=mat(0x292d2b);
+  for(let i=0;i<5;i++)mesh(new THREE.BoxGeometry(.075,.98,.215),i===0||i===4?gatePale:gateWood,gateX+(i-2)*.012,.62,-3.90+i*.25);
+  for(const y of [.20,1.0])mesh(new THREE.BoxGeometry(.095,.115,1.24),gateWood,gateX,y,-3.38);
+  rod(new THREE.Vector3(gateX-.015,.25,-3.88),new THREE.Vector3(gateX-.015,.94,-2.88),.048,gatePale);
+  for(const y of [.28,.93]){
+    mesh(new THREE.BoxGeometry(.16,.065,.50),gateIron,gateX,y,-3.90);
+    const pin=mesh(new THREE.CylinderGeometry(.035,.035,.16,8),gateIron,gateX-.03,y,-4);pin.rotation.x=Math.PI/2;
+    mesh(new THREE.SphereGeometry(.035,8,6),mat(0xb7a77f),gateX,y,-3.86);
+  }
+  mesh(new THREE.BoxGeometry(.19,.12,.12),mat(0xeeb634),gateX,.82,-2.87);
+  rod(new THREE.Vector3(gateX,.82,-2.90),new THREE.Vector3(gateX,.82,-3.03),.025,mat(0x946b27));
   // raised veggie planter
   mesh(new THREE.BoxGeometry(5,.6,.9),mat(0x7a5a3a),-8,.3,20);
   mesh(new THREE.BoxGeometry(4.8,.1,.75),mat(0x4a3322),-8,.61,20);

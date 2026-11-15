@@ -4,7 +4,10 @@
 
 use bbq_core::looks::{Part, Tex};
 use bbq_core::looks_yard::{self, HOIST_AT};
-use bbq_core::yard::{Feature, Features, Yard};
+use bbq_core::yard::{
+    Feature, Features, Yard, GARDEN_WALL_X, GARDEN_WALL_Z, POOLSIDE_SHOWER_X,
+    POOLSIDE_SHOWER_Z, TANK_X, TANK_Z,
+};
 use bevy::prelude::*;
 
 use crate::game::Game;
@@ -178,6 +181,30 @@ fn build_yard(
         commands.entity(kids[i]).insert(YardLawnPart);
     }
     commands.entity(yard_root).add_child(world_root);
+    // These Blender-authored props are static visuals. The shower riser and split wall
+    // colliders live in bbq_core::yard so their gameplay clearance matches these meshes.
+    for (path, transform) in [
+        (
+            "models/backyard_overflow.glb",
+            Transform::from_xyz(TANK_X + 1.58, 0.0, TANK_Z + 0.23),
+        ),
+        (
+            "models/poolside_shower.glb",
+            Transform::from_xyz(POOLSIDE_SHOWER_X, 0.0, POOLSIDE_SHOWER_Z),
+        ),
+        (
+            "models/side_gate.glb",
+            Transform::from_xyz(GARDEN_WALL_X, 0.0, GARDEN_WALL_Z),
+        ),
+    ] {
+        let prop = commands
+            .spawn((
+                WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset(path))),
+                transform,
+            ))
+            .id();
+        commands.entity(yard_root).add_child(prop);
+    }
     if let Some(i) = find(&look.world, Tex::PoolWater) {
         commands.entity(kids[i]).insert(PoolWater);
     }
