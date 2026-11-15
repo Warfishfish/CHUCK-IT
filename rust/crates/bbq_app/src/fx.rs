@@ -89,7 +89,7 @@ impl Plugin for FxPlugin {
         }
         app.add_plugins(HanabiPlugin)
             .add_systems(Startup, make_effects)
-            .add_systems(Update, (expire_effects, bbq_smoke, pool_steam, sprint_dust, bot_fall_spray))
+            .add_systems(Update, (expire_effects, animate_pool_ripples, bbq_smoke, pool_steam, sprint_dust, bot_fall_spray))
             .add_systems(PostUpdate, spawn_events
                 .before(bevy::transform::TransformSystems::Propagate)
                 .before(bevy_hanabi::EffectSystems::CompileEffects)
@@ -120,6 +120,9 @@ pub(crate) struct Effects {
 /// A one-shot effect that removes itself after this many seconds.
 #[derive(Component)]
 struct FxLife(f32);
+
+#[derive(Component)]
+struct PoolRipple { age: f32, material: Handle<StandardMaterial> }
 
 #[derive(Component)]
 struct BbqSmoke;
@@ -509,6 +512,8 @@ fn spawn_events(
     fx: Option<Res<Effects>>,
     time: Res<Time>,
     settings: Res<crate::menu::Settings>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     mut tested: Local<bool>,
 ) {
     let Some(fx) = fx else { return };
@@ -525,6 +530,26 @@ fn spawn_events(
     }
     let events: Vec<FxEvent> = std::mem::take(&mut game.fx);
     for e in events.into_iter().take(12) {
+        if e.kind == FxKind::Splash {
+            // Three offset rings leave a readable pool ripple after the entry splash droplets.
+            for delay in [0.0f32, 0.13, 0.27] {
+                let material = materials.add(StandardMaterial {
+                    base_color: Color::srgba(0.60, 0.88, 0.98, 0.56),
+                    alpha_mode: bevy::prelude::AlphaMode::Blend,
+                    unlit: true,
+                    cull_mode: None,
+                    ..default()
+                });
+                commands.spawn((
+                    Mesh3d(meshes.add(Torus::new(0.24, 0.014))),
+                    MeshMaterial3d(material.clone()),
+                    Transform::from_xyz(e.at.x, bbq_core::yard::WATER_Y + 0.035 + delay * 0.002, e.at.z)
+                        .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
+                        .with_scale(Vec3::splat(0.38)),
+                    PoolRipple { age: delay, material },
+                ));
+            }
+        }
         let (list, life): (Vec<&Handle<EffectAsset>>, f32) = match e.kind {
             FxKind::Hit => (vec![&fx.stars, &fx.puff], 1.2),
             FxKind::Whack => (vec![&fx.stars], 1.0),
@@ -543,6 +568,27 @@ fn spawn_events(
                 Transform::from_xyz(e.at.x, e.at.y, e.at.z).with_scale(Vec3::splat(e.scale)),
                 FxLife(life),
             ));
+        }
+    }
+}
+
+fn animate_pool_ripples(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut q: Query<(Entity, &mut Transform, &mut PoolRipple)>,
+) {
+    for (entity, mut transform, mut ripple) in &mut q {
+        ripple.age += time.delta_secs();
+        let t = (ripple.age / 0.92).clamp(0.0, 1.0);
+        if t >= 1.0 {
+            commands.entity(entity).despawn();
+            continue;
+        }
+        let scale = 0.38 + 2.7 * t;
+        transform.scale = Vec3::new(scale, scale, 1.0);
+        if let Some(mut material) = materials.get_mut(&ripple.material) {
+            material.base_color = Color::srgba(0.60, 0.88, 0.98, 0.56 * (1.0 - t));
         }
     }
 }

@@ -47,6 +47,8 @@ pub enum Kind {
     Workbench,
     /// The poolside shower riser; its floor tile pad stays walkable.
     Shower,
+    /// Discarded timber bench beside the wheelie bins.
+    Bench,
 }
 
 /// The four map features the host can switch off.
@@ -454,6 +456,10 @@ impl Yard {
             c.push(Collider::centred(x, z, w, d, h).of(Kind::MeatTable));
         }
         c.push(Collider::centred(31.5, 19.5, 1.7, 0.85, 1.1).of(Kind::Bins)); // wheelie bins
+        // The discarded bench outside the back fence is still solid. Separate the seat and
+        // upright back boards so the invisible collision follows its visible shape.
+        c.push(Collider::centred(31.5, 16.82, 1.20, 0.64, 0.82).of(Kind::Bench));
+        c.push(Collider::centred(31.5, 16.48, 1.20, 0.20, 1.42).of(Kind::Bench));
         for (x, y, z) in CRATE_CENTRES {
             c.push(
                 Collider::centred(x, z, CRATE_SIZE, CRATE_SIZE, y + CRATE_SIZE * 0.5)
@@ -679,8 +685,22 @@ mod tests {
     fn full_yard_has_all_the_boxes() {
         // pole, shed, mower deck/bonnet/seat, workbench, house, tank, ladder, roof and veranda,
         // 4 eskies, table, grill, meat table, bins, crates, hedge, 2 tyres, woodpile, wall halves,
-        // planter, bar, chest, shower riser
-        assert_eq!(Yard::default().colliders.len(), 78);
+        // planter, bar, chest, shower riser, bench seat and bench back
+        assert_eq!(Yard::default().colliders.len(), 80);
+    }
+
+    #[test]
+    fn bin_side_bench_has_separate_seat_and_back_colliders() {
+        let bench: Vec<_> = Yard::default()
+            .colliders
+            .into_iter()
+            .filter(|c| c.kind == Kind::Bench)
+            .collect();
+        assert_eq!(bench.len(), 2);
+        assert!((bench[0].x0 - 30.9).abs() < 1e-5);
+        assert!((bench[0].z0 - 16.5).abs() < 1e-5);
+        assert!((bench[1].z0 - 16.38).abs() < 1e-5);
+        assert!(bench[0].h < bench[1].h);
     }
 
     #[test]
@@ -706,7 +726,7 @@ mod tests {
             chest: false,
             smoko: false,
         };
-        assert_eq!(Yard::new(off, 0).colliders.len(), 78 - 4);
+        assert_eq!(Yard::new(off, 0).colliders.len(), 80 - 4);
     }
 
     #[test]

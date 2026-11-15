@@ -16,6 +16,8 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 
 15 November — the remaining backyard prop pass (#6, #8–10, #12–20) is implemented in the Rust desktop and browser: mismatched gnomes, a patched umbrella with drifting shade, wheelbarrow, compost and blue-tongue lizard, chalk drawings, pool-toy rack, breezier Hills Hoist hangers, detailed hose reel, roof solar collector, spinning pinwheel, possum box, party leftovers and animated sprinkler glints. Both house-roof slopes now support walking; the roof traversal exception is limited to the roof area. The main and neighbouring houses gain weatherboard, fascia, gutters, downpipes, dimensional windows and porch/foundation details, with added gum bark and branch detail. Props do not change gameplay collision. Browser prototype is 0.23.16. [Native review captures](checkpoints/2026-11-15-backyard-finishing/review.html); browser preview unavailable in this session, though syntax checking passed.
 
+16 November — visual pass continuation: a Blender-authored restoration carport adds a neighbouring house story; the sprinkler now has a dense rotating water fan; the trampoline mat compresses beneath grounded players as a visual response; paired mower tracks and subtle roof-edge oxidation add surface history; Heist base signs clarify where teddies bank; teddy ears react to motion; and native pool splashes leave expanding ripples. Browser prototype is 0.23.17. Automated checks pass. Native review captures are in [the enhancement checkpoint](checkpoints/2026-11-16-visual-enhancement/REVIEW.md); browser/online hands-on review remains outstanding.
+
 ## Backyard prop ideas (Marcus's 20-item list)
 
 - ✅ **1. Veggie patch:** tomato stakes, herbs, capsicums and “Mum’s Garden” marker.

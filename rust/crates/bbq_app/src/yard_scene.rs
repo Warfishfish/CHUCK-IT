@@ -274,6 +274,13 @@ fn build_yard(
         // possum box, party remains and the roof collector. Their GLB uses world-local yard axes
         // and remains scenery only, so none of these details silently changes collision.
         ("models/backyard_finish_props.glb", Transform::default()),
+        // A Blender-authored open carport restoration and the garages beyond the yard.
+        // The +16 m offset keeps the carport in the rear lane and clears the established gum
+        // canopy so the restoration details remain visible from the play area.
+        (
+            "models/backyard_neighbourhood_vignette.glb",
+            Transform::from_xyz(16.0, 0.0, 0.0),
+        ),
     ] {
         let prop = commands
             .spawn((
@@ -653,6 +660,7 @@ fn animate_yard(
         Option<&BreezyHangers>,
         Option<&Pinwheel>,
         Option<&SprinklerRotor>,
+        Option<&SprinklerTrail>,
         Option<&UmbrellaShade>,
     )>,
     mut trail_visibility: Query<&mut Visibility, With<SprinklerTrail>>,
@@ -662,7 +670,7 @@ fn animate_yard(
 ) {
     let dt = time.delta_secs();
     let t = time.elapsed_secs();
-    for (mut tf, head, cloud, hangers, pinwheel, rotor, shade) in &mut scenery {
+    for (mut tf, head, cloud, hangers, pinwheel, rotor, spray, shade) in &mut scenery {
         if head.is_some() && game.rules.mode != bbq_core::GameMode::Smoko {
             tf.rotation = if *mode == crate::lighting::LookMode::Polished {
                 let q = looks_yard::hoist_lean().0;
@@ -685,6 +693,9 @@ fn animate_yard(
             tf.rotation = Quat::from_rotation_z(t * 5.7);
         }
         if rotor.is_some() && game.rules.mode != bbq_core::GameMode::Smoko {
+            tf.rotation = Quat::from_rotation_y(0.95 + (t * 0.82).sin() * 0.82);
+        }
+        if spray.is_some() && game.rules.mode != bbq_core::GameMode::Smoko {
             tf.rotation = Quat::from_rotation_y(0.95 + (t * 0.82).sin() * 0.82);
         }
         if shade.is_some() && game.rules.mode != bbq_core::GameMode::Smoko {

@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.23.16</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.17</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -630,7 +630,7 @@ scene.add(new THREE.HemisphereLight(0xe6f6ff,0x4f6e30,0.62));
 const sun=new THREE.DirectionalLight(0xfff0d2,0.88);
 sun.position.set(24,40,20);sun.castShadow=true;sun.shadow.mapSize.set(3072,3072);
 Object.assign(sun.shadow.camera,{left:-42,right:42,top:42,bottom:-42,near:1,far:120});
-sun.shadow.bias=-0.0006;scene.add(sun);
+sun.shadow.bias=-0.0003;sun.shadow.normalBias=.025;scene.add(sun);
 let heistShadowFootprint=false;
 function syncShadowFootprint(){const wide=gameMode==='heist'&&state!=='menu';if(wide===heistShadowFootprint)return;
   Object.assign(sun.shadow.camera,wide?{left:-58,right:58,top:44,bottom:-44}:{left:-42,right:42,top:42,bottom:-42});
@@ -677,7 +677,8 @@ const ADULT_BOX={'#pFeat':'#pAdult','#mFeat':'#mAdult','#yFeat':'#yAdult'}; // w
 function readFeatUI(sel,rn){setFeatMask(FEAT_KEYS.reduce((a,k,i)=>{const el=k==='adult'?document.querySelector(ADULT_BOX[sel]):document.querySelector(`${sel} input[data-f=${k}]`);if(k==='adult')return a|(el&&el.checked?1<<i:0);return a|(!el||el.checked?1<<i:0);},0));}
 function col(cx,cz,w,d,h){colliders.push({x0:cx-w/2,x1:cx+w/2,z0:cz-d/2,z1:cz+d/2,h});}
 const inPoolRect=p=>p.x>POOL.x0&&p.x<POOL.x1&&p.z>POOL.z0&&p.z<POOL.z1;
-let hoistHead,poolTex,clouds=[],yardFence=[],yardLawn=null,umbrellaShade=null,pinwheelRotor=null,hangerGroup=null,sprinklerRotor=null,sprinklerSpray=null,clotheslineLaundry=[];
+let hoistHead,poolTex,clouds=[],yardFence=[],yardLawn=null,umbrellaShade=null,pinwheelRotor=null,hangerGroup=null,sprinklerRotor=null,sprinklerSpray=null,clotheslineLaundry=[],trampolineMatMesh=null;
+let yardRippleFx=[],wetFootprintFx=[],gardenAnimator=null,movingCloudShade=null;
 function textTex(w,h,draw){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t;}
 function addGardenMagpie(x,z,index){
   const root=new THREE.Group();root.position.set(x,.78,z);scene.add(root);
@@ -721,8 +722,12 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   x.fillStyle='#ffffff';x.font='900 40px "Arial Black",Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText('VP',w*.25,h*.47);x.fillText('VP',w*.75,h*.47);})});
 
 (function buildWorld(){
+  let porchCurtain=null;
   // lawn with mowing stripes
-  const lawn=canvasTex(256,256,(x,w,h)=>{for(let i=0;i<8;i++){x.fillStyle=i%2?'#719c50':'#668e46';x.fillRect(i*32,0,32,h);}
+  const lawn=canvasTex(256,256,(x,w,h)=>{x.fillStyle='#718d4d';x.fillRect(0,0,w,h);
+    // Muted, soft mowing bands sit beneath varied grass colour instead of hard alternating bars.
+    for(let i=0;i<12;i++){const y=i*h/12;x.fillStyle=i%2?'rgba(193,190,128,.035)':'rgba(37,69,31,.045)';x.beginPath();x.moveTo(0,y+7*Math.sin(i));
+      for(let px=0;px<=w;px+=16)x.lineTo(px,y+7*Math.sin(i+px*.025));x.lineTo(w,y+16);x.lineTo(0,y+16);x.fill();}
     // Sun-baked, irregular dry patches soften the mowing stripes without hiding the grass.
     for(let i=0;i<42;i++){const px=Math.random()*w,py=Math.random()*h,rx=3+Math.random()*17,ry=2+Math.random()*10;
       const g=x.createRadialGradient(px,py,1,px,py,rx);g.addColorStop(0,Math.random()<.55?'rgba(183,157,94,.26)':'rgba(119,142,71,.22)');g.addColorStop(1,'rgba(183,157,94,0)');
@@ -735,7 +740,6 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   const holed=(x0,x1,y0,y1)=>{const sh=new THREE.Shape();sh.moveTo(x0,y0);sh.lineTo(x1,y0);sh.lineTo(x1,y1);sh.lineTo(x0,y1);sh.lineTo(x0,y0);
     const hole=new THREE.Path();hole.moveTo(POOL.x0,-POOL.z1);hole.lineTo(POOL.x0,-POOL.z0);hole.lineTo(POOL.x1,-POOL.z0);hole.lineTo(POOL.x1,-POOL.z1);hole.lineTo(POOL.x0,-POOL.z1);
     sh.holes.push(hole);return new THREE.ShapeGeometry(sh);};
-  lawn.repeat.set(1/16,1/16);
   yardLawn=new THREE.Mesh(holed(-W,W,-D,D),new THREE.MeshLambertMaterial({map:lawn}));
   yardLawn.rotation.x=-Math.PI/2;yardLawn.receiveShadow=true;scene.add(yardLawn);
   const outer=new THREE.Mesh(holed(-160,160,-160,160),mat(0x8aaa62));
@@ -767,6 +771,8 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   const roofM=mat(0x8f3a2b);
   const r1=mesh(new THREE.BoxGeometry(41,.16,4.9),roofM,0,5.62,-27.4);r1.rotation.x=.445;
   const r2=mesh(new THREE.BoxGeometry(41,.16,4.9),roofM,0,5.62,-31.6);r2.rotation.x=-.445;
+  // Fine rusty rain trails on the walkable rear roof edge: visual only, with no added colliders.
+  for(const x of [-13.8,-4.1,7.7,15.2]){const stain=mesh(new THREE.BoxGeometry(.045,.31,.012),mat(0x875744,{transparent:true,opacity:.45}),x,4.18,-25.02);stain.rotation.z=.045;}
   mesh(new THREE.BoxGeometry(41.2,.12,.22),mat(0x9b4d3b),0,5.78,-29.5); // ridge cap
   // The front roof is a real, walkable sloped surface. Short height steps follow the roof mesh
   // closely enough to keep the character's feet on top while the side walls stop clipping.
@@ -875,16 +881,24 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
     [-44,-50,0,14,9,0xe9d9b8,0x6f7c65],[-16,-50,0,14,9,0xe2e4dc,0x864a3c],[16,-50,0,14,9,0xe9d7c8,0x5c6970],[44,-50,0,14,9,0xcfdac9,0x84603b]
   ];
   function buildNeighbourHouse(home,index){
-    const [x,z,yaw,w,d,wallColor,roofColor]=home,h=3.7+(index%3)*.18,a=.42,rise=d*.25*Math.tan(a),slabD=(d*.5+.7)/Math.cos(a);
+    const [x,z,yaw,w,d,wallColor,roofColor]=home,style=index%3,h=style===1?3.5:3.7+(index%3)*.18,a=style===1?.26:style===2?.23:.42,rise=d*.25*Math.tan(a),slabD=(d*.5+.7)/Math.cos(a);
     const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=yaw;scene.add(g);
     const wall=mat(wallColor),roof=mat(roofColor),trim=mat(0xe5d8be),glass=mat([0x36566d,0x496778,0x52676b][index%3]),zinc=mat(0x7f8a86),wood=mat([0x79553a,0x806043,0x74614a][index%3]);
     mesh(new THREE.BoxGeometry(w,h,d),wall,0,h/2,0,g);
-    const shape=new THREE.Shape();shape.moveTo(-w/2,0);shape.lineTo(w/2,0);shape.lineTo(0,rise);shape.closePath();
-    const gableGeo=new THREE.ShapeGeometry(shape);const gableMat=new THREE.MeshLambertMaterial({color:wallColor,side:THREE.DoubleSide});
-    const frontGable=new THREE.Mesh(gableGeo,gableMat);frontGable.position.set(0,h,d/2+.006);g.add(frontGable);
-    const rearGable=new THREE.Mesh(gableGeo,gableMat);rearGable.position.set(0,h,-d/2-.006);rearGable.rotation.y=Math.PI;g.add(rearGable);
-    const r1=mesh(new THREE.BoxGeometry(w+.9,.15,slabD),roof,0,h+rise+.08,d*.25,g);r1.rotation.x=a;
-    const r2=mesh(new THREE.BoxGeometry(w+.9,.15,slabD),mat(Math.round(roofColor*.92)),0,h+rise+.08,-d*.25,g);r2.rotation.x=-a;
+    if(style!==2){
+      const shape=new THREE.Shape();shape.moveTo(-w/2,0);shape.lineTo(w/2,0);shape.lineTo(0,rise);shape.closePath();
+      const gableGeo=new THREE.ShapeGeometry(shape),gableMat=new THREE.MeshLambertMaterial({color:wallColor,side:THREE.DoubleSide});
+      const frontGable=new THREE.Mesh(gableGeo,gableMat);frontGable.position.set(0,h,d/2+.006);g.add(frontGable);
+      const rearGable=new THREE.Mesh(gableGeo,gableMat);rearGable.position.set(0,h,-d/2-.006);rearGable.rotation.y=Math.PI;g.add(rearGable);
+    }
+    if(style===2){const lean=mesh(new THREE.BoxGeometry(w+1.2,.15,d+1.5),roof,0,h+rise*.55,0,g);lean.rotation.x=-a;
+      mesh(new THREE.BoxGeometry(w+1.25,.18,.16),mat(0x7d8580),0,h+rise+.16,-d*.52,g);
+    }else{
+      const r1=mesh(new THREE.BoxGeometry(w+.9,.15,slabD),roof,0,h+rise+.08,d*.25,g);r1.rotation.x=a;
+      const r2=mesh(new THREE.BoxGeometry(w+.9,.15,slabD),mat(Math.round(roofColor*.92)),0,h+rise+.08,-d*.25,g);r2.rotation.x=-a;
+      if(style===0){const cross=mesh(new THREE.BoxGeometry(w*.50,.12,d*.68),roof,-w*.23,h+rise*.55,d*.18,g);cross.rotation.x=-.18;}
+      if(style===1){for(const side of [-1,1]){const hip=mesh(new THREE.BoxGeometry(.18,.13,d*.62),roof,side*(w/2-.38),h+rise*.42,0,g);hip.rotation.z=side*.18;}}
+    }
     mesh(new THREE.BoxGeometry(w+.95,.13,.19),mat(roofColor*.8),0,h+rise+.10,0,g);
     for(const zz of [-d*.5-.16,d*.5+.16]){
       mesh(new THREE.BoxGeometry(w+.8,.09,.16),zinc,0,h+.08,zz,g);
@@ -898,6 +912,14 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
       }
     }
     mesh(new THREE.BoxGeometry(w-.3,.18,d-.3),mat(0xb5aa95),0,.09,0,g);
+    if(style===1){
+      // A squat red-brick neighbour breaks up the repeated cream weatherboard row.
+      for(let row=0;row<9;row++)for(let col=0;col<12;col++){
+        if((row+col)%2&&col===0)continue;
+        const bx=-w*.47+col*(w*.94/12)+((row%2)*.18),by=.28+row*.30;
+        mesh(new THREE.BoxGeometry(.72,.045,.024),mat((row+col)%3?0x8a4b38:0xa05a40),bx,by,d/2+.08,g);
+      }
+    }
     const n=3;
     for(let k=0;k<n;k++){
       const wx=-w/2+w*(k+.5)/n;
@@ -929,6 +951,135 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
     if(index%3===1){const tank=mesh(new THREE.CylinderGeometry(.77,.79,2.1,14),mat(0x9daea2),w/2+1.05,1.05,-d*.2,g);tank.scale.z=.94;}
   }
   for(let i=0;i<neighbourHomes.length;i++)buildNeighbourHouse(neighbourHomes[i],i);
+  // The gap in the rear row opens onto a lived-in back lane rather than a flat green horizon.
+  const laneGarage=(x)=>{const gm=new THREE.Group();gm.position.set(x,0,49.5);scene.add(gm);
+    mesh(new THREE.BoxGeometry(5.4,3.3,.20),mat(0x45443e),0,1.65,0,gm);
+    mesh(new THREE.BoxGeometry(4.98,2.92,.14),mat(x<10?0xa6a493:0x858e8a),0,1.52,.13,gm);
+    for(let y=.20;y<2.95;y+=.34)mesh(new THREE.BoxGeometry(4.91,.028,.04),mat(y%2?0xd0c9b5:0x656b67),0,y,.22,gm);
+    mesh(new THREE.BoxGeometry(.28,.05,.035),mat(0x554f43),0,.55,.24,gm);
+    mesh(new THREE.BoxGeometry(5.6,.12,.45),mat(0x77644f),0,3.38,-.08,gm);};
+  laneGarage(4);laneGarage(16);
+  {const lx=9.5,lz=54.5;mesh(new THREE.CylinderGeometry(.055,.09,7.7,8),mat(0x737c78),lx,3.85,lz);
+    rod(new THREE.Vector3(lx,7.48,lz),new THREE.Vector3(lx+.9,7.48,lz),.055,mat(0x737c78));
+    mesh(new THREE.BoxGeometry(.52,.14,.27),mat(0x757d78),lx+.8,7.40,lz);
+    mesh(new THREE.BoxGeometry(.34,.055,.18),mat(0xffd891,{emissive:0x34200a}),lx+.8,7.30,lz);}
+  // Car restoration under a neighbour's open carport; the exposed primer bonnet sits on trestles.
+  {const cp=new THREE.Group();cp.position.set(29,0,44.5);scene.add(cp);const wood=mat(0x624a32),zinc=mat(0x737d79),body=mat(0x77766a),primer=mat(0x8b4935),glass=mat(0x304b50),rubber=mat(0x242622),chrome=mat(0x9ba29e);
+    mesh(new THREE.BoxGeometry(8.7,.10,7.5),mat(0x767267),0,.06,0,cp);
+    for(const x of [-4,4])for(const z of [-3.4,3.4])mesh(new THREE.BoxGeometry(.2,4,.2),wood,x,2,z,cp);
+    mesh(new THREE.BoxGeometry(8.45,.22,.24),wood,0,3.90,-3.35,cp);mesh(new THREE.BoxGeometry(8.45,.22,.24),wood,0,3.90,3.35,cp);
+    const roof=mesh(new THREE.BoxGeometry(8.65,.15,7.45),zinc,0,4.12,0,cp);roof.rotation.x=.018;
+    for(let x=-3.8;x<=3.8;x+=.9)mesh(new THREE.BoxGeometry(.04,.04,7.3),mat(0x9ea39b),x,4.22,0,cp);
+    mesh(new THREE.BoxGeometry(2.25,.25,4.45),mat(0x343530),0,.70,.1,cp);
+    mesh(new THREE.BoxGeometry(2.4,.63,4.3),body,0,.96,.1,cp);
+    mesh(new THREE.BoxGeometry(2.44,.48,1.1),body,0,1.18,1.55,cp);mesh(new THREE.BoxGeometry(2.38,.42,1.05),body,0,1.12,-1.55,cp);
+    mesh(new THREE.BoxGeometry(1.84,.9,2.05),body,0,1.57,-.1,cp);
+    mesh(new THREE.BoxGeometry(1.58,.56,.045),glass,0,1.68,.95,cp);mesh(new THREE.BoxGeometry(1.52,.55,.045),glass,0,1.67,-1.12,cp);
+    for(const side of [-1,1]){mesh(new THREE.BoxGeometry(.04,.5,1.62),glass,side*.94,1.68,-.10,cp);
+      for(const z of [-1.35,1.35]){const wheel=mesh(new THREE.TorusGeometry(.36,.11,8,18),rubber,side*1.15,.58,z,cp);wheel.rotation.y=Math.PI/2;
+        const hub=mesh(new THREE.CylinderGeometry(.20,.20,.13,12),chrome,side*1.15,.58,z,cp);hub.rotation.z=Math.PI/2;}}
+    for(const z of [-2.27,2.28])mesh(new THREE.BoxGeometry(2.5,.14,.12),chrome,0,.75,z,cp);
+    for(const side of [-1,1]){for(const z of [-.65,.65]){const leg=mesh(new THREE.BoxGeometry(.10,.95,.10),wood,side*3.1,.49,z+2.35,cp);leg.rotation.z=side*.11;}
+      mesh(new THREE.BoxGeometry(.9,.12,.12),wood,side*3.1,.88,2.35,cp);}
+    mesh(new THREE.BoxGeometry(2.05,.18,1.24),primer,0,1.03,2.35,cp);
+    for(let i=0;i<6;i++)mesh(new THREE.BoxGeometry(.045,.02,1.03),mat(i%3===0?0x726f65:0xb17654),-.78+i*.31,1.132,2.35,cp);
+    mesh(new THREE.BoxGeometry(.82,.85,.55),mat(0xb84b37),3.25,.48,-2.8,cp);
+    for(let y=.27;y<.74;y+=.22)mesh(new THREE.BoxGeometry(.72,.15,.025),mat(0x75402f),3.25,y,-3.09,cp);
+    mesh(new THREE.BoxGeometry(1.0,.10,.7),mat(0x25251f),3.2,.09,1.45,cp);}
+
+  // Laundry, porch and small domestic clues on the main house and the nearest neighbour.
+  {const houseStory=new THREE.Group();scene.add(houseStory);
+    // A dark reveal, half blind, sill, warm pane and blue towel deepen the laundry window.
+    mesh(new THREE.BoxGeometry(2.05,1.55,.045),mat(0x292d28),-9,2.48,-25.57,houseStory);
+    mesh(new THREE.BoxGeometry(1.72,1.18,.035),mat(0xe1b978,{emissive:0x32210d}),-9,2.50,-25.60,houseStory);
+    mesh(new THREE.BoxGeometry(.86,1.18,.05),mat(0xd8d0b8),-9.40,2.50,-25.64,houseStory);
+    mesh(new THREE.BoxGeometry(2.16,.11,.22),mat(0xb9a991),-9,1.69,-25.68,houseStory);
+    mesh(new THREE.BoxGeometry(.48,.74,.045),mat(0x417b98),-8.32,1.95,-25.71,houseStory);
+    // Brick piers and a patterned air grille lift the weatherboard wall above its footing.
+    for(const x of [-18,-12,-6,0,6,12,18]){mesh(new THREE.BoxGeometry(.68,.72,.52),mat(0x954f3a),x,.37,-25.02,houseStory);
+      for(let r=0;r<2;r++)mesh(new THREE.BoxGeometry(.52,.035,.04),mat(0xc6a18a),x,.29+r*.19,-25.31,houseStory);}
+    mesh(new THREE.BoxGeometry(.64,.32,.045),mat(0x6a7772),-18,1.02,-25.50,houseStory);
+    for(let i=0;i<5;i++)mesh(new THREE.BoxGeometry(.53,.022,.02),mat(0x39423e),-18, .91+i*.055,-25.54,houseStory);
+    // Crooked enamel trough, replacement tile and pipe clips below the laundry.
+    mesh(new THREE.BoxGeometry(1.36,.68,.62),mat(0xaaa99d),-15.8,.39,-23.85,houseStory);
+    mesh(new THREE.BoxGeometry(1.42,.10,.67),mat(0xd1d4cb),-15.8,.75,-23.85,houseStory);
+    mesh(new THREE.BoxGeometry(1.16,.38,.42),mat(0x59645f),-15.8,.72,-23.85,houseStory);
+    rod(new THREE.Vector3(-16.1,.82,-23.86),new THREE.Vector3(-16.1,.12,-23.86),.045,mat(0x777e79));
+    mesh(new THREE.BoxGeometry(.50,.025,.50),mat(0x5d8f91),-14.72,.03,-23.65,houseStory);
+    for(const y of [.34,.74])mesh(new THREE.BoxGeometry(.15,.045,.16),mat(0x5c5040),-16.10,y,-23.89,houseStory);
+    // Small trophies, footy notice, party invite and preserving jars on the veranda/windowsill.
+    for(let i=0;i<3;i++){const x=15.6+i*.52;mesh(new THREE.CylinderGeometry(.14,.18,.08,10),mat(0x806744),x,1.61,-23.92,houseStory);
+      mesh(new THREE.CylinderGeometry(.075,.09,.38+(i%2)*.12,10),mat(i===1?0xc89c3b:0x9a7b43),x,1.84+(i%2)*.06,-23.92,houseStory);
+      mesh(new THREE.SphereGeometry(.10,10,8),mat(0xc59e47),x,2.08+(i%2)*.12,-23.92,houseStory);}
+    const notice=(x,y,z,w,h,label,bg)=>{const tex=textTex(384,192,(c,tw,th)=>{c.fillStyle=bg;c.fillRect(0,0,tw,th);c.strokeStyle='#72573a';c.lineWidth=8;c.strokeRect(5,5,tw-10,th-10);c.textAlign='center';c.textBaseline='middle';c.fillStyle='#4a3826';c.font='bold 30px Georgia';c.fillText(label,tw/2,th*.42);c.font='bold 18px Arial';c.fillText('BACKYARD  •  SATURDAY',tw/2,th*.72);});
+      const panel=mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:tex,side:THREE.DoubleSide}),x,y,z,houseStory);panel.rotation.y=Math.PI;};
+    notice(-12.3,2.22,-25.52,1.05,.58,'FOOTY FIXTURE','#e5d5b0');notice(-13.6,2.22,-25.52,.86,.54,'BBQ AT OURS!','#eadcae');
+    for(let i=0;i<3;i++){const x=10.4+i*.31;mesh(new THREE.CylinderGeometry(.11,.12,.28,10),mat(0x93a995,{transparent:true,opacity:.62}),x,1.66,-25.62,houseStory);
+      mesh(new THREE.CylinderGeometry(.12,.12,.035,10),mat(0x88734c),x,1.82,-25.62,houseStory);
+      mesh(new THREE.SphereGeometry(.095,8,6),mat([0x9c6038,0x5c824c,0xd2b867][i]),x,1.67,-25.62,houseStory);}
+    // Pool-height ticks and a pie peeking through the flyscreen at the back step.
+    for(let i=0;i<6;i++){mesh(new THREE.BoxGeometry(i%2?.22:.38,.022,.018),mat(0x5d4934),18.18,1.02+i*.23,-24.14,houseStory);}
+    mesh(new THREE.CylinderGeometry(.15,.16,.045,12),mat(0xd3a34f),2.6,.82,-25.28,houseStory);
+    mesh(new THREE.CylinderGeometry(.11,.12,.05,10),mat(0x98543b),2.6,.86,-25.28,houseStory);
+    // Tennis ball wedged in the back gutter and a small, faded mark on the paling opposite.
+    mesh(new THREE.SphereGeometry(.105,9,7),mat(0xd9c642),6.2,4.40,-24.95,houseStory);
+    for(let i=0;i<7;i++){const mark=mesh(new THREE.SphereGeometry(.08+(i%2)*.025,7,5),mat(0x62513f,{transparent:true,opacity:.20}),5.6+(i%4)*.25,.72+Math.floor(i/4)*.20,-30.08,houseStory);mark.scale.set(1.6,.7,.16);}
+    // A single translucent shed roof panel spills broad light over the repair bench.
+    const roofPane=mesh(new THREE.BoxGeometry(.82,.035,2.7),new THREE.MeshLambertMaterial({color:0xb7d2c1,transparent:true,opacity:.52,depthWrite:false}),22.5,2.70,-16.5,houseStory);roofPane.castShadow=false;
+    const lightPatch=mesh(new THREE.PlaneGeometry(1.9,1.05),new THREE.MeshBasicMaterial({color:0xe9d99f,transparent:true,opacity:.16,depthWrite:false}),24.1,.012,-16.3,houseStory);lightPatch.rotation.x=-Math.PI/2;lightPatch.castShadow=false;
+    // A glazed sleeping porch on the bungalow: two closed panes, one slid open, and a soft curtain.
+    const porch=new THREE.Group();porch.position.set(-42,0,35.8);scene.add(porch);
+    mesh(new THREE.BoxGeometry(5.1,.12,1.65),mat(0x71563a),0,3.05,.65,porch);
+    for(const x of [-2.35,2.35])mesh(new THREE.BoxGeometry(.11,2.25,.11),mat(0x71563a),x,1.92,1.28,porch);
+    for(const x of [-1.55,0,1.55]){const pane=mesh(new THREE.BoxGeometry(1.48,1.82,.035),new THREE.MeshLambertMaterial({color:0x94b5b7,transparent:true,opacity:.43,depthWrite:false,side:THREE.DoubleSide}),x,2.0,1.28,porch);pane.castShadow=false;
+      mesh(new THREE.BoxGeometry(.045,1.90,.055),mat(0xe4ddcc),x+.72,2.0,1.27,porch);}
+    const curtain=mesh(new THREE.BoxGeometry(.46,1.65,.035),mat(0xe4d9bf),-1.05,2.02,1.20,porch);porchCurtain=curtain;
+  }
+
+  // Garden stories: harvest pergola, lemon and bottlebrush, cicada shells, exposed roots and wildlife.
+  {const garden=new THREE.Group();scene.add(garden);const wood=mat(0x6d5437),leaf=mat(0x71844e),grape=mat(0x634a67);
+    for(const x of [-50,-44]){mesh(new THREE.BoxGeometry(.16,2.7,.16),wood,x,1.35,32,garden);}
+    for(const z of [29.3,32.0])mesh(new THREE.BoxGeometry(6.2,.14,.16),wood,-47,2.65,z,garden);
+    for(let x=-49.8;x<=-44.2;x+=.55)mesh(new THREE.BoxGeometry(.10,.09,2.9),wood,x,2.70,30.65,garden);
+    for(let i=0;i<24;i++){const x=-50+((i*37)%57)/10,z=29.5+((i*19)%24)/10,y=2.77+((i*7)%5)*.13;const l=mesh(new THREE.IcosahedronGeometry(.28+(i%3)*.07,0),mat(i%4?0x71834e:0x91a164),x,y,z,garden);l.scale.set(1.1,.6,.7);
+      if(i%6===0){const bunch=mesh(new THREE.SphereGeometry(.16,8,6),grape,x+.16,y-.18,z+.08,garden);bunch.scale.set(.72,1.25,.72);}}
+    mesh(new THREE.BoxGeometry(.95,.56,.72),mat(0x806341),-46.3,.29,28.8,garden);
+    for(let i=0;i<5;i++)mesh(new THREE.BoxGeometry(.02,.48,.02),mat(0x57432e),-46.65+i*.17,.29,28.43,garden);
+    // Lemon tree by the kitchen side, with a branching trunk and individually placed fruit.
+    const lemonX=47,lemonZ=20;rod(new THREE.Vector3(lemonX,.1,lemonZ),new THREE.Vector3(lemonX,2.1,lemonZ),.14,mat(0x7d5637));
+    for(let i=0;i<11;i++){const a=i*2.4,r=1.1+(i%3)*.22;const cl=mesh(new THREE.IcosahedronGeometry(.68+(i%2)*.12,1),mat(i%3?0x607e45:0x819457),lemonX+Math.cos(a)*r,2.15+(i%4)*.35,lemonZ+Math.sin(a)*r,garden);cl.scale.set(1,.75,.96);
+      if(i%3===0){const fr=mesh(new THREE.SphereGeometry(.12,10,7),mat(0xe7c84b),lemonX+Math.cos(a)*r*.95,1.95+(i%4)*.34,lemonZ+Math.sin(a)*r*.95,garden);fr.scale.set(.86,1.2,.78);}}
+    for(let i=0;i<8;i++){const x=29.5+(i%4)*.55,z=15.4+Math.floor(i/4)*.4;const bush=mesh(new THREE.IcosahedronGeometry(.48,1),mat(i%2?0x456d39:0x557645),x,.54,z,garden);bush.scale.set(1.2,.8,.8);
+      for(let k=0;k<4;k++){const fl=mesh(new THREE.SphereGeometry(.095,8,6),mat(0xc95d43),x-.18+k*.12,.83,z+.08,garden);fl.scale.set(.6,1.9,.65);}}
+    // Raised roots and peeling/grooved species marks around the gum trees beyond the fence.
+    for(const x of [-55,56]){mesh(new THREE.CylinderGeometry(.36,.65,5.8,9),mat(x<0?0x54483b:0xd0c3ad),x,2.9,26);
+      for(let k=0;k<4;k++){const a=k*Math.PI/2+.35;rod(new THREE.Vector3(x,.16,26),new THREE.Vector3(x+Math.cos(a)*1.1,.06,26+Math.sin(a)*.8),.09,mat(x<0?0x413b34:0xb6a996),7);}
+      for(let k=0;k<12;k++){const a=k*2.2,branch=mesh(new THREE.IcosahedronGeometry(.55+(k%3)*.13,0),mat(k%2?0x70855b:0x8ca073),x+Math.cos(a)*(1.1+(k%3)*.32),5.1+(k%4)*.42,26+Math.sin(a)*(1.2+(k%2)*.3),garden);branch.scale.set(1.3,.52,.9);}}
+    // Small shells on the tank ladder timber.
+    for(let i=0;i<5;i++){const shell=mesh(new THREE.SphereGeometry(.055,8,6),mat(0x927d57),TANK.x-.34+i*.17,.9+i%2*.27,TANK.ladderBottom+.15,garden);shell.scale.set(.8,1.15,.5);}
+    const wagtail=new THREE.Group();wagtail.position.set(-12,.03,25.5);scene.add(wagtail);const birdBlack=mat(0x242724),birdWhite=mat(0xd7d4c8);
+    mesh(new THREE.SphereGeometry(.19,10,8),birdBlack,0,.25,0,wagtail).scale.set(1,.68,1.25);mesh(new THREE.SphereGeometry(.10,8,6),birdWhite,0,.31,.10,wagtail);
+    const tailPivot=new THREE.Group();tailPivot.position.set(0,.25,-.12);wagtail.add(tailPivot);mesh(new THREE.ConeGeometry(.07,.58,6),birdBlack,0,-.20,-.15,tailPivot).rotation.x=-.3;
+    mesh(new THREE.ConeGeometry(.05,.16,6),mat(0xd4ac45),0,.28,.23,wagtail).rotation.x=Math.PI/2;
+    for(const side of [-1,1])mesh(new THREE.SphereGeometry(.018,6,4),birdWhite,side*.05,.30,.17,wagtail);
+    wagtail.userData.tail=tailPivot;garden.userData.wagtail=wagtail;
+    const grevillea=new THREE.Group();grevillea.position.set(-15,.45,23);scene.add(grevillea);const branch=mesh(new THREE.CylinderGeometry(.035,.065,1.5,7),wood,0,.70,0,grevillea);branch.rotation.z=-.22;
+    for(let i=0;i<10;i++){const a=i*2.4,l=mesh(new THREE.IcosahedronGeometry(.22,0),mat(i%2?0x456a3c:0x67854b),Math.cos(a)*.34,.7+Math.sin(a)*.3,Math.sin(a)*.35,grevillea);l.scale.set(1.4,.35,.65);}
+    for(let i=0;i<5;i++){const fl=mesh(new THREE.SphereGeometry(.075,7,5),mat(0xd68452),-.30+i*.15,1.12,.05,grevillea);fl.scale.set(.6,1.7,.6);}
+    garden.userData.branch=branch;gardenAnimator={tail:tailPivot,branch,curtain:porchCurtain};
+    movingCloudShade=mesh(new THREE.CircleGeometry(9,32),new THREE.MeshBasicMaterial({color:0x31422d,transparent:true,opacity:.10,depthWrite:false}),5,.008,4);
+    movingCloudShade.rotation.x=-Math.PI/2;movingCloudShade.scale.set(1.35,.8,1);movingCloudShade.castShadow=false;movingCloudShade.receiveShadow=false;
+    // Worn pool-side footprints are visual marks only; entry splashes are animated separately.
+    for(let i=0;i<6;i++){const mark=mesh(new THREE.SphereGeometry(.12,8,5),mat(0x426d68,{transparent:true,opacity:.24,depthWrite:false}),-23.1+i*.32,.012,16.1+Math.sin(i*.8)*.14,garden);mark.scale.set(.40,.025,.85);mark.rotation.y=.08*(i%3-1);}
+    // A hand-painted hatch sign and painted-over patch distinguish one neighbour's facade.
+    const hatchTex=textTex(384,128,(c,w,h)=>{c.fillStyle='#c9b785';c.fillRect(0,0,w,h);c.strokeStyle='#71543a';c.lineWidth=7;c.strokeRect(4,4,w-8,h-8);c.fillStyle='#493b2c';c.textAlign='center';c.font='bold 28px Georgia';c.fillText('GARDEN PRODUCE',w/2,h*.50);c.font='bold 18px Arial';c.fillText('LEMONS • HERBS • EGGS',w/2,h*.80);});
+    const hatch=mesh(new THREE.BoxGeometry(2.5,1.2,.08),mat(0x403b32),-47,2,35.85,garden);hatch.rotation.y=Math.PI;
+    const hatchFace=mesh(new THREE.PlaneGeometry(2.35,1.02),new THREE.MeshBasicMaterial({map:hatchTex}),-47,2,35.80,garden);hatchFace.rotation.y=Math.PI;
+    mesh(new THREE.BoxGeometry(2.8,.12,.55),mat(0x9a7953),-47,1.28,35.55,garden);
+    for(let i=0;i<4;i++){const veg=mesh(new THREE.SphereGeometry(.16,8,6),mat([0xd05237,0x79904a,0xe0bd42,0x658347][i]),-47.8+i*.5,1.48,35.48,garden);veg.scale.set(1.25,.75,1);}
+    mesh(new THREE.BoxGeometry(2.8,.04,.10),mat(0x9a593e),-40.8,1.5,35.9,garden); // the extension's half-painted masking line
+    for(let i=0;i<4;i++)mesh(new THREE.BoxGeometry(.035,1.1,.03),mat(0xd7cbb4),-41.9+i*.52,2,35.77,garden);
+  }
   for(let i=0;i<34;i++){let x,z;do{x=rand(-72,72);z=rand(-66,66);}while((Math.abs(x)<W+3&&Math.abs(z)<D+3)||(Math.abs(x)<22&&z<-23&&z>-36)||Math.hypot(x-12,z-33)<6||neighbourHomes.some(([hx,hz,_,hw,hd])=>Math.abs(x-hx)<hw/2+4&&Math.abs(z-hz)<hd/2+4));
     const h=rand(6,10);mesh(new THREE.CylinderGeometry(.16,.32,h,8),bark,x,h/2,z);
     // Sparse, angled limbs make each gum silhouette less like a trunk with balls on top.
@@ -1012,6 +1163,11 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   col(MOWER.x,MOWER.z+.67,1.72,.98,.52);
   col(MOWER.x,MOWER.z+.30,1.08,.94,.95);
   col(MOWER.x,MOWER.z-.45,.72,.62,1.28);
+  // Faint paired wheel tracks show where the ride-on was turned around, away from the main route.
+  for(const side of [-1,1])for(let i=0;i<6;i++){
+    const track=mesh(new THREE.BoxGeometry(.17,.008,.48),mat(i%2?0x77734d:0x696c46,{transparent:true,opacity:.30}),MOWER.x+side*.46,.013,MOWER.z+1.42+i*.52);
+    track.rotation.y=(i%2?-.018:.018);
+  }
 
   // A small shed-side workbench links the mower to an unfinished repair.
   const benchWood=mat(0x79583a),benchTop=mat(0x9b7953),benchSteel=mat(0x818783),benchDark=mat(0x3d443d);
@@ -1106,7 +1262,7 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   col(sx,sz-.31,.28,.28,2.2);
 
   // trampoline
-  mesh(new THREE.CylinderGeometry(TRAMP.r,TRAMP.r,.04,28),mat(0x1d1f22),TRAMP.x,TRAMP.h,TRAMP.z);
+  trampolineMatMesh=mesh(new THREE.CylinderGeometry(TRAMP.r,TRAMP.r,.04,28),mat(0x1d1f22),TRAMP.x,TRAMP.h,TRAMP.z);
   const pad=mesh(new THREE.TorusGeometry(TRAMP.r+.05,.12,8,28),mat(0x1f6fd1),TRAMP.x,TRAMP.h+.02,TRAMP.z);pad.rotation.x=Math.PI/2;
   for(let k=0;k<6;k++){const a=k*Math.PI/3;mesh(new THREE.CylinderGeometry(.04,.04,TRAMP.h,6),mat(0x444a50),TRAMP.x+Math.cos(a)*TRAMP.r,TRAMP.h/2,TRAMP.z+Math.sin(a)*TRAMP.r);}
 
@@ -1149,6 +1305,15 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   // wheelie bins
   [[31.1,0xd63a2f],[31.95,0xf2c230]].forEach(([x,c])=>{mesh(new THREE.BoxGeometry(.72,1,.76),mat(0x2e6b3a),x,.5,19.5);mesh(new THREE.BoxGeometry(.76,.07,.82),mat(c),x,1.04,19.5);});
   col(31.5,19.5,1.7,.85,1.1);
+  // Discarded timber bench beside the bins. Braces visibly tie the back boards into the frame;
+  // matching body and back colliders stop players walking through it.
+  {const bx=31.5,bz=16.8,wood=mat(0x806448);
+    for(const dz of [-.22,.22])mesh(new THREE.BoxGeometry(1.15,.09,.17),wood,bx,.46,bz+dz);
+    for(const x of [-.47,.47])for(const dz of [-.25,.25])mesh(new THREE.BoxGeometry(.12,.78,.12),wood,bx+x,.39,bz+dz);
+    for(const y of [.94,1.25]){const back=mesh(new THREE.BoxGeometry(1.14,y===.94?.11:.09,.10),wood,bx,y,bz-.30);back.rotation.x=-.12;}
+    for(const x of [-.39,.39]){rod(new THREE.Vector3(bx+x,.55,bz-.23),new THREE.Vector3(bx+x,1.43,bz-.37),.055,wood);
+      mesh(new THREE.BoxGeometry(.09,.07,.035),mat(0x514333),bx+x,.60,bz-.24);mesh(new THREE.BoxGeometry(.09,.07,.035),mat(0x514333),bx+x,1.33,bz-.36);}}
+  col(31.5,16.82,1.20,.64,.82);col(31.5,16.48,1.20,.20,1.42);
   // crates
   const crate=mat(0xc89a60);
   mesh(new THREE.BoxGeometry(1.15,1.15,1.15),crate,-26.1,.58,-13.5);mesh(new THREE.BoxGeometry(1.15,1.15,1.15),crate,-24.9,.58,-13.5);mesh(new THREE.BoxGeometry(1.15,1.15,1.15),crate,-25.5,1.73,-13.5);
@@ -1341,8 +1506,16 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
     mesh(new THREE.BoxGeometry(.10,.07,.07),mat(0xb3a371),-.15,.03,0,sprinklerRotor);
     mesh(new THREE.BoxGeometry(.075,.09,.07),mat(0x9ab3ac),.21,.045,0,sprinklerRotor);
     sprinklerSpray=new THREE.Group();sprinklerSpray.position.copy(sprinklerRotor.position);scene.add(sprinklerSpray);sprinklerSpray.visible=false;
-    const dropM=new THREE.MeshLambertMaterial({color:0x8dd9ec,transparent:true,opacity:.62,emissive:0x205369});
-    [.44,.67,.91,1.14,1.35].forEach((x,i)=>{const drop=mesh(new THREE.SphereGeometry(i%2?.032:.045,7,5),dropM,x,.06+(i%3)*.12,.05+Math.sin(i*.7)*.30,sprinklerSpray);drop.castShadow=false;});
+    const dropM=new THREE.MeshLambertMaterial({color:0x8dd9ec,transparent:true,opacity:.68,emissive:0x17394a,depthWrite:false});
+    // A broad, layered fan of water replaces the handful of isolated dots. Irregular rows and
+    // sizes make the spray read as a stream of droplets rather than a static dotted line.
+    for(let i=0;i<78;i++){const row=i%13,col=Math.floor(i/13),dist=.55+row*.27,angle=-.72+col*.24+Math.sin(i*2.17)*.055;
+      const x=Math.sin(angle)*dist,z=Math.cos(angle)*dist,y=.08+(row*.11)+(col%3)*.10+Math.sin(i*1.37)*.06;
+      const size=.014+(i%5)*.004,drop=mesh(new THREE.SphereGeometry(size,6,5),dropM,x,y,z,sprinklerSpray);
+      drop.scale.set(.8,1.15+(row%3)*.25,.8);drop.castShadow=false;drop.receiveShadow=false;}
+    for(let i=0;i<7;i++){const angle=-.62+i*.20,dist=.8+(i%3)*.4;
+      const streak=mesh(new THREE.SphereGeometry(.018,6,4),dropM,Math.sin(angle)*dist,.13+(i%3)*.16,Math.cos(angle)*dist,sprinklerSpray);
+      streak.scale.set(.65,1.0,5.5);streak.rotation.y=angle;streak.castShadow=false;streak.receiveShadow=false;}
   }
 
   // A purpose-built gum receives the claw-marked possum box and a small scatter of fallen leaves.
@@ -1486,13 +1659,13 @@ const FISH_GEO=(()=>{const sh=(pts)=>{const s=new THREE.Shape();s.moveTo(pts[0][
     gill:new THREE.TorusGeometry(.04,.004,4,12,Math.PI*.9),eyeW:new THREE.SphereGeometry(.026,12,10),eyeR:new THREE.TorusGeometry(.017,.004,5,12),eyeP:new THREE.SphereGeometry(.013,8,6),
     lip:new THREE.TorusGeometry(.022,.009,6,14),mouth:new THREE.SphereGeometry(.018,8,6)};})();
 const MAKERS={
-  teddy(){const g=new THREE.Group(),fur=mat(0xa86b3c),lt=mat(0xe2b98a),dk=mat(0x24160c);
+  teddy(){const g=new THREE.Group(),fur=mat(0xa86b3c),lt=mat(0xe2b98a),dk=mat(0x24160c),ears=[];
     const b=mesh(new THREE.SphereGeometry(.17,14,10),fur,0,-.07,0,g);b.scale.y=1.1;
     mesh(new THREE.SphereGeometry(.1,10,8),lt,0,-.06,.1,g).scale.z=.5;
     mesh(new THREE.SphereGeometry(.14,14,10),fur,0,.15,0,g);
-    [-1,1].forEach(s=>{mesh(new THREE.SphereGeometry(.055,8,6),fur,s*.1,.27,0,g);mesh(new THREE.SphereGeometry(.065,8,6),fur,s*.17,-.03,.04,g);
+    [-1,1].forEach(s=>{const ear=new THREE.Group();ear.position.set(s*.1,.27,0);g.add(ear);mesh(new THREE.SphereGeometry(.055,8,6),fur,0,0,0,ear);ears.push({node:ear,side:s});mesh(new THREE.SphereGeometry(.065,8,6),fur,s*.17,-.03,.04,g);
       mesh(new THREE.SphereGeometry(.07,8,6),fur,s*.09,-.21,.07,g);mesh(new THREE.SphereGeometry(.018,6,4),dk,s*.05,.19,.125,g);});
-    mesh(new THREE.SphereGeometry(.055,8,6),lt,0,.12,.12,g);mesh(new THREE.SphereGeometry(.022,6,4),dk,0,.14,.17,g);return g;},
+    mesh(new THREE.SphereGeometry(.055,8,6),lt,0,.12,.12,g);mesh(new THREE.SphereGeometry(.022,6,4),dk,0,.14,.17,g);g.userData.ears=ears;return g;},
   stubby(){const g=new THREE.Group(),alu=mat(0xc9ced3);
     mesh(new THREE.CylinderGeometry(.066,.066,.18,18),[vpLabel,alu,alu],0,0,0,g);
     mesh(new THREE.CylinderGeometry(.056,.066,.02,18),alu,0,.1,0,g);mesh(new THREE.CylinderGeometry(.066,.056,.02,18),alu,0,-.1,0,g);
@@ -1927,6 +2100,10 @@ function buildHeistWall(cx,cz,w,d,color,h){h=h||HEIST_WALL_H;heistProps.push(mes
   col(cx,cz,w,d,h);heistColsSet.push(colliders[colliders.length-1]);}
 // true when (x,z) is at least r clear of every heist wall/block
 function heistClear(x,z,r){if(!inHeistOval(x,z,r))return false;for(const c of heistColsSet)if(x>c.x0-r&&x<c.x1+r&&z>c.z0-r&&z<c.z1+r)return false;return true;}
+const heistSignTextures=new Map();
+function heistSignTexture(key){if(heistSignTextures.has(key))return heistSignTextures.get(key);const tex=textTex(320,96,(ctx,w,h)=>{
+  ctx.fillStyle='#17231f';ctx.fillRect(0,0,w,h);ctx.fillStyle=TEAMS[key].css;ctx.fillRect(0,0,12,h);ctx.fillStyle='#fff4d2';ctx.font='900 39px system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(TEAMS[key].name.toUpperCase()+' BASE',w/2+5,34);ctx.font='800 24px system-ui,sans-serif';ctx.fillStyle='#f5c84a';ctx.fillText('BANK TEDDIES',w/2+5,72);});
+  heistSignTextures.set(key,tex);return tex;}
 // the Heist yard is an oval, not a rectangle: everything outside an ellipse is filled with thin stone steps (so the corners curve away),
 // plus a half-round bay pushed into the middle of each side. Axes are chosen so every base (2, 3 or 4 teams) sits inside with room to walk round it.
 const HEIST_ARENA={A:HEIST_A,B:HEIST_B,step:1,bay:{r:6,depth:3.6}};
@@ -2019,7 +2196,12 @@ function buildHeistBases(n,variant=heistVariant){clearHeistProps();heistTeams=cl
     flat(new THREE.CylinderGeometry(.95,.95,15,18,1,true),.16,7.5);                      // light beam you can spot across the yard
     heistProps.push(mesh(new THREE.CylinderGeometry(.13,.13,7.5,8),mat(0xf2f2f2),b.x,3.75,b.z));
     const fl=mesh(new THREE.PlaneGeometry(2.6,1.5),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}),b.x+1.3,6.6,b.z);fl.castShadow=false;heistProps.push(fl);
-    heistProps.push(mesh(new THREE.SphereGeometry(.28,10,8),mat(0xffffff),b.x,7.6,b.z));});
+    heistProps.push(mesh(new THREE.SphereGeometry(.28,10,8),mat(0xffffff),b.x,7.6,b.z));
+    // A readable entrance marker doubles as a bank cue without adding an obstacle to the doorway.
+    const signTex=heistSignTexture(key);
+    const direction=b.open==='xPos'?new V3(1,0,0):b.open==='xNeg'?new V3(-1,0,0):b.open==='zPos'?new V3(0,0,1):new V3(0,0,-1);
+    const marker=mesh(new THREE.PlaneGeometry(1.85,.56),new THREE.MeshBasicMaterial({map:signTex,side:THREE.DoubleSide}),b.x+direction.x*3.25,1.9,b.z+direction.z*3.25);
+    marker.rotation.y=b.open==='xPos'?Math.PI/2:b.open==='xNeg'?-Math.PI/2:b.open==='zNeg'?Math.PI:0;marker.castShadow=false;heistProps.push(marker);});
   buildHeistArena();buildHeistCenterpiece();makeHeistBoard();}
 // how many teddies sit in each base: 2 to start, plus 1 more for every couple of players sharing that team, capped at 4 so a big lobby never turns into clutter
 function heistTeddyCount(){return clamp(2+Math.floor((chars.size/heistTeams)/2),2,4);}
@@ -2374,6 +2556,17 @@ const parts=[],partGeo=new THREE.BoxGeometry(1,1,1);
 function burst(pos,colors,n,speed,size,grav){for(let i=0;i<n;i++){const m=new THREE.Mesh(partGeo,mat(pick(colors)));m.scale.setScalar((size||.07)*rand(.6,1.4));m.position.copy(pos);m.rotation.set(rand(0,3),rand(0,3),0);scene.add(m);
   parts.push({m,v:new V3(rand(-1,1),rand(.2,1.3),rand(-1,1)).multiplyScalar(speed),life:rand(.5,1.1),grav:grav==null?1:grav,s:m.scale.x});}
   while(parts.length>420){const p=parts.shift();scene.remove(p.m);}}
+function poolRipples(pos){for(let i=0;i<3;i++){const material=new THREE.MeshBasicMaterial({color:i===0?0xf0fdff:0x9de7f6,transparent:true,opacity:.68,depthWrite:false,side:THREE.DoubleSide});
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(.18+i*.09,.014,6,24),material);ring.rotation.x=-Math.PI/2;ring.position.set(pos.x,WATER_Y+.012+i*.001,pos.z);ring.scale.setScalar(.28);ring.renderOrder=3;scene.add(ring);yardRippleFx.push({mesh:ring,age:i*.11,life:.85});}}
+function wetFootprints(pos,yaw){for(let i=0;i<4;i++){const side=i%2?1:-1,step=Math.floor(i/2),x=pos.x+Math.cos(yaw)*(-.20-step*.42)+Math.sin(yaw)*side*.13,z=pos.z-Math.sin(yaw)*(-.20-step*.42)+Math.cos(yaw)*side*.13;
+    const m=new THREE.Mesh(new THREE.SphereGeometry(.12,8,5),new THREE.MeshBasicMaterial({color:0x537e7b,transparent:true,opacity:.27,depthWrite:false}));m.position.set(x,.014,z);m.scale.set(.44,.04,.84);m.rotation.y=yaw+(side*.10);scene.add(m);wetFootprintFx.push({mesh:m,age:0,life:4.2});}}
+function updateYardEffects(dt){for(const list of [yardRippleFx,wetFootprintFx])for(let i=list.length-1;i>=0;i--){const fx=list[i];fx.age+=dt;const t=fx.age/fx.life;if(t>=1){scene.remove(fx.mesh);fx.mesh.material.dispose();fx.mesh.geometry.dispose();list.splice(i,1);continue;}
+    if(list===yardRippleFx){const s=.28+2.9*t;fx.mesh.scale.set(s,s,s);fx.mesh.material.opacity=.68*(1-t);}else fx.mesh.material.opacity=.27*(1-t);}
+  if(trampolineMatMesh){let press=0;for(const ch of chars.values()){const d=Math.hypot(ch.pos.x-TRAMP.x,ch.pos.z-TRAMP.z);if(ch.grounded&&d<TRAMP.r*.72&&Math.abs(ch.pos.y-TRAMP.h)<.25)press=Math.max(press,1-d/(TRAMP.r*1.5));}
+    trampolineMatMesh.scale.y+=(Math.max(.90,1-press*.10)-trampolineMatMesh.scale.y)*(1-Math.exp(-10*dt));}
+  if(gardenAnimator){gardenAnimator.tail.rotation.x=Math.sin(elapsed*7.2)*.18+Math.max(0,Math.sin(elapsed*.7))*-.06;if(gardenAnimator.branch)gardenAnimator.branch.rotation.z=-.22+Math.sin(elapsed*1.55+1.2)*.045;
+    if(gardenAnimator.curtain)gardenAnimator.curtain.rotation.y=Math.sin(elapsed*1.1)*.025;}
+  if(movingCloudShade){movingCloudShade.position.x=5+Math.sin(elapsed*.035)*17;movingCloudShade.position.z=4+Math.cos(elapsed*.027)*12;movingCloudShade.material.opacity=.10+.035*Math.sin(elapsed*.2);}}
 function updateParts(dt){for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.life-=dt;p.v.y-=15*p.grav*dt;p.m.position.addScaledVector(p.v,dt);p.m.rotation.x+=dt*5;
   if(p.m.position.y<.02){p.m.position.y=.02;p.v.multiplyScalar(.4);p.v.y=0;}if(p.life<.25)p.m.scale.setScalar(p.s*Math.max(.01,p.life/.25));
   if(p.life<=0){scene.remove(p.m);parts.splice(i,1);}}}
@@ -2669,6 +2862,8 @@ function syncItemMeshes(){
   syncDrinkVM();
   const mySel=me?selItem(me):null;
   for(const it of items.values()){
+    if(it.type==='teddy'&&it.mesh.userData.ears){const speed=it.state==='flying'?Math.min(.22,Math.hypot(it.vel.x,it.vel.z)*.014):0;
+      for(const ear of it.mesh.userData.ears)ear.node.rotation.z=ear.side*(.05+Math.sin(elapsed*5.4+it.id*.7)*.13+speed);}
     if(it.state==='held'){it.ring.visible=false;const h=chars.get(it.holder);
       if(h&&h.kind==='me'){if(it.mesh.parent!==camera){camera.add(it.mesh);it.mesh.scale.setScalar(it.type==='fish'?.36:it.type==='noodle'?.36:it.type==='dildo'?.5:.8);}
         it.mesh.visible=it===mySel&&!(me.drinkT>0)&&!(me.smokoSeat>=0);
@@ -2744,7 +2939,8 @@ function updateChar(ch,dt){
   if(ch.snagBuffT>0){ch.snagBuffT=Math.max(0,ch.snagBuffT-dt);if(ch.snagBuffT<=0){ch.snagStumbleT=SNAG_STUMBLE;if(ch.kind==='me')showHint('<b>Uh oh...</b> that snag is kicking in.',SNAG_STUMBLE);}}else if(ch.snagStumbleT>0)ch.snagStumbleT=Math.max(0,ch.snagStumbleT-dt);
   if(ch.chuckBy&&ch.grounded&&elapsed-ch.chuckT>.15){const by=ch.chuckBy;ch.chuckBy=null;if(naughtyOn()&&elapsed-ch.chuckT<3&&inSmoko(ch)&&(ch.kind==='me'||(isAuth&&ch.kind==='bot'))){if(isAuth)authNaughty(by,ch.id);else sendEv('ng',by);}}
   ch.inPool=inPoolRect(ch.pos)&&ch.pos.y<.1;
-  if(ch.inPool&&!ch.wasInPool){SFX.splash(ch.pos);burst(ch.pos.clone().setY(WATER_Y+.15),[0x9ee3ff,0xffffff],12,3,.07);envCheck(ch,'pool');}ch.wasInPool=ch.inPool;
+  if(ch.inPool&&!ch.wasInPool){SFX.splash(ch.pos);poolRipples(ch.pos);burst(ch.pos.clone().setY(WATER_Y+.15),[0x9ee3ff,0xffffff],18,3.2,.075);envCheck(ch,'pool');}
+  if(!ch.inPool&&ch.wasInPool)wetFootprints(ch.pos,ch.yaw||0);ch.wasInPool=ch.inPool;
   ch.slip=ch.pos.y<.1&&[...puddles.values()].some(p=>Math.hypot(ch.pos.x-p.x,ch.pos.z-p.z)<p.r*p.grow);
   slideCheck(ch,dt);
   const frozen=state==='countdown';
@@ -3660,7 +3856,7 @@ function frame(now){
   if(me)carryTick(dt);if(isAuth){carryHostTick(dt);chuckHitTick();}
   if(isAuth)for(const ch of chars.values())if(ch.ai&&!carriedBy.has(ch.id)&&!(ch.naughtyT>0))aiUpdate(ch,dt);
   for(const ch of chars.values()){if(ch.kind==='proxy')updateProxy(ch,dt);else updateChar(ch,dt);}
-  updateGardenMagpies();
+  updateGardenMagpies();updateYardEffects(dt);
   separate();
   if(isAuth&&mode!=='menu')computeLeader();
   if(me){

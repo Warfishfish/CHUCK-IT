@@ -916,6 +916,12 @@ fn house_styled() -> Vec<Part> {
             ));
         }
     }
+    // Subtle oxidation streaks on the accessible rear roof edge help the metal feel used,
+    // without changing its profile or the walkable collision surface.
+    let rust = matt(0x875744).see_through(0.38).no_shadow();
+    for x in [-13.8f32, -4.1, 7.7, 15.2] {
+        v.push(cuboid(0.045, 0.31, 0.012, rust, x, 4.18, -25.02).turn(0.0, 0.0, 0.045));
+    }
     // Downpipes hug the gable ends. The last elbow points away from the weatherboards.
     for (x, side) in [(-19.62f32, -1.0f32), (19.62, 1.0)] {
         v.push(cuboid(0.11, 3.95, 0.11, galv, x, 2.32, -24.98));
@@ -1675,7 +1681,8 @@ fn limb(a: V3, b: V3, r0: f32, r1: f32, seg: u32, s: Surface) -> Part {
 /// A gum tree whose leaves are dusted towards dry khaki (`dust` 0 = as normal, 1 = the far,
 /// sun-baked trees out in the paddock).
 fn gum_tree_dusty(rng: &mut Rng, x: f32, z: f32, dust: f32) -> Vec<Part> {
-    let bark = matt(0xffffff).material(Tex::Bark, 1.0);
+    let ironbark = rng.chance(0.34);
+    let bark = matt(if ironbark { 0x66584a } else { 0xe5dbca }).material(Tex::Bark, 1.0);
     // sun-bleached gum greens: olive, sage and blue-grey, a few darker
     let leaves = [
         0x78966e_u32,
@@ -1722,6 +1729,13 @@ fn gum_tree_dusty(rng: &mut Rng, x: f32, z: f32, dust: f32) -> Vec<Part> {
         )
         .at(x, 0.25, z),
     );
+    // Dry surface roots extend from the flare into the lawn. Dark ironbark ridges and pale
+    // ribbon-gum flakes read as two species from a distance without a texture-heavy asset.
+    for k in 0..5 {
+        let a = k as f32 * 2.0 * PI / 5.0 + silhouette.range(-0.16, 0.16);
+        let end = base + V3::new(a.cos() * (0.8 + r), 0.04, a.sin() * (0.55 + r * 0.4));
+        v.push(limb(base + V3::new(0.0,0.12,0.0), end, r*0.62, r*0.12, 7, bark));
+    }
     // A few nearer gums split low into a second pale stem. Keep the accent wholly visual and
     // out of the far dusty tree line; the chosen positions do not affect world/gameplay data.
     if dust < 0.72 && silhouette.chance(0.16) {
@@ -2475,23 +2489,27 @@ pub fn backyard_wind_parts() -> BackyardWindParts {
         cuboid(0.075, 0.09, 0.07, matt(0x9ab3ac), 0.21, 0.045, 0.0),
     ];
     let spray = matt(0x8dd9ec).unlit().see_through(0.52).no_shadow();
-    let sprinkler_trail = [0.44f32, 0.67, 0.91, 1.14, 1.35]
-        .into_iter()
-        .enumerate()
-        .map(|(i, x)| {
+    // A layered, directional fan reads as real sprinkler spray at gameplay distance. The
+    // low-cost ellipsoids are static meshes; the scene rotates the whole fan with the rotor.
+    let sprinkler_trail = (0..42)
+        .map(|i| {
+            let row = i % 7;
+            let col = i / 7;
+            let angle = -0.67 + col as f32 * 0.22 + (i as f32 * 2.17).sin() * 0.035;
+            let distance = 0.48 + row as f32 * 0.22;
+            let x = angle.sin() * distance;
+            let z = angle.cos() * distance;
+            let y = 0.12 + row as f32 * 0.10 + (col % 3) as f32 * 0.07;
             Part::new(
                 Shape::Sphere {
-                    r: if i % 2 == 0 { 0.045 } else { 0.032 },
+                    r: if i % 3 == 0 { 0.037 } else { 0.026 },
                     ws: 8,
                     hs: 5,
                 },
                 spray,
             )
-            .at(
-                x,
-                0.06 + (i % 3) as f32 * 0.12,
-                0.05 + (i as f32 * 0.19).sin() * 0.30,
-            )
+            .at(x, y, z)
+            .stretch(0.78, 1.45, 0.78)
             .no_shadow_part()
         })
         .collect();
@@ -2748,6 +2766,26 @@ fn props(polished: bool) -> Vec<Part> {
         v.push(
             ground_patch(rx, rz + 0.35, 1.45, 1.9, 0.006, 0x695d40, 0.12, 0.035).no_shadow_part(),
         );
+        // Two softly worn wheel traces lead from the mower into the grass, stopping before the
+        // busy play lane. They are decorative and sit just above the lawn surface.
+        for side in [-1.0f32, 1.0] {
+            for segment in 0..5 {
+                let z = rz + 1.55 + segment as f32 * 0.62;
+                v.push(
+                    ground_patch(
+                        rx + side * 0.46,
+                        z,
+                        0.21,
+                        0.55,
+                        0.009,
+                        0x73704b,
+                        0.10,
+                        0.018,
+                    )
+                    .no_shadow_part(),
+                );
+            }
+        }
         v.push(
             cuboid(1.32, 0.25, 1.55, enamel, rx, 0.39, rz)
                 .bevel(0.07)
@@ -3021,6 +3059,12 @@ fn props(polished: bool) -> Vec<Part> {
         }
         v.push(cuboid(1.14, 0.11, 0.10, timber, bx, 0.94, bz - 0.30).turn(-0.12, 0.0, 0.0));
         v.push(cuboid(1.14, 0.09, 0.10, timber, bx, 1.25, bz - 0.34).turn(-0.12, 0.0, 0.0));
+        // The back slats now have visible diagonal braces down to the rear seat frame.
+        for x in [bx - 0.39, bx + 0.39] {
+            v.push(rod(V3::new(x, 0.55, bz - 0.23), V3::new(x, 1.43, bz - 0.37), 0.055, timber));
+            v.push(cuboid(0.08, 0.08, 0.035, matt(0x514333), x, 0.60, bz - 0.24));
+            v.push(cuboid(0.08, 0.08, 0.035, matt(0x514333), x, 1.33, bz - 0.36));
+        }
     }
     // eskies
     for (n, (x, z, r)) in DECOR_ESKIES.into_iter().enumerate() {
@@ -4062,6 +4106,7 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
         .into_iter()
         .zip(heist::team_keys(teams))
     {
+        use heist::Open;
         let col = team_colour(*team);
         let flat = |op: f32| matt(col).unlit().see_through(op).both_sides().no_shadow();
         // the coloured banking pad and its ring
@@ -4121,6 +4166,34 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
             )
             .at(def.x, 7.6, def.z),
         );
+        // A compact entrance sign makes the base and its banking purpose easier to spot. The
+        // team-coloured board and warm lettering strokes stay above the doorway with no collider.
+        let (dx, dz, yaw) = match def.open {
+            Open::XPos => (1.0f32, 0.0f32, HALF_PI),
+            Open::XNeg => (-1.0, 0.0, -HALF_PI),
+            Open::ZPos => (0.0, 1.0, 0.0),
+            Open::ZNeg => (0.0, -1.0, PI),
+        };
+        let board_x = def.x + dx * 3.18;
+        let board_z = def.z + dz * 3.18;
+        v.push(
+            Part::new(
+                Shape::Quad { w: 2.1, h: 0.56 },
+                matt(col).unlit().both_sides().no_shadow(),
+            )
+            .at(board_x, 1.72, board_z)
+            .turn(0.0, yaw, 0.0),
+        );
+        for (y, width) in [(1.83f32, 1.46f32), (1.66, 1.12)] {
+            v.push(
+                Part::new(
+                    Shape::Quad { w: width, h: 0.045 },
+                    matt(0xf5d477).unlit().both_sides().no_shadow(),
+                )
+                .at(board_x + dx * 0.012, y, board_z + dz * 0.012)
+                .turn(0.0, yaw, 0.0),
+            );
+        }
     }
     // the scoreboard's pole (the cube itself is the game's)
     v.push(cyl(0.3, 0.3, 7.5, 10, matt(0x9aa0a8), 0.0, 3.75, 0.0));
@@ -4300,7 +4373,7 @@ fn mix_colour(a: u32, b: u32, t: f32) -> u32 {
 
 /// One neighbour's house (visual only, outside the fence): a plain box with a gable roof, a few
 /// windows, a door, sometimes a chimney or a tank. Built facing +z, `w` wide and `d` deep.
-fn neighbour_house(rng: &mut Rng, w: f32, d: f32) -> Vec<Part> {
+fn neighbour_house(rng: &mut Rng, w: f32, d: f32, style: usize) -> Vec<Part> {
     let walls = [
         0xf1e6cc_u32,
         0xe9d9b8,
@@ -4321,53 +4394,51 @@ fn neighbour_house(rng: &mut Rng, w: f32, d: f32) -> Vec<Part> {
     ];
     let wall = walls[rng.index(walls.len())];
     let roof = roofs[rng.index(roofs.len())];
-    let h = rng.range(3.4, 4.2);
-    let a = 0.42f32;
+    let h = if style == 1 { 3.5 } else { rng.range(3.4, 4.2) };
+    // The row alternates between the green twin-gable bungalow, squat hipped brick house,
+    // and the shallow single-slope extension instead of repeating one roof silhouette.
+    let a: f32 = match style { 1 => 0.26, 2 => 0.23, _ => 0.42 };
     let slab_d = (d * 0.5 + 0.7) / a.cos();
     let rise = d * 0.25 * a.tan();
+    let wall_surface = if style == 1 {
+        matt(wall).textured(Tex::Brick).repeating(w * 0.7, 1.4)
+    } else {
+        matt(wall).textured(Tex::Weatherboard).repeating(w * 0.5, 2.5)
+    };
     let mut v = vec![
-        cuboid(
-            w,
-            h,
-            d,
-            matt(wall)
-                .textured(Tex::Weatherboard)
-                .repeating(w * 0.5, 2.5),
-            0.0,
-            h / 2.0,
-            0.0,
-        ),
-        cuboid(
-            w + 0.9,
-            0.15,
-            slab_d,
-            matt(roof).textured(Tex::Corrugated).repeating(w * 0.5, 2.0),
-            0.0,
-            h + rise + 0.08,
-            d * 0.25,
-        )
-        .turn(a, 0.0, 0.0),
-        cuboid(
-            w + 0.9,
-            0.15,
-            slab_d,
-            matt(shade_surface(matt(roof), 0.92).color),
-            0.0,
-            h + rise + 0.08,
-            -d * 0.25,
-        )
-        .turn(-a, 0.0, 0.0),
-        // the roof's end triangles are left open, so close them with a wall slab under the ridge
-        cuboid(
-            w,
-            rise * 1.1,
-            d * 0.5,
-            matt(shade_surface(matt(wall), 0.96).color),
-            0.0,
-            h + rise * 0.5,
-            0.0,
-        ),
+        cuboid(w, h, d, wall_surface, 0.0, h / 2.0, 0.0),
     ];
+    if style == 2 {
+        v.push(cuboid(w + 1.2, 0.16, d + 1.5, matt(roof).textured(Tex::Corrugated).repeating(w * 0.5, 2.0),
+            0.0, h + rise * 0.55, 0.0).turn(-a, 0.0, 0.0));
+        // Deep fascia and a single high rear parapet make the extension read as a lean-to.
+        v.push(cuboid(w + 1.3, 0.20, 0.18, matt(roof), 0.0, h + rise + 0.08, -d * 0.5 - 0.54));
+        v.push(cuboid(w + 1.0, 0.12, 0.16, matt(0x858e8c).material(Tex::Metal, 1.1),
+            0.0, h - 0.06, d * 0.5 + 0.55));
+    } else if style == 1 {
+        // A low four-sided roof on the brick bungalow, with shallow hips at both ends.
+        v.push(cuboid(w + 0.9, 0.16, slab_d, matt(roof).textured(Tex::Corrugated).repeating(w * 0.5, 2.0),
+            0.0, h + rise + 0.08, d * 0.25).turn(a, 0.0, 0.0));
+        v.push(cuboid(w + 0.9, 0.16, slab_d, matt(shade_surface(matt(roof), 0.92).color),
+            0.0, h + rise + 0.08, -d * 0.25).turn(-a, 0.0, 0.0));
+        for side in [-1.0f32, 1.0] {
+            v.push(cuboid(0.18, 0.16, d * 0.7, matt(roof), side * (w * 0.5 - 0.35),
+                h + rise * 0.45, 0.0).turn(0.0, 0.0, side * 0.18));
+        }
+    } else {
+        v.push(cuboid(w + 0.9, 0.15, slab_d, matt(roof).textured(Tex::Corrugated).repeating(w * 0.5, 2.0),
+            0.0, h + rise + 0.08, d * 0.25).turn(a, 0.0, 0.0));
+        v.push(cuboid(w + 0.9, 0.15, slab_d, matt(shade_surface(matt(roof), 0.92).color),
+            0.0, h + rise + 0.08, -d * 0.25).turn(-a, 0.0, 0.0));
+        // The bungalow gets a short perpendicular porch gable behind its main ridge.
+        v.push(cuboid(w * 0.48, 0.13, d * 0.72, matt(roof), -w * 0.23,
+            h + rise * 0.55, d * 0.18).turn(-0.18, 0.0, 0.0));
+    }
+    if style != 2 {
+        // Close the gables beneath styles 0 and 1; the lean-to extension has no gable end.
+        v.push(cuboid(w, rise * 1.1, d * 0.5,
+            matt(shade_surface(matt(wall), 0.96).color), 0.0, h + rise * 0.5, 0.0));
+    }
     let n = ((w / 4.5) as usize).max(2);
     for i in 0..n {
         let x = -w / 2.0 + w * (i as f32 + 0.5) / n as f32;
@@ -4580,8 +4651,8 @@ pub fn neighbour_spots() -> Vec<(f32, f32, f32, f32, f32)> {
 fn neighbourhood(seed: u64) -> Vec<Part> {
     let mut rng = Rng::new(seed ^ 0x9E1_6B05);
     let mut v = Vec::new();
-    for (x, z, yaw, w, d) in neighbour_spots() {
-        let house = neighbour_house(&mut rng, w, d);
+    for (index, (x, z, yaw, w, d)) in neighbour_spots().into_iter().enumerate() {
+        let house = neighbour_house(&mut rng, w, d, index % 3);
         v.extend(place(house, V3::new(x, 0.0, z), turn_y(yaw), 1.0));
     }
     v
@@ -4916,6 +4987,138 @@ fn ground_story(seed: u64) -> Vec<Part> {
     v
 }
 
+/// Small neighbour, garden and household details. Static scenery only; all pieces stay outside
+/// gameplay routes except the existing pool-height marks and window dressing.
+fn backyard_stories() -> Vec<Part> {
+    let mut v = Vec::new();
+    let wood = matt(0x71563a).material(Tex::Wood, 1.5);
+    let leaf = matt(0x71864e);
+    // A grape pergola sits in the gap beside the west-side neighbour, with twisted vine and fruit.
+    for x in [-50.0f32, -44.0] {
+        v.push(cuboid(0.16, 2.75, 0.16, wood, x, 1.375, 32.0));
+    }
+    for z in [29.2f32, 32.0] {
+        v.push(cuboid(6.25, 0.14, 0.16, wood, -47.0, 2.66, z));
+    }
+    for x in (-49..=-45).map(|x| x as f32 + 0.2) {
+        v.push(cuboid(0.09, 0.09, 2.9, wood, x, 2.72, 30.6));
+    }
+    for i in 0..18 {
+        let x = -50.0 + (i * 37 % 57) as f32 / 10.0;
+        let z = 29.4 + (i * 19 % 24) as f32 / 10.0;
+        let y = 2.78 + (i % 4) as f32 * 0.13;
+        v.push(Part::new(Shape::Ico { r: 0.31, detail: 0 }, matt([0x698047,0x809354,0x95a36a][i%3]).faceted())
+            .at(x,y,z).stretch(1.15,0.62,0.75));
+        if i % 6 == 0 {
+            v.push(Part::new(Shape::Sphere { r: 0.14, ws: 9, hs: 6 }, matt(0x604969))
+                .at(x+0.13,y-0.16,z+0.05).stretch(0.8,1.35,0.8));
+        }
+    }
+    // A woven cane basket and a few loose grapes make the harvest look interrupted.
+    v.push(cyl(0.42,0.32,0.42,12,matt(0x967144).material(Tex::Wood,1.0),-46.8,0.22,28.7));
+    for i in 0..6 {
+        v.push(cuboid(0.62,0.025,0.025,matt(0xc1a16b),-46.8,0.12+i as f32*0.06,28.7).turn(0.0,i as f32*0.11,0.0));
+    }
+    for i in 0..4 { v.push(orb(0.09,matt(0x624b68),-46.55+i as f32*0.11,0.40,28.65)); }
+
+    // Contrast dark, grooved ironbark with pale ribbon gum; low roots rake out into dry soil.
+    for (x,z,dark) in [(-55.0f32,26.0f32,true),(56.0,26.0,false)] {
+        let bark = matt(if dark {0x51483e} else {0xc7bcaa}).material(Tex::Bark,1.0);
+        v.push(cyl(0.38,0.66,5.8,10,bark,x,2.9,z));
+        for i in 0..6 {
+            let a=i as f32*PI/3.0;
+            let start=V3::new(x+0.18*a.cos(),0.16,z+0.18*a.sin());
+            let end=V3::new(x+1.15*a.cos(),0.04,z+0.74*a.sin());
+            v.push(rod(start,end,if dark {0.095}else{0.07},bark));
+        }
+        for i in 0..12 {
+            let a=i as f32*2.399;
+            v.push(Part::new(Shape::Ico{r:0.65+(i%3) as f32*0.08,detail:0},matt([0x71885a,0x859769,0x9aa578][i%3]).faceted())
+                .at(x+a.cos()*(1.0+(i%3) as f32*0.24),5.2+(i%4) as f32*0.39,z+a.sin()*(1.0+(i%2) as f32*0.3))
+                .stretch(1.3,0.52,0.9));
+        }
+        for i in 0..5 {
+            v.push(ground_patch(x+(i as f32-2.0)*0.22,z+0.45,0.24,0.08,0.2,if dark {0x3d3830}else{0xb8aa91},0.6,0.01));
+        }
+    }
+    // Low-crowned lemon tree and flowering bottlebrush near the pool fence.
+    let (lx,lz)=(47.0f32,20.0f32);
+    v.push(cyl(0.13,0.18,2.1,8,matt(0x765337).material(Tex::Bark,0.8),lx,1.05,lz));
+    for i in 0..12 {
+        let a=i as f32*2.399;
+        let r=1.0+(i%3) as f32*0.18;
+        v.push(Part::new(Shape::Ico{r:0.62,detail:1},matt([0x607b47,0x789052,0x8b9a5d][i%3]).faceted())
+            .at(lx+a.cos()*r,2.15+(i%3) as f32*0.30,lz+a.sin()*r).stretch(1.0,0.78,0.95));
+        if i%3==0 { v.push(orb(0.12,matt(0xe7c84b),lx+a.cos()*r*0.9,1.98+(i%3) as f32*0.30,lz+a.sin()*r*0.9)); }
+    }
+    for i in 0..8 {
+        let x=29.4+(i%4) as f32*0.56;let z=15.4+(i/4) as f32*0.45;
+        v.push(Part::new(Shape::Ico{r:0.46,detail:1},leaf.faceted()).at(x,0.48,z).stretch(1.2,0.82,0.86));
+        for k in 0..4 { v.push(orb(0.085,matt(0xc76045),x-0.18+k as f32*0.12,0.83,z+0.06)); }
+    }
+    // Tiny cicada cases cling to the tank ladder's timber; they stay visually small.
+    for i in 0..5 { v.push(Part::new(Shape::Capsule{r:0.035,len:0.08,cap:4,radial:6},matt(0x8e7957))
+        .at(TANK_X-0.30+i as f32*0.15,0.9+(i%2) as f32*0.22,TANK_LADDER_BOTTOM_Z+0.16).turn(0.0,0.0,0.24)); }
+    // A Willie Wagtail silhouette on the mown lawn, with a separated tail pivot for animation in
+    // the browser build. The Rust scene keeps the pose readable without adding a new gameplay actor.
+    let black=matt(0x252724);let white=matt(0xe0ded3);
+    v.push(Part::new(Shape::Sphere{r:0.18,ws:10,hs:7},black).at(-12.0,0.24,25.5).stretch(1.0,0.68,1.3));
+    v.push(Part::new(Shape::Sphere{r:0.10,ws:8,hs:6},white).at(-12.0,0.29,25.61));
+    v.push(Part::new(Shape::Cone{r:0.055,h:0.5,seg:6},black).at(-12.0,0.28,25.15).turn(-0.2,0.0,0.0));
+    // The grevillea branch and blossoms give the browser's subtle wind animation a counterpart.
+    for i in 0..10 { let a=i as f32*2.4;
+        v.push(Part::new(Shape::Ico{r:0.22,detail:0},matt([0x456b3e,0x64834c][i%2]).faceted())
+            .at(-15.0+a.cos()*0.34,0.72+a.sin()*0.27,23.0+a.sin()*0.32).stretch(1.35,0.36,0.68));
+    }
+    for i in 0..5 { v.push(orb(0.07,matt(0xd68452),-15.30+i as f32*0.15,1.12,23.05)); }
+
+    // Main house laundry window: reveal, half blind, sill and a folded blue towel.
+    v.push(cuboid(2.05,1.55,0.045,matt(0x292d28),-9.0,2.48,-25.58));
+    v.push(cuboid(1.7,1.16,0.035,matt(0xe0b879).glow(0x241708),-9.0,2.50,-25.61));
+    v.push(cuboid(0.82,1.16,0.05,matt(0xd5ccb3),-9.42,2.50,-25.64));
+    v.push(cuboid(2.15,0.11,0.20,matt(0xb9a991),-9.0,1.69,-25.68));
+    v.push(cuboid(0.46,0.72,0.045,matt(0x417b98).material(Tex::Fabric,0.8),-8.31,1.96,-25.71));
+    // A pair of visible brick piers and a louvred air grille ground the weatherboards.
+    for x in [-18.0f32,-12.0,-6.0,0.0,6.0,12.0,18.0] {
+        v.push(cuboid(0.68,0.72,0.50,matt(0x954f3a).textured(Tex::Brick),x,0.36,-25.03));
+        for row in 0..2 { v.push(cuboid(0.52,0.03,0.035,matt(0xc6a18a),x,0.28+row as f32*0.19,-25.30)); }
+    }
+    v.push(cuboid(0.64,0.32,0.045,matt(0x6a7772),-18.0,1.02,-25.50));
+    for row in 0..5 { v.push(cuboid(0.53,0.018,0.02,matt(0x39423e),-18.0,0.91+row as f32*0.055,-25.54)); }
+    // Enamel wash trough, clipped waste pipe and a visibly repaired tile at the laundry wall.
+    v.push(cuboid(1.36,0.62,0.56,matt(0xaaa99d).material(Tex::Metal,0.6),-15.8,0.38,-23.85));
+    v.push(cuboid(1.42,0.10,0.61,matt(0xd1d4cb),-15.8,0.73,-23.85));
+    v.push(cuboid(1.15,0.015,0.40,matt(0x59645f),-15.8,0.79,-23.85));
+    v.push(rod(V3::new(-16.10,0.8,-23.88),V3::new(-16.10,0.08,-23.88),0.045,matt(0x777e79)));
+    v.push(cuboid(0.5,0.025,0.5,matt(0x5d8f91),-14.72,0.015,-23.65));
+    for y in [0.34f32,0.74] { v.push(cuboid(0.15,0.045,0.14,matt(0x5c5040),-16.1,y,-23.9)); }
+
+    // Verandah trophies, footy fixture, party invitation and preserving jars.
+    for i in 0..3 { let x=15.6+i as f32*0.52;
+        v.push(cyl(0.13,0.17,0.08,10,matt(0x806744),x,1.62,-23.92));
+        v.push(cyl(0.07,0.085,0.34+(i%2) as f32*0.1,10,matt(if i==1 {0xc89c3b}else{0x9a7b43}),x,1.83+(i%2) as f32*0.05,-23.92));
+        v.push(orb(0.09,matt(0xc59e47),x,2.06+(i%2) as f32*0.1,-23.92));
+    }
+    for (x,y,w,h,col) in [(-12.3f32,2.22f32,1.05f32,0.58f32,0xe5d5b0u32),(-13.6,2.22,0.86,0.54,0xeadcae)] {
+        v.push(Part::new(Shape::Quad{w,h},matt(col).both_sides()).at(x,y,-25.54).turn(0.0,PI,0.0));
+        for row in 0..3 { v.push(cuboid(w*0.66,0.022,0.008,matt(0x69543b),x,y-h*0.2+row as f32*0.10,-25.56)); }
+    }
+    for i in 0..3 { v.push(cyl(0.10,0.11,0.27,10,matt(0x9aac9c).see_through(0.52).both_sides(),10.4+i as f32*0.31,1.66,-25.62));
+        v.push(cyl(0.11,0.11,0.03,10,matt(0x88734c),10.4+i as f32*0.31,1.82,-25.62));
+        v.push(orb(0.08,matt([0x9c6038,0x5c824c,0xd2b867][i]),10.4+i as f32*0.31,1.65,-25.62)); }
+    // A subtle family height chart at the pool gate and a pie left behind the screen door.
+    for i in 0..6 { v.push(cuboid(if i%2==0 {0.36}else{0.22},0.022,0.018,matt(0x5d4934),18.18,1.02+i as f32*0.23,-24.14)); }
+    v.push(cyl(0.15,0.16,0.045,12,matt(0xd3a34f),2.6,0.82,-25.28));
+    v.push(cyl(0.11,0.12,0.05,10,matt(0x98543b),2.6,0.86,-25.28));
+    // Tiny window spectator; the browser animates a short curtain reaction to a nearby throw.
+    v.push(cuboid(0.28,0.54,0.035,matt(0x292b2a),-15.0,2.42,-25.60));
+    v.push(orb(0.09,matt(0x8a6248),-15.0,2.52,-25.64));
+    for x in [-15.11f32,-14.89] { v.push(orb(0.022,matt(0xe6d8b9),x,2.55,-25.67)); }
+    // Warm sun patch in the shed beneath the translucent roof panel.
+    v.push(ground_patch(22.5,-16.7,2.0,1.0,0.05,0xd3ba75,0.16,0.018));
+    v
+}
+
 /// The whole yard in the browser game's look. `seed` picks where the gum trees and clouds go.
 pub fn yard(seed: u64) -> YardLook {
     yard_styled(seed, false)
@@ -5043,6 +5246,7 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
         world.extend(cricket_scoreboard());
         litter = grog_litter(&mut sr);
         world.extend(ground_story(seed));
+        world.extend(backyard_stories());
         world.extend(table_bottles());
         // a cracked concrete pad inside the back gate, where the paths start
         world.push(
