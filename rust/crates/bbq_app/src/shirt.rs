@@ -489,6 +489,14 @@ mod tests {
         }
     }
 
+    /// Generate the in-house painted veggie-patch marker texture once.
+    #[test]
+    #[ignore]
+    fn make_garden_sign() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/textures");
+        std::fs::write(dir.join("garden_sign.png"), sign("MUM'S GARDEN", 320, 80, [73, 96, 55], [245, 225, 174], 31.0)).unwrap();
+    }
+
     #[test]
     fn a_name_draws_wider_than_tall_and_has_ink() {
         let (px, w, h) = draw_name("Marcus");

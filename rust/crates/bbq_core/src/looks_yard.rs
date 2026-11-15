@@ -11,7 +11,7 @@ use crate::vec::{Quat, V3, cross};
 use crate::yard::{
     BAR, CHEST_SPOTS, DECOR_ESKIES, MEAT_TABLE, POOL_DEPTH, POOL_X0, POOL_X1, POOL_Z0, POOL_Z1, SMOKO_X, SMOKO_Z,
     HOUSE_DEPTH, HOUSE_HEIGHT, HOUSE_X_HALF, HOUSE_Z_CENTRE, TANK_BODY_HEIGHT,
-    TANK_LADDER_BOTTOM_Z, TANK_LADDER_TOP_Z, TANK_RADIUS, TANK_TOP, TANK_X, TANK_Z,
+    MOWER_X, MOWER_Z, TANK_LADDER_BOTTOM_Z, TANK_LADDER_TOP_Z, TANK_RADIUS, TANK_TOP, TANK_X, TANK_Z,
     TRAMP_H, TRAMP_R, TRAMP_X, TRAMP_Z, WATER_Y,
 };
 use crate::{YARD_HALF_X as W, YARD_HALF_Z as D};
@@ -1541,8 +1541,8 @@ fn props(polished: bool) -> Vec<Part> {
         v.push(rod(V3::new(mx - 0.29, 1.15, mz - 0.68), V3::new(mx + 0.29, 1.15, mz - 0.68), 0.045, dark));
         // A second, distinctly ride-on mower lives in the open shed-side corner. It has a pressed
         // deck, chunky rear tyres, steering wheel, faded vinyl seat, headlights and muffler.
-        // It stays a visual prop: the nearby route and character collision are unchanged.
-        let (rx, rz) = (27.6f32, -19.0f32);
+        // Player collision follows the deck, bonnet and seat as three climbable steps.
+        let (rx, rz) = (MOWER_X, MOWER_Z);
         let enamel = matt(0x667744).material(Tex::Metal, 1.8);
         let faded = matt(0x788456).material(Tex::Metal, 2.0);
         let tyre = matt(0x282a27).material(Tex::Plastic, 2.0);
@@ -1567,6 +1567,36 @@ fn props(polished: bool) -> Vec<Part> {
         v.push(rod(V3::new(rx - 0.43, 1.02, rz - 0.42), V3::new(rx - 0.43, 1.20, rz - 0.52), 0.045, dark));
         v.push(cuboid(0.30, 0.20, 0.24, matt(0x77766c).material(Tex::Metal, 1.8), rx - 0.42, 0.79, rz - 0.65).bevel(0.04).weathered());
         v.push(rod(V3::new(rx + 0.43, 0.68, rz - 0.47), V3::new(rx + 0.43, 1.04, rz - 0.47), 0.04, steel));
+        // Shed-side repair bench: the mower blade is on the timber top and its spanner outline
+        // still hangs on the pegboard. Seed packets and a jar of bolts make it feel in use.
+        let (bx, bz) = (25.5f32, -15.8f32);
+        let bench_wood = matt(0x79583a).material(Tex::Wood, 1.6);
+        let bench_top = matt(0x9b7953).material(Tex::Wood, 1.6);
+        for sx in [-0.64f32, 0.64] { for sz in [-0.24f32, 0.24] {
+            v.push(cuboid(0.09, 0.78, 0.09, bench_wood, bx + sx, 0.39, bz + sz).weathered());
+        }}
+        v.push(cuboid(1.65, 0.13, 0.72, bench_top, bx, 0.82, bz).bevel(0.025).weathered());
+        v.push(cuboid(1.65, 0.82, 0.075, matt(0x786448).material(Tex::Wood, 1.4), bx, 1.31, bz - 0.36).weathered());
+        for x in [-0.72f32, -0.34, 0.04, 0.42] {
+            v.push(cuboid(0.20, 0.25, 0.025, matt(0xb8a47d).material(Tex::Fabric, 1.0), bx + x, 0.93, bz + 0.16).turn(0.0, 0.0, x * 0.05));
+            v.push(cuboid(0.13, 0.018, 0.008, matt(0x627249), bx + x, 0.98, bz + 0.175));
+        }
+        let bolt_jar = Surface::shiny(0x9fb7ae, 0xe2f0e8, 25.0).both_sides().see_through(0.32);
+        v.push(cyl(0.13, 0.13, 0.25, 12, bolt_jar, bx + 0.57, 1.01, bz + 0.06));
+        v.push(cyl(0.14, 0.14, 0.045, 12, steel, bx + 0.57, 1.16, bz + 0.06));
+        for k in 0..5 { v.push(rod(V3::new(bx + 0.51 + k as f32 * 0.028, 0.94, bz + 0.06), V3::new(bx + 0.51 + k as f32 * 0.028, 1.07, bz + 0.06), 0.012, dark)); }
+        // A half-finished mower blade, still missing its sharpening pass.
+        v.push(rod(V3::new(bx - 0.38, 0.91, bz - 0.04), V3::new(bx + 0.26, 0.91, bz - 0.04), 0.035, steel));
+        v.push(cyl(0.075, 0.075, 0.035, 12, dark, bx - 0.43, 0.91, bz - 0.04));
+        v.push(cyl(0.075, 0.075, 0.035, 12, dark, bx + 0.31, 0.91, bz - 0.04));
+        // A worn concrete birdbath is close enough to the veggie patch to give the visiting
+        // magpies somewhere to land and drink.
+        let (bird_x, bird_z) = (-14.0f32, 21.5f32);
+        let stone = matt(0x969386).material(Tex::Concrete, 1.1);
+        v.push(cyl(0.17, 0.22, 0.61, 12, stone, bird_x, 0.305, bird_z).weathered());
+        v.push(cyl(0.49, 0.43, 0.18, 16, stone, bird_x, 0.66, bird_z).weathered());
+        v.push(cyl(0.38, 0.36, 0.025, 16, matt(0x78b6b5), bird_x, 0.765, bird_z));
+        v.push(torus(0.46, 0.035, 7, 20, 2.0 * PI, matt(0xb2ad9c)).at(bird_x, 0.75, bird_z));
         // Coiled garden hose and a rotary sprinkler along the east fence.
         let hose = matt(0x596b3c).material(Tex::Plastic, 2.0);
         v.push(torus(0.36, 0.035, 8, 18, 2.0 * PI, hose).at(26.7, 0.045, -8.3).turn(HALF_PI, 0.0, 0.0).no_shadow_part());
@@ -1715,13 +1745,39 @@ fn props(polished: bool) -> Vec<Part> {
         }
     }
     v.push(cuboid(4.8, 0.1, 0.75, if polished { matt(0x403021) } else { matt(0x4a3322) }, -8.0, 0.61, 20.0));
-    let mut rng = Rng::new(0x7E6);
-    for k in 0..7 {
-        v.push(
-            Part::new(Shape::Ico { r: 0.28, detail: 0 }, matt(0x4f9a3c).faceted())
-                .at(-10.2 + k as f32 * 0.72, 0.82, 20.0 + rng.range(-0.12, 0.12))
-                .stretch(1.0, 0.8, 1.0),
-        );
+    if polished {
+        // Tomatoes climb rough stakes; basil and capsicums give the raised bed distinct crops.
+        let stake = matt(0x806344).material(Tex::Wood, 1.2);
+        let stem = matt(0x44723a).material(Tex::Plastic, 1.3);
+        let leaf = matt(0x4f8a3d).faceted();
+        for (x, lean) in [(-9.35f32, -0.035f32), (-8.18, 0.025)] {
+            v.push(cuboid(0.045, 1.18, 0.045, stake, x, 1.16, 19.92).turn(0.0, 0.0, lean));
+            v.push(rod(V3::new(x, 0.68, 19.96), V3::new(x + lean * 2.0, 1.50, 20.02), 0.032, stem));
+            for (y, side) in [(0.88f32,-1.0f32),(1.08,1.0),(1.28,-1.0),(1.45,1.0)] {
+                v.push(orb(0.17, leaf, x + side * 0.18, y, 20.0).stretch(1.2,0.45,0.75).turn(0.0,side*0.4,side*0.12));
+            }
+            for (y, side) in [(0.91f32,-1.0f32),(1.19,1.0),(1.38,-1.0)] {
+                v.push(orb(0.105, matt(0xc83f32), x + side * 0.12, y, 20.06).stretch(0.9,1.0,0.9));
+                v.push(orb(0.025, stem, x + side * 0.12, y + 0.10, 20.06));
+            }
+        }
+        for x in [-7.15f32, -6.45] {
+            for k in 0..5 { let a=k as f32*2.0*PI/5.0;
+                v.push(orb(0.15,leaf,x+a.cos()*0.16,0.82+a.sin()*0.03,20.0+a.sin()*0.13).stretch(1.4,0.45,0.75)); }
+        }
+        for (x,c) in [(-5.98f32,0xd94b32u32),(-6.50,0xe0a640)] {
+            v.push(orb(0.24,matt(c).faceted(),x,0.82,19.98).stretch(0.86,0.92,0.82));
+            for k in 0..4 {let a=k as f32*PI/2.0;v.push(rod(V3::new(x,0.99,19.98),V3::new(x+a.cos()*0.10,1.04,19.98+a.sin()*0.10),0.016,stem));}
+        }
+        // Weathered marker faces the lawn, with an in-house painted label texture.
+        let signwood = matt(0x8a6944).material(Tex::Wood,1.2);
+        v.push(cuboid(0.9,0.36,0.045,signwood,-10.0,0.96,19.54).weathered());
+        v.push(cuboid(0.82,0.27,0.014,matt(0xffffff).textured(Tex::GardenSign),-10.0,0.96,19.509));
+        for x in [-10.38f32,-9.62] {v.push(cuboid(0.045,0.62,0.045,stake,x,0.57,19.56));}
+    } else {
+        let mut rng = Rng::new(0x7E6);
+        for k in 0..7 {v.push(Part::new(Shape::Ico { r: 0.28, detail: 0 }, matt(0x4f9a3c).faceted())
+            .at(-10.2 + k as f32 * 0.72, 0.82, 20.0 + rng.range(-0.12, 0.12)).stretch(1.0, 0.8, 1.0));}
     }
     v
 }

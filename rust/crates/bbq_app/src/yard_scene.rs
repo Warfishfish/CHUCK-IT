@@ -68,6 +68,12 @@ struct MagpieHead {
 struct MagpieBody(f32);
 #[derive(Component)]
 struct MagpieWing { bird:usize, side:f32, base:Transform }
+#[derive(Clone, Copy)]
+enum GardenVisitorState { Perched, FlyingOut(f32), AtFence(f32), FlyingHome(f32) }
+#[derive(Component)]
+struct GardenVisitor { index:usize, perch:Vec3, escape:Vec3, state:GardenVisitorState }
+#[derive(Component)]
+struct GardenVisitorWing { bird:usize, side:f32, base:Transform }
 /// One of the yard's other eskies and its lid.
 #[derive(Component)]
 struct DecorLid(usize);
@@ -125,7 +131,7 @@ impl Plugin for YardScenePlugin {
             .add_systems(Startup, build_yard)
             .add_systems(Update, (crate::grass::sync, crate::grass::distance_cull).chain())
             .add_systems(PostUpdate, crate::lighting::follow_sky.before(bevy::transform::TransformSystems::Propagate))
-            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_map, sync_race_map, sync_race_return_marker, sync_backyard_cover, animate_magpies));
+            .add_systems(Update, (toggle_features, animate_yard, sync_chest, sync_decor_eskies, sync_smoko_map, sync_race_map, sync_race_return_marker, sync_backyard_cover, animate_magpies, animate_garden_visitors));
     }
 }
 
@@ -322,6 +328,31 @@ fn build_yard(
         }
     }
 
+    // Two small backyard magpies drink at the new birdbath. They are separate from the
+    // gameplay swooper: running close makes them lift off and settle on the back fence.
+    if *mode == crate::lighting::LookMode::Polished {
+        let model = looks_yard::magpie();
+        for i in 0..2 {
+            let yaw = if i == 0 { 0.35 } else { -0.55 };
+            let perch = Vec3::new(-14.22 + i as f32 * 0.42, 0.78, 21.48 + i as f32 * 0.10);
+            let escape = Vec3::new(-7.2 + i as f32 * 1.1, looks_yard::FENCE_H, bbq_core::YARD_HALF_Z + 0.05);
+            let root = commands.spawn((
+                Transform::from_translation(perch).with_rotation(Quat::from_rotation_y(yaw)).with_scale(Vec3::splat(0.82)),
+                Visibility::default(),
+                GardenVisitor { index:i, perch, escape, state:GardenVisitorState::Perched },
+            )).id();
+            let (body, parts) = cache.spawn_parts_with_children(&mut commands,&model.body,&mut meshes,&mut mats,Transform::default());
+            for (index,side) in [(4,-1.0),(5,-1.0),(8,1.0),(9,1.0)] {
+                commands.entity(parts[index]).insert(GardenVisitorWing { bird:i, side, base:crate::models::transform_of(&model.body[index]) });
+            }
+            let head = cache.spawn_parts(&mut commands,&model.head,&mut meshes,&mut mats,
+                Transform::from_xyz(model.neck.x,model.neck.y,model.neck.z));
+            commands.entity(head).insert(MagpieHead { body_yaw:yaw, seed:31.0+i as f32*4.7, yaw:0.0, pitch:0.0 });
+            commands.entity(yard_root).add_child(root);
+            commands.entity(root).add_children(&[body,head]);
+        }
+    }
+
     // the yard's other eskies: they open, but hold nothing yet
     for (i, e) in look.eskies.iter().enumerate() {
         let root = commands
@@ -481,7 +512,7 @@ fn animate_magpies(
     game:Res<Game>,
     player: Res<crate::player::Player>,
     mut perch: ResMut<MagpiePerch>,
-    mut heads: Query<(&mut MagpieHead, &mut Transform, &GlobalTransform), (Without<MagpieBody>,Without<MagpieWing>)>,
+    mut heads: Query<(&mut MagpieHead, &mut Transform, &GlobalTransform), (Without<MagpieBody>,Without<MagpieWing>,Without<GardenVisitorWing>)>,
     mut bodies: Query<(&MagpieBody, &mut Transform, &mut Visibility), (Without<MagpieHead>,Without<MagpieWing>)>,
     mut wings:Query<(&MagpieWing,&mut Transform),(Without<MagpieBody>,Without<MagpieHead>)>,
 ) {
@@ -558,6 +589,60 @@ fn animate_magpies(
         }
         if b.0==0.0 {tf.translation.x=14.0;tf.translation.z=bbq_core::YARD_HALF_Z+0.05;tf.rotation=Quat::from_rotation_y(std::f32::consts::PI);}
         tf.translation.y = bbq_core::looks_yard::FENCE_H + ((t * 1.7 + b.0 * 2.0).sin().max(0.92) - 0.92) * 0.25;
+    }
+}
+
+/// The birdbath visitors react to the local player only. They are decoration, separate from
+/// the authoritative swooping magpie and its multiplayer flock.
+fn animate_garden_visitors(
+    time:Res<Time>,
+    player:Res<crate::player::Player>,
+    mut visitors:Query<(&mut GardenVisitor,&mut Transform)>,
+    mut wings:Query<(&GardenVisitorWing,&mut Transform),Without<GardenVisitor>>,
+) {
+    let now=time.elapsed_secs();
+    let mut airborne=[false;2];
+    for (mut visitor,mut tf) in &mut visitors {
+        let (px,pz)=(player.mover.x,player.mover.z);
+        let near=((px-tf.translation.x).powi(2)+(pz-tf.translation.z).powi(2)).sqrt();
+        if matches!(visitor.state,GardenVisitorState::Perched) && near<4.8 {
+            visitor.state=GardenVisitorState::FlyingOut(now);
+        }
+        if let GardenVisitorState::AtFence(since)=visitor.state {
+            if now-since>2.8 && near>8.0 { visitor.state=GardenVisitorState::FlyingHome(now); }
+        }
+        let (from,to,t,at_fence)=match visitor.state {
+            GardenVisitorState::Perched => {
+                tf.translation=visitor.perch+Vec3::Y*(0.025*(now*3.0+visitor.index as f32).sin());
+                airborne[visitor.index]=false;
+                continue;
+            }
+            GardenVisitorState::FlyingOut(start) => {
+                let q=((now-start)/0.78).clamp(0.0,1.0);
+                if q>=1.0 { visitor.state=GardenVisitorState::AtFence(now); }
+                (visitor.perch,visitor.escape,q,true)
+            }
+            GardenVisitorState::AtFence(_) => {
+                tf.translation=visitor.escape+Vec3::Y*(0.035*(now*4.0+visitor.index as f32).sin());
+                airborne[visitor.index]=false;
+                continue;
+            }
+            GardenVisitorState::FlyingHome(start) => {
+                let q=((now-start)/0.86).clamp(0.0,1.0);
+                if q>=1.0 { visitor.state=GardenVisitorState::Perched; }
+                (visitor.escape,visitor.perch,q,false)
+            }
+        };
+        airborne[visitor.index]=true;
+        tf.translation=from.lerp(to,t)+Vec3::Y*(1.45*4.0*t*(1.0-t));
+        let d=to-from;
+        if d.x*d.x+d.z*d.z>0.0001 { tf.rotation=Quat::from_rotation_y(d.x.atan2(d.z))*Quat::from_rotation_x(if at_fence{-0.18}else{0.12}); }
+    }
+    for (wing,mut tf) in &mut wings {
+        tf.rotation=wing.base.rotation;
+        let flutter=if airborne[wing.bird] {0.72+(now*27.0+wing.bird as f32).sin()*0.58}
+            else {(now*3.7+wing.bird as f32*2.1).sin().max(0.0)*0.10};
+        tf.rotation*=Quat::from_rotation_z(wing.side*flutter);
     }
 }
 

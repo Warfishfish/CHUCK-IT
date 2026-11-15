@@ -234,6 +234,19 @@ impl Mover {
         let r = CHAR_RADIUS;
         if yard.race { return; }
         for c in &yard.colliders {
+            if c.kind == Kind::VerandaRoof {
+                // The awning is walkable from above and still catches the player's head when
+                // jumping from below. Its thin top is not treated as a box wall.
+                let over_patch = self.x + r > c.x0 && self.x - r < c.x1
+                    && self.z + r > c.z0 && self.z - r < c.z1;
+                let underside = c.h - 0.05;
+                if over_patch && self.vy > 0.0 && self.prev_y + self.height <= underside
+                    && self.y + self.height > underside {
+                    self.y = underside - self.height;
+                    self.vy = 0.0;
+                }
+                continue;
+            }
             if matches!(c.kind, Kind::HouseRoof | Kind::TankLadder) {
                 // These are walkable top surfaces, not vertical boxes. The house and tank
                 // colliders below them still provide the solid sides.
@@ -745,6 +758,52 @@ mod tests {
         for _ in 0..30 { m.step(DT, MoveInput::default(), &Modifiers::default(), &yard); }
         assert!(m.grounded && m.y > crate::yard::HOUSE_HEIGHT,
             "roof did not hold a stable landing: pos=({}, {}, {})", m.x, m.y, m.z);
+    }
+
+    #[test]
+    fn ride_on_mower_blocks_players_and_has_a_walkable_top() {
+        let yard = Yard::default();
+        let mut against = Mover::new(crate::yard::MOWER_X, crate::yard::MOWER_Z + 2.2);
+        settle(&mut against, &yard);
+        walk(&mut against, &yard, (0.0, -1.0), 1.0, &Modifiers::default());
+        assert!(against.z > crate::yard::MOWER_Z + 1.05, "player passed through mower: z={}", against.z);
+
+        let mut jumper = Mover::new(crate::yard::MOWER_X, crate::yard::MOWER_Z + 1.1);
+        settle(&mut jumper, &yard);
+        jumper.try_jump(false);
+        let mut landed_on_mower = false;
+        for _ in 0..100 {
+            jumper.step(DT, MoveInput { wish: (0.0, -0.45), ..Default::default() }, &Modifiers::default(), &yard);
+            if jumper.grounded && jumper.y >= 0.5 { landed_on_mower = true; break; }
+        }
+        assert!(landed_on_mower, "jump failed to land on mower: y={}, z={}", jumper.y, jumper.z);
+    }
+
+    #[test]
+    fn veranda_awning_is_a_stable_walkable_surface() {
+        let yard = Yard::default();
+        let x = 4.0;
+        let z = crate::yard::VERANDA_Z_CENTRE;
+        let top = yard.floor_at(x, z, 3.0, 3.0);
+        assert!(top > 2.7 && top < crate::yard::VERANDA_ROOF_TOP, "unexpected awning top: {top}");
+        let mut m = Mover::new(x, z);
+        m.y = top;
+        m.prev_y = top;
+        m.grounded = true;
+        for _ in 0..30 { m.step(DT, MoveInput::default(), &Modifiers::default(), &yard); }
+        assert!(m.grounded && m.y > 2.7, "player did not stay on awning: y={}, z={}", m.y, m.z);
+    }
+
+    #[test]
+    fn veranda_awning_catches_a_jump_from_below() {
+        let yard = Yard::default();
+        let mut m = Mover::new(4.0, crate::yard::VERANDA_Z_CENTRE);
+        settle(&mut m, &yard);
+        m.try_jump(false);
+        let mut peak = 0.0f32;
+        for _ in 0..90 { m.step(DT, MoveInput::default(), &Modifiers::default(), &yard); peak=peak.max(m.y); }
+        assert!(peak < 1.2, "player jumped through the awning: peak feet y={peak}");
+        assert!(m.grounded && m.y == 0.0, "player did not land back on the yard: y={}", m.y);
     }
 
     #[test]

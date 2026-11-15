@@ -143,6 +143,8 @@ pub enum Tex {
     SignHands,
     /// A hand-painted backyard cricket score board.
     CricketBoard,
+    /// A small hand-painted "MUM'S GARDEN" marker for the veggie patch.
+    GardenSign,
     /// A white soft-edged dot (alpha falls off to the rim): dirt patches and worn paths.
     SoftDot,
     /// Step 2c surface textures made by `tools/make_textures.py`: light, mostly grey pictures
@@ -186,6 +188,7 @@ impl Tex {
             Tex::SignSmoko => "sign_smoko.png",
             Tex::SignHands => "sign_hands.png",
             Tex::CricketBoard => "cricket_board.png",
+            Tex::GardenSign => "garden_sign.png",
             Tex::SoftDot => "soft_dot.png",
             Tex::Wood => "wood.png",
             Tex::Metal => "metal.png",
@@ -196,7 +199,7 @@ impl Tex {
         }
     }
 
-    pub const ALL: [Tex; 33] = [
+    pub const ALL: [Tex; 34] = [
         Tex::ServoDirt, Tex::ServoRoad, Tex::SignServo,
         Tex::VpLabel,
         Tex::Fish,
@@ -221,6 +224,7 @@ impl Tex {
         Tex::SignSmoko,
         Tex::SignHands,
         Tex::CricketBoard,
+        Tex::GardenSign,
         Tex::SoftDot,
         Tex::Wood,
         Tex::Metal,

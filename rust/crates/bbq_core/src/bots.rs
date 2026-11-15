@@ -122,7 +122,7 @@ fn ang_lerp(a: f32, b: f32, t: f32) -> f32 {
 /// Is there a solid thing at `(x, z)` for someone at height `y`? (`blocked` in the browser game.)
 pub fn blocked(yard: &Yard, x: f32, z: f32, y: f32) -> bool {
     for c in &yard.colliders {
-        if matches!(c.kind, Kind::HouseRoof | Kind::TankLadder) { continue; }
+        if matches!(c.kind, Kind::HouseRoof | Kind::VerandaRoof | Kind::TankLadder) { continue; }
         if c.h < 0.4 || y >= c.h - 0.3 {
             continue;
         }

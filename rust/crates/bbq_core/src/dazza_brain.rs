@@ -446,7 +446,7 @@ impl Brain {
 
         // keep him out of the furniture and inside the fence
         for c in colliders {
-            if matches!(c.kind, ColliderKind::HouseRoof | ColliderKind::TankLadder) { continue; }
+            if matches!(c.kind, ColliderKind::HouseRoof | ColliderKind::VerandaRoof | ColliderKind::TankLadder) { continue; }
             if c.h < 0.3 {
                 continue;
             }

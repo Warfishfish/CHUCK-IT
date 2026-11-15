@@ -39,6 +39,12 @@ pub enum Kind {
     House,
     /// Height-stepped collision patches following the visible front roof slope.
     HouseRoof,
+    /// The rain-worn, sagging veranda awning: walkable from above.
+    VerandaRoof,
+    /// The deck, bonnet and seat of the parked ride-on mower.
+    RideOnMower,
+    /// Workbench beside the garden shed.
+    Workbench,
 }
 
 /// The four map features the host can switch off.
@@ -116,6 +122,12 @@ pub const ROOF_WIDTH: f32 = 41.0;
 pub const ROOF_FRONT_CENTRE_Y: f32 = 5.62;
 pub const ROOF_FRONT_CENTRE_Z: f32 = -27.4;
 pub const ROOF_FRONT_PITCH: f32 = 0.445;
+pub const MOWER_X: f32 = 27.6;
+pub const MOWER_Z: f32 = -19.0;
+pub const VERANDA_Z_CENTRE: f32 = -24.05;
+pub const VERANDA_Z_DEPTH: f32 = 1.75;
+pub const VERANDA_X_EDGE: f32 = 17.5;
+pub const VERANDA_ROOF_TOP: f32 = 3.1;
 
 impl Collider {
     /// Box from a centre and width (x) and depth (z), like the JavaScript `col()`.
@@ -293,6 +305,12 @@ impl Yard {
         pole.no_top = true;
         c.push(pole); // clothesline pole
         c.push(Collider::centred(22.5, -16.5, 4.0, 3.0, 2.6).of(Kind::Shed)); // shed
+        // Three overlapping shelves follow the mower's pressed deck, bonnet and seat. The
+        // regular top-surface rule lets a player jump onto each visible step and stand there.
+        c.push(Collider::centred(MOWER_X, MOWER_Z + 0.67, 1.72, 0.98, 0.52).of(Kind::RideOnMower));
+        c.push(Collider::centred(MOWER_X, MOWER_Z + 0.30, 1.08, 0.94, 0.95).of(Kind::RideOnMower));
+        c.push(Collider::centred(MOWER_X, MOWER_Z - 0.45, 0.72, 0.62, 1.28).of(Kind::RideOnMower));
+        c.push(Collider::centred(25.5, -15.8, 1.65, 0.82, 0.96).of(Kind::Workbench));
         c.push(Collider::centred(0.0, HOUSE_Z_CENTRE, HOUSE_X_HALF * 2.0, HOUSE_DEPTH, HOUSE_HEIGHT).of(Kind::House));
         c.push(Collider::centred(TANK_X, TANK_Z, TANK_RADIUS * 2.1, TANK_RADIUS * 2.1, TANK_TOP).of(Kind::RainTank));
         c.push(Collider::centred(
@@ -314,6 +332,28 @@ impl Yard {
                 - ROOF_FRONT_PITCH.sin() * (z - ROOF_FRONT_CENTRE_Z)
                 + ROOF_FRONT_PITCH.cos() * 0.08;
             c.push(Collider::centred(0.0, z, ROOF_WIDTH, roof_step, h).of(Kind::HouseRoof));
+        }
+        // The veranda roof is four pitched slabs with a slight sag at the centre. Small top
+        // patches follow each slab's linear pitch, then the awning's shallow front-to-back tilt.
+        let posts = [-17.5f32, -9.0, 0.0, 9.0, 17.5];
+        let sag = |x: f32| 3.05 - 0.28 * (1.0 - (x / 18.0).powi(2)).max(0.0);
+        const VERANDA_X_PATCHES: usize = 8;
+        const VERANDA_Z_PATCHES: usize = 2;
+        let x_step = (VERANDA_X_EDGE * 2.0) / VERANDA_X_PATCHES as f32;
+        let z_step = VERANDA_Z_DEPTH / VERANDA_Z_PATCHES as f32;
+        for ix in 0..VERANDA_X_PATCHES {
+            let x0 = -VERANDA_X_EDGE + ix as f32 * x_step;
+            let x1 = x0 + x_step;
+            let x = (x0 + x1) * 0.5;
+            let segment = (0..4).find(|i| x >= posts[*i] && x <= posts[*i + 1]).unwrap_or(3);
+            let t = ((x - posts[segment]) / (posts[segment + 1] - posts[segment])).clamp(0.0, 1.0);
+            let roof_y = sag(posts[segment]) * (1.0 - t) + sag(posts[segment + 1]) * t + 0.105;
+            for iz in 0..VERANDA_Z_PATCHES {
+                let z0 = VERANDA_Z_CENTRE - VERANDA_Z_DEPTH * 0.5 + iz as f32 * z_step;
+                let z = z0 + z_step * 0.5;
+                let h = roof_y - 0.12f32.sin() * (z - VERANDA_Z_CENTRE);
+                c.push(Collider::centred(x, z, x_step, z_step, h).of(Kind::VerandaRoof));
+            }
         }
         // Eskies: the box is the axis-aligned bounds of a 1.5 x 1.0 box turned by r.
         for &(x, z, r) in decor_eskies() {
@@ -487,9 +527,10 @@ mod tests {
 
     #[test]
     fn full_yard_has_all_the_boxes() {
-        // pole, shed, house, rain tank, ladder and 16 roof patches, 4 eskies, table, grill,
-        // meat table, bins, crates, hedge, 2 tyres, woodpile, wall, planter, bar, chest
-        assert_eq!(Yard::default().colliders.len(), 40);
+        // pole, shed, mower deck/bonnet/seat, workbench, house, tank, ladder, roof and veranda,
+        // 4 eskies, table, grill, meat table, bins, crates, hedge, 2 tyres, woodpile, wall,
+        // planter, bar, chest
+        assert_eq!(Yard::default().colliders.len(), 60);
     }
 
     #[test]
@@ -500,7 +541,7 @@ mod tests {
             chest: false,
             smoko: false,
         };
-        assert_eq!(Yard::new(off, 0).colliders.len(), 40 - 4);
+        assert_eq!(Yard::new(off, 0).colliders.len(), 60 - 4);
     }
 
     #[test]

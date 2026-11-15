@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-      <span class="tag">Backyard Brawl · prototype 0.23.13</span>
+      <span class="tag">Backyard Brawl · prototype 0.23.14</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -645,6 +645,8 @@ function canvasTex(w,h,draw,rx,ry){const c=document.createElement('canvas');c.wi
 const W=40,D=29,GRAV=18,HEIST_A=54,HEIST_B=40;
 const TANK={x:22.3,z:-23.9,r:1.3,bodyH:3.52,top:3.62,capR:1.35,ladderBottom:-19.4,ladderTop:-22.55,ladderHalf:.55};
 const HOUSE={x:0,z:-29.5,w:40,d:8,h:4.6},ROOF={edgeZ:-24.95,ridgeZ:-29.85,frontY:5.62,frontZ:-27.4,pitch:.445,width:41};
+const MOWER={x:27.6,z:-19.0},VERANDA={z:-24.05,d:1.75,x:17.5};
+const PLAYER_HEIGHT=1.95;
 const POOL={x0:-27,x1:-13,z0:6,z1:14},WATER_Y=-.16,POOL_DEPTH=1.55,POOL_SINK=1.0;
 const TRAMP={x:15,z:12,r:1.8,h:.6};
 const BAR={x:0,z:-21.5,w:3.6,d:.9,h:1.05};
@@ -653,6 +655,7 @@ const SNAG_BUFF=4,SNAG_STUMBLE=3;const SILLY_NAMES=['WET WILLY!','NOOGIE!','WEDG
 const CHEST={x:-29,z:-21,max:3,refill:12,spot:0};
 const CHEST_SPOTS=[[-29,-21,.5],[29,-21.5,-.5],[27.5,21.8,2.6],[-29,21.8,-2.6],[-31,9,1.57],[31,-9,-1.57],[13,-21.8,0],[-13,22,3.14],[31,6,-1.57]];let chestStock=2,chestT=CHEST.refill,chestLid=null,chestToys=[];
 const colliders=[];
+const gardenMagpies=[];
 /* ---- map features the host can switch on/off: everything built for a feature is tagged so it can be hidden, colliders included ---- */
 const FEAT={bar:true,bbq:true,chest:true,smoko:true,falls:true,adult:false,naughty:false,drunkall:false},FEAT_KEYS=['bar','bbq','chest','smoko','falls','adult','naughty','drunkall'];
 /* the Cheeky mode tick (FEAT.adult) must be on for any adult content: dildo chest now, anything else later. Hook new adult features onto ADULT_FEATS. */
@@ -676,6 +679,43 @@ function col(cx,cz,w,d,h){colliders.push({x0:cx-w/2,x1:cx+w/2,z0:cz-d/2,z1:cz+d/
 const inPoolRect=p=>p.x>POOL.x0&&p.x<POOL.x1&&p.z>POOL.z0&&p.z<POOL.z1;
 let hoistHead,poolTex,clouds=[],yardFence=[],yardLawn=null;
 function textTex(w,h,draw){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t;}
+function addGardenMagpie(x,z,index){
+  const root=new THREE.Group();root.position.set(x,.78,z);scene.add(root);
+  const black=mat(0x252a35),white=mat(0xf3f1e8),beak=mat(0xd5d1bf),eye=mat(0x8f321c);
+  mesh(new THREE.SphereGeometry(.17,10,8),black,0,.20,0,root).scale.set(1,.9,1.35);
+  mesh(new THREE.SphereGeometry(.14,10,8),black,0,.36,.12,root);
+  mesh(new THREE.SphereGeometry(.13,9,7),white,0,.29,-.06,root).scale.set(1,.45,1.1);
+  for(const side of [-1,1]){
+    const wing=new THREE.Group();wing.position.set(side*.13,.27,-.02);root.add(wing);
+    mesh(new THREE.SphereGeometry(.105,8,6),black,side*.015,0,-.02,wing).scale.set(.55,.55,1.5);
+    mesh(new THREE.SphereGeometry(.045,7,5),white,side*.02,-.015,.02,wing).scale.set(.55,.55,1.2);
+    const leg=mesh(new THREE.CylinderGeometry(.012,.012,.10,5),beak,side*.055,.05,.03,root);leg.rotation.z=side*.12;
+    mesh(new THREE.SphereGeometry(.022,6,4),eye,side*.085,.38,.235,root);
+    if(side===-1)root.userData.leftWing=wing;else root.userData.rightWing=wing;
+  }
+  const bill=mesh(new THREE.ConeGeometry(.045,.17,7),beak,0,.34,.27,root);bill.rotation.x=Math.PI/2;
+  gardenMagpies.push({root,index,perch:new THREE.Vector3(x,.78,z),escape:new THREE.Vector3(-7.2+index*1.1,1.8,D+.05),state:'perched',started:0});
+}
+function updateGardenMagpies(){
+  if(!me)return;
+  for(const bird of gardenMagpies){
+    const dx=me.pos.x-bird.root.position.x,dz=me.pos.z-bird.root.position.z,near=Math.hypot(dx,dz);
+    if(bird.state==='perched'&&near<4.8){bird.state='out';bird.started=elapsed;}
+    if(bird.state==='fence'&&elapsed-bird.started>2.8&&near>8){bird.state='home';bird.started=elapsed;}
+    let from,to,t=0,flying=false;
+    if(bird.state==='perched'){bird.root.position.copy(bird.perch);bird.root.position.y+=.018*Math.sin(elapsed*3+bird.index);}
+    else if(bird.state==='fence'){bird.root.position.copy(bird.escape);bird.root.position.y+=.025*Math.sin(elapsed*4+bird.index);}
+    else{
+      flying=true;const out=bird.state==='out';from=out?bird.perch:bird.escape;to=out?bird.escape:bird.perch;
+      t=Math.max(0,Math.min(1,(elapsed-bird.started)/(out ? 0.78 : 0.86)));
+      bird.root.position.copy(from).lerp(to,t);bird.root.position.y+=1.45*4*t*(1-t);
+      if(t>=1){bird.state=out?'fence':'perched';bird.started=elapsed;}
+      const vx=to.x-from.x,vz=to.z-from.z;bird.root.rotation.set(out?-.15:.1,Math.atan2(vx,vz),0);
+    }
+    const flap=flying ? 0.7+.55*Math.sin(elapsed*27+bird.index) : 0.09*Math.max(0,Math.sin(elapsed*3.7+bird.index));
+    bird.root.userData.leftWing.rotation.z=-flap;bird.root.userData.rightWing.rotation.z=flap;
+  }
+}
 // VP stubby label (cream, red band, green "VP" twice so it reads from any side)
 const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fillStyle='#1e7d3a';x.fillRect(0,0,w,h);x.fillStyle='#f2c230';x.fillRect(0,h*.78,w,h*.1);x.fillRect(0,h*.1,w,h*.06);
   x.fillStyle='#ffffff';x.font='900 40px "Arial Black",Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText('VP',w*.25,h*.47);x.fillText('VP',w*.75,h*.47);})});
@@ -734,6 +774,20 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   for(let i=0;i<16;i++){const z0=ROOF.ridgeZ+i*roofStep,z1=z0+roofStep,z=(z0+z1)*.5;
     const h=ROOF.frontY-Math.sin(ROOF.pitch)*(z-ROOF.frontZ)+Math.cos(ROOF.pitch)*.08;
     col(0,z,ROOF.width,roofStep,h);colliders[colliders.length-1].roofSurface=true;}
+  // Walkable collision patches follow the awning's four sagging roof slabs and shallow pitch.
+  const verandaPosts=[-17.5,-9,0,9,17.5],verandaSag=x=>3.05-.28*Math.max(0,1-(x/18)**2),vxStep=VERANDA.x*2/8,vzStep=VERANDA.d/2;
+  for(let ix=0;ix<8;ix++){const x0=-VERANDA.x+ix*vxStep,x1=x0+vxStep,x=(x0+x1)*.5,seg=Math.min(3,verandaPosts.findIndex((p,i)=>i<4&&x>=p&&x<=verandaPosts[i+1])),t=clamp((x-verandaPosts[seg])/(verandaPosts[seg+1]-verandaPosts[seg]),0,1),roofY=verandaSag(verandaPosts[seg])*(1-t)+verandaSag(verandaPosts[seg+1])*t+.105;
+    for(let iz=0;iz<2;iz++){const z0=VERANDA.z-VERANDA.d/2+iz*vzStep,z=z0+vzStep/2,h=roofY-Math.sin(.12)*(z-VERANDA.z);
+      col(x,z,vxStep,vzStep,h);colliders[colliders.length-1].roofSurface=true;colliders[colliders.length-1].verandaRoof=true;}}
+  // The patched Colorbond veranda awning, with timber posts, a sagging front beam and visible
+  // support rafters. Its roof mesh shares the same pitch and sag as the walkable patches above.
+  const verandaZ=-24.8,verandaD=1.5,verandaWood=mat(0x8a6a4a);
+  for(const x of verandaPosts)mesh(new THREE.BoxGeometry(.15,3,.15),mat(0x7a5e3f),x,1.5,verandaZ+verandaD/2);
+  for(let i=0;i<4;i++){const x0=verandaPosts[i],x1=verandaPosts[i+1],sag=x=>3.05-.28*Math.max(0,1-(x/18)**2),y0=sag(x0),y1=sag(x1),mx=(x0+x1)/2,my=(y0+y1)/2,len=Math.hypot(x1-x0,y1-y0),ang=Math.atan2(y1-y0,x1-x0);
+    const beam=mesh(new THREE.BoxGeometry(len+.1,.10,verandaD+.20),verandaWood,mx,my,verandaZ+verandaD/2);beam.rotation.z=ang;
+    const awning=mesh(new THREE.BoxGeometry(len+.1,.05,verandaD+.25),roofM,mx,my+.08,verandaZ+verandaD/2);awning.rotation.set(.12,0,ang);
+    for(const x of [x0+.35,x1-.35]){const rafter=mesh(new THREE.BoxGeometry(.07,.10,verandaD+.08),mat(0x705638),x,my-.10,verandaZ+verandaD/2);rafter.rotation.z=ang;}}
+  mesh(new THREE.BoxGeometry(35.4,.08,.10),mat(0x9b4d3b),0,2.78,verandaZ+verandaD+.07);
   const galv=mat(0x858e8c);
   [-24.96,-34.04].forEach(z=>{mesh(new THREE.BoxGeometry(40.8,.11,.16),galv,0,4.34,z);
     for(let x=-18;x<=18;x+=6)mesh(new THREE.BoxGeometry(.055,.12,.20),mat(0x737b79),x,4.25,z);});
@@ -838,9 +892,8 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   mesh(new THREE.CylinderGeometry(.025,.025,.36,6),handle,19.55,.98,-16.79);
   col(22.5,-16.5,4,3,2.6);
 
-  // A sun-faded ride-on mower parked beyond the shed, with proper deck, seat and wide tyres.
-  // Like the push mower, it is a visual landmark rather than a new gameplay obstacle.
-  const ride=new THREE.Group();ride.position.set(27.6,0,-19.0);scene.add(ride);
+  // A sun-faded ride-on mower parked beyond the shed, with climbable deck, bonnet and seat.
+  const ride=new THREE.Group();ride.position.set(MOWER.x,0,MOWER.z);scene.add(ride);
   const rideGreen=mat(0x667744),rideFade=mat(0x788456),rideRubber=mat(0x282a27),rideSteel=mat(0x818783);
   mesh(new THREE.BoxGeometry(1.32,.25,1.55),rideGreen,0,.39,0,ride);
   mesh(new THREE.BoxGeometry(1.02,.44,.88),rideFade,0,.70,.33,ride);
@@ -858,6 +911,35 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   mesh(new THREE.CylinderGeometry(.055,.055,.32,8),rideSteel,-.43,.86,-.42,ride);
   mesh(new THREE.BoxGeometry(.30,.20,.24),mat(0x77766c),-.42,.79,-.65,ride);
   mesh(new THREE.CylinderGeometry(.035,.04,.38,8),rideSteel,.43,.87,-.47,ride);
+  col(MOWER.x,MOWER.z+.67,1.72,.98,.52);
+  col(MOWER.x,MOWER.z+.30,1.08,.94,.95);
+  col(MOWER.x,MOWER.z-.45,.72,.62,1.28);
+
+  // A small shed-side workbench links the mower to an unfinished repair.
+  const benchWood=mat(0x79583a),benchTop=mat(0x9b7953),benchSteel=mat(0x818783),benchDark=mat(0x3d443d);
+  const bx=25.5,bz=-15.8;
+  for(const sx of [-.64,.64])for(const sz of [-.24,.24])mesh(new THREE.BoxGeometry(.09,.78,.09),benchWood,bx+sx,.39,bz+sz);
+  mesh(new THREE.BoxGeometry(1.65,.13,.72),benchTop,bx,.82,bz);
+  mesh(new THREE.BoxGeometry(1.65,.82,.075),benchWood,bx,1.31,bz-.36);
+  for(const x of [-.72,-.34,.04,.42]){
+    const packet=mesh(new THREE.BoxGeometry(.20,.25,.025),mat(0xb8a47d),bx+x,.93,bz+.16);packet.rotation.z=x*.05;
+    mesh(new THREE.BoxGeometry(.13,.018,.008),mat(0x627249),bx+x,.98,bz+.175);
+  }
+  const boltJar=mat(0x9fb7ae,{transparent:true,opacity:.52});
+  mesh(new THREE.CylinderGeometry(.13,.13,.25,12),boltJar,bx+.57,1.01,bz+.06);
+  mesh(new THREE.CylinderGeometry(.14,.14,.045,12),benchSteel,bx+.57,1.16,bz+.06);
+  for(let k=0;k<5;k++)mesh(new THREE.CylinderGeometry(.012,.012,.13,5),benchDark,bx+.51+k*.028,1.0,bz+.06);
+  rod(new THREE.Vector3(bx-.38,.91,bz-.04),new THREE.Vector3(bx+.26,.91,bz-.04),.035,benchSteel);
+  for(const x of [bx-.43,bx+.31])mesh(new THREE.CylinderGeometry(.075,.075,.035,12),benchDark,x,.91,bz-.04);
+  col(bx,bz,1.65,.82,.96);
+
+  // A weathered concrete birdbath just beyond Mum's veggie bed; its visitors scatter on approach.
+  const birdStone=mat(0x969386),birdWater=mat(0x78b6b5);
+  mesh(new THREE.CylinderGeometry(.17,.22,.61,12),birdStone,-14,.305,21.5);
+  mesh(new THREE.CylinderGeometry(.49,.43,.18,16),birdStone,-14,.66,21.5);
+  mesh(new THREE.CylinderGeometry(.38,.36,.025,16),birdWater,-14,.765,21.5);
+  const bathLip=mesh(new THREE.TorusGeometry(.46,.035,7,20),mat(0xb2ad9c),-14,.75,21.5);bathLip.rotation.x=Math.PI/2;
+  addGardenMagpie(-14.22,21.48,0);addGardenMagpie(-13.80,21.58,1);
 
   // pool
   poolTex=canvasTex(128,128,(x,w,h)=>{x.fillStyle='#2eaee3';x.fillRect(0,0,w,h);x.strokeStyle='rgba(210,245,255,.55)';x.lineWidth=2;
@@ -998,7 +1080,20 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   // raised veggie planter
   mesh(new THREE.BoxGeometry(5,.6,.9),mat(0x7a5a3a),-8,.3,20);
   mesh(new THREE.BoxGeometry(4.8,.1,.75),mat(0x4a3322),-8,.61,20);
-  for(let k=0;k<7;k++){const c=mesh(new THREE.IcosahedronGeometry(.28,0),new THREE.MeshLambertMaterial({color:0x4f9a3c,flatShading:true}),-10.2+k*.72,.82,20+rand(-.12,.12));c.scale.y=.8;}
+  const vegLeaf=mat(0x4f8a3d),vegStem=mat(0x44723a),vegStake=mat(0x806344),tomatoRed=mat(0xc83f32);
+  for(const [x,lean] of [[-9.35,-.035],[-8.18,.025]]){
+    mesh(new THREE.BoxGeometry(.045,1.18,.045),vegStake,x,1.16,19.92).rotation.z=lean;
+    rod(new THREE.Vector3(x,.68,19.96),new THREE.Vector3(x+lean*2,1.50,20.02),.032,vegStem);
+    for(const [y,side] of [[.88,-1],[1.08,1],[1.28,-1],[1.45,1]]){const l=mesh(new THREE.SphereGeometry(.17,9,6),vegLeaf,x+side*.18,y,20);l.scale.set(1.2,.45,.75);l.rotation.z=side*.12;}
+    for(const [y,side] of [[.91,-1],[1.19,1],[1.38,-1]]){const f=mesh(new THREE.SphereGeometry(.105,10,7),tomatoRed,x+side*.12,y,20.06);f.scale.set(.9,1,.9);mesh(new THREE.SphereGeometry(.025,7,5),vegStem,x+side*.12,y+.10,20.06);}
+  }
+  for(const x of [-7.15,-6.45])for(let k=0;k<5;k++){const a=k*Math.PI*2/5,l=mesh(new THREE.SphereGeometry(.15,9,6),vegLeaf,x+Math.cos(a)*.16,.82+Math.sin(a)*.03,20+Math.sin(a)*.13);l.scale.set(1.4,.45,.75);}
+  for(const [x,c] of [[-5.98,0xd94b32],[-6.50,0xe0a640]]){const pepper=mesh(new THREE.SphereGeometry(.24,12,8),mat(c),x,.82,19.98);pepper.scale.set(.86,.92,.82);
+    for(let k=0;k<4;k++){const a=k*Math.PI/2;rod(new THREE.Vector3(x,.99,19.98),new THREE.Vector3(x+Math.cos(a)*.1,1.04,19.98+Math.sin(a)*.1),.016,vegStem);}}
+  const gardenSignTex=textTex(256,64,(x,w,h)=>{x.fillStyle='#496037';x.fillRect(0,0,w,h);x.strokeStyle='#bca777';x.lineWidth=5;x.strokeRect(5,5,w-10,h-10);x.fillStyle='#f5e1ae';x.textAlign='center';x.textBaseline='middle';x.font='900 30px "Arial Black",Arial,sans-serif';x.fillText("MUM'S GARDEN",w/2,h/2+1);});
+  mesh(new THREE.BoxGeometry(.9,.36,.045),mat(0x8a6944),-10,.96,19.54);
+  mesh(new THREE.BoxGeometry(.82,.27,.014),new THREE.MeshLambertMaterial({map:gardenSignTex}),-10,.96,19.509);
+  for(const x of [-10.38,-9.62])mesh(new THREE.BoxGeometry(.045,.62,.045),vegStake,x,.57,19.56);
   col(-8,20,5,.9,.95);
 
   featMark('bar');
@@ -2388,6 +2483,8 @@ function updateChar(ch,dt){
   ch.prevY=ch.pos.y;ch.vel.y-=24*dt;ch.pos.addScaledVector(ch.vel,dt);
   const R=.42;
   for(const c of colliders){
+    if(c.verandaRoof){const over=ch.pos.x+R>c.x0&&ch.pos.x-R<c.x1&&ch.pos.z+R>c.z0&&ch.pos.z-R<c.z1,underside=c.h-.05;
+      if(over&&ch.vel.y>0&&ch.prevY+PLAYER_HEIGHT<=underside&&ch.pos.y+PLAYER_HEIGHT>underside){ch.pos.y=underside-PLAYER_HEIGHT;ch.vel.y=0;}continue;}
     if(c.roofSurface||c.tankLadder)continue;
     if(c.rainTank){if(ch.pos.y>=c.h-.05||ch.prevY>=c.h-.05)continue;
       const onLadder=ch.pos.x>=TANK.x-TANK.ladderHalf&&ch.pos.x<=TANK.x+TANK.ladderHalf&&ch.pos.z>=TANK.ladderTop&&ch.pos.z<=TANK.ladderBottom;
@@ -3278,6 +3375,7 @@ function frame(now){
   if(me)carryTick(dt);if(isAuth){carryHostTick(dt);chuckHitTick();}
   if(isAuth)for(const ch of chars.values())if(ch.ai&&!carriedBy.has(ch.id)&&!(ch.naughtyT>0))aiUpdate(ch,dt);
   for(const ch of chars.values()){if(ch.kind==='proxy')updateProxy(ch,dt);else updateChar(ch,dt);}
+  updateGardenMagpies();
   separate();
   if(isAuth&&mode!=='menu')computeLeader();
   if(me){
