@@ -14,7 +14,7 @@ field = (np.sin(2*math.pi*(2*x+y))*.45 +
          np.cos(2*math.pi*(4*x+2*y)+.8)*.15)
 bands = np.round(field*3)/3
 rgb = np.empty((size,size,3),dtype=np.float32)
-rgb[:] = [0.42,0.49,0.34]
+rgb[:] = [0.57,0.63,0.48]
 rgb += bands[:,:,None]*np.array([.025,.026,.018])
 rng = random.Random(6241)
 # Sparse tapered ink and paint strokes with wrapped coordinates.
@@ -22,7 +22,7 @@ for _ in range(190):
     px, py = rng.randrange(size), rng.randrange(size)
     length = rng.randrange(4,12)
     dx = rng.choice([-1,1])*.45
-    colour = np.array(rng.choice([[.34,.40,.29],[.49,.54,.38],[.39,.46,.32]]))
+    colour = np.array(rng.choice([[.49,.54,.42],[.61,.66,.50],[.54,.60,.46]]))
     for k in range(length):
         ix, iy = int(px+dx*k)%size, (py+k)%size
         rgb[iy,ix] = rgb[iy,ix]*.4+colour*.6

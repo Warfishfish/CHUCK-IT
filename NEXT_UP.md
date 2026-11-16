@@ -4,6 +4,8 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 
 ## Active backlog additions · 7 November 2026
 
+16 November — Smoko flicker, bot corner motion and environment cohesion follow-up implemented, with a brighter grading pass requested during the work. Native captures and Blender lighting studies are in checkpoints/2026-11-16-three-pass. The pass includes higher sun angles, brighter sky fill, restrained contrast, selective saturation, colour-matched grass blades and calmer distant grass. Native/browser release compilation and live file checks are recorded in the review notes. Hands-on browser/online play remains to review.
+
 12 November — Marcus approved the circular Smoko Arena road and browser publication. The road now follows the near-circular loop in the [Bush Servo concept](concept%20art/exec-6ea4e9b3-70f7-4745-b24d-773f23cbe0ae.png) without pushing through perimeter props or the fence. [Review and captures](checkpoints/2026-11-12-round-arena/review.html). The car jump is already implemented and in the browser build; the tray landing check reached y=0.85 m in [the 10 November capture pack](checkpoints/2026-11-10-shelter-approach/review.html). Next arena graphics focus: compare two placements for the servo shop inside the fence, as detailed below.
 
 8 November — items 1–3 are in the committed history. Items 4 and 5 are implemented and published in source commit 075d0fd and browser publication e36c03d. [Full-lap Race route and visible gaze](checkpoints/2026-11-08-race-gaze/review.html). Smoko vividness pass is committed, pushed and published; [actual captures](checkpoints/2026-11-08-concept-vivid-2/review.html). Continue with the next concept-art graphics item when requested.

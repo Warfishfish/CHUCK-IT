@@ -1070,6 +1070,13 @@ impl BotBrain {
             self.last_pos = me.pos;
             self.stuck_t = 1.2;
         }
+        // Running to a waypoint should turn the body along the actual route through corners.
+        // Aiming and melee keep their explicit target facing.
+        if goal.is_some() && self.windup <= 0.0 && !self.melee_only
+            && steered.0.hypot(steered.1) > 0.15
+        {
+            face_to = Some(V3::new(me.pos.x + steered.0, me.pos.y, me.pos.z + steered.1));
+        }
         // where to look
         let mut desired: Option<f32> = if let Some(f) = face_to {
             Some((f.x - me.pos.x).atan2(f.z - me.pos.z))
@@ -1401,6 +1408,15 @@ impl BotBrain {
             m * (0.55 + 0.45 * d.abs().min(std::f32::consts::PI).cos()).max(0.4)
         };
         let nm = cm + (tm - cm) * (1.0 - (-(if tm > cm { 4.5 } else { 8.0 }) * dt).exp());
+        // A smoothed turn can still point into the wall after the target angle is clear.
+        // Follow the checked escape direction while slowing for this corner.
+        if nm > 0.1 && blocked(w.yard, me.pos.x + ca.cos() * 0.55,
+            me.pos.z + ca.sin() * 0.55, me.pos.y)
+        {
+            if let Some(clear_angle) = ta {
+                ca = clear_angle;
+            }
+        }
         self.mv = (ca.cos() * nm, ca.sin() * nm);
         self.mv
     }

@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.24</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.26</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -627,8 +627,8 @@ scene.add(camera);
 function resize(){const w=window.innerWidth,h=window.innerHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
 window.addEventListener('resize',resize);resize();
 
-scene.add(new THREE.HemisphereLight(0xe6f6ff,0x4f6e30,0.62));
-const sun=new THREE.DirectionalLight(0xfff0d2,0.88);
+scene.add(new THREE.HemisphereLight(0xe6f6ff,0x667b50,0.76));
+const sun=new THREE.DirectionalLight(0xfff0d2,0.80);
 sun.position.set(24,40,20);sun.castShadow=true;sun.shadow.mapSize.set(3072,3072);
 Object.assign(sun.shadow.camera,{left:-42,right:42,top:42,bottom:-42,near:1,far:120});
 sun.shadow.bias=-0.0003;sun.shadow.normalBias=.025;scene.add(sun);
@@ -641,7 +641,15 @@ const matCache={};
 function mat(c,o){const key=String(c)+(o?JSON.stringify(o):'');if(!o&&matCache[key])return matCache[key];const m=new THREE.MeshLambertMaterial(Object.assign({color:c},o||{}));if(!o)matCache[key]=m;return m;}
 function mesh(geo,m,x,y,z,parent){const o=new THREE.Mesh(geo,m);o.position.set(x||0,y||0,z||0);o.castShadow=true;o.receiveShadow=true;(parent||scene).add(o);return o;}
 function canvasTex(w,h,draw,rx,ry){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx||1,ry||1);t.anisotropy=4;return t;}
-function imageTex(path,rx,ry){const t=new THREE.TextureLoader().load(path);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx||1,ry||1);t.anisotropy=renderer.capabilities.getMaxAnisotropy();t.encoding=THREE.sRGBEncoding;return t;}
+function imageTex(path,rx,ry){const t=new THREE.TextureLoader().load(path,tex=>{
+  const contrast=path.includes('weatherboard')?.70:path.includes('gum_bark')?.55:path.includes('corrugated')?.48:null;
+  if(contrast===null)return;
+  const source=tex.image,c=document.createElement('canvas');c.width=source.width;c.height=source.height;
+  const ctx=c.getContext('2d');ctx.drawImage(source,0,0);const pixels=ctx.getImageData(0,0,c.width,c.height),d=pixels.data,mean=[0,0,0],count=d.length/4;
+  for(let i=0;i<d.length;i+=4)for(let k=0;k<3;k++)mean[k]+=d[i+k]/count;
+  for(let i=0;i<d.length;i+=4)for(let k=0;k<3;k++)d[i+k]=mean[k]+(d[i+k]-mean[k])*contrast;
+  ctx.putImageData(pixels,0,0);tex.image=c;tex.needsUpdate=true;
+});t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx||1,ry||1);t.anisotropy=renderer.capabilities.getMaxAnisotropy();t.encoding=THREE.sRGBEncoding;return t;}
 function loadHeroGumTree(x,z){new THREE.GLTFLoader().load('models/gum_tree_hero.glb',g=>{const root=g.scene;root.position.set(x,0,z);root.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});(backyardRoot||scene).add(root);},undefined,e=>console.warn('Hero gum tree failed to load',e));}
 
 /* ================= WORLD ================= */
@@ -3238,6 +3246,7 @@ function aiUpdate(ch,dt){
   if(ai.wander>0&&gameMode!=='heist')ch.wish.copy(ai.wanderDir);
   botSteer(ch,dt,arrive,urgent,goal);
   if(ai.stuckT<=0){if(gameMode!=='heist'&&ch.pos.distanceTo(ai.lastPos)<.4&&ch.wish.lengthSq()>.25){ai.wander=.9;const a=rand(0,Math.PI*2);ai.wanderDir.set(Math.cos(a),Math.sin(a));}ai.lastPos.copy(ch.pos);ai.stuckT=1.2;}
+  if(goal&&ai.windup<=0&&!ai.meleeOnly&&ch.wish.length()>.15)faceTo=new V3(ch.pos.x+ch.wish.x,ch.pos.y,ch.pos.z+ch.wish.y);
   let desired;if(faceTo)desired=Math.atan2(faceTo.x-ch.pos.x,faceTo.z-ch.pos.z);else if(ch.wish.lengthSq()>.01)desired=Math.atan2(ch.wish.x,ch.wish.y);
   if(ai.glanceT>0&&ai.glanceAt&&ai.windup<=0&&!ch.charging)desired=Math.atan2(ai.glanceAt.x-ch.pos.x,ai.glanceAt.z-ch.pos.z);
   else if(ai.pauseT>0&&desired!==undefined&&ai.windup<=0)desired+=ai.lookYaw*Math.sin(Math.min(1,(ai.pauseT)/.75)*Math.PI);
@@ -3286,6 +3295,7 @@ function botSteer(ch,dt,arrive,urgent,goal){const ai=ch.ai,P=ai.pers;
     const turn=P.turn*(arrive<2.2?2.4:1)*(cm<.3?3:1);ca+=clamp(d,-turn*dt,turn*dt);}
   const tm=ta===null?0:m*Math.max(.4,.55+.45*Math.cos(Math.min(Math.abs(d),Math.PI))); // ease off through sharp turns
   const nm=cm+(tm-cm)*(1-Math.exp(-(tm>cm?4.5:8)*dt));
+  if(nm>.1&&blocked(ch.pos.x+Math.cos(ca)*.55,ch.pos.z+Math.sin(ca)*.55,ch.pos.y)&&ta!==null)ca=ta;
   cur.set(Math.cos(ca)*nm,Math.sin(ca)*nm);ch.wish.copy(cur);}
 
 /* ================= NETWORK (room capability) ================= */

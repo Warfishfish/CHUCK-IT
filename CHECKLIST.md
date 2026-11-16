@@ -8,6 +8,8 @@
 
 ## Already in the game ✅
 
+- Smoko picnic overlays have separated render heights and the roadside cluster receives distance filtering. Shared sRGB grass, house, roof and bark textures now receive linear-light mipmaps. Building/bark detail is moderated to suit the sage ground. Bots face along goal routes and use a checked direction when a smoothed corner turn points into a wall. Brighter sky fill, shorter building shadows and a controlled colour grade add vividness. Blender lighting studies are saved in checkpoints/2026-11-16-three-pass. Browser prototype 0.23.26. Gameplay motion review is pending.
+
 - Blender grass contrast revision uses cooler sage ground with sparse painted marks, neutral lawn material tint, darker matching blades, and camera-height-aware grass culling. Native and full-browser visual review is pending.
 
 - Painted comic-style Backyard grass uses muted olive patches and sparse angular blade strokes on desktop, the full Rust browser game, and the JavaScript prototype (0.23.23). The texture is loaded from the existing lawn asset path. Live gameplay visual review remains pending.

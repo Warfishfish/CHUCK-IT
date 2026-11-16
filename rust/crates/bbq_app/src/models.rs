@@ -367,7 +367,7 @@ fn add_mipmaps(mut events: MessageReader<AssetEvent<Image>>, mut images: ResMut<
         };
         let (w, h) = (img.width(), img.height());
         if img.texture_descriptor.mip_level_count > 1
-            || img.texture_descriptor.format != TextureFormat::Rgba8Unorm
+            || !matches!(img.texture_descriptor.format, TextureFormat::Rgba8Unorm | TextureFormat::Rgba8UnormSrgb)
         {
             continue;
         }
@@ -385,7 +385,8 @@ fn add_mipmaps(mut events: MessageReader<AssetEvent<Image>>, mut images: ResMut<
                 match tex {
                     Tex::Wood => Some(if crate::backyard_finish::enabled(){crate::backyard_finish::WOOD_CONTRAST}else{WOOD_DETAIL_CONTRAST}),
                     Tex::Paling | Tex::Corrugated => Some(if crate::backyard_finish::enabled(){crate::backyard_finish::ROOF_CONTRAST}else{BUILDING_DETAIL_CONTRAST}),
-                    Tex::Weatherboard if crate::backyard_finish::enabled()=>Some(crate::backyard_finish::PAINT_CONTRAST),
+                    Tex::Weatherboard => Some(if crate::backyard_finish::enabled() { crate::backyard_finish::PAINT_CONTRAST } else { 0.70 }),
+                    Tex::Bark => Some(0.55),
                     Tex::Lawn if crate::backyard_finish::enabled()=>Some(0.65),
                     _ => None,
                 }
@@ -406,7 +407,11 @@ fn add_mipmaps(mut events: MessageReader<AssetEvent<Image>>, mut images: ResMut<
             }
             &softened
         } else { data };
-        let mips = build_mips(w, h, data);
+        let mips = if img.texture_descriptor.format == TextureFormat::Rgba8UnormSrgb {
+            crate::servo_finish::colour_mips(w, h, data)
+        } else {
+            build_mips(w, h, data)
+        };
         img.texture_descriptor.mip_level_count = mip_count(w, h);
         img.data = Some(mips);
     }

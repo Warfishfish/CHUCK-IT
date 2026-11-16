@@ -227,6 +227,7 @@ def build_cluster():
         filepath=GLB_PATH,
         export_format="GLB",
         use_selection=True,
+        use_active_scene=True,
         export_apply=True,
         export_yup=True,
     )

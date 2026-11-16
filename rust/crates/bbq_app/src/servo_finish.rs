@@ -11,11 +11,11 @@ pub const SERVO_RIG: Rig = Rig {
     // Low, amber sun and warm ground bounce echo the concept's late-afternoon palette.
     // Cool sky fill opens the shade; moderated grading keeps red earth warm without washing
     // the cool eskies and thrown items toward orange.
-    sky: 0xa8c7ed, ground: 0xa39883, hemi: 0.80,
-    sun: 0xffd3a5, sun_intensity: 1.10,
-    grade: Grade { saturation: 1.08, warmth: 0.012, contrast: 1.045, vignette: 0.01 },
+    sky: 0xa8c7ed, ground: 0xa39883, hemi: 0.96,
+    sun: 0xffd3a5, sun_intensity: 0.98,
+    grade: Grade { saturation: 1.14, warmth: 0.006, contrast: 1.015, vignette: 0.008 },
 };
-pub const SUN_POSITION: Vec3 = Vec3::new(24.0, 17.0, 16.0);
+pub const SUN_POSITION: Vec3 = Vec3::new(24.0, 29.0, 16.0);
 pub const DISTANT_HAZE: u32 = 0xd1d2cc;
 pub const HAZE_START: f32 = 55.0;
 pub const HAZE_END: f32 = 150.0;
@@ -89,7 +89,7 @@ fn sync_lighting(
 
 fn is_servo_asset(path: &std::path::Path) -> bool {
     matches!(path.file_name().and_then(|n|n.to_str()),
-        Some("smoko_servo.glb" | "smoko_shelter.glb" | "smoko_surroundings.glb" | "smoko_landscape.glb" | "smoko_props.glb"))
+        Some("smoko_servo.glb" | "smoko_shelter.glb" | "smoko_surroundings.glb" | "smoko_landscape.glb" | "smoko_props.glb" | "smoko_roadside_cluster.glb"))
 }
 fn filter_imported_textures(
     mut events: MessageReader<AssetEvent<Image>>, assets: Res<AssetServer>, mut images: ResMut<Assets<Image>>,
@@ -115,7 +115,7 @@ fn filter_imported_textures(
     }
 }
 /// Keep highlights bright when downsampling sRGB, with alpha-weighted colour to avoid fringes.
-fn colour_mips(w:u32,h:u32,base:&[u8])->Vec<u8> {
+pub(crate) fn colour_mips(w:u32,h:u32,base:&[u8])->Vec<u8> {
     let linear: [f32;256]=std::array::from_fn(|i|{let c=i as f32/255.;if c<=0.04045 {c/12.92}else{((c+0.055)/1.055).powf(2.4)}});
     let encode=|c:f32|{let c=if c<=0.0031308{12.92*c}else{1.055*c.powf(1./2.4)-0.055};(c.clamp(0.,1.)*255.).round() as u8};
     let mut out=base.to_vec();let mut prev=base.to_vec();let (mut w,mut h)=(w as usize,h as usize);

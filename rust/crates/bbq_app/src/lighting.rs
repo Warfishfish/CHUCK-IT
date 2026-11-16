@@ -68,10 +68,10 @@ impl LookMode {
                 crate::style::Style::Pop => Rig {
                     sky: 0xb5d0f5,
                     ground: 0xa4b2a6,
-                    hemi: 0.78,
+                    hemi: 0.94,
                     sun: 0xffd9ad,
-                    sun_intensity: 1.04,
-                    grade: Grade { saturation: 1.04, warmth: 0.014, contrast: 1.045, vignette: 0.035 },
+                    sun_intensity: 0.94,
+                    grade: Grade { saturation: 1.12, warmth: 0.008, contrast: 1.015, vignette: 0.015 },
                 },
                 // clay: a strong, low, golden sun with a cool blue shade and warm bounce light
                 crate::style::Style::Clay => Rig {
@@ -255,7 +255,7 @@ pub fn sun(look: LookMode) -> (DirectionalLight, Transform) {
         },
         // clay: a lower sun, so shadows are long and the light rakes across the surfaces
         Transform::from_translation(if look == LookMode::Polished && crate::style::current() == crate::style::Style::Pop {
-            Vec3::new(SUN_AT.x, SUN_AT.y * 0.52, SUN_AT.z)
+            Vec3::new(SUN_AT.x, SUN_AT.y * 0.78, SUN_AT.z)
         } else if crate::style::current() != crate::style::Style::Current {
             Vec3::new(SUN_AT.x, SUN_AT.y * 0.62, SUN_AT.z)
         } else {

@@ -32,7 +32,10 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     var rgb = clamp(c.rgb, vec3<f32>(0.0), vec3<f32>(1.0));
     // finishing touches (all 1 / 0 for the browser look, so nothing changes there)
     let lum = dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
-    rgb = mix(vec3<f32>(lum), rgb, settings.saturation);
+    // Lift quieter colours more than saturated ones to retain colour detail.
+    let chroma = max(rgb.r, max(rgb.g, rgb.b)) - min(rgb.r, min(rgb.g, rgb.b));
+    let saturation = 1.0 + (settings.saturation - 1.0) * (1.0 - clamp(chroma, 0.0, 1.0));
+    rgb = mix(vec3<f32>(lum), rgb, saturation);
     rgb = rgb * vec3<f32>(1.0 + settings.warmth, 1.0 + settings.warmth * 0.3, 1.0 - settings.warmth * 0.9);
     rgb = (rgb - vec3<f32>(0.5)) * settings.contrast + vec3<f32>(0.5);
     let d = length((in.uv - vec2<f32>(0.5)) * vec2<f32>(1.0, 0.85));

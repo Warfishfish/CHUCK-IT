@@ -9,13 +9,13 @@ use bevy::prelude::*;
 use crate::{game::Game, lighting::LookMode, player::EyeCamera, yard_scene::YardRes};
 
 // Muted blade colours in linear space, matching the lawn beneath them.
-const ROOT_COLOUR: Vec3 = Vec3::new(0.12, 0.17, 0.09);
-const TIP_COLOUR: Vec3 = Vec3::new(0.20, 0.26, 0.14);
+const ROOT_COLOUR: Vec3 = Vec3::new(0.26, 0.34, 0.15);
+const TIP_COLOUR: Vec3 = Vec3::new(0.32, 0.41, 0.21);
 const TILE: f32 = 5.0;
-const NEAR_TUFTS: usize = 1800;
-const FAR_TUFTS: usize = 375;
-const DETAIL_DISTANCE: f32 = 22.0;
-const DRAW_DISTANCE: f32 = 38.0;
+const NEAR_TUFTS: usize = 900;
+const FAR_TUFTS: usize = 90;
+const DETAIL_DISTANCE: f32 = 14.0;
+const DRAW_DISTANCE: f32 = 24.0;
 #[derive(Component)]
 pub struct GrassTile {
     detailed: Handle<Mesh>,
