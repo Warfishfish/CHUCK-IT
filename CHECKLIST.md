@@ -8,6 +8,8 @@
 
 ## Already in the game ✅
 
+- Browser 0.23.21 serves Three.js and its matching GLTFLoader from the game server. Verified the shared link opens the menu and starts Solo in Chrome.
+
 **Moving**
 - ✅ (Rust desktop and browser, 22 Oct 2026) Host lobby selectors for Backyard, Smoko yard and Race oval, with Free for all / Teams on Backyard and a direct Game settings button. Game settings includes maps, modes, round and match options, Cheeky mode and yard features. Solo retains Teddy Heist; its existing online restriction is clearly labelled. Race's fixed rules are shown instead of offering ignored options.
 - ✅ (Rust desktop and browser, 22 Oct 2026) Permanent menu navigation includes Customise, stays above the scrolling content, and resets content scrolling when changing tabs. Hosts and guests can reopen every menu after switching away.
