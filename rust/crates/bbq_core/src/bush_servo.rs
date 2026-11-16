@@ -95,7 +95,7 @@ pub const NATURE_SOLIDS: [(f32,f32,f32,f32,f32);8] = [
     (15.000,21.500,1.700,1.200,0.800),
 ];
 // Stage 6 prop bounds, verified against props-layout.json and the Blender export.
-pub const PROP_SOLIDS: [(f32,f32,f32,f32,f32);25] = [
+pub const PROP_SOLIDS: [(f32,f32,f32,f32,f32);30] = [
     (-11.000,-1.500,1.300,0.750,0.720),
     (3.040,14.460,1.300,0.750,0.720),
     (-25.000,20.000,1.300,0.750,0.720),
@@ -123,6 +123,13 @@ pub const PROP_SOLIDS: [(f32,f32,f32,f32,f32);25] = [
     // Tyre and timber group beside the eastern arena gum.
     (13.000,-0.300,1.100,1.100,0.720),
     (14.000,1.200,2.000,0.280,0.800),
+    // Blender-authored roadside cluster at (18.5, -16). These conservative boxes match the
+    // tyre stack, enamel sign, parts crate, esky, and braced timber rail individually.
+    (16.160,-16.100,1.500,0.220,1.900),
+    (17.800,-15.950,1.320,1.320,1.350),
+    (19.320,-15.320,1.000,0.820,0.760),
+    (20.550,-16.320,1.100,0.840,0.740),
+    (18.500,-17.860,5.600,0.320,0.960),
 ];
 // In-arena gums: match art/bush-servo/arena-trees.json.
 // Narrow lower trunk is solid, high foliage remains visual; not a standing surface.
@@ -326,8 +333,10 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
   }
  }
  #[test] fn small_props_leave_scoring_spawns_and_approaches_clear(){
-  for &(x,z,w,d,h) in &PROP_SOLIDS {
-   assert!(w>0. && d>0. && h>0. && h<1.2);
+  for (i,&(x,z,w,d,h)) in PROP_SOLIDS.iter().enumerate() {
+   // The roadside enamel sign and tyre stack are the only deliberately tall props; their solid
+   // boxes follow the visible pieces while the other low clutter stays below player waist height.
+   assert!(w>0. && d>0. && h>0. && (h<1.2 || (matches!(i,25|26) && h<=2.0)));
    assert!(x.abs()+w/2.<32. && z.abs()+d/2.<23.);
    assert!((x.abs()-w/2.).max(0.).hypot(((z-10.).abs()-d/2.).max(0.))>SCORE_RADIUS+1.0);
    for &(sx,sz) in &crate::yard::CHAR_SPAWNS {

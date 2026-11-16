@@ -502,8 +502,7 @@ impl Yard {
         }
     }
 
-    /// The yard turned into the Teddy Heist arena: the usual props stay, and the oval of steps,
-    /// the walled bases and the crates in the middle are added.
+    /// A standalone Teddy Heist arena with only its oval, maze, bases and crates collidable.
     pub fn heist(features: Features, chest_spot: usize, teams: usize) -> Self {
         Self::heist_variant(features, chest_spot, teams, 0)
     }
@@ -515,6 +514,10 @@ impl Yard {
         variant: usize,
     ) -> Self {
         let mut y = Self::new(features, chest_spot);
+        // Heist is a separate arena, not the backyard with an oval drawn over it. Keep only
+        // its authored maze/base collision so hidden backyard props cannot block players or bots.
+        y.features = Features { bar: false, bbq: false, chest: false, smoko: false };
+        y.colliders.clear();
         y.heist = Some(teams.clamp(2, 4));
         y.heist_variant = variant % crate::heist::LAYOUTS_PER_TEAM_COUNT;
         y.colliders.extend(
@@ -523,6 +526,11 @@ impl Yard {
                 .map(|p| p.collider),
         );
         y
+    }
+
+    /// Whether the old backyard swimming pool is present in this map.
+    pub fn pool_enabled(&self) -> bool {
+        !self.race && !self.features.smoko && self.heist.is_none()
     }
 
     /// Dedicated Smoko layout; existing maps cannot opt in through legacy flags.
@@ -679,6 +687,16 @@ mod tests {
             assert_eq!(yard.heist, Some(teams));
             assert!(yard.colliders.iter().any(|c| c.kind == Kind::HeistWall));
         }
+    }
+
+    #[test]
+    fn heist_has_no_backyard_collision_or_pool_state() {
+        let backyard = Yard::default();
+        let heist = Yard::heist(Features::default(), 0, 2);
+        assert!(backyard.pool_enabled());
+        assert!(!heist.pool_enabled());
+        assert!(!heist.features.bar && !heist.features.bbq && !heist.features.chest && !heist.features.smoko);
+        assert!(heist.colliders.iter().all(|c| matches!(c.kind, Kind::HeistWall | Kind::Steps | Kind::HeistCrate)));
     }
 
     #[test]

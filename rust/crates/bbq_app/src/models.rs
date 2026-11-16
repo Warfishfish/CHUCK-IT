@@ -282,13 +282,14 @@ fn load_textures(mut cache: ResMut<ModelCache>, assets: Res<AssetServer>) {
     }
     for t in Tex::ALL {
         let afternoon_lawn = POLISHED.load(std::sync::atomic::Ordering::Relaxed)
-            && crate::style::current() == crate::style::Style::Pop && t == Tex::Lawn;
+            && crate::style::current() == crate::style::Style::Pop
+            && t == Tex::Lawn;
         let h = assets
             .load_builder()
             .with_settings(move |s| {
                 settings(
                     s,
-                    matches!(t, Tex::Lawn | Tex::Weatherboard | Tex::Corrugated | Tex::Bark | Tex::Mulch),
+                    matches!(t, Tex::Lawn | Tex::RaceLawn | Tex::HeistTurf | Tex::Weatherboard | Tex::Corrugated | Tex::Bark | Tex::Mulch),
                 )
             })
             .load(format!("textures/{}", if afternoon_lawn { "lawn_overhaul.png" } else { t.file() }));

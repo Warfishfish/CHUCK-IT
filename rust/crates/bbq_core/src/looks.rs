@@ -107,6 +107,10 @@ pub enum Tex {
     Fish,
     /// Mown lawn with stripes (one tile is 16 m).
     Lawn,
+    /// The Race Oval's original grass tile, kept independent from the backyard lawn overhaul.
+    RaceLawn,
+    /// Distinct, close-cut field turf used by Teddy Heist.
+    HeistTurf,
     /// Paling fence.
     Paling,
     /// The house's weatherboards.
@@ -170,6 +174,8 @@ impl Tex {
             Tex::VpLabel => "vp_label.png",
             Tex::Fish => "fish.png",
             Tex::Lawn => "lawn_overhaul.png",
+            Tex::RaceLawn => "lawn.png",
+            Tex::HeistTurf => "heist_turf.png",
             Tex::Paling => "paling.png",
             Tex::Weatherboard => "weatherboard_overhaul.png",
             Tex::Corrugated => "corrugated_overhaul.png",
@@ -202,11 +208,13 @@ impl Tex {
         }
     }
 
-    pub const ALL: [Tex; 35] = [
+    pub const ALL: [Tex; 37] = [
         Tex::ServoDirt, Tex::ServoRoad, Tex::SignServo,
         Tex::VpLabel,
         Tex::Fish,
         Tex::Lawn,
+        Tex::RaceLawn,
+        Tex::HeistTurf,
         Tex::Paling,
         Tex::Weatherboard,
         Tex::Corrugated,

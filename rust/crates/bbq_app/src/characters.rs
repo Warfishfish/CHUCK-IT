@@ -1887,10 +1887,14 @@ fn animate_face_and_feet(
         let size = game.dummies.get(b.0).map_or(1.0, |d| d.belly);
         let ws = w.weights_mut();
         if ws.len() >= 2 {
-            ws[0] = size.powf(0.8) * (1.0 + dr.swell);
+            // A quiet breath keeps a stopped blob from feeling like a rigid prop; the walk
+            // spring remains the larger motion and all of this stays on the visual morphs.
+            let walk = (speed.get(b.0).copied().unwrap_or(0.0) / 4.0).clamp(0.0, 1.0);
+            let breath = (t * 1.65 + dr.phase * 0.35).sin() * 0.014 * (1.0 - walk);
+            ws[0] = size.powf(0.8) * (1.0 + dr.swell + breath);
             // with outlines or a bigger body the flop is harder to see, so the styles show it a bit more
             let flop = match crate::style::current() {
-                crate::style::Style::Current => 1.0,
+                crate::style::Style::Current => 1.35,
                 crate::style::Style::Pop => 4.4,
                 crate::style::Style::Clay => 3.0,
             };

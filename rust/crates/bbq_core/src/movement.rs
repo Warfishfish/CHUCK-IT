@@ -434,8 +434,7 @@ impl Mover {
         let mut ev = MoveEvents::default();
 
         // pool
-        self.in_pool =
-            !yard.race && !yard.features.smoko && in_pool_rect(self.x, self.z) && self.y < 0.1;
+        self.in_pool = yard.pool_enabled() && in_pool_rect(self.x, self.z) && self.y < 0.1;
         if self.in_pool && !self.was_in_pool {
             ev.splash = true;
         }

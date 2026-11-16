@@ -69,8 +69,8 @@ pub fn layout_for(teams: usize, variant: usize) -> Vec<BaseDef> {
     }
 }
 
-/// Where the smoko pad goes in Teddy Heist: next to the pool's east end, clear of every base
-/// (the default spot is right in the red base's doorway). It is the same for 2, 3 or 4 teams.
+/// Legacy safe-zone coordinate retained for tests. Heist draws no Smoko pad or backyard pool;
+/// this point stays clear of every base across 2, 3 and 4 team layouts.
 pub fn smoko_spot(_teams: usize) -> (f32, f32) {
     (-8.0, 9.0)
 }

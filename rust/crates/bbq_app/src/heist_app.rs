@@ -323,7 +323,7 @@ pub fn tally_text(h: &HeistState) -> String {
 // ------------------------------------------------------------------ the bots' objective
 
 /// The goal for the bot in dummy slot `i`, and whether it is carrying a stolen teddy.
-pub fn goal_for_bot(g: &mut Game, i: usize) -> (Option<V3>, bool) {
+pub fn goal_for_bot(g: &mut Game, p: &Player, i: usize) -> (Option<V3>, bool) {
     let Some((teams, variant)) = g.heist.as_ref().map(|h| (h.teams, h.variant)) else {
         return (None, false);
     };
@@ -343,10 +343,11 @@ pub fn goal_for_bot(g: &mut Game, i: usize) -> (Option<V3>, bool) {
             .collect()
     };
     let mut people = Vec::new();
-    let me_pos = V3::new(g.dummies[i].mover.x, 0.0, g.dummies[i].mover.z);
     people.push(Who {
         id: PLAYER_ID,
-        pos: V3::new(0.0, 0.0, 0.0),
+        // The human is a real objective for defending bots. Treating them as if they stood at
+        // the origin sent defenders to the wrong maze branch whenever a teddy was stolen.
+        pos: V3::new(p.mover.x, 0.0, p.mover.z),
         team: g.teams.get(PLAYER_ID).unwrap_or(Team::Wildcard),
         is_bot: false,
         carrying: carrying_of(g, g.slots.ids()),
@@ -384,7 +385,6 @@ pub fn goal_for_bot(g: &mut Game, i: usize) -> (Option<V3>, bool) {
     if let Some(b) = g.crowd.brains.get_mut(&id) {
         b.set_patrol_corner(patrol);
     }
-    let _ = me_pos;
     (goal, carrying_stolen)
 }
 

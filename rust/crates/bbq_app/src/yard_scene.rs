@@ -1149,6 +1149,13 @@ fn sync_smoko_map(
         Transform::from_xyz(0., 0., 10.),
         ChildOf(e),
     ));
+    // A concept-led roadside repair cluster: retired tyres, a sun-faded sign, a parts crate,
+    // an old esky and a braced timber rail. It sits beyond the oval's outer shoulder.
+    commands.spawn((
+        WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_roadside_cluster.glb"))),
+        Transform::from_xyz(18.5, 0.0, -16.0),
+        ChildOf(e),
+    ));
 }
 
 fn sync_race_map(
@@ -1201,14 +1208,14 @@ fn sync_race_map(
     let displayed = crate::menu::displayed_mode(*screen, &settings, &game);
     let active = displayed == bbq_core::GameMode::Race;
     for mut v in &mut normal {
-        v.set_if_neq(if active || displayed == bbq_core::GameMode::Smoko {
+        v.set_if_neq(if active || matches!(displayed, bbq_core::GameMode::Smoko | bbq_core::GameMode::Heist) {
             Visibility::Hidden
         } else {
             Visibility::Inherited
         });
     }
     for mut v in &mut supplies {
-        v.set_if_neq(if active {
+        v.set_if_neq(if active || displayed == bbq_core::GameMode::Heist {
             Visibility::Hidden
         } else {
             Visibility::Inherited
@@ -1241,8 +1248,8 @@ fn sync_race_map(
     let block = |w: f32, h: f32, d: f32, x: f32, y: f32, z: f32, c: u32| {
         Part::new(Shape::Cuboid { w, h, d }, Surface::matt(c)).at(x, y, z)
     };
-    // Reuse the backyard lawn tile across the oval; no extra geometry or texture assets.
-    let mut lawn_surface = Surface::matt(0xd4e4b6).textured(bbq_core::looks::Tex::Lawn);
+    // Keep Race Oval on its original grass tile; the backyard's newer lawn is map-specific.
+    let mut lawn_surface = Surface::matt(0xd4e4b6).textured(bbq_core::looks::Tex::RaceLawn);
     lawn_surface.repeat = (12., 9.);
     let mut lawn = Part::new(
         Shape::Cylinder {

@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.18</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.19</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -642,7 +642,7 @@ function mat(c,o){const key=String(c)+(o?JSON.stringify(o):'');if(!o&&matCache[k
 function mesh(geo,m,x,y,z,parent){const o=new THREE.Mesh(geo,m);o.position.set(x||0,y||0,z||0);o.castShadow=true;o.receiveShadow=true;(parent||scene).add(o);return o;}
 function canvasTex(w,h,draw,rx,ry){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx||1,ry||1);t.anisotropy=4;return t;}
 function imageTex(path,rx,ry){const t=new THREE.TextureLoader().load(path);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx||1,ry||1);t.anisotropy=renderer.capabilities.getMaxAnisotropy();t.encoding=THREE.sRGBEncoding;return t;}
-function loadHeroGumTree(x,z){new THREE.GLTFLoader().load('models/gum_tree_hero.glb',g=>{const root=g.scene;root.position.set(x,0,z);root.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});scene.add(root);},undefined,e=>console.warn('Hero gum tree failed to load',e));}
+function loadHeroGumTree(x,z){new THREE.GLTFLoader().load('models/gum_tree_hero.glb',g=>{const root=g.scene;root.position.set(x,0,z);root.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});(backyardRoot||scene).add(root);},undefined,e=>console.warn('Hero gum tree failed to load',e));}
 
 /* ================= WORLD ================= */
 const W=40,D=29,GRAV=18,HEIST_A=54,HEIST_B=40;
@@ -658,6 +658,8 @@ const SNAG_BUFF=4,SNAG_STUMBLE=3;const SILLY_NAMES=['WET WILLY!','NOOGIE!','WEDG
 const CHEST={x:-29,z:-21,max:3,refill:12,spot:0};
 const CHEST_SPOTS=[[-29,-21,.5],[29,-21.5,-.5],[27.5,21.8,2.6],[-29,21.8,-2.6],[-31,9,1.57],[31,-9,-1.57],[13,-21.8,0],[-13,22,3.14],[31,6,-1.57]];let chestStock=2,chestT=CHEST.refill,chestLid=null,chestToys=[];
 const colliders=[];
+let backyardRoot=null;
+let worldChildrenBefore=new Set(),yardColliderStart=0;
 const gardenMagpies=[];
 /* ---- map features the host can switch on/off: everything built for a feature is tagged so it can be hidden, colliders included ---- */
 const FEAT={bar:true,bbq:true,chest:true,smoko:true,falls:true,adult:false,naughty:false,drunkall:false},FEAT_KEYS=['bar','bbq','chest','smoko','falls','adult','naughty','drunkall'];
@@ -680,6 +682,7 @@ const ADULT_BOX={'#pFeat':'#pAdult','#mFeat':'#mAdult','#yFeat':'#yAdult'}; // w
 function readFeatUI(sel,rn){setFeatMask(FEAT_KEYS.reduce((a,k,i)=>{const el=k==='adult'?document.querySelector(ADULT_BOX[sel]):document.querySelector(`${sel} input[data-f=${k}]`);if(k==='adult')return a|(el&&el.checked?1<<i:0);return a|(!el||el.checked?1<<i:0);},0));}
 function col(cx,cz,w,d,h){colliders.push({x0:cx-w/2,x1:cx+w/2,z0:cz-d/2,z1:cz+d/2,h});}
 const inPoolRect=p=>p.x>POOL.x0&&p.x<POOL.x1&&p.z>POOL.z0&&p.z<POOL.z1;
+const inActivePool=p=>gameMode!=='heist'&&inPoolRect(p);
 let hoistHead,poolTex,clouds=[],yardFence=[],yardLawn=null,umbrellaShade=null,pinwheelRotor=null,hangerGroup=null,sprinklerRotor=null,sprinklerSpray=null,clotheslineLaundry=[],trampolineMatMesh=null;
 let yardRippleFx=[],wetFootprintFx=[],gardenAnimator=null,movingCloudShade=null;
 function textTex(w,h,draw){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t;}
@@ -725,6 +728,7 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
   x.fillStyle='#ffffff';x.font='900 40px "Arial Black",Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText('VP',w*.25,h*.47);x.fillText('VP',w*.75,h*.47);})});
 
 (function buildWorld(){
+  worldChildrenBefore=new Set(scene.children);yardColliderStart=colliders.length;
   let porchCurtain=null;
   // lawn with mowing stripes
   const lawn=imageTex('textures/lawn_overhaul.png',2*W/16,2*D/16);
@@ -2083,7 +2087,7 @@ const HEIST_LAYOUT=[
 const heistLayout=(n=heistTeams,v=heistVariant)=>HEIST_LAYOUT[(v|0)%3][clamp(n|0,2,4)];
 const inHeistOval=(x,z,r=0)=>{const a=HEIST_A-r,b=HEIST_B-r;return a>0&&b>0&&x*x/(a*a)+z*z/(b*b)<=1;};
 function heistKeysArr(){return HEIST_TEAM_KEYS.slice(0,heistTeams);}
-function clearHeistProps(){for(const o of heistProps)if(o.parent)o.parent.remove(o);heistProps.length=0;yardFence.forEach(o=>o.visible=true);if(yardLawn)yardLawn.visible=true;
+function clearHeistProps(){for(const o of heistProps)if(o.parent)o.parent.remove(o);heistProps.length=0;yardFence.forEach(o=>o.visible=true);if(yardLawn)yardLawn.visible=true;if(backyardRoot)backyardRoot.visible=true;
   for(const c of heistColsSet){const i=colliders.indexOf(c);if(i>=0)colliders.splice(i,1);}heistColsSet.length=0;heistBases={};heistBanked={};heistSpawnN={};heistBoard=null;}
 function buildHeistWall(cx,cz,w,d,color,h){h=h||HEIST_WALL_H;heistProps.push(mesh(new THREE.BoxGeometry(w,h,d),mat(color),cx,h/2,cz));
   col(cx,cz,w,d,h);heistColsSet.push(colliders[colliders.length-1]);}
@@ -2096,6 +2100,7 @@ function heistSignTexture(key){if(heistSignTextures.has(key))return heistSignTex
 // the Heist yard is an oval, not a rectangle: everything outside an ellipse is filled with thin stone steps (so the corners curve away),
 // plus a half-round bay pushed into the middle of each side. Axes are chosen so every base (2, 3 or 4 teams) sits inside with room to walk round it.
 const HEIST_ARENA={A:HEIST_A,B:HEIST_B,step:1,bay:{r:6,depth:3.6}};
+let heistTurfTex=null;
 function buildHeistArena(){const {A,B,step,bay}=HEIST_ARENA;let n=0;
   const put=(cx,cz,w,d)=>{buildHeistWall(cx,cz,w,d,(n++%2)?0x6d7178:0x80848b,2.6);};
   for(let zc=-B+step/2;zc<B;zc+=step){
@@ -2103,9 +2108,12 @@ function buildHeistArena(){const {A,B,step,bay}=HEIST_ARENA;let n=0;
     const w=A-Math.min(A,e);if(w>.35){put(-A+w/2,zc,w,step);put(A-w/2,zc,w,step);}   // fill outside the oval, both sides
     if(Math.abs(zc)<bay.r){const dep=bay.depth*Math.sqrt(1-(zc/bay.r)*(zc/bay.r));  // half-round bay in the middle of each side wall
       if(dep>.5){put(-A+dep/2,zc,dep,step);put(A-dep/2,zc,dep,step);}}}
+  const apronShape=new THREE.Shape();for(let i=0;i<=128;i++){const t=i/128*Math.PI*2,x=(A+7)*Math.cos(t),y=-(B+7)*Math.sin(t);if(i===0)apronShape.moveTo(x,y);else apronShape.lineTo(x,y);}
+  const apron=mesh(new THREE.ShapeGeometry(apronShape),mat(0x765b43),0,-.055,0);apron.rotation.x=-Math.PI/2;apron.castShadow=false;apron.receiveShadow=true;heistProps.push(apron);
   const ground=new THREE.Shape();for(let i=0;i<=128;i++){const t=i/128*Math.PI*2,x=A*Math.cos(t),y=-B*Math.sin(t);if(i===0)ground.moveTo(x,y);else ground.lineTo(x,y);}
-  const hole=new THREE.Path();hole.moveTo(POOL.x0,-POOL.z1);hole.lineTo(POOL.x0,-POOL.z0);hole.lineTo(POOL.x1,-POOL.z0);hole.lineTo(POOL.x1,-POOL.z1);hole.lineTo(POOL.x0,-POOL.z1);ground.holes.push(hole);
-  const lawn=mesh(new THREE.ShapeGeometry(ground),mat(0x659d4a),0,.015,0);lawn.rotation.x=-Math.PI/2;lawn.castShadow=false;lawn.receiveShadow=true;heistProps.push(lawn);
+  if(!heistTurfTex)heistTurfTex=imageTex('textures/heist_turf.png',Math.round(A/8),Math.round(B/8));
+  const turfMat=new THREE.MeshLambertMaterial({map:heistTurfTex,color:0xd7e0b8});
+  const lawn=mesh(new THREE.ShapeGeometry(ground),turfMat,0,.015,0);lawn.rotation.x=-Math.PI/2;lawn.castShadow=false;lawn.receiveShadow=true;heistProps.push(lawn);
   if(yardLawn)yardLawn.visible=false;yardFence.forEach(o=>o.visible=false);}
 // a big four-sided scoreboard floating over the middle of the yard: teddies banked + points per team, readable from anywhere
 function drawHeistBoard(){const b=heistBoard;if(!b)return;const c=b.ctx,keys=heistKeysArr(),N=640;
@@ -2164,14 +2172,14 @@ function heistBotGoalRaw(ch){const myT=teamOf.get(ch.id),home=myT&&heistBases[my
 const HEIST_SPAWN_OFF=[[0,2.1],[0,-2.1],[2.1,0],[-2.1,0]];let heistSpawnN={};
 function heistSpawnFor(ch){if(gameMode!=='heist')return null;const t=teamOf.get(ch.id),b=t&&heistBases[t];if(!b)return null;
   const n=heistSpawnN[t]=(heistSpawnN[t]||0)+1,o=HEIST_SPAWN_OFF[(n-1)%4];return [b.x+o[0],b.z+o[1]];}
-function buildHeistCenterpiece(){const c=0x8a5a36;
-  // Long alternating gates create a contested route and reconnecting flanks. Panels keep
-  // at least a player-width of clearance from the pool and its rim (x=-27..-13,z=6..14).
+function buildHeistCenterpiece(){
+  // Long alternating gates create a contested route and reconnecting flanks, with a clear
+  // central return corridor around the contested teddy lanes.
   const panels=[[-7,-29,26,.8],[16,-29,22,.8],[-18,-15,34,.8],[19,-15,20,.8],
     [-18,0,22,.8],[9,0,36,.8],[-20,17.5,28,.8],[16,15,26,.8],[-8,29,24,.8],[18,29,20,.8],
     [-4,-22,.8,12],[7,-8,.8,12],[-9,8,.8,12],[5,22,.8,12]];
-  panels.forEach((p,i)=>buildHeistWall(p[0],p[1],p[2],p[3],i%2?0x9a6a40:c,3.2));}
-function buildHeistBases(n,variant=heistVariant){clearHeistProps();heistTeams=clamp(n|0,2,4);heistVariant=(variant|0)%3;heistBuiltVariant=heistVariant;
+  panels.forEach((p,i)=>buildHeistWall(p[0],p[1],p[2],p[3],i%2?0x557774:0x334e55,3.2));}
+function buildHeistBases(n,variant=heistVariant){clearHeistProps();if(backyardRoot)backyardRoot.visible=false;heistTeams=clamp(n|0,2,4);heistVariant=(variant|0)%3;heistBuiltVariant=heistVariant;
   const keys=heistKeysArr(),layout=heistLayout(heistTeams,heistVariant),H=HEIST_HALF,th=.35;
   layout.forEach((b,i)=>{const key=keys[i];if(!key)return;const color=TEAMS[key].color;
     heistBanked[key]=0;heistBases[key]={x:b.x,z:b.z,open:b.open};
@@ -2233,6 +2241,7 @@ function createChar(id,name,color,kind,sp){
   const g=new THREE.Group(),body=new THREE.Group();g.add(body);
   const cM=mat(color),cL=mat(new THREE.Color(color).lerp(new THREE.Color(0xffffff),.35).getHex()),wh=mat(0xffffff),bk=mat(0x111111);
   mesh(new THREE.CapsuleGeometry(.36,.55,6,14),cM,0,.78,0,body);
+  const belly=mesh(new THREE.SphereGeometry(.27,16,12),cL,0,.70,.285,body);belly.scale.set(1.0,.72,.48);
   mesh(new THREE.SphereGeometry(.3,18,14),cL,0,1.5,0,body);
   [-1,1].forEach(s=>{mesh(new THREE.SphereGeometry(.085,10,8),wh,s*.11,1.56,.24,body);mesh(new THREE.SphereGeometry(.042,8,6),bk,s*.11,1.56,.315,body);
     mesh(new THREE.SphereGeometry(.013,8,6),wh,s*.11-.014,1.576,.351,body); // tiny catchlight keeps the gaze readable in shade
@@ -2249,7 +2258,7 @@ function createChar(id,name,color,kind,sp){
   const tag=nameTag(name,color);g.add(tag);
   const smokoCan=MAKERS.stubby();smokoCan.position.set(0,.12,.08);smokoCan.visible=false;hand.add(smokoCan);
   const sash=mesh(new THREE.TorusGeometry(.375,.055,8,26),mat(0xffffff),0,.92,0,body);sash.rotation.set(Math.PI/2,.45,0);sash.visible=false;
-  Object.assign(ch,{mesh:g,body,hand,handL,crown,stars,tag,sash,smokoCan,sink:0});
+  Object.assign(ch,{mesh:g,body,belly,bellyWob:0,bellyVel:0,hand,handL,crown,stars,tag,sash,smokoCan,sink:0});
   scene.add(g);
   if(kind==='me')g.visible=false;
   if(kind==='bot'){ch.isBot=true;ch.ai={target:null,retarget:0,orbit:1,flip:rand(1,3),windup:0,throwCd:rand(1,2),range:rand(8,13),seen:new WeakSet(),claim:null,stuckT:1,lastPos:ch.pos.clone(),wander:0,wanderDir:new THREE.Vector2(),
@@ -2360,6 +2369,12 @@ const NPC_LINES_ADULT={chat:["These snags have seen things.","Dunny's blocked ag
   const bubble=new THREE.Sprite(new THREE.SpriteMaterial({map:bt,depthWrite:false,transparent:true}));bubble.scale.set(3.4,.85,1);bubble.position.y=3.05;bubble.visible=false;g.add(bubble);
   bubble.userData={c:bc,t:bt};
   g.position.copy(NPC.pos);scene.add(g);Object.assign(NPC,{mesh:g,body,arm,bubble});featObjs.bbq.push(g);})();
+// Group every static Backyard BBQ object and mark its colliders together. Teddy Heist swaps this
+// complete yard out for its own oval field, while character and item entities remain independent.
+backyardRoot=new THREE.Group();backyardRoot.name='Backyard BBQ environment';
+for(const o of [...scene.children])if(!worldChildrenBefore.has(o)){scene.remove(o);backyardRoot.add(o);}
+scene.add(backyardRoot);
+for(let i=yardColliderStart;i<colliders.length;i++)colliders[i].yardOnly=true;
 function npcBubble(text){const b=NPC.bubble,c=b.userData.c,x=c.getContext('2d');x.clearRect(0,0,512,128);
   x.font='900 34px "Arial Black",Arial,sans-serif';const w=Math.min(500,x.measureText(text).width+40);
   x.fillStyle=NPC.angerLevel>=4?'#ffd0c6':'#fff';x.strokeStyle='#172418';x.lineWidth=5;x.beginPath();if(x.roundRect)x.roundRect(256-w/2,8,w,82,20);else x.rect(256-w/2,8,w,82);x.fill();x.stroke();
@@ -2412,7 +2427,7 @@ function npcUpdate(dt){ // host only
     if(d>.05)NPC.face=Math.atan2(dx,dz);}
   else NPC.face=angLerp(NPC.face,0,1-Math.exp(-4*dt));
   // keep him out of the furniture and inside the fence
-  const R=.45;for(const c of colliders){if(c.h<.3||c.roofSurface||c.tankLadder)continue;const cx=clamp(NPC.pos.x,c.x0,c.x1),cz=clamp(NPC.pos.z,c.z0,c.z1),ex=NPC.pos.x-cx,ez=NPC.pos.z-cz,d2=ex*ex+ez*ez;
+  const R=.45;for(const c of colliders){if((gameMode==='heist'&&c.yardOnly)||c.h<.3||c.roofSurface||c.tankLadder)continue;const cx=clamp(NPC.pos.x,c.x0,c.x1),cz=clamp(NPC.pos.z,c.z0,c.z1),ex=NPC.pos.x-cx,ez=NPC.pos.z-cz,d2=ex*ex+ez*ez;
     if(d2<R*R&&d2>1e-6){const d=Math.sqrt(d2);NPC.pos.x+=ex/d*(R-d);NPC.pos.z+=ez/d*(R-d);}}
   NPC.pos.x=clamp(NPC.pos.x,-W+.5,W-.5);NPC.pos.z=clamp(NPC.pos.z,-D+.5,D-.5);
   // spatula
@@ -2533,7 +2548,7 @@ function authCatch(id,it,f){
   if(state==='play'){if(stats[id]&&gameMode!=='heist'){stats[id].score+=50;stats[id].catches++;}if(thrower&&stats[thrower])stats[thrower].streak=0;scoreDirty=true;}
   fx('cat',id,thrower||0,TYPES.indexOf(it.type));
 }
-function authSmash(it){fx('smash',r2(it.pos.x),r2(it.pos.y),r2(it.pos.z));if(it.pos.y<1.4&&!inPoolRect(it.pos))addPuddle(it.pos.x,it.pos.z);removeItem(it);}
+function authSmash(it){fx('smash',r2(it.pos.x),r2(it.pos.y),r2(it.pos.z));if(it.pos.y<1.4&&!inActivePool(it.pos))addPuddle(it.pos.x,it.pos.z);removeItem(it);}
 
 /* ================= GHOSTS (instant local throws for online guests) ================= */
 function spawnGhost(it,start,vel){const g={isGhost:true,type:it.type,def:it.def,mesh:MAKERS[it.type](),pos:start.clone(),vel:vel.clone(),renderOff:new V3(),state:'flying',flyT:0,live:false,done:false,owner:it,
@@ -2768,7 +2783,7 @@ function hitWall(it,axis){const d=it.def,sp=it.vel.length();
 function onSurface(it,h,c){
   const d=it.def,sp=it.vel.length();
   if((gameMode==='heist'&&!inHeistOval(it.pos.x,it.pos.z))||(gameMode!=='heist'&&(Math.abs(it.pos.x)>W||Math.abs(it.pos.z)>D))){if(it.heistTeam!=null&&isAuth&&heistBases[it.heistTeam]){heistReturnTeddy(it);return;}if(it.thrower)fx('over',it.thrower);removeItem(it);return;}
-  if(h===0&&inPoolRect(it.pos)){if(sp>2)fx('splash',r2(it.pos.x),r2(it.pos.z));if(d.smash){removeItem(it);return;}restItem(it,.02);it.pos.y=WATER_Y+.04;return;}
+  if(h===0&&inActivePool(it.pos)){if(sp>2)fx('splash',r2(it.pos.x),r2(it.pos.z));if(d.smash){removeItem(it);return;}restItem(it,.02);it.pos.y=WATER_Y+.04;return;}
   if(d.smash&&sp>5){authSmash(it);return;}
   if(sp>5)fx(it.type==='gnome'?'clonk':'thud',r2(it.pos.x),r2(h+.05),r2(it.pos.z));
   it.live=false;it.pos.y=h+d.r;
@@ -2778,8 +2793,9 @@ function onSurface(it,h,c){
 function collideWorld(it){
   const r=it.def.r;const tx=it.pos.x-TRAMP.x,tz=it.pos.z-TRAMP.z;
   if(tx*tx+tz*tz<TRAMP.r*TRAMP.r&&it.pos.y<TRAMP.h+r&&it.pos.y>TRAMP.h-.2&&it.vel.y<0){it.pos.y=TRAMP.h+r;it.vel.y=Math.max(7,-it.vel.y*.9);it.vel.x+=rand(-1,1);it.vel.z+=rand(-1,1);fx('boing',r2(it.pos.x),r2(it.pos.y),r2(it.pos.z));return;}
-  if(it.pos.y<r+(inPoolRect(it.pos)?WATER_Y-.05:0)){onSurface(it,0);if(it.state!=='flying')return;}
+  if(it.pos.y<r+(inActivePool(it.pos)?WATER_Y-.05:0)){onSurface(it,0);if(it.state!=='flying')return;}
   for(const c of colliders){
+    if(gameMode==='heist'&&c.yardOnly)continue;
     if(c.tankLadder)continue; // walkable ramp, never an invisible throwable wall
     if(c.roofSurface){
       if(it.pos.y-r<=c.h&&it.vel.y<=0&&it.pos.x>=c.x0-r&&it.pos.x<=c.x1+r&&it.pos.z>=c.z0-r&&it.pos.z<=c.z1+r){
@@ -2804,6 +2820,7 @@ function collideVisual(it){
   if(tx*tx+tz*tz<TRAMP.r*TRAMP.r&&it.pos.y<TRAMP.h+r&&it.pos.y>TRAMP.h-.2&&it.vel.y<0){it.pos.y=TRAMP.h+r;it.vel.y=Math.max(7,-it.vel.y*.9);return;}
   if(it.pos.y<r){it.pos.y=r;landVisual(it);}
   for(const c of colliders){
+    if(gameMode==='heist'&&c.yardOnly)continue;
     if(c.tankLadder)continue;
     if(c.roofSurface){if(it.pos.y-r<=c.h&&it.vel.y<=0&&it.pos.x>=c.x0-r&&it.pos.x<=c.x1+r&&it.pos.z>=c.z0-r&&it.pos.z<=c.z1+r){it.pos.y=c.h+r;landVisual(it);}continue;}
     if(it.pos.y-r>c.h)continue;if(it.pos.x<c.x0-r||it.pos.x>c.x1+r||it.pos.z<c.z0-r||it.pos.z>c.z1+r)continue;
@@ -2865,7 +2882,7 @@ function syncItemMeshes(){
     }else{
       if(it.mesh.parent!==scene){scene.add(it.mesh);it.mesh.scale.setScalar(1);if(it.state==='ground')orientRest(it);}
       it.mesh.visible=!it.ghost;it.mesh.position.copy(it.pos).add(it.renderOff);
-      if(it.state==='ground'){const fl=it.groundY<.1&&inPoolRect(it.pos);if(fl){it.mesh.position.y=WATER_Y+.04+Math.sin(elapsed*2+it.pos.x)*.03;it.mesh.rotation.x=Math.sin(elapsed*1.3+it.id)*.08;}
+      if(it.state==='ground'){const fl=it.groundY<.1&&inActivePool(it.pos);if(fl){it.mesh.position.y=WATER_Y+.04+Math.sin(elapsed*2+it.pos.x)*.03;it.mesh.rotation.x=Math.sin(elapsed*1.3+it.id)*.08;}
         it.ring.visible=true;it.ring.position.set(it.pos.x,fl?WATER_Y+.02:it.groundY+.03,it.pos.z);const p=.5+.5*Math.sin(elapsed*4+it.pos.x);it.ring.scale.setScalar(.9+p*.25);it.ring.material.opacity=.45+p*.4;}
       else it.ring.visible=false;
     }
@@ -2902,7 +2919,7 @@ const DOWN_TIME=3.5;
 const TRAMP_MAX=5,JUMP_V=7.5,BOOST_MULT=1.7,BOOST_TIME=1.6,BOOST_CD=5;
 function tryBoost(ch){if(carryOf.has(ch.id)||ch.smokoSeat>=0||ch.boostT>0||ch.boostCd>0||ch.stun>0||state==='countdown')return;ch.boostT=BOOST_TIME;SFX.dodge(ch.pos);}
 function tryJump(ch){if(ch.stun>0)return;ch.jumpBuf=.14;}
-function floorAt(ch){let floor=0;for(const c of colliders){let top=c.h;
+function floorAt(ch){let floor=0;for(const c of colliders){if(gameMode==='heist'&&c.yardOnly)continue;let top=c.h;
   if(c.rainTank){const dx=ch.pos.x-TANK.x,dz=ch.pos.z-TANK.z;if(dx*dx+dz*dz>(TANK.capR-.04)**2)continue;top=TANK.top;}
   if(c.tankLadder){if(ch.pos.x<TANK.x-TANK.ladderHalf||ch.pos.x>TANK.x+TANK.ladderHalf||ch.pos.z<TANK.ladderTop||ch.pos.z>TANK.ladderBottom)continue;
     const t=clamp((TANK.ladderBottom-ch.pos.z)/(TANK.ladderBottom-TANK.ladderTop),0,1);top=TANK.top*t;}
@@ -2927,7 +2944,7 @@ function updateChar(ch,dt){
   ch.downT=Math.max(0,ch.downT-dt);ch.dodgeT=Math.max(0,ch.dodgeT-dt);ch.dodgeCd=Math.max(0,ch.dodgeCd-dt);ch.catchT=Math.max(0,ch.catchT-dt);ch.catchCd=Math.max(0,ch.catchCd-dt);
   if(ch.snagBuffT>0){ch.snagBuffT=Math.max(0,ch.snagBuffT-dt);if(ch.snagBuffT<=0){ch.snagStumbleT=SNAG_STUMBLE;if(ch.kind==='me')showHint('<b>Uh oh...</b> that snag is kicking in.',SNAG_STUMBLE);}}else if(ch.snagStumbleT>0)ch.snagStumbleT=Math.max(0,ch.snagStumbleT-dt);
   if(ch.chuckBy&&ch.grounded&&elapsed-ch.chuckT>.15){const by=ch.chuckBy;ch.chuckBy=null;if(naughtyOn()&&elapsed-ch.chuckT<3&&inSmoko(ch)&&(ch.kind==='me'||(isAuth&&ch.kind==='bot'))){if(isAuth)authNaughty(by,ch.id);else sendEv('ng',by);}}
-  ch.inPool=inPoolRect(ch.pos)&&ch.pos.y<.1;
+  ch.inPool=inActivePool(ch.pos)&&ch.pos.y<.1;
   if(ch.inPool&&!ch.wasInPool){SFX.splash(ch.pos);poolRipples(ch.pos);burst(ch.pos.clone().setY(WATER_Y+.15),[0x9ee3ff,0xffffff],18,3.2,.075);envCheck(ch,'pool');}
   if(!ch.inPool&&ch.wasInPool)wetFootprints(ch.pos,ch.yaw||0);ch.wasInPool=ch.inPool;
   ch.slip=ch.pos.y<.1&&[...puddles.values()].some(p=>Math.hypot(ch.pos.x-p.x,ch.pos.z-p.z)<p.r*p.grow);
@@ -2949,6 +2966,7 @@ function updateChar(ch,dt){
   ch.prevY=ch.pos.y;ch.vel.y-=24*dt;ch.pos.addScaledVector(ch.vel,dt);
   const R=.42;
   for(const c of colliders){
+    if(gameMode==='heist'&&c.yardOnly)continue;
     if(c.verandaRoof){const over=ch.pos.x+R>c.x0&&ch.pos.x-R<c.x1&&ch.pos.z+R>c.z0&&ch.pos.z-R<c.z1,underside=c.h-.05;
       if(over&&ch.vel.y>0&&ch.prevY+PLAYER_HEIGHT<=underside&&ch.pos.y+PLAYER_HEIGHT>underside){ch.pos.y=underside-PLAYER_HEIGHT;ch.vel.y=0;}continue;}
     if(c.roofSurface||c.tankLadder)continue;
@@ -2992,7 +3010,7 @@ function updateProxy(ch,dt){
   const age=Math.min(.25,(performance.now()-ch.netT)/1000);
   tmpV.copy(ch.netP).addScaledVector(ch.netV,age);if(tmpV.y<0)tmpV.y=0;
   ch.pos.lerp(tmpV,1-Math.exp(-16*dt));ch.vel.copy(ch.netV);
-  ch.grounded=Math.abs(ch.netV.y)<.6;ch.inPool=inPoolRect(ch.pos)&&ch.pos.y<.1;
+  ch.grounded=Math.abs(ch.netV.y)<.6;ch.inPool=inActivePool(ch.pos)&&ch.pos.y<.1;
   ch.face=angLerp(ch.face,ch.netFace,1-Math.exp(-14*dt));
   ch.stun=Math.max(0,ch.stun-dt);ch.downT=Math.max(0,ch.downT-dt);ch.fallT=Math.max(0,ch.fallT-dt);
   ch.slip=ch.pos.y<.1&&[...puddles.values()].some(p=>Math.hypot(ch.pos.x-p.x,ch.pos.z-p.z)<p.r*p.grow);slideCheck(ch,dt);
@@ -3029,6 +3047,17 @@ function syncCharMesh(ch,dt){
   if(da>0){const roll=da*(Math.sin(t*1.1+ph)*.23+Math.sin(t*2.7+ph*2)*.06)+(moving?Math.sin(ch.walk)*.2*da:0),pitch=da*Math.sin(t*.8+ph*1.7)*.13;
     ch.body.quaternion.multiply(dq.setFromEuler(de.set(pitch,0,roll)));}
   ch.body.position.y=ch.grounded?Math.abs(Math.sin(ch.walk))*(.07+.05*da):0;
+  // A small, springy belly wobble makes the blobs feel soft while running and settle when they
+  // stop. This is purely a child mesh animation; movement, collision and hit sizes stay fixed.
+  if(ch.belly){
+    const run=clamp((sp-.7)/2.7,0,1),target=moving?Math.sin(ch.walk*1.8+ph)*.035*run:0;
+    const bellyAccel=clamp((sp-ch.animSpeed)/Math.max(dt,.001),-18,18);
+    ch.bellyVel+=((target-ch.bellyWob)*48-ch.bellyVel*10+bellyAccel*.001)*dt;
+    ch.bellyWob=clamp(ch.bellyWob+ch.bellyVel*dt,-.055,.055);
+    const wob=ch.bellyWob*((ch.slapA!=null&&ch.slapA<SWING_VIS)||ch.downT>0?0.25:1);
+    ch.belly.position.set(0,.70+wob*.16,.285+Math.max(0,wob)*.12);
+    ch.belly.scale.set(1+wob*.8,.72-wob*.35,.48+wob*1.4);
+  }
   const wind=ch.charging?ch.charge:0,runBlend=ch.kind==='bot'&&!ch.charging?clamp((sp-.4)/2,0,1):0;
   const armSwing=Math.sin(ch.walk*1.2)*.15*runBlend;
   ch.hand.position.set(-.47-da*.12*Math.abs(Math.sin(t*2.3+ph)),.88+wind*.75+da*Math.sin(t*3.1+ph)*.22,.05-wind*.35+da*Math.sin(t*1.9+ph)*.12+armSwing);
@@ -3076,8 +3105,35 @@ function syncCharMesh(ch,dt){
 /* ================= BOT BRAINS (authority only) ================= */
 function nearestFreeItem(ch){let best=null,bd=1e9;for(const it of items.values()){if(it.state!=='ground'||it.def.melee)continue;if(it.claimedBy&&it.claimedBy!==ch&&it.claimedBy.ai&&it.claimedBy.ai.claim===it)continue;
   const d=Math.hypot(it.pos.x-ch.pos.x,it.pos.z-ch.pos.z)+(it.groundY>.1?1.5:0);if(d<bd){bd=d;best=it;}}return best;}
-function blocked(x,z,y){for(const c of colliders){if(c.roofSurface||c.tankLadder||c.h<.4||y>=c.h-.3)continue;if(x>c.x0-.45&&x<c.x1+.45&&z>c.z0-.45&&z<c.z1+.45)return true;}return gameMode==='heist'?!inHeistOval(x,z,.6):Math.abs(x)>W-.6||Math.abs(z)>D-.6;}
-function los(a,b){for(let i=1;i<8;i++){const t=i/8,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;for(const c of colliders){if(c.h>1.6&&x>c.x0&&x<c.x1&&z>c.z0&&z<c.z1)return false;}}return true;}
+function blocked(x,z,y){for(const c of colliders){if((gameMode==='heist'&&c.yardOnly)||c.roofSurface||c.tankLadder||c.h<.4||y>=c.h-.3)continue;if(x>c.x0-.45&&x<c.x1+.45&&z>c.z0-.45&&z<c.z1+.45)return true;}return gameMode==='heist'?!inHeistOval(x,z,.6):Math.abs(x)>W-.6||Math.abs(z)>D-.6;}
+function los(a,b){for(let i=1;i<8;i++){const t=i/8,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;for(const c of colliders){if((gameMode==='heist'&&c.yardOnly)||c.h<=1.6)continue;if(x>c.x0&&x<c.x1&&z>c.z0&&z<c.z1)return false;}}return true;}
+// Heist bots follow a smoothed A* waypoint through the same solid maze as players. This avoids
+// long straight-line goals repeatedly pushing into a wall, without changing speed or collision.
+function heistWaypoint(from,target){
+  const MIN_X=-53,MAX_X=53,MIN_Z=-39,MAX_Z=39,NX=MAX_X-MIN_X+1,N=NX*(MAX_Z-MIN_Z+1);
+  const index=(x,z)=>(z-MIN_Z)*NX+(x-MIN_X),point=i=>({x:MIN_X+i%NX,z:MIN_Z+Math.floor(i/NX)});
+  const direct=Math.ceil(Math.hypot(target.x-from.x,target.z-from.z)/.6);
+  let clear=true;for(let i=1;i<=direct;i++){const t=i/Math.max(1,direct);if(blocked(from.x+(target.x-from.x)*t,from.z+(target.z-from.z)*t,from.y)){clear=false;break;}}
+  if(clear)return {x:target.x,z:target.z};
+  const openCell=(x,z)=>x>=MIN_X&&x<=MAX_X&&z>=MIN_Z&&z<=MAX_Z&&!blocked(x,z,from.y);
+  const snap=(x,z)=>{let bx=Math.round(x),bz=Math.round(z);if(openCell(bx,bz))return [bx,bz];
+    for(let r=1;r<=3;r++){let best=null,bd=1e9;for(let dz=-r;dz<=r;dz++)for(let dx=-r;dx<=r;dx++){if(Math.max(Math.abs(dx),Math.abs(dz))!==r)continue;const xx=Math.round(x)+dx,zz=Math.round(z)+dz,d=(xx-x)**2+(zz-z)**2;if(d<bd&&openCell(xx,zz)){best=[xx,zz];bd=d;}}if(best)return best;}return null;};
+  const s=snap(from.x,from.z),g=snap(target.x,target.z);if(!s||!g)return null;
+  const start=index(s[0],s[1]),end=index(g[0],g[1]),cost=new Float32Array(N);cost.fill(Infinity);const parent=new Int32Array(N);parent.fill(-1);
+  const heap=[],push=(id,f)=>{let i=heap.length;heap.push([f,id]);while(i){const p=(i-1)>>1;if(heap[p][0]<=f)break;heap[i]=heap[p];i=p;}heap[i]=[f,id];};
+  const pop=()=>{const top=heap[0],last=heap.pop();if(heap.length){let i=0;while(true){let l=i*2+1,r=l+1;if(l>=heap.length)break;let c=r<heap.length&&heap[r][0]<heap[l][0]?r:l;if(heap[c][0]>=last[0])break;heap[i]=heap[c];i=c;}heap[i]=last;}return top;};
+  const heuristic=(x,z)=>{const dx=Math.abs(x-g[0]),dz=Math.abs(z-g[1]);return Math.max(dx,dz)+.41421356*Math.min(dx,dz);};
+  cost[start]=0;push(start,heuristic(s[0],s[1]));const dirs=[[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+  while(heap.length){const [f,at]=pop();if(at===end)break;const here=point(at);if(f>cost[at]+heuristic(here.x,here.z)+.01)continue;
+    for(const [dx,dz] of dirs){const x=here.x+dx,z=here.z+dz;if(!openCell(x,z))continue;
+      if(dx&&dz&&(!openCell(here.x+dx,here.z)||!openCell(here.x,here.z+dz)))continue;
+      const ni=index(x,z),next=cost[at]+(dx&&dz?1.41421356:1);if(next>=cost[ni])continue;cost[ni]=next;parent[ni]=at;push(ni,next+heuristic(x,z));}}
+  if(start!==end&&parent[end]<0)return null;
+  const path=[end];for(let at=end;at!==start;){at=parent[at];if(at<0)return null;path.push(at);}path.reverse();
+  const visible=p=>{const n=Math.ceil(Math.hypot(p.x-from.x,p.z-from.z)/.4);for(let i=1;i<=n;i++){const t=i/Math.max(1,n);if(blocked(from.x+(p.x-from.x)*t,from.z+(p.z-from.z)*t,from.y))return false;}return true;};
+  for(let i=path.length-1;i>=Math.max(1,path.length-7);i--){const p=point(path[i]);if(visible(p))return p;}
+  return point(path[Math.min(1,path.length-1)]);
+}
 function ballistic(from,to,speed,g){const dx=to.x-from.x,dz=to.z-from.z,dy=to.y-from.y,h=Math.hypot(dx,dz);if(h<.1)return null;
   const v2=speed*speed,disc=v2*v2-g*(g*h*h+2*dy*v2);if(disc<0)return null;const ang=Math.atan((v2-Math.sqrt(disc))/(g*h));
   const c=Math.cos(ang),s=Math.sin(ang);return{v:new V3(dx/h*c*speed,s*speed,dz/h*c*speed),t:h/(speed*c)};}
@@ -3179,9 +3235,9 @@ function aiUpdate(ch,dt){
   if(ai.windup>0)ch.wish.multiplyScalar(.5);
   const urgent=ai.sideT>0;
   if(ai.sideT>0){ai.sideT-=dt;ch.wish.copy(ai.sideDir);}
-  if(ai.wander>0)ch.wish.copy(ai.wanderDir);
+  if(ai.wander>0&&gameMode!=='heist')ch.wish.copy(ai.wanderDir);
   botSteer(ch,dt,arrive,urgent,goal);
-  if(ai.stuckT<=0){if(ch.pos.distanceTo(ai.lastPos)<.4&&ch.wish.lengthSq()>.25){ai.wander=.9;const a=rand(0,Math.PI*2);ai.wanderDir.set(Math.cos(a),Math.sin(a));}ai.lastPos.copy(ch.pos);ai.stuckT=1.2;}
+  if(ai.stuckT<=0){if(gameMode!=='heist'&&ch.pos.distanceTo(ai.lastPos)<.4&&ch.wish.lengthSq()>.25){ai.wander=.9;const a=rand(0,Math.PI*2);ai.wanderDir.set(Math.cos(a),Math.sin(a));}ai.lastPos.copy(ch.pos);ai.stuckT=1.2;}
   let desired;if(faceTo)desired=Math.atan2(faceTo.x-ch.pos.x,faceTo.z-ch.pos.z);else if(ch.wish.lengthSq()>.01)desired=Math.atan2(ch.wish.x,ch.wish.y);
   if(ai.glanceT>0&&ai.glanceAt&&ai.windup<=0&&!ch.charging)desired=Math.atan2(ai.glanceAt.x-ch.pos.x,ai.glanceAt.z-ch.pos.z);
   else if(ai.pauseT>0&&desired!==undefined&&ai.windup<=0)desired+=ai.lookYaw*Math.sin(Math.min(1,(ai.pauseT)/.75)*Math.PI);
@@ -3198,6 +3254,12 @@ function botIdleGoal(ch){const ai=ch.ai;
    stepping round mates, and sticking to one side when going round obstacles. Dodges stay instant. */
 function botSteer(ch,dt,arrive,urgent,goal){const ai=ch.ai,P=ai.pers;
   let wx=ch.wish.x,wz=ch.wish.y,m=Math.min(1,Math.hypot(wx,wz));
+  ai.navTime=(ai.navTime||0)-dt;
+  if(gameMode==='heist'&&!urgent&&goal){const changed=!ai.navGoal||Math.hypot(goal.x-ai.navGoal.x,goal.z-ai.navGoal.z)>1.5;
+    const reached=ai.navPoint&&Math.hypot(ch.pos.x-ai.navPoint.x,ch.pos.z-ai.navPoint.z)<.8;
+    if(changed||reached||ai.navTime<=0){ai.navGoal={x:goal.x,z:goal.z};ai.navPoint=heistWaypoint(ch.pos,goal);ai.navTime=.32;}
+    if(ai.navPoint){wx=ai.navPoint.x-ch.pos.x;wz=ai.navPoint.z-ch.pos.z;const l=Math.hypot(wx,wz);if(l>.01){wx/=l;wz/=l;m=1;}}}
+  else if(gameMode!=='heist'||!goal||urgent){ai.navGoal=null;ai.navPoint=null;ai.navTime=0;}
   if(m>.01&&!urgent){
     // give other people a bit of room (but not whoever we're heading for)
     for(const o of chars.values()){if(o===ch||o===ai.target||carriedBy.get(o.id)===ch.id||carriedBy.get(ch.id)===o.id||o.smokoSeat>=0)continue;
@@ -3556,8 +3618,8 @@ function updateTrajectory(){
   const p=vmStart(),v=playerThrowVel(it),g=GRAV*it.def.grav;let n=0,hitY=null;
   for(let i=0;i<TRJ_N;i++){for(let k=0;k<2;k++){v.y-=g*.018;p.addScaledVector(v,.018);}
     trjPos[n*3]=p.x;trjPos[n*3+1]=p.y;trjPos[n*3+2]=p.z;n++;
-    if(p.y<=0){hitY=0;break;}let stop=false;for(const c of colliders){if(c.tankLadder)continue;if(p.y<c.h&&p.x>c.x0&&p.x<c.x1&&p.z>c.z0&&p.z<c.z1){stop=true;hitY=c.h;break;}}if(stop)break;
-    if(Math.abs(p.x)>W+1||Math.abs(p.z)>D+1)break;}
+    if(p.y<=0){hitY=0;break;}let stop=false;for(const c of colliders){if((gameMode==='heist'&&c.yardOnly)||c.tankLadder)continue;if(p.y<c.h&&p.x>c.x0&&p.x<c.x1&&p.z>c.z0&&p.z<c.z1){stop=true;hitY=c.h;break;}}if(stop)break;
+    if(gameMode==='heist'?!inHeistOval(p.x,p.z):Math.abs(p.x)>W+1||Math.abs(p.z)>D+1)break;}
   trjGeo.setDrawRange(0,n);trjGeo.attributes.position.needsUpdate=true;trj.visible=true;
   if(hitY!==null){land.visible=true;land.position.set(p.x,hitY+.03,p.z);}else land.visible=false;
 }

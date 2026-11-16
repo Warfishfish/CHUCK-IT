@@ -4058,16 +4058,30 @@ pub fn heist_look(teams: usize) -> Vec<Part> {
 pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
     use crate::heist::{self, Tint};
     let mut v = Vec::new();
-    // Extend the playable lawn beneath the larger oval. Keep the swimming pool cut out of it.
+    // Dry red-earth shoulder gives the independent Heist arena a finished boundary beyond
+    // the playable grass oval. Its collision and out-of-bounds line remain the inner ellipse.
+    v.push(
+        Part::new(
+            Shape::OvalGround {
+                a: heist::ARENA_A + 7.0,
+                b: heist::ARENA_B + 7.0,
+                hole: (1000.0, 1001.0, 1000.0, 1001.0),
+                per_m: 1.0 / 16.0,
+            },
+            matt(0x765b43).no_shadow().ground(),
+        )
+        .at(0.0, 0.005, 0.0),
+    );
+    // A separate playable field: no inherited backyard grass, pool cutout or yard props.
     v.push(
         Part::new(
             Shape::OvalGround {
                 a: heist::ARENA_A,
                 b: heist::ARENA_B,
-                hole: (POOL_X0, POOL_X1, POOL_Z0, POOL_Z1),
+                hole: (1000.0, 1001.0, 1000.0, 1001.0),
                 per_m: 1.0 / 16.0,
             },
-            matt(0xffffff).textured(Tex::Lawn).no_shadow().ground(),
+            matt(0xffffff).textured(Tex::HeistTurf).no_shadow().ground(),
         )
         .at(0.0, 0.015, 0.0),
     );
@@ -4091,9 +4105,9 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
             }
             Tint::Maze(light) => {
                 if light {
-                    0xd17b36
+                    0x557774
                 } else {
-                    0xa9552e
+                    0x334e55
                 }
             }
         };

@@ -312,7 +312,7 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &Yard) {
             selected: sel,
         };
         let (objective_goal, carrying_stolen_teddy) = if mode == GameMode::Heist {
-            crate::heist_app::goal_for_bot(g, i)
+            crate::heist_app::goal_for_bot(g, p, i)
         } else if mode == GameMode::Smoko {
             (crate::smoko_mode::bot_goal(g,p,id),false)
         } else {

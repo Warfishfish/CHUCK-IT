@@ -214,6 +214,7 @@ fn is_floppy(kind: ItemKind) -> bool {
 fn sync_items(
     mut commands: Commands,
     game: Res<Game>,
+    yard: Res<crate::yard_scene::YardRes>,
     look: Res<Look>,
     mut shown: ResMut<Shown>,
     mut cache: ResMut<ModelCache>,
@@ -350,7 +351,7 @@ fn sync_items(
                 tf.scale = Vec3::ONE;
                 *v = Visibility::Inherited;
                 let floating =
-                    it.ground_y < 0.1 && bbq_core::yard::in_pool_rect(it.pos.x, it.pos.z);
+                    it.ground_y < 0.1 && yard.0.pool_enabled() && bbq_core::yard::in_pool_rect(it.pos.x, it.pos.z);
                 if is_floppy(it.kind) && !floating {
                     tf.rotation=tf.rotation.slerp(motion.rest,1.0-(-14.0*dt).exp());
                     if tf.rotation.angle_between(motion.rest)<0.003 { tf.rotation=motion.rest; }
@@ -397,7 +398,7 @@ fn sync_items(
         let own_teddy = my_team.is_some() && it.team.and_then(crate::heist_app::team_of_index) == my_team;
         if it.state == ItemState::Ground && !own_teddy {
             *v = Visibility::Inherited;
-            let floating = it.ground_y < 0.1 && bbq_core::yard::in_pool_rect(it.pos.x, it.pos.z);
+            let floating = it.ground_y < 0.1 && yard.0.pool_enabled() && bbq_core::yard::in_pool_rect(it.pos.x, it.pos.z);
             let y = if floating {
                 bbq_core::yard::WATER_Y + 0.02
             } else {
