@@ -19,7 +19,11 @@ const server = http.createServer((req, res) => {
   let p;
   try { p = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch { res.writeHead(400); return res.end(); }
   if (p === '/healthz') { res.writeHead(200); return res.end('ok'); }
-  if (p === '/') p = '/index.html';
+  if (p === '/') {
+    const query = new URL(req.url, 'http://localhost').search;
+    res.writeHead(302, { Location: '/rust/' + query, 'Cache-Control': 'no-store' });
+    return res.end();
+  }
   else if (p.endsWith('/')) p += 'index.html'; // e.g. /rust/ -> the Rust game's page
   const file = path.join(PUBLIC, path.normalize(p));
   if (!file.startsWith(PUBLIC)) { res.writeHead(403); return res.end(); }

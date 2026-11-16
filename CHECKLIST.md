@@ -8,6 +8,8 @@
 
 ## Already in the game ✅
 
+- The browser share opens the full Rust game at `/rust/`. The JavaScript prototype is available at `/index.html`.
+
 - Browser 0.23.21 serves Three.js and its matching GLTFLoader from the game server. Verified the shared link opens the menu and starts Solo in Chrome.
 
 **Moving**
