@@ -20,6 +20,8 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 
 16 November — Race Oval grass is restored to the original `lawn.png` without changing the Backyard overhaul. Smoko gains a Blender-authored roadside repair cluster (worn tyres, readable TYRES sign, parts crate, esky and braced rail); its collider boxes are checked against spawns, scoring approaches, delivery lanes and road clearance. Teddy Heist now has independent close-cut turf and a red-earth shoulder, no visible or colliding Backyard props or pool behavior, and bots pursue the actual player position while defending. A 150-second automated bot match completed a steal and bank. Rust blobs now have restrained breathing and a more visible belly flop; browser blobs have a small springy running belly. Rust workspace tests (464) and browser JavaScript syntax pass; browser prototype is 0.23.19. Game screenshots remain pending because the native capture is black while the Mac is locked and browser controls are unavailable. See [review notes](checkpoints/2026-11-16-visual-identity/REVIEW.md).
 
+16 November — bot locomotion gets smoother goal approaches in Rust and browser: bots slow down over the final metres instead of reaching a target at full steering input, which prevents circling and abrupt reversals. Heist navigation now holds its route longer while pursuing moving players and replans on waypoint arrival. The Smoko overview ground-wear layer is offset from the arena dirt to prevent flicker. Top walking speed, objective selection and scoring stay unchanged. Browser prototype is 0.23.20.
+
 ## Backyard prop ideas (Marcus's 20-item list)
 
 - ✅ **1. Veggie patch:** tomato stakes, herbs, capsicums and “Mum’s Garden” marker.

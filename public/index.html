@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.19</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.20</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -3249,17 +3249,19 @@ function botIdleGoal(ch){const ai=ch.ai;
     for(let i=0;i<8;i++){const x=rand(-7,7),z=rand(-6,6);if(!blocked(x,z,0)){ai.idleGoal=new V3(x,0,z);break;}}
     if(!ai.idleGoal)ai.idleGoal=new V3(rand(-3,3),0,rand(-3,3));ai.idleT=rand(2.5,4.5);}
   return ai.idleGoal;}
+function botApproachSpeed(distance){const t=clamp((distance-.45)/(3.6-.45),0,1);return t*t*(3-2*t);}
 /* Turns the bot's raw "go that way" into something that looks like a person walking:
    limited turn speed, easing in and out, a personal wobble, drunk sway, slowing near the spot,
    stepping round mates, and sticking to one side when going round obstacles. Dodges stay instant. */
 function botSteer(ch,dt,arrive,urgent,goal){const ai=ch.ai,P=ai.pers;
   let wx=ch.wish.x,wz=ch.wish.y,m=Math.min(1,Math.hypot(wx,wz));
   ai.navTime=(ai.navTime||0)-dt;
-  if(gameMode==='heist'&&!urgent&&goal){const changed=!ai.navGoal||Math.hypot(goal.x-ai.navGoal.x,goal.z-ai.navGoal.z)>1.5;
+  if(gameMode==='heist'&&!urgent&&goal){const changed=!ai.navGoal||Math.hypot(goal.x-ai.navGoal.x,goal.z-ai.navGoal.z)>2.0;
     const reached=ai.navPoint&&Math.hypot(ch.pos.x-ai.navPoint.x,ch.pos.z-ai.navPoint.z)<.8;
-    if(changed||reached||ai.navTime<=0){ai.navGoal={x:goal.x,z:goal.z};ai.navPoint=heistWaypoint(ch.pos,goal);ai.navTime=.32;}
+    if(changed||reached||ai.navTime<=0){ai.navGoal={x:goal.x,z:goal.z};ai.navPoint=heistWaypoint(ch.pos,goal);ai.navTime=.45;}
     if(ai.navPoint){wx=ai.navPoint.x-ch.pos.x;wz=ai.navPoint.z-ch.pos.z;const l=Math.hypot(wx,wz);if(l>.01){wx/=l;wz/=l;m=1;}}}
   else if(gameMode!=='heist'||!goal||urgent){ai.navGoal=null;ai.navPoint=null;ai.navTime=0;}
+  if(goal&&!urgent)m*=botApproachSpeed(arrive);
   if(m>.01&&!urgent){
     // give other people a bit of room (but not whoever we're heading for)
     for(const o of chars.values()){if(o===ch||o===ai.target||carriedBy.get(o.id)===ch.id||carriedBy.get(ch.id)===o.id||o.smokoSeat>=0)continue;
@@ -3268,7 +3270,6 @@ function botSteer(ch,dt,arrive,urgent,goal){const ai=ch.ai,P=ai.pers;
     let a=Math.atan2(wz,wx);const t=elapsed,near=Math.min(1,arrive/2),da=drunkAmt(ch.drunk||0);
     a+=P.wob*(Math.sin(t*.9+ch.phase)*.6+Math.sin(t*2.3+ch.phase*1.7)*.25)*near;
     if(da>0)a+=da*(Math.sin(t*.5+ch.phase)*.5+Math.sin(t*1.37+1+ch.phase)*.22)*near;
-    if(arrive<1.4)m*=Math.max(.45,arrive/1.4);
     if(ai.hesT>0)m*=.35;if(ai.pauseT>0)m*=.1;
     wx=Math.cos(a);wz=Math.sin(a);}
   else if(m>.01){wx/=m;wz/=m;}

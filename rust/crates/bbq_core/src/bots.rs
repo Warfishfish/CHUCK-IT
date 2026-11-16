@@ -119,6 +119,15 @@ fn ang_lerp(a: f32, b: f32, t: f32) -> f32 {
     a + wrap_pi(b - a) * t
 }
 
+/// Ease a bot into a point of interest instead of carrying full steering input to the target.
+/// This affects goal approaches only; max walking speed and objective selection are unchanged.
+fn approach_speed(distance: f32) -> f32 {
+    const STOP: f32 = 0.45;
+    const BRAKE: f32 = 3.6;
+    let t = ((distance - STOP) / (BRAKE - STOP)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
 /// Is there a solid thing at `(x, z)` for someone at height `y`? (`blocked` in the browser game.)
 pub fn blocked(yard: &Yard, x: f32, z: f32, y: f32) -> bool {
     for c in &yard.colliders {
@@ -1254,11 +1263,14 @@ impl BotBrain {
         let mut route_wish = wish;
         self.nav_t -= dt;
         if w.mode == GameMode::Heist && !urgent && let Some(g) = goal {
-            let changed = self.nav_goal.is_none_or(|old| (old.x-g.x).hypot(old.z-g.z)>1.0);
-            if changed || self.nav_t <= 0.0 {
+            let changed = self.nav_goal.is_none_or(|old| (old.x-g.x).hypot(old.z-g.z)>2.0);
+            let reached = self.nav_point.is_some_and(|point| {
+                (point.x - me.pos.x).hypot(point.z - me.pos.z) < 0.8
+            });
+            if changed || reached || self.nav_t <= 0.0 {
                 self.nav_goal=Some(g);
                 self.nav_point=heist_waypoint(w.yard,me.pos,g);
-                self.nav_t=0.25;
+                self.nav_t=0.45;
             }
         } else if w.mode != GameMode::Heist || goal.is_none() || urgent {
             self.nav_goal=None;self.nav_point=None;self.nav_t=0.0;
@@ -1271,6 +1283,9 @@ impl BotBrain {
         }
         let (mut wx, mut wz) = route_wish;
         let mut m = wx.hypot(wz).min(1.0);
+        if goal.is_some() && !urgent {
+            m *= approach_speed(arrive);
+        }
         if m > 0.01 && !urgent {
             // give other people a bit of room (but not whoever we're heading for)
             for o in w.others {
@@ -1302,9 +1317,6 @@ impl BotBrain {
                     * ((t * 0.5 + self.phase).sin() * 0.5
                         + (t * 1.37 + 1.0 + self.phase).sin() * 0.22)
                     * near;
-            }
-            if arrive < 1.4 {
-                m *= (arrive / 1.4).max(0.45);
             }
             if self.hes_t > 0.0 {
                 m *= 0.35;
@@ -2407,6 +2419,16 @@ mod tests {
             }
         }
         (longest_stuck, flips, travelled)
+    }
+
+    #[test]
+    fn goal_approaches_slow_smoothly_and_stops_inside_the_arrival_radius() {
+        assert_eq!(approach_speed(4.0), 1.0);
+        assert_eq!(approach_speed(0.45), 0.0);
+        assert_eq!(approach_speed(0.0), 0.0);
+        let mid = approach_speed(2.0);
+        assert!(mid > 0.0 && mid < 1.0);
+        assert!(approach_speed(1.0) < mid, "speed eases down as the bot closes in");
     }
 
     #[test]
