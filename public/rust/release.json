@@ -1,6 +1,6 @@
 {
-  "source_commit": "7192f0c",
+  "source_commit": "29717a9dcaa1b7fc7d1fa9f9afd0f0513001dd1f",
   "protocol": 28,
   "release_date": "2026-11-16",
-  "description": "Full game with restored Race Oval grass, independent Teddy Heist turf, Smoko roadside props and smoother bot approaches"
+  "description": "Blender sage grass with neutral lawn tint, matched blade colours and overview culling"
 }

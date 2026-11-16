@@ -32,7 +32,7 @@ pub const GROUND_ROUGHNESS: f32 = 0.0;
 // Reduce repeating grain/rib contrast without changing assets or their average colour.
 const WOOD_DETAIL_CONTRAST: f32 = 0.32;
 const BUILDING_DETAIL_CONTRAST: f32 = 0.48;
-const LAWN_TINT: Vec3 = Vec3::new(0.76, 0.98, 1.15);
+const LAWN_TINT: Vec3 = Vec3::new(0.94, 0.97, 1.0);
 
 /// The polished look draws items with their extra details (set once at start-up from `LookMode`).
 pub static POLISHED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);

@@ -9,8 +9,8 @@ use bevy::prelude::*;
 use crate::{game::Game, lighting::LookMode, player::EyeCamera, yard_scene::YardRes};
 
 // Muted blade colours in linear space, matching the lawn beneath them.
-const ROOT_COLOUR: Vec3 = Vec3::new(0.20, 0.37, 0.09);
-const TIP_COLOUR: Vec3 = Vec3::new(0.31, 0.52, 0.15);
+const ROOT_COLOUR: Vec3 = Vec3::new(0.12, 0.17, 0.09);
+const TIP_COLOUR: Vec3 = Vec3::new(0.20, 0.26, 0.14);
 const TILE: f32 = 5.0;
 const NEAR_TUFTS: usize = 1800;
 const FAR_TUFTS: usize = 375;
@@ -139,9 +139,10 @@ pub fn distance_cull(
 ) {
     let Ok(eye) = camera.single() else { return; };
     for (at, mut visibility, mut mesh, mut tile) in &mut tiles {
-        // Horizontal distance also keeps overview/review cameras useful.
+        // Cull fine grass by actual camera distance, including elevated overview cameras.
         let delta = at.translation - eye.translation;
-        let distance_sq = delta.x * delta.x + delta.z * delta.z;
+        // Height matters in the overview: subpixel blades compete with the ground texture.
+        let distance_sq = delta.length_squared();
         let high = distance_sq < DETAIL_DISTANCE * DETAIL_DISTANCE;
         if high != tile.high {
             mesh.0 = if high { tile.detailed.clone() } else { tile.distant.clone() };
