@@ -11,4 +11,6 @@ Checks completed:
 - Native capture logs contained no asset or shader errors.
 - The Cloudflare-served WASM hash matches the rebuilt local file.
 
-A sustained hands-on browser camera-motion review remains pending. The lighter uniform density is a deliberate tradeoff to avoid whole-tile visual transitions while bounding rendering cost.
+Browser movement review completed in Chrome on 16 Nov 2026 using the Cloudflare-served full Rust build. After a physical click enabled pointer capture, tested forward/backward walking, lateral movement and mouse turns through the centre lawn and beside the house/verandah. No abrupt dark square density patches reappeared in the observed views. Browser console error query returned no entries. This was a solo Free for All round with three bots; multiplayer and other browsers were not retested for this rendering-only check.
+
+The lighter uniform density is a deliberate tradeoff to avoid whole-tile visual transitions while bounding rendering cost.
