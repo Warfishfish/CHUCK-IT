@@ -8,6 +8,8 @@
 
 ## Already in the game ✅
 
+- Grass square-patch fix: one consistent 180-tuft density per 5 m tile replaces abrupt near/far mesh swaps and camera-distance hiding. The renderer culls off-screen tiles. Applies to desktop and the full Rust browser build.
+
 - Smoko picnic overlays have separated render heights and the roadside cluster receives distance filtering. Shared sRGB grass, house, roof and bark textures now receive linear-light mipmaps. Building/bark detail is moderated to suit the sage ground. Bots face along goal routes and use a checked direction when a smoothed corner turn points into a wall. Brighter sky fill, shorter building shadows and a controlled colour grade add vividness. Blender lighting studies are saved in checkpoints/2026-11-16-three-pass. Browser prototype 0.23.26. Gameplay motion review is pending.
 
 - Blender grass contrast revision uses cooler sage ground with sparse painted marks, neutral lawn material tint, darker matching blades, and camera-height-aware grass culling. Native and full-browser visual review is pending.

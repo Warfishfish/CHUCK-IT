@@ -6,22 +6,17 @@ use bbq_core::yard::{Features, Yard, POOL_X0, POOL_X1, POOL_Z0, POOL_Z1};
 use bevy::asset::RenderAssetUsages;
 use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
-use crate::{game::Game, lighting::LookMode, player::EyeCamera, yard_scene::YardRes};
+use crate::{game::Game, lighting::LookMode, yard_scene::YardRes};
 
 // Muted blade colours in linear space, matching the lawn beneath them.
 const ROOT_COLOUR: Vec3 = Vec3::new(0.26, 0.34, 0.15);
 const TIP_COLOUR: Vec3 = Vec3::new(0.32, 0.41, 0.21);
 const TILE: f32 = 5.0;
-const NEAR_TUFTS: usize = 900;
-const FAR_TUFTS: usize = 90;
-const DETAIL_DISTANCE: f32 = 14.0;
-const DRAW_DISTANCE: f32 = 24.0;
+// Keep density stable across the lawn. Whole-tile LOD swaps exposed 5 m squares as
+// camera distance crossed a threshold. Normal frustum culling still skips off-screen tiles.
+const TUFTS_PER_TILE: usize = 180;
 #[derive(Component)]
-pub struct GrassTile {
-    detailed: Handle<Mesh>,
-    distant: Handle<Mesh>,
-    high: bool,
-}
+pub struct GrassTile;
 #[derive(Default)]
 pub struct GrassState {
     signature: Option<(GameMode, Features, usize)>,
@@ -124,34 +119,11 @@ pub fn sync(
     let (nx, nz) = if mode == GameMode::Race { (10, 7) } else { (7, 5) };
     for ix in -nx..=nx { for iz in -nz..=nz {
         let (x, z) = (ix as f32 * TILE, iz as f32 * TILE);
-        if let Some(mesh) = tile_mesh(x, z, mode, &yard.0, NEAR_TUFTS) {
-            let detailed = meshes.add(mesh);
-            let distant = tile_mesh(x, z, mode, &yard.0, FAR_TUFTS).map(|m| meshes.add(m)).unwrap_or_else(|| detailed.clone());
-            commands.spawn((GrassTile { detailed: detailed.clone(), distant, high: true }, Mesh3d(detailed), MeshMaterial3d(material.clone()),
+        if let Some(mesh) = tile_mesh(x, z, mode, &yard.0, TUFTS_PER_TILE) {
+            commands.spawn((GrassTile, Mesh3d(meshes.add(mesh)), MeshMaterial3d(material.clone()),
                 Transform::from_xyz(x, 0.0, z), bevy::light::NotShadowCaster));
         }
     }}
-}
-
-pub fn distance_cull(
-    camera: Query<&Transform, (With<EyeCamera>, Without<GrassTile>)>,
-    mut tiles: Query<(&Transform, &mut Visibility, &mut Mesh3d, &mut GrassTile)>,
-) {
-    let Ok(eye) = camera.single() else { return; };
-    for (at, mut visibility, mut mesh, mut tile) in &mut tiles {
-        // Cull fine grass by actual camera distance, including elevated overview cameras.
-        let delta = at.translation - eye.translation;
-        // Height matters in the overview: subpixel blades compete with the ground texture.
-        let distance_sq = delta.length_squared();
-        let high = distance_sq < DETAIL_DISTANCE * DETAIL_DISTANCE;
-        if high != tile.high {
-            mesh.0 = if high { tile.detailed.clone() } else { tile.distant.clone() };
-            tile.high = high;
-        }
-        *visibility = if distance_sq < DRAW_DISTANCE * DRAW_DISTANCE {
-            Visibility::Inherited
-        } else { Visibility::Hidden };
-    }
 }
 
 #[cfg(test)]

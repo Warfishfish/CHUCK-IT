@@ -1,6 +1,6 @@
 {
-  "source_commit": "e4f5d2aff10f5a11b863f696c2071a14bedb257f",
+  "source_commit": "f0c25faaeccfe1ba3ed1e84f6c76ad3fa03ea698",
   "protocol": 28,
   "release_date": "2026-11-16",
-  "description": "Vivid lighting and open building shade, calmer grass detail, Smoko filtering and smoother bot corners"
+  "description": "Stable uniform grass density removes camera-distance square patches"
 }

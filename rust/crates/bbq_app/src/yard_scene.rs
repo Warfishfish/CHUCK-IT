@@ -169,7 +169,7 @@ impl Plugin for YardScenePlugin {
             .add_systems(Startup, build_yard)
             .add_systems(
                 Update,
-                (crate::grass::sync, crate::grass::distance_cull).chain(),
+                crate::grass::sync,
             )
             .add_systems(
                 PostUpdate,
