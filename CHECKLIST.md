@@ -8,6 +8,8 @@
 
 ## Already in the game ✅
 
+- Painted comic-style Backyard grass uses muted olive patches and sparse angular blade strokes on desktop, the full Rust browser game, and the JavaScript prototype (0.23.23). The texture is loaded from the existing lawn asset path. Live gameplay visual review remains pending.
+
 - Backyard lawn texture has softer blade detail and a more muted green across desktop and browser.
 
 - The browser share opens the full Rust game at `/rust/`. The JavaScript prototype is available at `/index.html`.
