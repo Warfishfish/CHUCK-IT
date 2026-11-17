@@ -1,6 +1,6 @@
 {
-  "source_commit": "761b41af2c791fcfa0e181e32705bba1a3833a82",
+  "source_commit": "5b15544f4fb85e0af27971e15a2ecd78537817f4",
   "protocol": 28,
   "release_date": "2026-11-17",
-  "description": "Three-map graphics pass and Heist scoreboard preview, prototype 0.23.32"
+  "description": "Solid characters, spaced spawns, truck-to-roof access, steady carry camera and character eye height; 0.23.33"
 }
