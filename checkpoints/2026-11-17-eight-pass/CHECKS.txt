@@ -1,0 +1,9 @@
+online-host:
+ONLINE screen=Playing status="Hosting rbq-detailcheck19: 1 mate here" members=[Detail Host#1,Detail Guest#2] puppets=[Detail Guest at (-23.9, 8.2)] mirror=false items=17 bots=11 ids=[100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 202] remotes=1 bot0=(2.3,-5.3) phase=Play clock=23 dazza=(-6.0,-13.3)
+online-guest:
+ONLINE screen=Playing status="The host left, so the yard is closed" members=[Detail Host#1,Detail Guest#2] puppets=[] mirror=false items=9 bots=11 ids=[100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110] remotes=0 bot0=(-7.1,-10.9) phase=Play clock=13 dazza=(-6.0,-7.3)
+
+Workspace test summaries:
+test result: ok. 268 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 5.21s
+test result: ok. 467 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
