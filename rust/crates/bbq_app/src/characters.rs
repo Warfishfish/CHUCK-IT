@@ -1827,7 +1827,8 @@ fn animate_face_and_feet(
             dr.step = step;
         }
         let local = Quat::from_rotation_y(-motion.yaw) * Vec3::new(d.mover.vx, d.mover.vy, d.mover.vz);
-        accel[i] = (local - dr.vel) / dt;
+        let previous_local = Quat::from_rotation_y(dr.face - motion.yaw) * dr.vel;
+        accel[i] = (local - previous_local) / dt;
         if d.mover.grounded && !dr.grounded {
             kick[i] = kick[i].max((-dr.vel.y / 6.0).clamp(0.4, 1.6)); // a landing
         }
@@ -1838,13 +1839,13 @@ fn animate_face_and_feet(
             dr.swell_v -= kick[i] * 1.2;
         }
         let fwd = accel[i].z.clamp(-40.0, 40.0);
-        dr.swell_v -= fwd * 0.02;
+        dr.swell_v -= fwd * 1.2 * dt;
         dr.sag_v += (dr.sag * -crate::locomotion::BELLY_STIFFNESS - dr.sag_v * crate::locomotion::BELLY_DAMPING) * dt;
         dr.swell_v += (dr.swell * -110.0 - dr.swell_v * 5.0) * dt;
         dr.sag = (dr.sag + dr.sag_v * dt).clamp(-0.6, 1.0);
         dr.swell = (dr.swell + dr.swell_v * dt).clamp(-0.35, 0.35);
         // body lean: forward when speeding up, back when stopping, a roll into turns (C10.5)
-        let fwd_lean = (accel[i].z * 0.0045 + speed[i] * 0.012).clamp(-0.22, 0.3);
+        let fwd_lean = (accel[i].z * 0.006 + speed[i] * 0.012).clamp(-0.22, 0.3);
         let yaw_rate = {
             let mut dy = motion.yaw - dr.face;
             while dy > std::f32::consts::PI {

@@ -8,6 +8,9 @@
 
 ## Already in the game ✅
 
+- 17 Nov 2026 play polish: Heist bots look ahead to the furthest visible route point instead of dropping to one-cell maze steps. Intentional pauses/windups no longer trigger random stuck recovery. Character acceleration compares velocities in a consistent facing frame, belly acceleration response is time-scaled, and browser blobs have a clearer stopping lean and settling breath. Smoko road edges have subdued paint; tiny shoulder stones/dashes no longer cast unstable small shadows. Browser prototype 0.23.28. Checks and captures: checkpoints/2026-11-16-play-polish/REVIEW.md.
+
+
 - Grass square-patch fix: one consistent 180-tuft density per 5 m tile replaces abrupt near/far mesh swaps and camera-distance hiding. The renderer culls off-screen tiles. Applies to desktop and the full Rust browser build. Chrome movement review passed on 16 Nov: forward/backward walking, strafing and mouse turns showed no returning dark tile patches in the observed views; no browser console errors were captured.
 
 - Smoko picnic overlays have separated render heights and the roadside cluster receives distance filtering. Shared sRGB grass, house, roof and bark textures now receive linear-light mipmaps. Building/bark detail is moderated to suit the sage ground. Bots face along goal routes and use a checked direction when a smoothed corner turn points into a wall. Brighter sky fill, shorter building shadows and a controlled colour grade add vividness. Blender lighting studies are saved in checkpoints/2026-11-16-three-pass. Browser prototype 0.23.26. Gameplay motion review is pending.

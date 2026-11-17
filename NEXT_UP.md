@@ -2,6 +2,15 @@
 
 Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it with a friend. The focus now is graphics, gameplay, UI and character customization. One item at a time; screenshots and a yes before anything is committed.
 
+## Current priorities · 17 November 2026
+
+The dated entries below are history; older “pending” labels do not override this current status.
+
+- Completed: stable grass coverage, with Chrome walking/turning verification recorded in the grass-square-fix checkpoint.
+- Current play-polish pass: clearer Smoko road edges and calmer small shadows; Heist route lookahead and false stuck-recovery fixes; consistent character acceleration, stopping lean and belly settling. See checkpoints/2026-11-16-play-polish/REVIEW.md for the actual checks and limits.
+- Next review: Marcus's hands-on feel check in Smoko and Teddy Heist, including whether the bots' cornering and character motion now feel right.
+- Still queued: carry-camera follow-up while moving/throwing with two people; first-person hand/throw feel; real-controller testing; character clothing/colour customization and graphics settings.
+
 ## Active backlog additions · 7 November 2026
 
 16 November — Smoko flicker, bot corner motion and environment cohesion follow-up implemented, with a brighter grading pass requested during the work. Native captures and Blender lighting studies are in checkpoints/2026-11-16-three-pass. The pass includes higher sun angles, brighter sky fill, restrained contrast, selective saturation, colour-matched grass blades and calmer distant grass. Native/browser release compilation and live file checks are recorded in the review notes. Hands-on browser/online play remains to review.

@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.27</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.28</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -3048,18 +3048,18 @@ function syncCharMesh(ch,dt){
   // steering, speed, hit size and collision continue to use the unchanged physics values.
   const dYaw=Math.atan2(Math.sin(ch.face-ch.animYaw),Math.cos(ch.face-ch.animYaw));
   const accel=clamp((sp-ch.animSpeed)/Math.max(dt,.001),-18,18);
-  const runPitch=ch.kind==='bot'&&moving?clamp(.035+sp*.012+Math.max(0,accel)*.002,-.03,.12):0;
+  const runPitch=ch.kind==='bot'&&ch.grounded?clamp((moving ? .035+sp*.012 : 0)+accel*.004,-.08,.14):0;
   const bank=ch.kind==='bot'&&moving?clamp(-dYaw/Math.max(dt,.001)*.012,-.12,.12):0;
   ch.body.quaternion.multiply(dq.setFromEuler(de.set(runPitch,0,bank)));
-  ch.animSpeed+=((sp-ch.animSpeed)*(sp>ch.animSpeed?5.5:9))*dt;ch.animYaw=ch.face;
+  ch.animSpeed+=(sp-ch.animSpeed)*(1-Math.exp(-(sp>ch.animSpeed?5.5:9)*dt));ch.animYaw=ch.face;
   if(da>0){const roll=da*(Math.sin(t*1.1+ph)*.23+Math.sin(t*2.7+ph*2)*.06)+(moving?Math.sin(ch.walk)*.2*da:0),pitch=da*Math.sin(t*.8+ph*1.7)*.13;
     ch.body.quaternion.multiply(dq.setFromEuler(de.set(pitch,0,roll)));}
   ch.body.position.y=ch.grounded?Math.abs(Math.sin(ch.walk))*(.07+.05*da):0;
   // A small, springy belly wobble makes the blobs feel soft while running and settle when they
   // stop. This is purely a child mesh animation; movement, collision and hit sizes stay fixed.
   if(ch.belly){
-    const run=clamp((sp-.7)/2.7,0,1),target=moving?Math.sin(ch.walk*1.8+ph)*.035*run:0;
-    const bellyAccel=clamp((sp-ch.animSpeed)/Math.max(dt,.001),-18,18);
+    const run=clamp((sp-.7)/2.7,0,1),target=moving?Math.sin(ch.walk*1.8+ph)*.045*run:Math.sin(t*1.65+ph)*.006;
+    const bellyAccel=accel;
     ch.bellyVel+=((target-ch.bellyWob)*48-ch.bellyVel*10+bellyAccel*.001)*dt;
     ch.bellyWob=clamp(ch.bellyWob+ch.bellyVel*dt,-.055,.055);
     const wob=ch.bellyWob*((ch.slapA!=null&&ch.slapA<SWING_VIS)||ch.downT>0?0.25:1);
@@ -3139,7 +3139,7 @@ function heistWaypoint(from,target){
   if(start!==end&&parent[end]<0)return null;
   const path=[end];for(let at=end;at!==start;){at=parent[at];if(at<0)return null;path.push(at);}path.reverse();
   const visible=p=>{const n=Math.ceil(Math.hypot(p.x-from.x,p.z-from.z)/.4);for(let i=1;i<=n;i++){const t=i/Math.max(1,n);if(blocked(from.x+(p.x-from.x)*t,from.z+(p.z-from.z)*t,from.y))return false;}return true;};
-  for(let i=path.length-1;i>=Math.max(1,path.length-7);i--){const p=point(path[i]);if(visible(p))return p;}
+  for(let i=path.length-1;i>=1;i--){const p=point(path[i]);if(visible(p))return p;}
   return point(path[Math.min(1,path.length-1)]);
 }
 function ballistic(from,to,speed,g){const dx=to.x-from.x,dz=to.z-from.z,dy=to.y-from.y,h=Math.hypot(dx,dz);if(h<.1)return null;
@@ -3245,7 +3245,7 @@ function aiUpdate(ch,dt){
   if(ai.sideT>0){ai.sideT-=dt;ch.wish.copy(ai.sideDir);}
   if(ai.wander>0&&gameMode!=='heist')ch.wish.copy(ai.wanderDir);
   botSteer(ch,dt,arrive,urgent,goal);
-  if(ai.stuckT<=0){if(gameMode!=='heist'&&ch.pos.distanceTo(ai.lastPos)<.4&&ch.wish.lengthSq()>.25){ai.wander=.9;const a=rand(0,Math.PI*2);ai.wanderDir.set(Math.cos(a),Math.sin(a));}ai.lastPos.copy(ch.pos);ai.stuckT=1.2;}
+  if(ai.stuckT<=0){if(gameMode!=='heist'&&ch.pos.distanceTo(ai.lastPos)<.4&&ch.wish.lengthSq()>.25&&ai.pauseT<=0&&ai.hesT<=0&&ai.windup<=0){ai.wander=.9;const a=rand(0,Math.PI*2);ai.wanderDir.set(Math.cos(a),Math.sin(a));}ai.lastPos.copy(ch.pos);ai.stuckT=1.2;}
   if(goal&&ai.windup<=0&&!ai.meleeOnly&&ch.wish.length()>.15)faceTo=new V3(ch.pos.x+ch.wish.x,ch.pos.y,ch.pos.z+ch.wish.y);
   let desired;if(faceTo)desired=Math.atan2(faceTo.x-ch.pos.x,faceTo.z-ch.pos.z);else if(ch.wish.lengthSq()>.01)desired=Math.atan2(ch.wish.x,ch.wish.y);
   if(ai.glanceT>0&&ai.glanceAt&&ai.windup<=0&&!ch.charging)desired=Math.atan2(ai.glanceAt.x-ch.pos.x,ai.glanceAt.z-ch.pos.z);

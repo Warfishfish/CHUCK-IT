@@ -192,8 +192,9 @@ fn heist_waypoint(yard: &Yard, from: V3, target: V3) -> Option<V3> {
     let mut path=vec![end];let mut at=end;
     while at != start { at=parent[at];if at==usize::MAX{return None;}path.push(at); }
     path.reverse();
-    // Look several cells ahead to keep the route smooth, but never cut through a wall.
-    for &candidate in path.iter().rev().skip(1).take(5) {
+    // Follow the furthest visible point in the whole route. Looking only near the
+    // destination falls back to one-cell steps whenever the final corner is hidden.
+    for &candidate in path.iter().skip(1).rev() {
         let p=point(candidate);let steps=((p.x-from.x).hypot(p.z-from.z)/0.4).ceil().max(1.0) as usize;
         let visible=(1..=steps).all(|i| {let t=i as f32/steps as f32;!blocked(yard,from.x+(p.x-from.x)*t,from.z+(p.z-from.z)*t,from.y)});
         if visible { return Some(p); }
@@ -1055,14 +1056,15 @@ impl BotBrain {
             self.side_t -= dt;
             wish = self.side_dir;
         }
-        if self.wander > 0.0 {
+        if self.wander > 0.0 && w.mode != GameMode::Heist {
             wish = self.wander_dir;
         }
         let steered = self.steer(me, w, wish, dt, arrive, urgent, goal);
         cmd.wish = steered;
         // stuck check
         if self.stuck_t <= 0.0 {
-            if me.pos.len_between(self.last_pos) < 0.4 && wish.0 * wish.0 + wish.1 * wish.1 > 0.25 {
+            if me.pos.len_between(self.last_pos) < 0.4 && steered.0.hypot(steered.1) > 0.5
+                && self.pause_t <= 0.0 && self.hes_t <= 0.0 && self.windup <= 0.0 {
                 self.wander = 0.9;
                 let a = rng.range(0.0, std::f32::consts::TAU);
                 self.wander_dir = (a.cos(), a.sin());
@@ -2435,6 +2437,21 @@ mod tests {
             }
         }
         (longest_stuck, flips, travelled)
+    }
+
+    #[test]
+    fn maze_lookahead_reaches_a_visible_bend_instead_of_one_cell_steps() {
+        let mut yard = Yard::default();
+        yard.colliders.clear();
+        yard.colliders.push(crate::yard::Collider::centred(0.0, 0.0, 1.0, 16.0, 3.0));
+        let from = V3::new(-12.0, 0.0, 0.0);
+        let next = heist_waypoint(&yard, from, V3::new(12.0, 0.0, 0.0)).unwrap();
+        assert!(from.len_between(next) > 5.0, "look ahead to the bend: {next:?}");
+        for i in 1..=100 {
+            let t = i as f32 / 100.0;
+            assert!(!blocked(&yard, from.x + (next.x-from.x)*t,
+                from.z + (next.z-from.z)*t, 0.0), "lookahead must not cut a wall");
+        }
     }
 
     #[test]

@@ -155,6 +155,15 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
         Surface::matt(0xffffff).textured(Tex::ServoRoad).no_shadow())
         .at(0.,0.008,ROAD_CENTRE_Z).turn(-FRAC_PI_2,0.,0.);
     p.push(road);
+    // Thin, worn shoulder paint follows the exact road curve. Two continuous strips avoid
+    // dozens of tiny shadow-casting markers and keep the loop readable from player height.
+    for (inner, outer) in [(ROAD_INNER_RADIUS, ROAD_INNER_RADIUS + 0.075),
+                            (ROAD_OUTER_RADIUS - 0.075, ROAD_OUTER_RADIUS)] {
+        p.push(Part::new(Shape::Ring { inner, outer, seg: ROAD_SEGMENTS as u32 },
+            Surface::matt(0xbca585).no_shadow())
+            .at(0., 0.020, ROAD_CENTRE_Z).turn(-FRAC_PI_2, 0., 0.));
+    }
+
     // Low embedded stones at shoulders: below boot height, never an implied obstacle.
     for i in 0..GROUND_STONES {
         let a=i as f32*2.399963;
@@ -162,7 +171,7 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
         let x=r*a.cos();let z=ROAD_CENTRE_Z+r*a.sin();
         if x*x+(z-10.)*(z-10.)<45. {continue;}
         let size=0.045+(i%4) as f32*0.014;
-        let mut stone=Part::new(Shape::Ico{r:size,detail:0},Surface::matt(if i%3==0{0xa97750}else{0xc19362}))
+        let mut stone=Part::new(Shape::Ico{r:size,detail:0},Surface::matt(if i%3==0{0xa97750}else{0xc19362}).no_shadow())
             .at(x,0.008,z).turn(0.,a,0.);
         stone.scale=V3::new(1.5,0.45,1.);p.push(stone);
     }
@@ -171,7 +180,7 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
         let a=i as f32*TAU/ROAD_SEGMENTS as f32;
         let x=ROAD_DASH_RADIUS*a.sin();let z=ROAD_CENTRE_Z+ROAD_DASH_RADIUS*a.cos();
         let yaw=(ROAD_DASH_RADIUS*a.cos()).atan2(-ROAD_DASH_RADIUS*a.sin());
-        p.push(block(0.10,0.008,0.75,x,0.016,z,0x9f9179).turn(0.,yaw,0.));
+        p.push(block(0.10,0.008,0.75,x,0.016,z,0x9f9179).turn(0.,yaw,0.).no_shadow_part());
     }
     // Level delivery pad: visual ground only, never obstructs throws or carried victims.
     // Existing scoring ring remains legible; earth continues naturally beneath the shelter.
