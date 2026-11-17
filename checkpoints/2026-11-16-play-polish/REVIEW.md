@@ -28,8 +28,10 @@ Before/after overview: `smoko-overview-before.png`, `smoko-after.png`.
 
 - Chrome loaded the rebuilt full Rust browser game through the replacement Cloudflare tunnel. The live WASM SHA-256 matches the generated local file (browser-hash.json).
 - Started solo Smoko with three bots. After a physical click enabled mouse capture, walked and turned near the road, props and shelter. No abrupt ground-tile patches were seen in those views. This was a partial route check, not a full timed lap.
-- Started a solo Teddy Heist match with three bots; the match outcome is recorded in the final follow-up below.
+- Live Chrome Teddy Heist match: at 1:57 remaining, Red and Blue each had one bank. Davo and Kev each showed one bank / 150 points. This verifies actual theft and banking in the rendered release, not just headless movement. The console error query returned no entries.
 - The native Heist close-up was black and was discarded; it is not used as evidence for character appearance.
 - Rendered two-player online play was not retested. Movement/physics and network messages are unchanged; bot decisions run on the authority. The local two-peer relay check passed.
 
 Existing research notes under reports/ and research_notes/ are included at Marcus's request to commit everything. They remain historical proposals, not a claim that every idea is implemented.
+
+Release source: `80a8bfa`; generated browser build: `67c0fa5`. Both desktop and browser use the same updated Rust gameplay/animation code.
