@@ -336,7 +336,7 @@ impl Plugin for GamePlugin {
 }
 
 fn eye_of(p: &Player) -> V3 {
-    V3::new(p.mover.x, p.mover.y + p.mover.eye_lift + EYE_HEIGHT - p.mover.sink, p.mover.z)
+    V3::new(p.mover.x, p.mover.y + p.mover.height - 0.25 - p.mover.sink, p.mover.z)
 }
 
 /// Where the camera looks (unit vector).
@@ -888,8 +888,40 @@ pub fn step_game(
     crate::life::step(g, p, &mut wanted, &yard.0);
     crate::smoko_mode::step(g, p, &mut wanted);
 
+    resolve_character_contacts(g, p, &yard.0);
+
     // keep the feed tidy
     g.feed.retain(|(_, t)| now - *t < 6.0);
+}
+
+fn resolve_character_contacts(g: &mut Game, p: &mut Player, yard: &bbq_core::yard::Yard) {
+    if g.mirror { return; }
+    let carried: Vec<_> = g.smoko.carries.values().map(|c| c.victim).collect();
+    let dragged = g.life.carry.as_ref().map(|c| c.victim);
+    let mut movers = vec![p.mover];
+    movers.extend(g.dummies.iter().map(|d| d.mover));
+    for _ in 0..4 {
+        for a in 0..movers.len() {
+            for b in a+1..movers.len() {
+                if carried.contains(&if a==0 {PLAYER_ID} else {g.dummies[a-1].id})
+                    || carried.contains(&g.dummies[b-1].id) || dragged==Some(b-1) || (a>0 && dragged==Some(a-1)) { continue; }
+                let (left,right)=movers.split_at_mut(b);
+                let (a,b)=(&mut left[a],&mut right[0]);
+                if a.y >= b.y+b.height || b.y >= a.y+a.height { continue; }
+                let (dx,dz)=(b.x-a.x,b.z-a.z);
+                let distance=dx.hypot(dz);
+                let minimum=bbq_core::movement::CHAR_RADIUS*2.0;
+                if distance>=minimum {continue;}
+                let (nx,nz)=if distance>0.0001 {(dx/distance,dz/distance)}else{(1.0,0.0)};
+                let push=(minimum-distance)*0.5+0.001;
+                a.x-=nx*push; a.z-=nz*push;
+                b.x+=nx*push; b.z+=nz*push;
+                a.resolve_obstacles(yard); b.resolve_obstacles(yard);
+            }
+        }
+    }
+    p.mover=movers[0];
+    for (d,mover) in g.dummies.iter_mut().zip(movers.into_iter().skip(1)) {d.mover=mover;}
 }
 
 fn tier_name(t: drinks::Tier) -> &'static str {
@@ -2010,6 +2042,20 @@ mod tests {
         );
     }
 
+
+    #[test]
+    fn overlapping_characters_separate_on_a_real_tick() {
+        let mut app=app();
+        put_player(&mut app,0.0,12.0);
+        {
+            let mut g=app.world_mut().resource_mut::<Game>();
+            for d in &mut g.dummies {d.mover.x=0.0;d.mover.z=12.0;d.mover.y=0.0;}
+        }
+        ticks(&mut app,30);
+        let p=app.world().resource::<Player>();
+        let g=app.world().resource::<Game>();
+        for d in &g.dummies {assert!((p.mover.x-d.mover.x).hypot(p.mover.z-d.mover.z)>0.80);}
+    }
     #[test]
     fn a_thrown_person_flattens_whoever_they_hit_for_100() {
         let mut app = app();

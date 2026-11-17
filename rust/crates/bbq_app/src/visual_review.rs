@@ -61,7 +61,7 @@ fn capture(
     timing.frame += 1;
     if motion_mode().is_some() {
         let water = motion_mode()==Some("water-balloon");
-        let frame = timing.frame.saturating_sub(if water {720} else {0});
+        let frame = timing.frame.saturating_sub(if water || motion_mode()==Some("walk") {720} else {0});
         if (180..if water {600} else {480}).contains(&frame) && (frame - 180) % 4 == 0 {
             let index = (frame - 180) / 4;
             let path = cfg.out.replace(".png", &format!("-{index:03}.png"));
@@ -159,16 +159,37 @@ fn motion_mode() -> Option<&'static str> {
     MODE.get_or_init(|| {
         let a: Vec<String> = std::env::args().collect();
         if !a.iter().any(|v|v=="--shot") || !a.iter().any(|v|v=="--review") { return None; }
-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie", "magpie-perch", "race-carry", "race-tug", "race-grass", "carry-camera", "charge-fall", "charge-release", "charge-camera", "magpie-flock", "bot-stack"].contains(&v.as_str())).cloned()
+        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["walk", "drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie", "magpie-perch", "race-carry", "race-tug", "race-grass", "carry-camera", "charge-fall", "charge-release", "charge-camera", "magpie-flock", "bot-stack"].contains(&v.as_str())).cloned()
     }).as_deref()
 }
 
 pub fn is_water_review() -> bool { motion_mode()==Some("water-balloon") }
 pub fn is_scripted_walk_review() -> bool { matches!(motion_mode(),Some("water-balloon"|"height"|"charge-fall"|"charge-release"|"charge-camera"|"magpie-flock")) }
 
+pub fn walking_input(game: &crate::game::Game, player: &mut crate::player::Player, wanted: &mut crate::player::Wanted, yard: &bbq_core::yard::Yard) {
+    if motion_mode()!=Some("walk") {return;}
+    if game.rules.phase == bbq_core::scoring::Phase::Countdown && game.rules.mode == bbq_core::GameMode::Heist {
+        if let Some((x,z)) = (-12..=12).step_by(3).flat_map(|x| (-12..=12).step_by(3).map(move |z| (x as f32,z as f32)))
+            .find(|&(x,z)| yard.heist_clear(x,z,1.4)) {
+            player.mover=bbq_core::movement::Mover::new(x,z);
+            player.prev=Vec3::new(x,0.0,z);
+        }
+    }
+    let t=game.now;
+    player.yaw=(t*0.8).sin()*1.7;
+    player.pitch=-0.10+(t*0.6).sin()*0.18;
+    for turn in 0..8 {
+        let wish=bbq_core::movement::wish_dir(player.yaw + turn as f32 * std::f32::consts::FRAC_PI_4,0.25,1.0);
+        if yard.heist_clear(player.mover.x+wish.0*1.4,player.mover.z+wish.1*1.4,0.6) {
+            wanted.wish=wish;
+            break;
+        }
+    }
+}
+
 fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut wanted: ResMut<crate::player::Wanted>, mut frame: Local<u32>) {
     let Some(mode) = motion_mode() else { return };
-    if mode=="race" {return;}
+    if mode=="race" || mode=="walk" {return;}
     if mode=="carry-camera" {
         *frame += 1;
         if *frame == 140 {

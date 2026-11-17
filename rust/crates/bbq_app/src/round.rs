@@ -328,8 +328,21 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
 
     // everyone back to a sober start, in a shuffled spot
     let mut spots: Vec<(f32, f32)> = CHAR_SPAWNS.to_vec();
-    if setup.mode == GameMode::Smoko {
-        spots.retain(|&(x,z)| yard.0.heist_clear(x,z,0.65));
+    spots.retain(|&(x,z)| yard.0.colliders.iter().all(|c|
+        x < c.x0 - 0.7 || x > c.x1 + 0.7 || z < c.z0 - 0.7 || z > c.z1 + 0.7));
+    for x in (-30..=30).step_by(6) {
+        for z in (-18..=24).step_by(6) {
+            let (x,z) = (x as f32,z as f32);
+            if yard.0.heist_clear(x,z,0.8)
+                && yard.0.colliders.iter().all(|c| x < c.x0-0.8 || x > c.x1+0.8 || z < c.z0-0.8 || z > c.z1+0.8)
+                && spots.iter().all(|&(a,b)| (x-a).hypot(z-b)>2.0) {
+                spots.push((x,z));
+            }
+        }
+    }
+    if matches!(setup.mode, GameMode::FreeForAll | GameMode::Teams) {
+        spots.retain(|&(x,z)| x < bbq_core::yard::POOL_X0 - 0.8 || x > bbq_core::yard::POOL_X1 + 0.8
+            || z < bbq_core::yard::POOL_Z0 - 0.8 || z > bbq_core::yard::POOL_Z1 + 0.8);
     }
     g.rng.shuffle(&mut spots);
     let mut next = 0;

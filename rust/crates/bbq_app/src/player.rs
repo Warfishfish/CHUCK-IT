@@ -264,7 +264,7 @@ pub fn read_input(
 
 pub(crate) fn step_player(
     mut player: ResMut<Player>,
-    wanted: Res<Wanted>,
+    mut wanted: ResMut<Wanted>,
     yard: Res<YardRes>,
     mut game: ResMut<crate::game::Game>,
     settings: Option<Res<crate::menu::Settings>>,
@@ -277,6 +277,7 @@ pub(crate) fn step_player(
     if g.rules.mode == bbq_core::GameMode::Race && (g.rules.phase == bbq_core::scoring::Phase::Results || g.race.racers.get(&PLAYER_ID).is_some_and(|r|r.finish.is_some())) {return;}
     // drunk: the walk drifts off line, and in Drunk mode the speed lurches
     let da = g.me.drunk.da();
+    crate::visual_review::walking_input(g, p, &mut wanted, &yard.0);
     let wish = movement::drunk_steer(wanted.wish, da, g.now);
     let env = bbq_core::drunk_state::Env {
         drunk_mode: g.options.drunk_mode,
@@ -301,6 +302,20 @@ pub(crate) fn step_player(
     let ev = p
         .mover
         .step(movement::step_dt(), MoveInput { wish, pitch: p.pitch }, &mods, &yard.0);
+    if g.mirror {
+        for d in &g.dummies {
+            if crate::smoko_mode::carried(g, d.id) || d.dragged.is_some()
+                || p.mover.y >= d.mover.y + d.mover.height || d.mover.y >= p.mover.y + p.mover.height {continue;}
+            let (dx,dz)=(p.mover.x-d.mover.x,p.mover.z-d.mover.z);
+            let distance=dx.hypot(dz);
+            if distance>0.0001 && distance<movement::CHAR_RADIUS*2.0 {
+                let gap=movement::CHAR_RADIUS*2.0-distance;
+                p.mover.x+=dx/distance*gap;
+                p.mover.z+=dz/distance*gap;
+                p.mover.resolve_obstacles(&yard.0);
+            }
+        }
+    }
     p.shake = p.shake.max(ev.shake);
     if p.mover.in_pool && g.rules.in_play() { g.me.body.wet_t = bbq_core::stun::WET_DURATION; }
     if ev.splash {
@@ -374,7 +389,7 @@ pub fn update_camera(
         bbq_core::drunk_state::flat_amount(me.body.down_t, bbq_core::items::DOWN_TIME),
         p.pitch,
     );
-    let eye = movement::eye_y(pos.y, p.mover.sink, bob) + p.mover.eye_lift + sy * 0.3 + fx.dy;
+    let eye = movement::eye_y(pos.y, p.mover.sink, bob) + (p.mover.height - 0.25 - movement::EYE_HEIGHT) + sy * 0.3 + fx.dy;
 
     let (tf, proj) = &mut *cam;
     tf.translation = Vec3::new(pos.x + sx * 0.3, eye, pos.z);
@@ -395,12 +410,17 @@ pub fn update_camera(
     carry_view.blend += (blend_target - carry_view.blend) * (1.0 - (-dt * 5.5).exp());
     if carried {
         if let Some((victim, carrier, forward)) = carried_view_target(&game, p) {
-            let desired = carry_camera_pose(victim, carrier, forward);
+            let _ = forward;
+            let desired = carry_camera_pose(victim, carrier, Vec3::NEG_Z);
             let target = (victim + carrier) * 0.5 + Vec3::Y * 0.95;
             let mut clear = desired;
             clear.translation = camera_boom(target, desired.translation, &yard.0);
             clear = clear.looking_at(target, Vec3::Y);
-            carry_view.pose = Some(clear);
+            carry_view.pose = Some(if let Some(previous) = carry_view.pose {
+                let follow = 1.0 - (-dt * 2.2).exp();
+                Transform::from_translation(previous.translation.lerp(clear.translation, follow))
+                    .with_rotation(previous.rotation.slerp(clear.rotation, follow))
+            } else { clear });
         }
     }
     if let Some(external) = carry_view.pose {
@@ -418,7 +438,7 @@ pub fn update_camera(
     if let Projection::Perspective(persp) = &mut **proj {
         // drunk vision breathes in and out a little
         let breathe = me.drunk.da() * 3.0 * (time.elapsed_secs() * 1.3).sin();
-        persp.fov = (p.fov + breathe + carry_view.blend * 10.0).to_radians();
+        persp.fov = ((p.fov + breathe) * (1.0 - carry_view.blend) + p.fov_base * carry_view.blend).to_radians();
     }
 }
 

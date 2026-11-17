@@ -4,6 +4,10 @@ use crate::vec::V3;
 use crate::yard::{Collider, Kind};
 use std::f32::consts::{TAU, FRAC_PI_2};
 
+pub const ROOF_STEPS: [(f32,f32,f32,f32,f32);2] = [
+    (-1.25,-21.9,0.95,1.3,3.32),
+    (-2.25,-21.9,0.8,1.3,4.35),
+];
 pub const SERVO_OFFSET: (f32,f32) = (-6.,9.5);
 pub const BBQ_OFFSET_Z: f32 = 6.;
 
@@ -35,7 +39,12 @@ pub fn servo_colliders() -> Vec<Collider> {
         boxes.push((x,-26.15,0.62,0.55,1.85));
         for dx in [-0.8,0.8] { boxes.push((x+dx,-25.32,0.13,0.13,0.68)); }
     }
-    boxes.into_iter().map(|(x,z,w,d,h)| Collider::centred(x+SERVO_OFFSET.0,z+SERVO_OFFSET.1,w,d,h)).chain(ute_colliders()).collect()
+    boxes.into_iter().map(|(x,z,w,d,h)| Collider::centred(x+SERVO_OFFSET.0,z+SERVO_OFFSET.1,w,d,h)).chain(ute_colliders()).chain(ROOF_STEPS.into_iter().map(|(x,z,w,d,h)| Collider::centred(x,z,w,d,h)))
+        .chain((0..80).map(|i| {
+            let z=24.95+(33.0-24.95)*(i as f32+0.5)/80.0;
+            let h=if z<29.0 {4.63+(z-24.95)*0.54/4.05}else{5.17-(z-29.0)*0.54/4.0};
+            Collider::centred(-8.0+SERVO_OFFSET.0,-z+SERVO_OFFSET.1,24.3,0.102,h+0.025).of(Kind::HouseRoof)
+        })).collect()
 }
 pub const CENTRE: (f32, f32) = (0., 10.);
 pub const SCORE_RADIUS: f32 = 3.5;
@@ -149,6 +158,10 @@ pub fn parts()->Vec<Part> { parts_with_shelter(true) }
 /// Imported Blender shelter replaces only the shelter visuals; physics stays shared.
 pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
     let mut p=vec![Part::new(Shape::Quad{w:260.,h:260.},Surface::matt(DIRT).textured(Tex::ServoDirt).repeating(32.,32.).no_shadow()).at(0.,-0.018,0.).turn(-FRAC_PI_2,0.,0.)];
+    for (x,z,w,d,h) in ROOF_STEPS {
+        p.push(block(w,h,d,x,h*0.5,z,0x7b837e));
+        p.push(block(w+0.04,0.045,d+0.04,x,h+0.0225,z,0xd5b76b));
+    }
     // One opaque irregular annulus: worn asphalt receives normal ground shadows.
     // Purely visual; movement and projectile collision remain the shared flat ground.
     let road=Part::new(Shape::Ring{inner:ROAD_INNER_RADIUS,outer:ROAD_OUTER_RADIUS,seg:ROAD_SEGMENTS as u32},
@@ -289,7 +302,7 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
  use super::*;
  #[test] fn servo_solids_fit_inside_fence() {
     let solids=servo_colliders();
-    assert_eq!(solids.len(),23);
+    assert_eq!(solids.len(),105);
     for c in solids {
         assert!(c.x0 > -33. && c.x1 < 33. && c.z0 > -24. && c.z1 < -14.);
     }

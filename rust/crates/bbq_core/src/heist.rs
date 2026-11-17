@@ -17,7 +17,33 @@ pub const BANK_POINTS: i32 = crate::scoring::HEIST_BANK;
 /// Teddies sit at these offsets from the base centre.
 pub const TEDDY_OFFSETS: [(f32, f32); 4] = [(-1.3, -1.3), (1.3, -1.3), (-1.3, 1.3), (1.3, 1.3)];
 /// Players spawn inside their own base at these offsets, in turn.
-pub const SPAWN_OFFSETS: [(f32, f32); 4] = [(0.0, 2.1), (0.0, -2.1), (2.1, 0.0), (-2.1, 0.0)];
+pub const SPAWN_OFFSETS: [(f32, f32); 25] = [
+    (-2.0, -2.0),
+    (-2.0, -1.0),
+    (-2.0, 0.0),
+    (-2.0, 1.0),
+    (-2.0, 2.0),
+    (-1.0, -2.0),
+    (-1.0, -1.0),
+    (-1.0, 0.0),
+    (-1.0, 1.0),
+    (-1.0, 2.0),
+    (0.0, -2.0),
+    (0.0, -1.0),
+    (0.0, 0.0),
+    (0.0, 1.0),
+    (0.0, 2.0),
+    (1.0, -2.0),
+    (1.0, -1.0),
+    (1.0, 0.0),
+    (1.0, 1.0),
+    (1.0, 2.0),
+    (2.0, -2.0),
+    (2.0, -1.0),
+    (2.0, 0.0),
+    (2.0, 1.0),
+    (2.0, 2.0),
+];
 /// The oval arena: half-axes and the bay in the middle of each side.
 pub const ARENA_A: f32 = 54.0;
 pub const ARENA_B: f32 = 40.0;
@@ -737,7 +763,7 @@ mod tests {
         }
         assert_eq!(base_of(2, Team::Green), None);
         assert_eq!(
-            spawn_in_base(2, Team::Red, 5),
+            spawn_in_base(2, Team::Red, SPAWN_OFFSETS.len() + 1),
             spawn_in_base(2, Team::Red, 1)
         );
     }

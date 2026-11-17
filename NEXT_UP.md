@@ -2,6 +2,16 @@
 
 Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it with a friend. The focus now is graphics, gameplay, UI and character customization. One item at a time; screenshots and a yes before anything is committed.
 
+## Movement and camera follow-up · 17 November 2026
+
+- Implemented in source. Solid character separation on the host and local guest prediction. Carried and dragged poses have interaction exceptions.
+- Expanded Backyard spawn pool and obstacle checks. Heist now has 25 distinct slots per base.
+- Bush Servo has two service steps from truck cab to roof and a walkable surface matched to the visible pitched roof.
+- Carried-player view uses a fixed world direction, smooth position and rotation follow, and steady field of view. The return to first person blends.
+- Eye height follows head height and leg lift.
+- Backyard scoring confirmed. A thrown person hitting another person awards 100. The act of releasing them alone has no throw bonus.
+- Moving flicker review and publication results are recorded in checkpoints/2026-11-17-movement/REVIEW.md.
+
 ## Current priorities · 17 November 2026
 
 ### Graphics queue for the three beta maps

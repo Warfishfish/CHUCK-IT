@@ -273,7 +273,7 @@ pub const CHEST_SPOTS: [(f32, f32, f32); 9] = [
 ];
 
 /// Character spawn spots (spec section 1). Shuffled each round and handed out in order.
-pub const CHAR_SPAWNS: [(f32, f32); 12] = [
+pub const CHAR_SPAWNS: [(f32, f32); 32] = [
     (0.0, 19.5),
     (-24.0, -19.5),
     (27.0, -9.0),
@@ -286,6 +286,27 @@ pub const CHAR_SPAWNS: [(f32, f32); 12] = [
     (18.0, 4.0),
     (-6.0, 14.0),
     (6.0, -8.0),
+    (-32.0, -16.0),
+    (-32.0, -8.0),
+    (-32.0, 0.0),
+    (-32.0, 8.0),
+    (-24.0, 22.0),
+    (-16.0, 22.0),
+    (-8.0, 22.0),
+    (8.0, 22.0),
+    (16.0, 22.0),
+    (24.0, 22.0),
+    (32.0, 22.0),
+    (32.0, 10.0),
+    (32.0, -16.0),
+    (24.0, -16.0),
+    (16.0, -12.0),
+    (8.0, -12.0),
+    (0.0, -12.0),
+    (-16.0, 10.0),
+    (-8.0, 6.0),
+    (8.0, 16.0),
+
 ];
 
 /// The map features the host can switch off. Off means hidden and no collider.

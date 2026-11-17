@@ -1370,6 +1370,22 @@ mod tests {
         assert!(jumper.grounded && (jumper.y - 0.85).abs() < 0.02);
     }
 
+
+    #[test]
+    fn servo_route_lands_on_each_visible_step_and_pitched_roof() {
+        let yard=Yard::smoko(Features::default(),0);
+        for (x,start,target) in [(0.4,2.33,3.32),(-1.25,3.32,4.35),(-2.25,4.35,4.98)] {
+            let mut m=Mover::new(x,-21.9);
+            m.y=start;m.prev_y=start;m.grounded=true;m.try_jump(false);
+            let mut landed=false; let mut peak=start;
+            for _ in 0..90 {
+                m.step(DT,MoveInput{wish:(-1.0,0.0),..Default::default()},&Modifiers::default(),&yard);
+                peak=peak.max(m.y);
+                if m.grounded && m.y>target-0.15 {landed=true;break;}
+            }
+            assert!(landed,"route from {start}: y={} x={} peak={peak}",m.y,m.x);
+        }
+    }
     #[test]
     fn the_pole_cannot_be_stood_on() {
         let yard = Yard::default();

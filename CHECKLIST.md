@@ -1,5 +1,7 @@
 # Australian BBQ (was Chuck It / Backyard Brawl): gameplay checklist
 
+- ✅ 17 November, Rust desktop and full Rust browser. Character bodies separate during movement, with host resolution and guest local blocking. Backyard has 32 predefined starting points plus a checked grid pool. Heist has 25 slots per base. The Bush Servo truck cab reaches two visible service steps and the pitched shop roof. Carried victims use a smoothed world-oriented spectator view with steady FOV. First-person height follows the chosen head height and leg length. Browser prototype 0.23.33. Review and motion recordings are in checkpoints/2026-11-17-movement/.
+
 - ✅ Desktop and full Rust browser, 17 November. The Heist preview opens with a painted scoreboard for the selected teams. One pole supports it. Maze sectors have distinct stripe counts, structural seams and footings, and the selected base entrances have beacon posts. Backyard has revised gum and citrus crowns, salvaged brick garden edging and deeper laundry window trim. Smoko adds shelter braces, picnic tins, pump dials and a wider dust transition. The polished Pop preset has more sky fill and gentler direct sun. Browser prototype 0.23.32.
 
 - ✅ (17 Nov 2026, desktop and browser) Clouds replaced with three original Blender-remeshed continuous silhouettes and a broad baked underside colour grade; each mesh is checked for a single connected island. Shared desktop/full-browser assets and legacy JavaScript prototype 0.23.31. No cloud shadows or gameplay changes. Verification notes: checkpoints/2026-11-17-clouds/REVIEW.md.
