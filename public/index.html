@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.30</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.31</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -1101,12 +1101,12 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
     const s=rand(1.1,1.8),c=mesh(new THREE.IcosahedronGeometry(s,1),pick(leaf),x+rand(-1.6,1.6),h+rand(-.4,1.2),z+rand(-1.6,1.6));c.scale.set(1.2,.85,.9);}
   // A front gum tree anchors the possum box and throws a broken patch of shade beyond the fence.
   loadHeroGumTree(12,33);
-  // Broad shaded cloud bases with smaller lit lobes; no hard, flat UFO shapes.
-  for(let i=0;i<9;i++){const grp=new THREE.Group(),wispy=i%4===0,width=rand(4.8,7.4);
-    const base=new THREE.Mesh(new THREE.SphereGeometry(1,16,10),new THREE.MeshLambertMaterial({color:0xc9d9e5,emissive:0x161d25}));base.scale.set(width,wispy?.35:.7,2.5);base.position.y=-.5;grp.add(base);
-    if(!wispy)for(let k=0;k<6;k++){const c=new THREE.Mesh(new THREE.SphereGeometry(rand(1.5,2.4),14,9),new THREE.MeshLambertMaterial({color:0xf0f0e8,emissive:0x20262b}));
-      c.position.set((k-2.5)*width*.28,rand(.1,1.1),rand(-.65,.65));c.scale.set(1,rand(.65,.9),.85);grp.add(c);}
-    grp.position.set(rand(-90,90),rand(34,48),rand(-90,60));scene.add(grp);clouds.push(grp);}
+  // Shared connected Blender clouds: one silhouette with a soft baked underside grade.
+  const cloudLoader=new THREE.GLTFLoader();
+  for(let i=0;i<9;i++){const grp=new THREE.Group();
+    grp.position.set(rand(-90,90),rand(34,48),rand(-90,60));
+    grp.scale.setScalar(.85+(i%4)*.12);grp.rotation.y=i*1.7;scene.add(grp);clouds.push(grp);
+    cloudLoader.load('models/cloud_soft_'+(i%3)+'.glb',g=>{g.scene.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=false;}});grp.add(g.scene);},undefined,e=>console.warn('Cloud mesh failed to load',e));}
 
   // Hills Hoist rotary clothesline
   const grey=mat(0x9aa3a6);

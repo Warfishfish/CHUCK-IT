@@ -411,16 +411,25 @@ fn build_yard(
             .insert(Transform::from_xyz(top.x, top.y, top.z));
     }
 
-    // clouds
-    for (at, puffs) in &look.clouds {
-        let e = cache.spawn_parts(
-            &mut commands,
-            puffs,
-            &mut meshes,
-            &mut mats,
-            Transform::from_xyz(at.x, at.y, at.z),
-        );
-        commands.entity(e).insert(Cloud);
+    // One continuous Blender mesh per cloud; no detached underside discs/puffs.
+    for (index, (at, _)) in look.clouds.iter().enumerate() {
+        commands.spawn((
+            WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset(
+                format!("models/cloud_soft_{}.glb", index % 3),
+            ))),
+            Transform::from_xyz(at.x, at.y, at.z)
+                .with_scale(Vec3::splat(0.85 + (index % 4) as f32 * 0.12))
+                .with_rotation(Quat::from_rotation_y(index as f32 * 1.7)),
+            Visibility::Inherited,
+            Cloud,
+        )).observe(|ready: On<bevy::world_serialization::WorldInstanceReady>,
+                      children: Query<&Children>, mut commands: Commands| {
+            for entity in children.iter_descendants(ready.entity) {
+                commands.entity(entity).insert((
+                    bevy::light::NotShadowCaster, bevy::light::NotShadowReceiver,
+                ));
+            }
+        });
     }
 
     // the chest: a box, a lid on a hinge, and up to three toys inside
