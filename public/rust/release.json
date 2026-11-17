@@ -1,6 +1,6 @@
 {
-  "source_commit": "49d6e805ee060287ebc8ca15941955594a776ffa",
+  "source_commit": "80a8bfa000342bad9aca57eba8a866f222a6da41",
   "protocol": 28,
-  "release_date": "2026-11-16",
-  "description": "Stable uniform grass density removes camera-distance square patches"
+  "release_date": "2026-11-17",
+  "description": "Smoko road readability, Heist route lookahead and character motion polish"
 }
