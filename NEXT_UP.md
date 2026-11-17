@@ -7,11 +7,11 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 ### Graphics queue for the three beta maps
 
 1. **Cloud correction (completed 17 Nov):** continuous, softly graded cloud meshes; remove detached-looking underside dots/discs; inspect from player height and overview in desktop/browser.
-2. **Heist preview defect:** diagnose and fix the central scoreboard appearing as a black cube in the browser menu overview. Gameplay scoreboard rendering needs comparison.
-3. **Backyard:** refine hero trees into less repetitive crowns and stronger branch silhouettes; improve house material depth and garden-to-lawn edges. Build on existing props rather than duplicating them.
-4. **Bush Servo/Smoko:** stronger shelter/servo material detail, coherent picnic/fuel clusters and calmer red-dirt/asphalt transitions; keep the circular road and scoring approaches clear.
-5. **Teddy Heist:** memorable junction landmarks, believable maze panel joins/footings/wear, clearer base entrances and independent scenery; preserve navigation and layout collision.
-6. **Shared finishing check:** consistent daylight/colour and soft contact shadows, moving-camera flicker review, readable players/items and browser performance.
+2. **Implemented — Heist preview.** Paint the scoreboard on creation and remove the duplicate pole.
+3. **Implemented — Backyard.** Asymmetric gum and citrus crowns, brick garden edging and dimensional laundry window jambs.
+4. **Implemented — Smoko.** Shelter knee braces, picnic tins, pump gauges and smoother shoulder dust.
+5. **Implemented — Teddy Heist.** Sector stripe counts, wall footings and metal joins, team entrance beacons.
+6. **Shared lighting.** Polished Pop now uses stronger diffuse sky fill and softer direct light. Review movement on Marcus’s usual hardware before further lighting changes.
 
 
 - Three-map beta focus: Race Oval is temporarily hidden from player-facing menus; Backyard, Bush Servo/Smoko and solo Teddy Heist remain. Old saved Race selections fall back to Backyard. Race source/assets and developer CLI remain for a later return.

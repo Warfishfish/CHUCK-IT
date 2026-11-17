@@ -4080,6 +4080,31 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
                 }
             }
         };
+        if let Tint::Maze(light) = piece.tint {
+            let width = c.x1 - c.x0;
+            let depth = c.z1 - c.z0;
+            let x = (c.x0 + c.x1) * 0.5;
+            let z = (c.z0 + c.z1) * 0.5;
+            let along_x = width > depth;
+            let trim = matt(if light { 0xc59954 } else { 0x7899a1 });
+            for fraction in [-0.44, 0.0, 0.44] {
+                let (w, d, px, pz) = if along_x {
+                    (0.16, depth + 0.06, x + width * fraction, z)
+                } else {
+                    (width + 0.06, 0.16, x, z + depth * fraction)
+                };
+                v.push(cuboid(w, c.h + 0.05, d, trim, px, c.h * 0.5, pz));
+                v.push(cuboid(w + 0.08, 0.28, d + 0.08, matt(0x454943), px, 0.14, pz));
+            }
+            // Each sector has a different stripe count, visible above junctions.
+            let bands = 1 + usize::from(x > 0.0) + 2 * usize::from(z > 0.0);
+            for i in 0..bands {
+                let offset = i as f32 * 0.38 - 0.55;
+                let (px, pz) = if along_x { (x + offset, z) } else { (x, z + offset) };
+                v.push(cuboid(if along_x {0.22} else {width + 0.09}, 0.36,
+                    if along_x {depth + 0.09} else {0.22}, matt(0xe6c578), px, c.h - 0.20, pz));
+            }
+        }
         v.push(cuboid(
             c.x1 - c.x0,
             c.h,
@@ -4164,6 +4189,12 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
         };
         let board_x = def.x + dx * 3.18;
         let board_z = def.z + dz * 3.18;
+        for side in [-1.0, 1.0] {
+            let x = board_x + dz * side * 1.16;
+            let z = board_z - dx * side * 1.16;
+            v.push(cyl(0.11, 0.11, 0.78, 8, matt(col), x, 1.75, z));
+            v.push(cuboid(0.24, 0.12, 0.24, matt(0xffdf92), x, 2.17, z));
+        }
         v.push(
             Part::new(
                 Shape::Quad { w: 2.1, h: 0.56 },
@@ -5066,6 +5097,15 @@ fn backyard_stories() -> Vec<Part> {
     v.push(cuboid(0.82,1.16,0.05,matt(0xd5ccb3),-9.42,2.50,-25.64));
     v.push(cuboid(2.15,0.11,0.20,matt(0xb9a991),-9.0,1.69,-25.68));
     v.push(cuboid(0.46,0.72,0.045,matt(0x417b98).material(Tex::Fabric,0.8),-8.31,1.96,-25.71));
+    for x in [-10.04, -7.96] {
+        v.push(cuboid(0.10, 1.65, 0.16, matt(0xc4b89a).material(Tex::Wood, 0.7), x, 2.48, -25.68));
+    }
+    // Salvaged brick edging along the bottlebrush planting.
+    for i in 0..10 {
+        let x = 28.85 + i as f32 * 0.30;
+        let z = 14.96 + (i as f32 * 0.55).sin() * 0.08;
+        v.push(cuboid(0.28, 0.10, 0.15, matt([0xa4684c,0x97654e,0xb18063][i%3]), x, 0.048, z));
+    }
     // A pair of visible brick piers and a louvred air grille ground the weatherboards.
     for x in [-18.0f32,-12.0,-6.0,0.0,6.0,12.0,18.0] {
         v.push(cuboid(0.68,0.72,0.50,matt(0x954f3a).textured(Tex::Brick),x,0.36,-25.03));

@@ -1,5 +1,7 @@
 # Australian BBQ (was Chuck It / Backyard Brawl): gameplay checklist
 
+- ✅ Desktop and full Rust browser, 17 November. The Heist preview opens with a painted scoreboard for the selected teams. One pole supports it. Maze sectors have distinct stripe counts, structural seams and footings, and the selected base entrances have beacon posts. Backyard has revised gum and citrus crowns, salvaged brick garden edging and deeper laundry window trim. Smoko adds shelter braces, picnic tins, pump dials and a wider dust transition. The polished Pop preset has more sky fill and gentler direct sun. Browser prototype 0.23.32.
+
 - ✅ (17 Nov 2026, desktop and browser) Clouds replaced with three original Blender-remeshed continuous silhouettes and a broad baked underside colour grade; each mesh is checked for a single connected island. Shared desktop/full-browser assets and legacy JavaScript prototype 0.23.31. No cloud shadows or gameplay changes. Verification notes: checkpoints/2026-11-17-clouds/REVIEW.md.
 
 - ✅ (17 Nov 2026, desktop and full Rust browser) Three-map beta selection: Backyard, Bush Servo and solo Teddy Heist; Race Oval temporarily parked, including old saved selections. Overhead wet droplet removed, with body drips and wet slowdown retained. Sky/nature pass adds layered clouds, a cooler blue gradient, original Blender gum/citrus/paperbark trees, kite and windsock with gentle breeze. No new route collisions. Browser prototype 0.23.30. See checkpoints/2026-11-17-beta-nature/REVIEW.md for verification and limits.

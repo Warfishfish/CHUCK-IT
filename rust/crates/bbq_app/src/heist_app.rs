@@ -454,7 +454,7 @@ fn sync_heist_props(
     }
     // the big four-sided scoreboard floating over the middle: a dark cube with the picture of
     // the scores on each side (Text2d is not drawn by the 3D camera, so it is a small texture)
-    let image = images.add(blank_board());
+    let image = images.add(board_image(&HeistState { teams, variant, bank: Bank::new(heist::team_keys(teams)) }));
     commands.insert_resource(BoardImage(image.clone()));
     commands.spawn((
         Mesh3d(meshes.add(Cuboid::new(7.0, 7.0, 7.0))),
@@ -484,17 +484,7 @@ fn sync_heist_props(
             HeistProp,
         ));
     }
-    // and the pole it floats on
-    commands.spawn((
-        Mesh3d(meshes.add(Cylinder::new(0.3, 7.5))),
-        MeshMaterial3d(mats.add(StandardMaterial {
-            base_color: hex(0x9aa0a8),
-            unlit: true,
-            ..default()
-        })),
-        Transform::from_xyz(0.0, 3.75, 0.0),
-        HeistProp,
-    ));
+
 }
 
 #[derive(Resource)]
@@ -502,7 +492,7 @@ struct BoardImage(Handle<Image>);
 
 const BOARD_PX: usize = 128;
 
-fn blank_board() -> Image {
+fn board_image(initial: &HeistState) -> Image {
     let mut img = Image::new(
         Extent3d {
             width: BOARD_PX as u32,
@@ -510,7 +500,7 @@ fn blank_board() -> Image {
             depth_or_array_layers: 1,
         },
         TextureDimension::D2,
-        vec![0; BOARD_PX * BOARD_PX * 4],
+        paint_board(initial),
         TextureFormat::Rgba8Unorm,
         RenderAssetUsages::default(),
     );
@@ -625,7 +615,7 @@ fn update_board(
         .iter()
         .map(|t| h.bank.get(*t))
         .collect();
-    if *last == sig
+    if *last == sig && !board.is_changed()
         && images
             .get(&board.0)
             .is_some_and(|i| i.data.as_ref().is_some_and(|d| d[3] != 0))

@@ -52,6 +52,7 @@ for variant,height in [('gum',8.1),('citrus',5.5),('paperbark',9.2)]:
  count=6 if variant=='citrus' else 5
  for k in range(count):
   a=k*2.39996;spread=1.4 if variant=='paperbark' else 2.1
+  if variant=='gum':spread*=.74+(k%3)*.34
   tip=(math.cos(a)*spread,height*(.70+(k%3)*.085),math.sin(a)*spread)
   bend=((fork[0]+tip[0])*.5,height*.65,(fork[2]+tip[2])*.5)
   branch(fork,bend,.11,.065,bark);branch(bend,tip,.065,.025,bark)
@@ -59,7 +60,8 @@ for variant,height in [('gum',8.1),('citrus',5.5),('paperbark',9.2)]:
    aa=j*2.4+k;rr=.52+(j%3)*.36
    p=(tip[0]+math.cos(aa)*rr,tip[1]+rng.uniform(-.42,.46),tip[2]+math.sin(aa)*rr)
    scale=(.86+rng.random()*.35,.58+rng.random()*.30,.72+rng.random()*.33)
-   if variant=='citrus':scale=(1.1,.87,.95)
+   if variant=='gum':scale=(scale[0]*1.35,scale[1]*.68,scale[2])
+   if variant=='citrus':scale=(1.0+.17*math.sin(aa),.80+.12*math.cos(aa),.95)
    crown(p,scale,k*5+j)
    if variant=='citrus' and j%2==0:sphere((p[0],p[1]-.65,p[2]),.11,fruit,'Ripe lemon')
   branch(bend,(tip[0]+.5,tip[1]+.6,tip[2]-.3),.022,.006,scar,'Bare gum twig')

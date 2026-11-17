@@ -68,9 +68,9 @@ impl LookMode {
                 crate::style::Style::Pop => Rig {
                     sky: 0xb5d0f5,
                     ground: 0xa4b2a6,
-                    hemi: 0.94,
+                    hemi: 0.98,
                     sun: 0xffd9ad,
-                    sun_intensity: 0.94,
+                    sun_intensity: 0.90,
                     grade: Grade { saturation: 1.12, warmth: 0.008, contrast: 1.015, vignette: 0.015 },
                 },
                 // clay: a strong, low, golden sun with a cool blue shade and warm bounce light

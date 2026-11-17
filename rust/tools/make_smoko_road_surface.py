@@ -12,7 +12,8 @@ edge=.18*np.sin(a*17)+.11*np.sin(a*39+1.2)
 inside=np.minimum(r-(16.5+edge),(19+edge*1.4)-r)
 # Broad waves, no per-pixel white speckling. Two worn wheel bands share the actual lane.
 broad=np.sin(xx*.73+np.sin(zz*.28))*.45+np.sin(zz*.58+xx*.19)*.30
-shoulder=np.clip(1-inside/(.40+.10*broad),0,1)
+shoulder=np.clip(1-inside/(.62+.17*broad),0,1)
+shoulder=shoulder*shoulder*(3-2*shoulder)
 wheel=np.exp(-((r-17.20)/.21)**2)+np.exp(-((r-18.25)/.23)**2)
 dust=np.clip(.10+shoulder*.84+broad*.055,0,1)
 asphalt=np.array([89,85,77])[None,None,:]+(broad*7-wheel*5)[:,:,None]

@@ -76,6 +76,18 @@ for x,z in [(12,1.5),(-11.5,2)]:
   px,pz=x+math.cos(a)*r,z+math.sin(a)*r
   sphere('Gum broad leaf spray',(px,y,pz),(1.0+rng.random()*.65,.32+rng.random()*.22,.70+rng.random()*.45),leaf[i%3])
   if i%3==0:bar('Gum crown fork',(x,4.0,z),(px,y-.14,pz),.045,wood)
+# Enamel pump dials, brass bezels and a cream inspection stripe.
+for x in [1.6,4.8]:
+ for dx in [-.085,.085]:
+  box('Dial bezel',(x+dx,1.48,-16.63),(.15,.19,.08),metal)
+  box('Dial window',(x+dx,1.48,-16.58),(.12,.15,.025),cream)
+  bar('Dial needle',(x+dx-.035,1.44,-16.56),(x+dx+.035,1.51,-16.56),.009,dark)
+for x in [-8.5,8.5]:
+ box('Lunch tin',(x-.20,1.035,-2.69),(.31,.14,.21),teal,.025)
+ box('Tin fitted lid',(x-.20,1.115,-2.69),(.32,.025,.22),cream)
+for x in [-4,4]:
+ for z in [6,14]:
+  bar('Shelter knee brace',(x,2.90,z),(x*.83,3.55,z),.075,wood)
 # Merge by material, preserve a few material groups rather than hundreds of objects.
 for m in [wood,metal,cream,red,teal,dark,paper]+leaf:
  obs=[o for o in scene.objects if o.type=='MESH' and o.data.materials and o.data.materials[0]==m]
