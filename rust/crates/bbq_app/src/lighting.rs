@@ -333,12 +333,12 @@ pub fn spawn_afternoon_sky(
     if let Some(VertexAttributeValues::Float32x3(positions)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
         let colours: Vec<[f32; 4]> = positions.iter().map(|p| {
             let height = (p[1] / 180.0).max(0.0);
-            let t = (height / 0.7).clamp(0.0, 1.0).powf(if crate::backyard_finish::enabled(){0.65}else{0.5});
+            let t = (height / 0.7).clamp(0.0, 1.0).powf(if crate::backyard_finish::enabled(){0.85}else{0.5});
             let horizon = if crate::backyard_finish::enabled(){crate::backyard_finish::SKY_HORIZON}else{Vec3::new(0.73, 0.86, 0.94)};
             let zenith = if crate::backyard_finish::enabled(){crate::backyard_finish::SKY_ZENITH}else{Vec3::new(0.24, 0.47, 0.76)};
             let direction=Vec3::from(*p).normalize();
             let toward_sun=direction.dot(Vec3::new(24.0,20.8,20.0).normalize()).max(0.0);
-            let haze=toward_sun.powf(12.0)*0.16;
+            let haze=toward_sun.powf(8.0)*0.085;
             let c = horizon.lerp(zenith, t).lerp(Vec3::new(1.0,0.89,0.69),haze);
             [c.x, c.y, c.z, 1.0]
         }).collect();

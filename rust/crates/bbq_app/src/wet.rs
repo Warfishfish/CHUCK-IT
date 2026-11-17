@@ -9,8 +9,6 @@ impl Plugin for WetPlugin {
 #[derive(Component)]
 struct WetDrop { slot: usize, drop: usize, highlight: bool }
 #[derive(Component)]
-struct WetMarker { slot: usize }
-#[derive(Component)]
 struct WetLabel;
 fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
     let mut shape = Sphere::new(1.0).mesh().uv(10, 8);
@@ -27,11 +25,10 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials
                 commands.spawn((WetDrop { slot, drop, highlight }, Mesh3d(mesh.clone()), MeshMaterial3d(if highlight {shine.clone()}else{material.clone()}),Transform::default(),Visibility::Hidden,NotShadowCaster));
             }
         }
-        commands.spawn((WetMarker {slot},Mesh3d(mesh.clone()),MeshMaterial3d(material.clone()),Transform::default(),Visibility::Hidden,NotShadowCaster));
     }
     commands.spawn((WetLabel, Text::new(""), crate::ui::body_font(19.0, true), TextColor(Color::srgb(0.60, 0.91, 1.0)), TextShadow::default(), Node { position_type: PositionType::Absolute, left: percent(22.0), top: percent(74.0), ..default() }));
 }
-fn update(game: Res<Game>, player: Res<crate::player::Player>, screen: Res<crate::menu::Screen>, mut drops: Query<(&WetDrop, &mut Transform, &mut Visibility),Without<WetMarker>>, mut label: Query<&mut Text, With<WetLabel>>, mut markers: Query<(&WetMarker,&mut Transform,&mut Visibility),Without<WetDrop>>) {
+fn update(game: Res<Game>, player: Res<crate::player::Player>, screen: Res<crate::menu::Screen>, mut drops: Query<(&WetDrop, &mut Transform, &mut Visibility)>, mut label: Query<&mut Text, With<WetLabel>>) {
     let playing = matches!(*screen, crate::menu::Screen::Playing | crate::menu::Screen::Paused);
     for (drop, mut tf, mut vis) in &mut drops {
         let (m, wet) = if drop.slot == 0 { (&player.mover, game.me.body.wet_t) }
@@ -47,14 +44,6 @@ fn update(game: Res<Game>, player: Res<crate::player::Player>, screen: Res<crate
         let size=(0.032+(drop.drop%3) as f32*0.008)*fade;
         tf.scale=Vec3::new(size,size*(1.0+phase*0.65),size);
         if drop.highlight {tf.translation+=Vec3::new(-size*0.3,size*0.4,size*0.6);tf.scale*=0.36;}
-    }
-    for (marker,mut tf,mut vis) in &mut markers {
-        let (m,wet)=if marker.slot==0 {(&player.mover,game.me.body.wet_t)}
-            else if let Some(d)=game.dummies.get(marker.slot-1) {(&d.mover,d.body.wet_t)}
-            else {*vis=Visibility::Hidden;continue;};
-        *vis=if playing && wet>0.0 && marker.slot!=0 {Visibility::Visible}else{Visibility::Hidden};
-        tf.translation=Vec3::new(m.x,m.y+m.height+0.38+(game.now*3.0).sin()*0.035,m.z);
-        tf.scale=Vec3::splat(0.12*(wet/0.8).min(1.0));
     }
     let review = crate::visual_review::is_water_review();
     for mut text in &mut label {

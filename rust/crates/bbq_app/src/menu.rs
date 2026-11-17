@@ -264,7 +264,7 @@ impl Settings {
                         "teams" => GameMode::Teams,
                         "heist" => GameMode::Heist,
                         "smoko" => GameMode::Smoko,
-                        "race" => GameMode::Race,
+                        "race" => GameMode::FreeForAll, // Race Oval is parked for the three-map beta.
                         _ => GameMode::FreeForAll,
                     }
                 }
@@ -725,7 +725,7 @@ fn lobby_card(o: &mut ChildSpawnerCommands) {
             button(w, Action::Tab(Tab::Settings), "Map, mode & game settings", Some(SUN));
             w.spawn(text("Choices apply when the next round starts.", 12.5, false, MUTED));
         });
-        c.spawn(column(6.0)).with_children(|r| {
+        c.spawn((column(6.0), ShowWhen::RaceNote)).with_children(|r| {
             seg(r, SegId::RaceRole, "Your role when playing Race", &[("Racer", 0), ("Sideline Thrower", 1)]);
         });
         c.spawn(row(8.0)).with_children(|r| {
@@ -992,7 +992,7 @@ fn look_marks(settings: Res<Settings>, mut q: Query<(&LookChoice, &mut Backgroun
 /// Maps and their supported modes share the existing round setup, so every entry point
 /// edits the same saved choice. Heist is solo-only until its online rules are supported.
 fn map_controls(p: &mut ChildSpawnerCommands) {
-    seg(p, SegId::Map, "Map", &[("Backyard", 0), ("Bush Servo", 3), ("Race oval", 4)]);
+    seg(p, SegId::Map, "Map", &[("Backyard", 0), ("Bush Servo", 3)]);
     p.spawn((column(0.0), ShowWhen::Offline)).with_children(|h| {
         seg(h, SegId::Map, "Solo map", &[("Teddy Heist", 2)]);
     });
@@ -1146,7 +1146,7 @@ fn settings_panel(c: &mut ChildSpawnerCommands) {
         p.spawn((column(6.0), ShowWhen::RaceNote)).with_children(|r| {
             seg(r, SegId::RaceRole, "Your race role", &[("Racer", 0), ("Sideline Thrower", 1)]);
         });
-        p.spawn((column(6.0), ShowWhen::Guest)).with_children(|r| {
+        p.spawn((column(6.0), ShowWhen::RaceNote)).with_children(|r| {
             seg(r, SegId::RaceRole, "If the host picks Race", &[("Racer", 0), ("Sideline Thrower", 1)]);
         });
         // yours, on this computer
@@ -1544,6 +1544,7 @@ fn widget_clicks(
         }
         changed = true;
         let v = s.value;
+        if matches!(s.id, SegId::Map | SegId::Mode) && v == 4 { continue; } // temporarily parked
         match s.id {
             SegId::Bots => set_bot_total(&mut settings, v as usize),
             SegId::Map if v == 0 && settings.mode == GameMode::Teams => {}
@@ -2710,7 +2711,7 @@ mod menu_tests {
         let mut app = menu(crate::online::Lobby { active: true, in_yard: true, host: true, count: 2 });
         let (mut guest, mut guest_yard) = start_selected_round(&Settings::default());
         for (map, mode, expected) in [(0, 1, GameMode::Teams), (3, 3, GameMode::Smoko),
-            (4, 4, GameMode::Race), (0, 0, GameMode::FreeForAll)] {
+            (0, 0, GameMode::FreeForAll)] {
             choose(&mut app, SegId::Map, map);
             if map == 0 { choose(&mut app, SegId::Mode, mode); }
             choose(&mut app, SegId::RoundLen, 60);
@@ -2740,9 +2741,18 @@ mod menu_tests {
     }
 
     #[test]
+    fn beta_map_picker_has_no_race_option() {
+        let mut app=menu(crate::online::Lobby::default());
+        let world=app.world_mut();
+        let mut options=world.query::<&SegOption>();
+        assert!(!options.iter(world).any(|s|s.id==SegId::Map && s.value==4));
+        assert!(options.iter(world).any(|s|s.id==SegId::Map && s.value==2));
+    }
+
+    #[test]
     fn guests_cannot_change_host_rules_but_can_choose_their_race_role() {
         let mut app = menu(crate::online::Lobby { active: true, in_yard: true, host: false, count: 2 });
-        choose(&mut app, SegId::Map, 4);
+        choose(&mut app, SegId::Map, 3);
         choose(&mut app, SegId::Mode, 1);
         choose(&mut app, SegId::RoundLen, 60);
         choose(&mut app, SegId::RaceRole, 1);

@@ -1913,52 +1913,21 @@ fn gum_tree(rng: &mut Rng, x: f32, z: f32) -> Vec<Part> {
 }
 
 fn cloud(rng: &mut Rng) -> (V3, Vec<Part>) {
-    let mut puffs = Vec::new();
-    let count = 3 + rng.index(4);
-    for i in 0..count {
-        let r = if i == 0 {
-            rng.range(2.8, 4.8)
-        } else {
-            rng.range(1.5, 3.3)
-        };
-        let (px, py, pz) = (
-            rng.range(-5.0, 5.0),
-            rng.range(-0.75, 0.75),
-            rng.range(-2.0, 2.0),
-        );
-        let stretch_x = rng.range(0.75, 1.45);
-        let stretch_z = rng.range(0.65, 1.15);
-        puffs.push(
-            Part::new(
-                Shape::Sphere { r, ws: 16, hs: 10 },
-                matt(0xe2eaf0).glow(0x20262b).no_shadow(),
-            )
-            .at(px * 0.7, py + r * 0.14, pz * 0.75)
-            .stretch(stretch_x, 0.62, stretch_z),
-        );
+    let mut puffs=Vec::new();
+    let wispy=rng.chance(0.25);
+    let width=rng.range(4.8,7.4);
+    // One broad shaded base, with smaller sunlit towers rather than disconnected UFO discs.
+    puffs.push(Part::new(Shape::Sphere{r:1.0,ws:20,hs:10},matt(0xc9d9e5).glow(0x161d25).no_shadow())
+        .at(0.0,-0.5,0.0).stretch(width,if wispy {0.35}else{0.70},2.5));
+    if !wispy {
+        for i in 0..6 {
+            let x=(i as f32-2.5)*width*0.28;
+            let radius=rng.range(1.5,2.4);
+            puffs.push(Part::new(Shape::Sphere{r:radius,ws:16,hs:10},matt(0xf0f0e8).glow(0x20262b).no_shadow())
+                .at(x,rng.range(0.1,1.1),rng.range(-0.65,0.65)).stretch(1.0,rng.range(0.65,0.9),0.85));
+        }
     }
-    // A few clouds trail into thin, soft streaks so the sky is not nine identical puff clusters.
-    if rng.chance(0.35) {
-        let r = rng.range(2.4, 4.0);
-        puffs.push(
-            Part::new(
-                Shape::Sphere { r, ws: 16, hs: 10 },
-                matt(0xe7edf1).glow(0x20262b).no_shadow(),
-            )
-            .at(
-                rng.range(-2.5, 2.5),
-                rng.range(-0.1, 0.4),
-                rng.range(-1.0, 1.0),
-            )
-            .stretch(2.4, 0.24, 0.62),
-        );
-    }
-    let at = V3::new(
-        rng.range(-90.0, 90.0),
-        rng.range(32.0, 46.0),
-        rng.range(-90.0, 60.0),
-    );
-    (at, puffs)
+    (V3::new(rng.range(-90.0,90.0),rng.range(34.0,48.0),rng.range(-90.0,60.0)),puffs)
 }
 
 /// The Hills Hoist: the pole is in `world`; the turning head comes back separately.
@@ -5326,31 +5295,7 @@ pub fn yard_styled(seed: u64, polished: bool) -> YardLook {
     if polished {
         // Front-boundary shade trees: reuse gum assets to cast broken canopy shadows
         // across the lawn. Trunks remain outside the playable fence.
-        let mut shade_rng = Rng::new(seed ^ 0x5ADE);
-        for (x, z) in [(-14.0, D + 4.5), (W + 4.0, 8.0)] {
-            let tree = gum_tree_dusty(&mut shade_rng, 0.0, 0.0, 0.0);
-            let mut airy = Vec::new();
-            for part in tree {
-                if let Shape::Ico { r, .. } = part.shape {
-                    // Separate small crowns leave sunlit gaps instead of one solid silhouette.
-                    for k in 0..5 {
-                        let mut leaf = part;
-                        let a = k as f32 * 2.0 * PI / 5.0;
-                        leaf.scale = part.scale * 0.40;
-                        leaf.pos = part.pos
-                            + V3::new(
-                                a.cos() * r * 0.85,
-                                (k % 2) as f32 * 0.18,
-                                a.sin() * r * 0.85,
-                            );
-                        airy.push(leaf);
-                    }
-                } else {
-                    airy.push(part);
-                }
-            }
-            world.extend(place(airy, V3::new(x, 0.0, z), turn_y(0.0), 1.55));
-        }
+        // The two foreground shade trees are now shared Blender assets in beta_nature.rs.
         // a scatter of far trees out in the dry paddock, beyond the houses
         let mut fr = Rng::new(seed ^ 0xFA27);
         for _ in 0..22 {
@@ -5477,7 +5422,7 @@ mod tests {
         assert!(y.world.len() > 150, "{}", y.world.len());
         assert!(!y.bar.is_empty() && !y.bbq.is_empty() && !y.smoko.is_empty());
         assert_eq!(y.clouds.len(), 9);
-        assert!(y.clouds.iter().all(|(_, p)| (3..=7).contains(&p.len())));
+        assert!(y.clouds.iter().all(|(_, p)| matches!(p.len(),1|7) && p.iter().all(|part|part.surface.no_shadow)));
         assert!(!y.hoist_head.is_empty());
         assert!(!y.chest_base.is_empty() && y.chest_lid.len() == 3);
     }

@@ -4,6 +4,9 @@ Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it w
 
 ## Current priorities · 17 November 2026
 
+- Three-map beta focus: Race Oval is temporarily hidden from player-facing menus; Backyard, Bush Servo/Smoko and solo Teddy Heist remain. Old saved Race selections fall back to Backyard. Race source/assets and developer CLI remain for a later return.
+- Sky/nature pass: deeper blue sky, softer layered clouds, Blender-authored gum/citrus/paperbark trees, a backyard kite and servo windsock with gentle visual breeze. New roots stay outside playable footprints. The overhead wet marker is removed; body drips, HUD and wet slowdown remain. Review: checkpoints/2026-11-17-beta-nature/REVIEW.md.
+
 The dated entries below are history; older “pending” labels do not override this current status.
 
 - Completed: stable grass coverage, with Chrome walking/turning verification recorded in the grass-square-fix checkpoint.

@@ -1,5 +1,7 @@
 # Australian BBQ (was Chuck It / Backyard Brawl): gameplay checklist
 
+- ✅ (17 Nov 2026, desktop and full Rust browser) Three-map beta selection: Backyard, Bush Servo and solo Teddy Heist; Race Oval temporarily parked, including old saved selections. Overhead wet droplet removed, with body drips and wet slowdown retained. Sky/nature pass adds layered clouds, a cooler blue gradient, original Blender gum/citrus/paperbark trees, kite and windsock with gentle breeze. No new route collisions. Browser prototype 0.23.30. See checkpoints/2026-11-17-beta-nature/REVIEW.md for verification and limits.
+
 ✅ done · ⬜ to do · 🔒 checkpoint
 
 🔒 **Checkpoint 0.11.1:** `checkpoints/chuck-it-0.11.1-checkpoint.html` (GitHub + `CHUCK IT/checkpoints` on the Mac)

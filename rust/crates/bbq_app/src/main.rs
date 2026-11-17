@@ -16,6 +16,7 @@ mod browser_perf;
 mod browser_quality;
 mod charge;
 mod backyard_finish;
+mod beta_nature;
 mod bots_app;
 mod characters;
 mod carried_avatar;
@@ -140,6 +141,7 @@ fn main() {
     app.add_plugins((wet::WetPlugin, servo_finish::ServoFinishPlugin, arena_depth::ArenaDepthPlugin));
     app.add_plugins(graphics_quality::GraphicsQualityPlugin);
     app.add_plugins(carried_avatar::CarriedAvatarPlugin);
+    app.add_plugins(beta_nature::BetaNaturePlugin);
     app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin, online::OnlinePlugin, face::FacePlugin, lobby::LobbyPlugin, legs::LegsPlugin, shirt::ShirtPlugin));
     #[cfg(target_arch = "wasm32")]
     if browser_perf::enabled() {

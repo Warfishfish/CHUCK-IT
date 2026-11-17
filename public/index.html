@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.29</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.30</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -617,6 +617,12 @@ renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x9fd8f2);
 scene.fog=new THREE.Fog(0x9fd8f2,60,150);
+// Calm blue zenith and pale warm horizon; an opaque-free sky never casts ground shadows.
+const skyGeo=new THREE.SphereGeometry(175,32,16),skyPos=skyGeo.attributes.position,skyRGB=[];
+for(let i=0;i<skyPos.count;i++){const t=Math.pow(clamp(skyPos.getY(i)/175/.7,0,1),.85),c=new THREE.Color(0xd4e3ef).lerp(new THREE.Color(0x689bd5),t);skyRGB.push(c.r,c.g,c.b);}
+skyGeo.setAttribute('color',new THREE.Float32BufferAttribute(skyRGB,3));
+const skyDome=new THREE.Mesh(skyGeo,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.BackSide,depthWrite:false,fog:false}));skyDome.renderOrder=-10;scene.add(skyDome);
+
 const camera=new THREE.PerspectiveCamera(85,1,0.05,220);
 // field of view: 60-105, default 85, remembered on this device; sprinting widens it a little
 let fovBase=85;try{const v=+localStorage.getItem('ab_fov');if(v>=60&&v<=105)fovBase=v;}catch(e){}
@@ -1089,15 +1095,18 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
     // Sparse, angled limbs make each gum silhouette less like a trunk with balls on top.
     for(let k=0;k<3;k++){const a=k*Math.PI*2/3+rand(-.35,.35),start=new THREE.Vector3(x,h*.48,z),end=new THREE.Vector3(x+Math.cos(a)*rand(1.2,2.1),h*.84,z+Math.sin(a)*rand(1.2,2.1));
       const d=end.clone().sub(start),limb=mesh(new THREE.CylinderGeometry(.035,.10,d.length(),7),bark,(start.x+end.x)/2,(start.y+end.y)/2,(start.z+end.z)/2);limb.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());
-      const s=rand(1.25,2.05),c=mesh(new THREE.IcosahedronGeometry(s,0),pick(leaf),end.x+rand(-.7,.7),end.y+rand(-.6,.9),end.z+rand(-.7,.7));c.scale.set(1.1,.62,1.0);
+      const s=rand(1.25,2.05),c=mesh(new THREE.IcosahedronGeometry(s,1),pick(leaf),end.x+rand(-.7,.7),end.y+rand(-.6,.9),end.z+rand(-.7,.7));c.scale.set(1.1,.82,1.0);
       if(Math.random()<.22){const fc=mat(Math.random()<.6?0xe9ddbc:0xd88979);for(let j=0;j<5;j++){const t=j*Math.PI*2/5;mesh(new THREE.SphereGeometry(.075,6,5),fc,end.x+Math.cos(t)*.16,end.y+.18,end.z+Math.sin(t)*.16);}}}
     // One extra clump keeps the canopy open and irregular.
-    const s=rand(1.1,1.8),c=mesh(new THREE.IcosahedronGeometry(s,0),pick(leaf),x+rand(-1.6,1.6),h+rand(-.4,1.2),z+rand(-1.6,1.6));c.scale.set(1.2,.62,.9);}
+    const s=rand(1.1,1.8),c=mesh(new THREE.IcosahedronGeometry(s,1),pick(leaf),x+rand(-1.6,1.6),h+rand(-.4,1.2),z+rand(-1.6,1.6));c.scale.set(1.2,.85,.9);}
   // A front gum tree anchors the possum box and throws a broken patch of shade beyond the fence.
   loadHeroGumTree(12,33);
-  // clouds
-  for(let i=0;i<9;i++){const grp=new THREE.Group();for(let k=0;k<4;k++){const c=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(2.5,4.5),1),new THREE.MeshLambertMaterial({color:0xffffff,flatShading:true,emissive:0x8899aa}));
-    c.position.set(rand(-5,5),rand(-.6,.6),rand(-2,2));c.scale.y=.45;grp.add(c);}grp.position.set(rand(-90,90),rand(32,46),rand(-90,60));scene.add(grp);clouds.push(grp);}
+  // Broad shaded cloud bases with smaller lit lobes; no hard, flat UFO shapes.
+  for(let i=0;i<9;i++){const grp=new THREE.Group(),wispy=i%4===0,width=rand(4.8,7.4);
+    const base=new THREE.Mesh(new THREE.SphereGeometry(1,16,10),new THREE.MeshLambertMaterial({color:0xc9d9e5,emissive:0x161d25}));base.scale.set(width,wispy?.35:.7,2.5);base.position.y=-.5;grp.add(base);
+    if(!wispy)for(let k=0;k<6;k++){const c=new THREE.Mesh(new THREE.SphereGeometry(rand(1.5,2.4),14,9),new THREE.MeshLambertMaterial({color:0xf0f0e8,emissive:0x20262b}));
+      c.position.set((k-2.5)*width*.28,rand(.1,1.1),rand(-.65,.65));c.scale.set(1,rand(.65,.9),.85);grp.add(c);}
+    grp.position.set(rand(-90,90),rand(34,48),rand(-90,60));scene.add(grp);clouds.push(grp);}
 
   // Hills Hoist rotary clothesline
   const grey=mat(0x9aa3a6);
@@ -3935,6 +3944,7 @@ function frame(now){
     camera.rotation.set(me.pitch+sy*.2+swP+mdn*(1.1-me.pitch)+(SC?SC.pitch:0),me.yaw+sx*.2+swY+(SC?SC.yaw:0),camRoll+dr+swR+mdn*.25+(SC?SC.roll:0)+(me.dizzyT>0?Math.sin(et*5)*.09*Math.min(1,me.dizzyT):0)+FF*1.15);
     const tf=fovBase+(me.sprinting?7:0);if(Math.abs(camera.fov-tf)>.05){camera.fov+=(tf-camera.fov)*(1-Math.exp(-8*dt));camera.updateProjectionMatrix();}
   }else{const a=elapsed*.05;camera.position.set(Math.sin(a)*40,17,Math.cos(a)*40);camera.lookAt(0,1,0);}
+  skyDome.position.copy(camera.position);
   camera.updateMatrixWorld();
   updateItems(dt);if(isAuth){spawner(dt);for(const f of flights.values()){if(f.active){const it=items.get(f.itemId);if(!it||it.flight!==f||!it.live){f.active=false;f.endT=elapsed;}}else if(elapsed-f.endT>6)flights.delete(f.id);}}
   updateParts(dt);updatePuddles(dt);syncChest(dt);syncSmoko();updateWobble(dt);if(FEAT.bbq){if(isAuth&&mode!=='menu')npcUpdate(dt);syncNpc(dt);updateBBQ(dt);}
