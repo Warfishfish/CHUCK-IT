@@ -2,6 +2,10 @@
 
 Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it with a friend. The focus now is graphics, gameplay, UI and character customization. One item at a time; screenshots and a yes before anything is committed.
 
+## Visual review completed · 18 November 2026
+
+Native walking and turning captures for all three maps are in checkpoints/2026-11-18-visual-review/. No large dark grass-square patches or broad material flashes were seen in the sampled sequences. Fine grass/foliage detail and dark Heist turf remain graphics priorities. Matched short/tall viewpoints and the external carry view are captured. Browser mouse-look, longer play and Low/High comparisons remain hands-on checks.
+
 ## Movement and camera follow-up · 17 November 2026
 
 - Implemented in source. Solid character separation on the host and local guest prediction. Carried and dragged poses have interaction exceptions.
