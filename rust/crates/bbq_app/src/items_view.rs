@@ -425,6 +425,8 @@ fn sync_viewmodel(
     mut vm: Query<(Entity, &mut Transform, &mut Visibility), With<HeldVm>>,
     mut vm_floppy: Query<&mut FlopDrive, With<VmFloppy>>,
     mut shown: Local<Option<(ItemKind, ModelKey)>>,
+    time: Res<Time>,
+    mut ease: Local<(f32,f32)>,
 ) {
     let selected = game
         .slots
@@ -438,7 +440,7 @@ fn sync_viewmodel(
         commands.entity(*cam).add_child(e);
         return;
     };
-    let Some((kind, key)) = selected.filter(|_| !game.me.drunk.is_drinking()) else {
+    let Some((kind, key)) = selected.filter(|_| !game.me.drunk.is_drinking() && !crate::smoko_mode::player_locked(&game)) else {
         *vis = Visibility::Hidden;
         *shown = None;
         return;
@@ -470,7 +472,9 @@ fn sync_viewmodel(
     } else {
         0.0
     };
-    let sw = (player.walk).sin() * 0.02;
+    ease.0=crate::locomotion::ease(ease.0,(player.mover.speed()/3.0).min(1.0),12.0,time.delta_secs());
+    ease.1=crate::locomotion::ease(ease.1,if game.catcher.open(){1.0}else{0.0},18.0,time.delta_secs());
+    let sw = (player.walk).sin() * 0.02 * ease.0;
     let flop = is_floppy(kind);
     let scale = match kind {
         ItemKind::Noodle | ItemKind::Fish => 0.36,
@@ -491,6 +495,8 @@ fn sync_viewmodel(
         c * 0.3,
     );
     tf.scale = Vec3::splat(scale);
+    // Make space for the catch gesture without changing the actual catch window or throw origin.
+    tf.translation += Vec3::new(0.08,-0.10,0.05)*ease.1;
     if kind==ItemKind::WaterBalloon {
         // Visual water weight: restrained lag and volume-preserving squash, no physics change.
         let movement=(player.mover.speed()/8.0).clamp(0.0,1.0);

@@ -8,6 +8,9 @@
 
 ## Already in the game ✅
 
+- 17 Nov eight-item pass: Blender-authored Smoko picnic/bin/pump/shelter detail kit, broader gum foliage, aligned circular-road dust/wear, wall-aware carry framing with a visible local avatar, catch/viewmodel settling, controller menu focus/sliders, and three saved/replicated wardrobe presets. Pool immersion refreshes four seconds of wet slowdown; shaped drops, highlights and overhead wet markers make wet characters readable. Verification: checkpoints/2026-11-17-eight-pass/REVIEW.md. Browser prototype 0.23.29.
+
+
 - 17 Nov 2026 play polish: Heist bots look ahead to the furthest visible route point instead of dropping to one-cell maze steps. Intentional pauses/windups no longer trigger random stuck recovery. Character acceleration compares velocities in a consistent facing frame, belly acceleration response is time-scaled, and browser blobs have a clearer stopping lean and settling breath. Smoko road edges have subdued paint; tiny shoulder stones/dashes no longer cast unstable small shadows. Browser prototype 0.23.28. Checks and captures: checkpoints/2026-11-16-play-polish/REVIEW.md.
 
 

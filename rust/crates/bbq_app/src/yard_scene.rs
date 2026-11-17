@@ -1149,6 +1149,11 @@ fn sync_smoko_map(
         Transform::from_xyz(0., 0., 10.),
         ChildOf(e),
     ));
+    // Shared desktop/browser detail kit, authored in Blender inside existing prop footprints.
+    commands.spawn((
+        WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_detail_pass.glb"))),
+        Transform::default(), ChildOf(e),
+    ));
     // A concept-led roadside repair cluster: retired tyres, a sun-faded sign, a parts crate,
     // an old esky and a braced timber rail. It sits beyond the oval's outer shoulder.
     commands.spawn((

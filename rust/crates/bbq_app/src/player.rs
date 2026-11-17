@@ -262,7 +262,7 @@ pub fn read_input(
     }
 }
 
-fn step_player(
+pub(crate) fn step_player(
     mut player: ResMut<Player>,
     wanted: Res<Wanted>,
     yard: Res<YardRes>,
@@ -302,6 +302,7 @@ fn step_player(
         .mover
         .step(movement::step_dt(), MoveInput { wish, pitch: p.pitch }, &mods, &yard.0);
     p.shake = p.shake.max(ev.shake);
+    if p.mover.in_pool && g.rules.in_play() { g.me.body.wet_t = bbq_core::stun::WET_DURATION; }
     if ev.splash {
         g.fx(crate::fx::FxKind::Splash, bbq_core::vec::V3::new(p.mover.x, bbq_core::yard::WATER_Y, p.mover.z));
     } else if ev.hard_landing {
@@ -331,6 +332,7 @@ pub fn update_camera(
     mut walk_blend: Local<f32>,
     mut charge_lean: Local<bbq_core::feel::ReturnSpring>,
     mut carry_view: Local<CarryViewState>,
+    yard: Res<crate::yard_scene::YardRes>,
 ) {
     let dt = time.delta_secs();
     let target=if game.wind.charging && !game.me.body.is_down() {game.wind.charge.clamp(0.0,1.0)}else{0.0};
@@ -393,7 +395,12 @@ pub fn update_camera(
     carry_view.blend += (blend_target - carry_view.blend) * (1.0 - (-dt * 5.5).exp());
     if carried {
         if let Some((victim, carrier, forward)) = carried_view_target(&game, p) {
-            carry_view.pose = Some(carry_camera_pose(victim, carrier, forward));
+            let desired = carry_camera_pose(victim, carrier, forward);
+            let target = (victim + carrier) * 0.5 + Vec3::Y * 0.95;
+            let mut clear = desired;
+            clear.translation = camera_boom(target, desired.translation, &yard.0);
+            clear = clear.looking_at(target, Vec3::Y);
+            carry_view.pose = Some(clear);
         }
     }
     if let Some(external) = carry_view.pose {
@@ -446,13 +453,45 @@ fn carry_camera_pose(victim: Vec3, carrier: Vec3, forward: Vec3) -> Transform {
     let right = Vec3::new(-forward.z, 0.0, forward.x);
     let center = (victim + carrier) * 0.5;
     let target = center + Vec3::Y * 0.95;
-    let eye = center - forward * 5.3 + right * 1.4 + Vec3::Y * 2.5;
+    let distance = (5.3 + victim.distance(carrier) * 0.55).min(16.0);
+    let eye = center - forward * distance + right * 1.4 + Vec3::Y * 2.5;
     Transform::from_translation(eye).looking_at(target, Vec3::Y)
+}
+
+/// Pull a spectator boom in before a solid wall, with clearance for the camera near plane.
+fn camera_boom(target: Vec3, desired: Vec3, yard: &bbq_core::yard::Yard) -> Vec3 {
+    let delta = desired - target;
+    let steps = (delta.length() / 0.08).ceil().max(1.0) as usize;
+    let mut last = target;
+    for i in 1..=steps {
+        let p = target + delta * (i as f32 / steps as f32);
+        let blocked = yard.colliders.iter().any(|c| {
+            if matches!(c.kind, bbq_core::yard::Kind::TankLadder) { return false; }
+            let bottom = if matches!(c.kind, bbq_core::yard::Kind::HouseRoof | bbq_core::yard::Kind::VerandaRoof) { c.h - 0.16 } else { 0.0 };
+            p.x > c.x0 - 0.18 && p.x < c.x1 + 0.18 && p.z > c.z0 - 0.18
+                && p.z < c.z1 + 0.18 && p.y > bottom - 0.18 && p.y < c.h + 0.18
+        });
+        if blocked { break; }
+        last = p;
+    }
+    last
 }
 
 #[cfg(test)]
 mod carry_camera_tests {
     use super::*;
+
+    #[test]
+    fn camera_stays_in_front_of_walls_and_extends_with_a_throw() {
+        let mut yard = bbq_core::yard::Yard::default(); yard.colliders.clear();
+        yard.colliders.push(bbq_core::yard::Collider::centred(0.0, 3.0, 4.0, 0.3, 4.0));
+        let target = Vec3::new(0.0,1.0,0.0);
+        let eye = camera_boom(target, Vec3::new(0.0,2.0,6.0), &yard);
+        assert!(eye.z < 2.67 && eye.z > 2.4);
+        let close = carry_camera_pose(Vec3::X, Vec3::ZERO, Vec3::NEG_Z);
+        let far = carry_camera_pose(Vec3::X*10.0, Vec3::ZERO, Vec3::NEG_Z);
+        assert!(far.translation.distance(Vec3::X*5.0) > close.translation.distance(Vec3::X*0.5));
+    }
 
     #[test]
     fn outside_view_sits_away_from_and_frames_the_carrier() {

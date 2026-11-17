@@ -294,6 +294,19 @@ impl Appearance {
     pub const FACE_DEFAULT:u8=50;
     pub fn face_scale(self)->f32 {let n=self.face_length.min(100) as f32; if n<=50.0 {0.75+n*0.005}else{1.0+(n-50.0)*0.012}}
 
+    /// Outfit recipes preserve the chosen body/face/legs and only change wardrobe colours.
+    pub fn outfit(mut self, preset: u8) -> Self {
+        match preset % 3 {
+            0 => {self.hat=Hat::Akubra;self.hat_colour=2;self.shorts=Shorts::Boardies;
+                  self.shorts_colour=2;self.singlet=0;self.thong=0;self.dirt=45;}
+            1 => {self.hat=Hat::Cap;self.hat_colour=1;self.shorts=Shorts::Budgies;
+                  self.shorts_colour=3;self.singlet=2;self.thong=2;self.dirt=10;}
+            _ => {self.hat=Hat::Beanie;self.hat_colour=3;self.shorts=Shorts::Boardies;
+                  self.shorts_colour=1;self.singlet=3;self.thong=1;self.dirt=25;}
+        }
+        self.tidy()
+    }
+
     pub fn colour_index(&self, p: Palette) -> u8 {
         match p {
             Palette::Body => self.body,
@@ -590,6 +603,15 @@ mod tests {
         // names are not fussy about case or spaces
         a.read_line("brows", " bushy ");
         assert_eq!(a.brows, Brows::Bushy);
+    }
+
+    #[test]
+    fn outfits_preserve_identity_and_survive_online_encoding() {
+        let original=Appearance{body:7,face_length:80,legs:Legs::Skinny,..Default::default()};
+        for preset in 0..3 {let look=original.outfit(preset);
+            assert_eq!(look.body,original.body);assert_eq!(look.face_length,original.face_length);
+            assert_eq!(look.legs,original.legs);assert_eq!(Appearance::from_bytes(look.to_bytes()),look);
+        }
     }
 
     #[test]

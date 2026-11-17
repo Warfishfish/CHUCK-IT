@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.28</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.29</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -2953,6 +2953,7 @@ function updateChar(ch,dt){
   if(ch.snagBuffT>0){ch.snagBuffT=Math.max(0,ch.snagBuffT-dt);if(ch.snagBuffT<=0){ch.snagStumbleT=SNAG_STUMBLE;if(ch.kind==='me')showHint('<b>Uh oh...</b> that snag is kicking in.',SNAG_STUMBLE);}}else if(ch.snagStumbleT>0)ch.snagStumbleT=Math.max(0,ch.snagStumbleT-dt);
   if(ch.chuckBy&&ch.grounded&&elapsed-ch.chuckT>.15){const by=ch.chuckBy;ch.chuckBy=null;if(naughtyOn()&&elapsed-ch.chuckT<3&&inSmoko(ch)&&(ch.kind==='me'||(isAuth&&ch.kind==='bot'))){if(isAuth)authNaughty(by,ch.id);else sendEv('ng',by);}}
   ch.inPool=inActivePool(ch.pos)&&ch.pos.y<.1;
+  ch.wetT=ch.inPool?4:Math.max(0,(ch.wetT||0)-dt);
   if(ch.inPool&&!ch.wasInPool){SFX.splash(ch.pos);poolRipples(ch.pos);burst(ch.pos.clone().setY(WATER_Y+.15),[0x9ee3ff,0xffffff],18,3.2,.075);envCheck(ch,'pool');}
   if(!ch.inPool&&ch.wasInPool)wetFootprints(ch.pos,ch.yaw||0);ch.wasInPool=ch.inPool;
   ch.slip=ch.pos.y<.1&&[...puddles.values()].some(p=>Math.hypot(ch.pos.x-p.x,ch.pos.z-p.z)<p.r*p.grow);
@@ -2963,7 +2964,7 @@ function updateChar(ch,dt){
   else ch.boostCd=Math.max(0,ch.boostCd-dt);
   ch.sprinting=ch.boostT>0&&!ch.inPool&&ch.stun<=0&&!frozen&&!carryOf.has(ch.id);
   if(ch.kind!=='proxy'){smokoTick(ch,dt);updateDrink(ch,dt);fallCheck(ch,dt);}
-  const maxSp=6.2*(ch.inPool?.5:1)*(ch.charging?.72:1)*(ch.sprinting?BOOST_MULT:1)*(ch.drinkT>0?.55:1)*(ch.snagBuffT>0?1.35:1)*(ch.snagStumbleT>0?.62:1)*(carryOf.has(ch.id)?CARRY.slow:1)*(ch.kind!=='proxy'?drunkGait(ch,dt):1);
+  const maxSp=6.2*(ch.wetT>0?.8:1)*(ch.inPool?.5:1)*(ch.charging?.72:1)*(ch.sprinting?BOOST_MULT:1)*(ch.drinkT>0?.55:1)*(ch.snagBuffT>0?1.35:1)*(ch.snagStumbleT>0?.62:1)*(carryOf.has(ch.id)?CARRY.slow:1)*(ch.kind!=='proxy'?drunkGait(ch,dt):1);
   let tx=ch.wish.x*maxSp,tz=ch.wish.y*maxSp;if(ch.stun>0||frozen){tx=0;tz=0;}
   if(ch.dodgeT>0){ch.vel.x=ch.dodgeDir.x*14.5;ch.vel.z=ch.dodgeDir.z*14.5;}
   else{const grip=!ch.grounded?(ch.stun>0?2.2:6):ch.stun>0?3.2:ch.slideT>0?.3:ch.slip?1.1:ch.snagStumbleT>0?2.4:12;const k=1-Math.exp(-grip*dt);ch.vel.x+=(tx-ch.vel.x)*k;ch.vel.z+=(tz-ch.vel.z)*k;}
@@ -3305,13 +3306,13 @@ function sendEv(...a){if(!net.yard)return;net.out.push([++net.seq,...a]);if(net.
 function boardRows(){if(isAuth)return Object.entries(stats).map(([id,s])=>[id,s.name,s.color,s.score,s.hits,s.taken,s.catches,s.throws,s.banked||0]);return hostRows;}
 function buildWorld(){
   const it=[];for(const i of items.values()){const f=i.state==='flying';it.push([i.id,TYPES.indexOf(i.type),STATES.indexOf(i.state),r2(i.pos.x),r2(i.pos.y),r2(i.pos.z),f?r2(i.vel.x):0,f?r2(i.vel.y):0,f?r2(i.vel.z):0,i.holder||0,i.thrower||0,i.live?1:0,i.flight&&i.flight.active?i.flight.id:0,i.uses||0,i.variant?DILDO_VKEYS.indexOf(i.variant):0,i.bumOut?1:0,i.heistTeam?HEIST_TEAM_KEYS.indexOf(i.heistTeam)+1:0]);}
-  const b=[];for(const c of chars.values())if(c.kind==='bot')b.push([c.id,c.name,c.color,r2(c.pos.x),r2(c.pos.y),r2(c.pos.z),r2(c.face),c.stun>0?1:0,c.charging?r2(c.charge):0,(selItem(c)||{}).id||0,r2(c.vel.x),r2(c.vel.y),r2(c.vel.z),r1(c.downT),c.smokoSeat>=0?c.smokoSeat:-1,Math.round(c.drunk||0)]);
+  const b=[];for(const c of chars.values())if(c.kind==='bot')b.push([c.id,c.name,c.color,r2(c.pos.x),r2(c.pos.y),r2(c.pos.z),r2(c.face),c.stun>0?1:0,c.charging?r2(c.charge):0,(selItem(c)||{}).id||0,r2(c.vel.x),r2(c.vel.y),r2(c.vel.z),r1(c.downT),c.smokoSeat>=0?c.smokoSeat:-1,Math.round(c.drunk||0),r1(c.wetT||0)]);
   const pd=[];for(const p of puddles.values())pd.push([p.id,r2(p.x),r2(p.z),r2(p.r),r1(p.life)]);
   return{fe:featMask(),mt:[matchLen,matchNo,[...matchWins],roundWinner||0,matchOver?1:0],fd:fallDur,gm:gameMode==='heist'?2:gameMode==='teams'?1:0,ht:gameMode==='heist'?heistTeams:0,hv:heistVariant,hb:gameMode==='heist'?heistKeysArr().map(k=>heistBanked[k]||0):0,ff:friendlyFire?1:0,cy:carryList(),tm:(gameMode==='teams'||gameMode==='heist')?[...teamOf].filter(([id])=>chars.has(id)):0,cs:chestStock,cp:CHEST.spot,np:[r2(NPC.pos.x),r2(NPC.pos.z),r2(NPC.face),NPC_STATES.indexOf(NPC.state)],st:state,tl:r1(roundLeft),cd:r1(countdown),len:roundLen,it,b,sc:boardRows(),ld:leaderId||0,pd,res:(state==='results'&&resultsRows)?resultsRows:0};
 }
 function buildPresence(){
   const p={id:myId,n:myName,c:myColor,ev:net.out};
-  if(me){p.p=[r2(me.pos.x),r2(me.pos.y),r2(me.pos.z)];p.v=[r2(me.vel.x),r2(me.vel.y),r2(me.vel.z)];p.f=r2(me.face);p.s=me.stun>0?1:0;p.ch=me.charging?r2(me.charge):0;p.sel=(selItem(me)||{}).id||0;p.dk=Math.round(me.drunk);
+  if(me){p.p=[r2(me.pos.x),r2(me.pos.y),r2(me.pos.z)];p.v=[r2(me.vel.x),r2(me.vel.y),r2(me.vel.z)];p.f=r2(me.face);p.s=me.stun>0?1:0;p.ch=me.charging?r2(me.charge):0;p.sel=(selItem(me)||{}).id||0;p.dk=Math.round(me.drunk);p.wt=r1(me.wetT||0);
     // presence patches MERGE, so short-lived states must be cleared with null or they'd stick for everyone else
     p.dn=me.downT>0?r1(me.downT):null;p.fl=me.fallT>0?r1(me.fallT):null;p.sm=me.smokoSeat>=0?me.smokoSeat:null;}
   if(net.isHost)p.w=buildWorld();
@@ -3352,7 +3353,7 @@ function updateRemotePlayer(id,pr){
   const netRoof=netY>HOUSE.h+.15&&Math.abs(netX)<=ROOF.width/2+.45&&rawNetZ>=ROOF.backEdgeZ-.45&&rawNetZ<=ROOF.edgeZ+.45;
   ch.netP.set(netX,netY,clamp(rawNetZ,netRoof?Math.min(-D,ROOF.backEdgeZ): -D,D));
   if(Array.isArray(pr.v))ch.netV.set(clamp(num(pr.v[0],0),-20,20),clamp(num(pr.v[1],0),-30,30),clamp(num(pr.v[2],0),-20,20));
-  ch.netT=performance.now();ch.netFace=num(pr.f,0);ch.stun=pr.s?Math.max(ch.stun,.3):0;ch.charging=num(pr.ch,0)>0;ch.charge=clamp(num(pr.ch,0),0,1);ch.selId=pr.sel||null;ch.drunk=clamp(num(pr.dk,0),0,100);ch.smokoSeat=typeof pr.sm==='number'?clamp(pr.sm|0,0,15):-1;ch.downT=clamp(num(pr.dn,0),0,6);{const nf=clamp(num(pr.fl,0),0,60);if(nf>0&&!(ch.fallT>0)){ch.fallAge=0;floater('STACKED IT!',ch.pos.clone().setY(ch.pos.y+2.4),'big');SFX.thud(ch.pos);ch.fallT=nf;fallAlert(ch);}ch.fallT=nf;}
+  ch.netT=performance.now();ch.netFace=num(pr.f,0);ch.stun=pr.s?Math.max(ch.stun,.3):0;ch.charging=num(pr.ch,0)>0;ch.charge=clamp(num(pr.ch,0),0,1);ch.selId=pr.sel||null;ch.drunk=clamp(num(pr.dk,0),0,100);ch.wetT=clamp(num(pr.wt,0),0,4);ch.smokoSeat=typeof pr.sm==='number'?clamp(pr.sm|0,0,15):-1;ch.downT=clamp(num(pr.dn,0),0,6);{const nf=clamp(num(pr.fl,0),0,60);if(nf>0&&!(ch.fallT>0)){ch.fallAge=0;floater('STACKED IT!',ch.pos.clone().setY(ch.pos.y+2.4),'big');SFX.thud(ch.pos);ch.fallT=nf;fallAlert(ch);}ch.fallT=nf;}
 }
 /* host: a guest's action */
 function handleEvent(fromId,e){
@@ -3413,7 +3414,7 @@ function applyWorld(w){
   if(Array.isArray(w.b))for(const b of w.b){if(!Array.isArray(b)||typeof b[0]!=='string')continue;const id=b[0].slice(0,8);botSeen.add(id);
     let ch=chars.get(id);if(!ch){ch=createChar(id,cleanName(b[1]),clamp(num(b[2],0xffffff)|0,0,0xffffff),'proxy',[num(b[3],0),num(b[5],0)]);ch.isBot=true;}
     ch.netP.set(num(b[3],0),num(b[4],0),num(b[5],0));ch.netFace=num(b[6],0);ch.stun=b[7]?Math.max(ch.stun,.3):0;ch.charging=num(b[8],0)>0;ch.charge=num(b[8],0);
-    ch.selId=b[9]||null;ch.netV.set(num(b[10],0),num(b[11],0),num(b[12],0));ch.downT=clamp(num(b[13],0),0,6);ch.smokoSeat=b[14]>=0?b[14]|0:-1;ch.drunk=clamp(num(b[15],0),0,100);ch.netT=performance.now();}
+    ch.selId=b[9]||null;ch.netV.set(num(b[10],0),num(b[11],0),num(b[12],0));ch.downT=clamp(num(b[13],0),0,6);ch.smokoSeat=b[14]>=0?b[14]|0:-1;ch.drunk=clamp(num(b[15],0),0,100);ch.wetT=clamp(num(b[16],0),0,4);ch.netT=performance.now();}
   for(const ch of [...chars.values()])if(ch.isBot&&ch.kind==='proxy'&&!botSeen.has(ch.id))removeChar(ch);
   // scores
   if(Array.isArray(w.sc)){const s=JSON.stringify(w.sc);if(s!==net.lastSc){net.lastSc=s;hostRows=w.sc.filter(r=>Array.isArray(r)).map(r=>[String(r[0]),cleanName(r[1]),clamp(num(r[2],0xffffff)|0,0,0xffffff),num(r[3],0),num(r[4],0),num(r[5],0),num(r[6],0),num(r[7],0),num(r[8],0)]);scoreDirty=true;}}

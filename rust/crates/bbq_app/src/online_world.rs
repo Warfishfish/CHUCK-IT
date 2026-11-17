@@ -631,6 +631,29 @@ mod tests {
         assert_eq!(host.world().resource::<Game>().board.get(PLAYER_ID).unwrap().hits,1);
     }
     #[test]
+    fn pool_wetness_reaches_guest_and_expires_without_a_new_hit() {
+        use bbq_core::net::Msg;
+        let mut host=host_with_a_guest();
+        let remote=REMOTE_ID_BASE+2;
+        {let mut g=host.world_mut().resource_mut::<Game>();
+         g.rules.phase=bbq_core::scoring::Phase::Play;
+         let d=g.dummies.iter_mut().find(|d|d.id==remote).unwrap();
+         d.mover=bbq_core::movement::Mover::new(-20.0,10.0);d.home=(-20.0,10.0);}
+        for _ in 0..60 {host.world_mut().run_schedule(FixedUpdate);}
+        let snap=build_world(host.world().resource::<Game>(),&Yard::default(),1,-1.0,&[]);
+        let Msg::World(snap)=Msg::decode(&Msg::World(Box::new(snap)).encode()).unwrap()else{panic!()};
+        let mut guest=app();let mut yard=Yard::default();
+        apply_world(&mut guest.world_mut().resource_mut::<Game>(),&mut yard,&snap,2,"Host");
+        assert!(guest.world().resource::<Game>().me.body.wet_t>3.9);
+        {let mut g=host.world_mut().resource_mut::<Game>();let d=g.dummies.iter_mut().find(|d|d.id==remote).unwrap();
+         d.mover=bbq_core::movement::Mover::new(8.0,0.0);d.home=(8.0,0.0);}
+        for _ in 0..260 {host.world_mut().run_schedule(FixedUpdate);}
+        let snap=build_world(host.world().resource::<Game>(),&Yard::default(),2,-1.0,&[]);
+        apply_world(&mut guest.world_mut().resource_mut::<Game>(),&mut yard,&snap,2,"Host");
+        assert_eq!(guest.world().resource::<Game>().me.body.wet_t,0.0);
+    }
+
+    #[test]
     fn round_end_clears_all_wet_status() {
         for mode in [GameMode::FreeForAll,GameMode::Teams,GameMode::Heist,GameMode::Smoko,GameMode::Race] {
             let mut app=app();let mut g=app.world_mut().resource_mut::<Game>();

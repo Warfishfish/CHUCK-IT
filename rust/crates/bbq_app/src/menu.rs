@@ -513,7 +513,7 @@ impl Plugin for MenuPlugin {
             .add_systems(
                 Update,
                 (
-                    widget_clicks,
+                    (controller_menu, widget_clicks).chain(),
                     flow_keys,
                     slider_drag,
                     name_typing,
@@ -830,6 +830,12 @@ fn paint_lobby(
 fn look_panel(c: &mut ChildSpawnerCommands) {
     use bbq_core::appearance::{Brows, Choice, Hair, Hat, Mouth, Palette, Shorts};
     c.spawn((column(10.0), ShowWhen::Panel(Tab::Look))).with_children(|p| {
+        p.spawn(legend("Outfits"));
+        p.spawn(row(6.0)).with_children(|r| {
+            for (i,name) in ["Bush worker", "Pool party", "Footy arvo"].iter().enumerate() {
+                button(r, Action::LookOutfit(i as u8), name, None);
+            }
+        });
         // the body: its shape, its legs and its belly
         p.spawn(legend("Body"));
         let shapes: Vec<&str> = Character::ALL.iter().map(|c| c.name()).collect();
@@ -1430,6 +1436,87 @@ fn test_looks(mut game: ResMut<Game>) {
 
 // ---------------------------------------------------------------- clicks
 
+#[derive(Default)]
+struct PadMenuState { focus: Option<Entity>, tab: Option<Tab>, repeat: f32, active: bool }
+
+/// D-pad/stick focus uses the same widgets as the mouse, including sliders and swatches.
+fn controller_menu(
+    mut commands: Commands, time: Res<Time>, screen: Res<Screen>,
+    pads: Query<&bevy::input::gamepad::Gamepad>, keys: Res<ButtonInput<KeyCode>>,
+    mut ui: ResMut<MenuUi>, settings: Res<Settings>, mut state: Local<PadMenuState>,
+    mut widgets: Query<(Entity,&ComputedNode,&UiGlobalTransform,&InheritedVisibility,
+        &mut Interaction,Option<&Slider>,Option<&mut RelativeCursorPosition>),With<Button>>,
+    mut scroll: Query<(&ComputedNode,&UiGlobalTransform,&mut ScrollPosition),With<MenuContent>>,
+) {
+    use bevy::input::gamepad::GamepadButton as B;
+    if *screen!=Screen::Menu {return;}
+    let mut direction=Vec2::ZERO;
+    let mut accept=keys.just_pressed(KeyCode::Enter);
+    let mut back=false;
+    for pad in &pads {
+        accept|=pad.just_pressed(B::South);back|=pad.just_pressed(B::East);
+        let stick=pad.left_stick();
+        direction.x+=(pad.pressed(B::DPadRight) as i32-pad.pressed(B::DPadLeft) as i32) as f32;
+        direction.y+=(pad.pressed(B::DPadDown) as i32-pad.pressed(B::DPadUp) as i32) as f32;
+        if stick.x.abs()>0.65 {direction.x=stick.x.signum();}
+        if stick.y.abs()>0.65 {direction.y=-stick.y.signum();}
+    }
+    for (key,dir) in [(KeyCode::ArrowDown,Vec2::Y),(KeyCode::ArrowUp,Vec2::NEG_Y),
+        (KeyCode::ArrowLeft,Vec2::NEG_X),(KeyCode::ArrowRight,Vec2::X)] {
+        if keys.pressed(key) {direction=dir;}
+    }
+    if back {ui.back();state.focus=None;return;}
+    if ui.name_focus || ui.net_focus.is_some() {return;}
+    state.repeat-=time.delta_secs();
+    let navigate=direction.length_squared()>0.1 && state.repeat<=0.0;
+    if direction==Vec2::ZERO {state.repeat=0.0;}
+    if navigate {state.repeat=0.20;state.active=true;}
+    if accept {state.active=true;}
+    if !state.active {return;}
+    let mut items:Vec<_>=widgets.iter().filter(|(_,n,_,v,_,_,_)|v.get()&&n.size().x>1.0&&n.size().y>1.0)
+        .map(|(e,_,t,_,_,s,_)|(e,t.translation,s.is_some())).collect();
+    items.sort_by(|a,b|a.1.y.total_cmp(&b.1.y).then(a.1.x.total_cmp(&b.1.x)));
+    if state.tab!=Some(ui.tab) {state.tab=Some(ui.tab);state.focus=None;}
+    let old=state.focus;
+    if !items.iter().any(|i|Some(i.0)==state.focus) {state.focus=items.first().map(|i|i.0);}
+    let current=items.iter().find(|i|Some(i.0)==state.focus).copied();
+    if let Some((entity,position,is_slider))=current {
+        if navigate && old==state.focus && !(is_slider && direction.x.abs()>0.5) {
+            if let Some(next)=items.iter().filter(|i|i.0!=entity).filter_map(|i| {
+                let d=i.1-position;let along=d.dot(direction.normalize());
+                (along>4.0).then_some((i.0,along+(d-direction.normalize()*along).length()*2.0))
+            }).min_by(|a,b|a.1.total_cmp(&b.1)) {state.focus=Some(next.0);}
+        }
+        if let Ok((_,_,_,_,mut interaction,slider,rel))=widgets.get_mut(entity) {
+            if let Some(s)=slider {
+                if navigate && direction.x.abs()>0.5 {
+                    let value=match s.id {
+                        SliderId::Fov=>settings.fov,SliderId::Belly=>settings.belly,
+                        SliderId::Dirt=>settings.look.dirt as f32,SliderId::FaceLength=>settings.look.face_length as f32,
+                        SliderId::LegLength=>settings.look.legs.percent() as f32,SliderId::Bots=>settings.bots as f32,
+                        SliderId::RedBots=>settings.team_bots[0] as f32,SliderId::BlueBots=>settings.team_bots[1] as f32,
+                        SliderId::GreenBots=>settings.team_bots[2] as f32,SliderId::YellowBots=>settings.team_bots[3] as f32,
+                    };
+                    let step=match s.id {SliderId::Belly=>0.05,SliderId::Dirt|SliderId::FaceLength|SliderId::LegLength=>5.0,_=>1.0};
+                    if let Some(mut rel)=rel {rel.normalized=Some(Vec2::new(((value+direction.x.signum()*step-s.min)/(s.max-s.min)).clamp(0.,1.)-0.5,0.0));}
+                    *interaction=Interaction::Pressed;
+                }
+            } else if accept {*interaction=Interaction::Pressed;}
+        }
+    }
+    if old!=state.focus {
+        if let Some(old)=old {commands.entity(old).remove::<Outline>();}
+        if let Some(focus)=state.focus {commands.entity(focus).insert(Outline::new(px(3.),px(3.),ESKY));}
+        if let Some(item)=items.iter().find(|i|Some(i.0)==state.focus) {
+            for (node,tf,mut pos) in &mut scroll {
+                let top=tf.translation.y-node.size().y*0.5+22.;let bottom=tf.translation.y+node.size().y*0.5-22.;
+                if item.1.y>bottom {pos.y+=(item.1.y-bottom)/node.inverse_scale_factor();}
+                else if item.1.y<top {pos.y=(pos.y-(top-item.1.y)/node.inverse_scale_factor()).max(0.);}
+            }
+        }
+    }
+}
+
 fn widget_clicks(
     mut settings: ResMut<Settings>,
     mut game: Option<ResMut<Game>>,
@@ -1584,6 +1671,7 @@ fn widget_clicks(
             }
             Action::LobbyReady => ui.toggle_ready = true,
             Action::LobbyStart => ui.request = Some(Request::Play),
+            Action::LookOutfit(preset) => { settings.look=settings.look.outfit(*preset);changed=true; }
             Action::LookRandom => {
                 let seed = fresh_seed();
                 settings.look = bbq_core::appearance::Appearance::random(&mut bbq_core::rng::Rng::new(seed));
@@ -1632,7 +1720,7 @@ fn slider_drag(
 ) {
     for (i, rel, s) in &sliders {
         let host_lobby = lobby.as_ref().is_some_and(|l| l.in_yard && l.host);
-        if *i != Interaction::Pressed || lobby.as_ref().is_some_and(|l| l.in_yard && !l.host) {
+        if *i != Interaction::Pressed || (lobby.as_ref().is_some_and(|l| l.in_yard && !l.host) && matches!(s.id, SliderId::Bots | SliderId::RedBots | SliderId::BlueBots | SliderId::GreenBots | SliderId::YellowBots)) {
             continue;
         }
         let Some(n) = rel.normalized else { continue };

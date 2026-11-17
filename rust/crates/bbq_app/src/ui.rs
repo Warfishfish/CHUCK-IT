@@ -212,6 +212,7 @@ pub enum Action {
     LookStep(LookRow, i32),
     /// Customise: a random look, or back to the default.
     LookRandom,
+    LookOutfit(u8),
     LookReset,
     /// Customise: pick this choice (a style or a colour, by its number).
     LookSet(LookRow, u8),

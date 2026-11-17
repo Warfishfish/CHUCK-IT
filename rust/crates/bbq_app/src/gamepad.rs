@@ -137,7 +137,8 @@ fn flow(screen: Screen, a: bool, b: bool, start: bool) -> Option<Flow> {
         Screen::Playing if start => Some(Flow::Pause),
         Screen::Paused if start || a => Some(Flow::Ask(Request::Resume)),
         Screen::Paused if b => Some(Flow::Ask(Request::Menu)),
-        Screen::Menu if a || start => Some(Flow::Ask(Request::Play)),
+        // Menu focus and activation are handled by menu::controller_menu.
+        Screen::Menu => None,
         Screen::Results if a || start => Some(Flow::Ask(Request::Again)),
         Screen::Results if b => Some(Flow::Ask(Request::Menu)),
         _ => None,
@@ -155,7 +156,7 @@ mod tests {
         assert_eq!(flow(Screen::Paused, true, false, false), Some(Flow::Ask(Request::Resume)));
         assert_eq!(flow(Screen::Paused, false, false, true), Some(Flow::Ask(Request::Resume)));
         assert_eq!(flow(Screen::Paused, false, true, false), Some(Flow::Ask(Request::Menu)));
-        assert_eq!(flow(Screen::Menu, true, false, false), Some(Flow::Ask(Request::Play)));
+        assert_eq!(flow(Screen::Menu, true, false, false), None);
         assert_eq!(flow(Screen::Results, true, false, false), Some(Flow::Ask(Request::Again)));
         assert_eq!(flow(Screen::Results, false, true, false), Some(Flow::Ask(Request::Menu)));
         assert_eq!(flow(Screen::Menu, false, false, false), None);

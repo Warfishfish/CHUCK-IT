@@ -478,10 +478,10 @@ fn ring(inner: f32, outer: f32, seg: u32) -> Buf {
 // Arena ground paint: one picnic area and its approach to the shelter only.
 // Vertex colours reuse the existing repeating dirt texture and material.
 const SERVO_GROUND_STEP: f32 = 0.20;
-const SERVO_PATH_WIDTH: f32 = 0.72;
+const SERVO_PATH_WIDTH: f32 = 0.95;
 const SERVO_WEAR_STRENGTH: f32 = 0.18;
-const SERVO_DUST_STRENGTH: f32 = 0.065;
-const SERVO_GRIT_STRENGTH: f32 = 0.10;
+const SERVO_DUST_STRENGTH: f32 = 0.085;
+const SERVO_GRIT_STRENGTH: f32 = 0.045;
 const SERVO_FOOTPATH: [(f32,f32);5] = [(8.5,-2.5),(7.,-0.5),(5.,1.),(3.,3.),(0.,4.9)];
 const SERVO_PICNIC_EARTH_TINT: [f32;3] = [0.96, 0.985, 1.0];
 fn servo_ground_colour(x:f32,z:f32)->[f32;4] {

@@ -87,3 +87,7 @@ def picnic_shoulder(image):
 
 im=picnic_shoulder(im).convert('RGBA');im.save(OUT/'servo_road.png')
 print('Saved 512px dirt and 1024px opaque road with dusty shoulders.')
+
+# The current circular arena supersedes the historical oval road bake above.
+import runpy
+runpy.run_path(str(Path(__file__).with_name("make_smoko_road_surface.py")))

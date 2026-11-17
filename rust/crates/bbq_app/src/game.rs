@@ -661,6 +661,7 @@ pub fn step_game(
         if d.remote.is_some() || d.net_dive > 0.0 {
             d.mover.force_dive(d.net_dive); // people online dive as they say
         }
+        if d.mover.in_pool && g.rules.in_play() { d.body.wet_t = bbq_core::stun::WET_DURATION; }
         if ev.splash {
             splashes.push(V3::new(d.mover.x, bbq_core::yard::WATER_Y, d.mover.z));
             env_landings.push((i, Place::Pool));
@@ -988,6 +989,30 @@ mod tests {
         for _ in 0..n {
             app.world_mut().run_schedule(FixedUpdate);
         }
+    }
+
+    #[test]
+    fn pool_soaks_players_and_bots_then_they_dry_on_land() {
+        let mut app=app();
+        app.add_systems(FixedUpdate,crate::player::step_player.before(step_game));
+        app.world_mut().resource_mut::<Game>().rules.phase=Phase::Play;
+        put_player(&mut app,-20.0,10.0);
+        { let mut g=app.world_mut().resource_mut::<Game>();
+          g.dummies[0].mover=Mover::new(-21.0,10.0); g.dummies[0].home=(-21.0,10.0); g.dummies[0].bot.wish=(0.0,0.0); }
+        ticks(&mut app,120);
+        {let g=app.world().resource::<Game>();
+         assert!(g.me.body.wet_t>3.9 && g.dummies[0].body.wet_t>3.9, "player wet={} bot wet={} phase={:?} player pool={} bot pool={} enabled={}",g.me.body.wet_t,g.dummies[0].body.wet_t,g.rules.phase,app.world().resource::<Player>().mover.in_pool,g.dummies[0].mover.in_pool,app.world().resource::<YardRes>().0.pool_enabled());}
+        put_player(&mut app,8.0,0.0);
+        {let mut g=app.world_mut().resource_mut::<Game>();g.dummies[0].mover=Mover::new(9.0,0.0);g.dummies[0].home=(9.0,0.0);}
+        ticks(&mut app,60);
+        {let g=app.world().resource::<Game>();let p=app.world().resource::<Player>();
+         assert!(g.me.body.wet_t>2.8 && g.me.body.wet_t<3.1);
+         let dry=p.mover.max_speed(&Modifiers::default());
+         let wet=p.mover.max_speed(&Modifiers{wet:true,..Default::default()});
+         assert!((wet/dry-0.8).abs()<0.001);}
+        ticks(&mut app,200);
+        let g=app.world().resource::<Game>(); assert_eq!(g.me.body.wet_t,0.0);
+        assert_eq!(g.dummies[0].body.wet_t,0.0);
     }
 
     fn give_teddy(app: &mut App) {
