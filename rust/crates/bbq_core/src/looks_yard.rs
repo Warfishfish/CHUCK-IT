@@ -4132,15 +4132,16 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
             .at(def.x, 0.04, def.z)
             .turn(-HALF_PI, 0.0, 0.0),
         );
-        // Keep the team's colours inside the base, below the surrounding maze walls.
-        v.push(cyl(0.06, 0.06, 2.35, 8, matt(0xf2f2f2), def.x, 1.175, def.z));
-        v.push(
-            Part::new(
-                Shape::Quad { w: 1.0, h: 0.55 },
-                matt(col).unlit().both_sides().no_shadow(),
-            )
-            .at(def.x + 0.5, 2.03, def.z),
-        );
+        // A fold gives the cloth a visible face even along the pole's east-west axis.
+        let pole_height = 14.0;
+        v.push(cyl(0.14, 0.18, pole_height, 10, matt(0xf2f2f2), def.x, pole_height * 0.5, def.z));
+        let cloth = matt(col).unlit().both_sides().no_shadow();
+        let fold = PI / 3.0;
+        v.push(Part::new(Shape::Quad { w: 2.8, h: 2.0 }, cloth)
+            .at(def.x + 1.4, pole_height - 1.1, def.z));
+        v.push(Part::new(Shape::Quad { w: 1.8, h: 2.0 }, cloth)
+            .at(def.x + 2.8 + 0.9 * fold.cos(), pole_height - 1.1, def.z - 0.9 * fold.sin())
+            .turn(0.0, fold, 0.0));
         // A compact entrance sign makes the base and its banking purpose easier to spot. The
         // team-coloured board and warm lettering strokes stay above the doorway with no collider.
         let (dx, dz, yaw) = match def.open {

@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.37</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.38</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -2199,8 +2199,12 @@ function buildHeistBases(n,variant=heistVariant){clearHeistProps();if(backyardRo
     const flat=(geo,op,y)=>{const o=mesh(geo,new THREE.MeshBasicMaterial({color,transparent:true,opacity:op,depthWrite:false,side:THREE.DoubleSide}),b.x,y,b.z);o.castShadow=false;o.receiveShadow=false;heistProps.push(o);return o;};
     flat(new THREE.CircleGeometry(HEIST_BASE_R,40),.4,.03).rotation.x=-Math.PI/2;       // coloured floor pad = the banking zone
     flat(new THREE.RingGeometry(HEIST_BASE_R-.3,HEIST_BASE_R,48),.9,.04).rotation.x=-Math.PI/2;
-    heistProps.push(mesh(new THREE.CylinderGeometry(.06,.06,2.35,8),mat(0xf2f2f2),b.x,1.175,b.z));
-    const fl=mesh(new THREE.PlaneGeometry(1,.55),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}),b.x+.5,2.03,b.z);fl.castShadow=false;heistProps.push(fl);
+    const poleHeight=14, fold=Math.PI/3;
+    heistProps.push(mesh(new THREE.CylinderGeometry(.14,.18,poleHeight,10),mat(0xf2f2f2),b.x,poleHeight/2,b.z));
+    const cloth=new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide});
+    const flag=mesh(new THREE.PlaneGeometry(2.8,2),cloth,b.x+1.4,poleHeight-1.1,b.z);
+    const tip=mesh(new THREE.PlaneGeometry(1.8,2),cloth,b.x+2.8+.9*Math.cos(fold),poleHeight-1.1,b.z-.9*Math.sin(fold));
+    tip.rotation.y=fold;flag.castShadow=tip.castShadow=false;heistProps.push(flag,tip);
     // A readable entrance marker doubles as a bank cue without adding an obstacle to the doorway.
     const signTex=heistSignTexture(key);
     const direction=b.open==='xPos'?new V3(1,0,0):b.open==='xNeg'?new V3(-1,0,0):b.open==='zPos'?new V3(0,0,1):new V3(0,0,-1);
