@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Teddy Heist maze pass (18 November): 24–27 panels depending on the base layout, with offset turns and barriers on the outer lanes. All nine layouts pass the base-to-base clearance check, and the solo bot match still completes a steal and bank. Desktop and browser prototype 0.23.34.
+
 - 17 Nov eight-item pass: Blender-authored Smoko picnic/bin/pump/shelter detail kit, broader gum foliage, aligned circular-road dust/wear, wall-aware carry framing with a visible local avatar, catch/viewmodel settling, controller menu focus/sliders, and three saved/replicated wardrobe presets. Pool immersion refreshes four seconds of wet slowdown; shaped drops, highlights and overhead wet markers make wet characters readable. Verification: checkpoints/2026-11-17-eight-pass/REVIEW.md. Browser prototype 0.23.29.
 
 

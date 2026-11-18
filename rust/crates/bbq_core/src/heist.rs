@@ -280,7 +280,7 @@ fn oval_steps() -> Vec<Piece> {
 
 /// A broad laser-tag maze. Alternating openings force runners to turn and choose a route
 /// while keeping several loops open for escapes and counter-attacks. Walls stop normal jumps.
-fn maze_walls() -> Vec<Piece> {
+fn maze_walls(bases: &[BaseDef]) -> Vec<Piece> {
     let panels = [
         // Three staggered cross-arena gates create short contested runs and longer reconnecting flanks.
         (-7.0, -29.0, 26.0, 0.8, false), (16.0, -29.0, 22.0, 0.8, true),
@@ -292,12 +292,39 @@ fn maze_walls() -> Vec<Piece> {
         (-4.0, -22.0, 0.8, 12.0, true), (7.0, -8.0, 0.8, 12.0, false),
         (-9.0, 8.0, 0.8, 12.0, true), (5.0, 22.0, 0.8, 12.0, false),
     ];
-    panels
-        .iter()
-        .map(|&(x, z, w, d, alt)| Piece {
-            collider: Collider::centred(x, z, w, d, 3.2).of(Kind::HeistCrate),
-            tint: Tint::Maze(alt),
-        })
+    let piece = |x, z, w, d, alt| Piece {
+        collider: Collider::centred(x, z, w, d, 3.2).of(Kind::HeistCrate),
+        tint: Tint::Maze(alt),
+    };
+    // Returns break up the straight lanes between the cross-walls. The outer wings
+    // interrupt fence-side shortcuts while leaving routes around either end.
+    let returns = [
+        (-30.00, -21.60, 0.80, 12.40),
+        (-13.00, -22.00, 0.80, 12.40),
+        (25.00, -22.00, 0.80, 12.40),
+        (-35.00, -7.20, 0.80, 8.80),
+        (35.00, -7.20, 0.80, 8.80),
+        (-39.00, 5.00, 10.00, 0.80),
+        (38.00, 6.00, 10.00, 0.80),
+        (-32.00, 10.80, 0.80, 12.60),
+        (25.00, 5.60, 0.80, 10.40),
+        (-4.20, 8.00, 8.80, 0.80),
+        (-8.00, 22.80, 0.80, 11.60),
+        (20.00, 21.40, 0.80, 12.00),
+        (33.00, 19.00, 0.80, 9.00),
+    ];
+    panels.into_iter().map(|(x, z, w, d, alt)| piece(x, z, w, d, alt))
+        .chain(returns.into_iter().enumerate().filter_map(|(i, (x, z, w, d))| {
+            let clears_bases = bases.iter().all(|&base| {
+                let door = gate(base);
+                // Keep the whole banking circle clear and leave room to turn at the doorway.
+                let clear = |px: f32, pz: f32, margin: f32| {
+                    (px - x).abs() > w * 0.5 + margin || (pz - z).abs() > d * 0.5 + margin
+                };
+                clear(base.x, base.z, BASE_RADIUS + 0.75) && clear(door.x, door.z, 2.25)
+            });
+            clears_bases.then(|| piece(x, z, w, d, i % 2 == 0))
+        }))
         .collect()
 }
 
@@ -309,11 +336,12 @@ pub fn arena(teams: usize) -> Vec<Piece> {
 pub fn arena_for(teams: usize, variant: usize) -> Vec<Piece> {
     let keys = team_keys(teams);
     let mut v = Vec::new();
-    for (def, team) in layout_for(teams, variant).into_iter().zip(keys.iter()) {
+    let bases = layout_for(teams, variant);
+    for (def, team) in bases.iter().copied().zip(keys.iter()) {
         v.extend(base_walls(def, *team));
     }
     v.extend(oval_steps());
-    v.extend(maze_walls());
+    v.extend(maze_walls(&bases));
     v
 }
 
@@ -691,7 +719,7 @@ mod tests {
             .into_iter()
             .filter(|p| matches!(p.tint, Tint::Maze(_)))
             .collect();
-        assert_eq!(walls.len(), 14);
+        assert!(walls.len() >= 23);
         assert!(walls.iter().all(|p| p.collider.h >= 3.2));
         for p in &walls {
             let c = p.collider;
@@ -707,7 +735,24 @@ mod tests {
             let clear = |x: f32, z: f32| !walls.iter().any(|p| {
                 x > p.collider.x0 - 0.65 && x < p.collider.x1 + 0.65 && z > p.collider.z0 - 0.65 && z < p.collider.z1 + 0.65
             });
-            for base in layout_for(n, variant) {
+            assert!(walls.len() >= 23, "teams={n} layout={variant} lost too many returns");
+            let bases = layout_for(n, variant);
+            // Flood a 1 m grid with 0.65 m clearance, wider than a player's collision radius.
+            let cell = |base: BaseDef| (base.x.round() as i32, base.z.round() as i32);
+            let start = cell(bases[0]);
+            let mut reached = std::collections::HashSet::from([start]);
+            let mut queue = std::collections::VecDeque::from([start]);
+            while let Some((x,z)) = queue.pop_front() {
+                for (dx,dz) in [(1,0),(-1,0),(0,1),(0,-1)] {
+                    let next = (x+dx,z+dz);
+                    if yard.heist_clear(next.0 as f32, next.1 as f32, 0.65)
+                        && reached.insert(next) {
+                        queue.push_back(next);
+                    }
+                }
+            }
+            for base in bases {
+                assert!(reached.contains(&cell(base)), "disconnected base: teams={n} layout={variant} base={base:?}");
                 assert!(yard.heist_clear(base.x, base.z, 0.45), "base interior blocked: teams={n} layout={variant} base=({}, {})", base.x, base.z);
                 let g = gate(base);
                 assert!(yard.heist_clear(g.x, g.z, 0.45) && clear(g.x,g.z), "base doorway blocked: teams={n} layout={variant}");
