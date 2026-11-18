@@ -278,8 +278,9 @@ fn oval_steps() -> Vec<Piece> {
     v
 }
 
-/// The first turn at a base happens between two short side walls and a wider screen.
-fn approach_panels(base: BaseDef) -> [(f32, f32, f32, f32); 3] {
+/// Two continuous walls lead from the base jambs around three blind turns.
+/// Coordinates are in the doorway frame so every base gets the same clear width.
+fn approach_panels(base: BaseDef) -> [(f32, f32, f32, f32); 8] {
     let (fx, fz) = match base.open {
         Open::XPos => (1.0, 0.0),
         Open::XNeg => (-1.0, 0.0),
@@ -292,7 +293,18 @@ fn approach_panels(base: BaseDef) -> [(f32, f32, f32, f32); 3] {
         let (w,d) = if (fx != 0.0) == across { (0.32, length) } else { (length, 0.32) };
         (x,z,w,d)
     };
-    [panel(7.6, 0.0, 11.8, true), panel(4.15, -3.0, 1.5, false), panel(4.15, 3.0, 1.5, false)]
+    let along = |start: f32, end: f32, side| panel((start + end) * 0.5, side, end - start, false);
+    let across = |depth, left: f32, right: f32| panel(depth, (left + right) * 0.5, right - left, true);
+    [
+        across(10.0, -3.0, 5.5),
+        along(3.0, 10.0, -3.0),
+        along(10.0, 12.5, 5.5),
+        across(12.5, -2.0, 5.5),
+        along(3.0, 4.0, 3.0),
+        across(4.0, 3.0, 11.5),
+        along(4.0, 18.5, 11.5),
+        across(18.5, -2.0, 11.5),
+    ]
 }
 
 /// Thin panels with offset openings create junctions, doglegs and reconnecting loops.
@@ -756,6 +768,46 @@ mod tests {
         };
         assert!(!blocked(-36.8, 0.0), "the doorway");
         assert!(blocked(-44.0, 0.0), "the back wall");
+    }
+
+    #[test]
+    fn no_straight_run_between_any_pair_of_goals() {
+        // Measure walkable routes on a one-metre grid, allowing diagonal travel.
+        use std::cmp::Reverse;
+        use std::collections::{BinaryHeap, HashMap};
+        for teams in 2..=4 {
+            for variant in 0..LAYOUTS_PER_TEAM_COUNT {
+                let yard = crate::yard::Yard::heist_variant(Default::default(), 0, teams, variant);
+                let bases = layout_for(teams, variant);
+                for (index, from) in bases.iter().enumerate().take(teams - 1) {
+                    let start = (from.x as i32, from.z as i32);
+                    let mut distances = HashMap::from([(start, 0)]);
+                    let mut queue = BinaryHeap::from([Reverse((0, start))]);
+                    while let Some(Reverse((cost, (x, z)))) = queue.pop() {
+                        if cost > distances[&(x, z)] { continue; }
+                        for dx in -1i32..=1 {
+                            for dz in -1i32..=1 {
+                                if dx == 0 && dz == 0 { continue; }
+                                let next = (x + dx, z + dz);
+                                let diagonal = dx != 0 && dz != 0;
+                                let next_cost = cost + if diagonal { 1414 } else { 1000 };
+                                if next_cost >= *distances.get(&next).unwrap_or(&i32::MAX) { continue; }
+                                if !yard.heist_clear(next.0 as f32, next.1 as f32, 0.65)
+                                    || !yard.heist_clear(x as f32 + dx as f32 * 0.5, z as f32 + dz as f32 * 0.5, 0.65) { continue; }
+                                distances.insert(next, next_cost);
+                                queue.push(Reverse((next_cost, next)));
+                            }
+                        }
+                    }
+                    for to in &bases[index + 1..] {
+                        let distance = distances[&(to.x as i32, to.z as i32)] as f32 / 1000.0;
+                        let straight = (from.x - to.x).hypot(from.z - to.z);
+                        assert!(distance >= straight + 18.0, "teams={teams} variant={variant}: {distance:.1} m walk for {straight:.1} m straight");
+                        if teams == 2 { eprintln!("layout {variant}: {distance:.1} m ({straight:.1} m straight)"); }
+                    }
+                }
+            }
+        }
     }
 
     #[test]

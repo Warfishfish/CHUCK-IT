@@ -2984,22 +2984,27 @@ mod tests {
     #[test]
     fn thrown_hits_pay_nothing_in_heist_but_still_knock_people_over() {
         let mut app = heist_app(2, 3);
+        // Aim down a clear six-metre lane in the selected maze.
+        let yard = &app.world().resource::<YardRes>().0;
+        let (x, z) = (-12..=12).flat_map(|x| (-12..=12).map(move |z| (x as f32, z as f32)))
+            .find(|&(x, z)| (0..=14).all(|step| yard.heist_clear(x, z + step as f32 * 0.5, 0.8)))
+            .expect("clear throwing lane");
         {
             let mut g = app.world_mut().resource_mut::<Game>();
             g.world.clear();
             let b0 = g.dummies[0].id;
             g.teams.set(PLAYER_ID, Team::Red);
             g.teams.set(b0, Team::Blue);
-            g.dummies[0].mover.x = 33.0;
-            g.dummies[0].mover.z = 6.0;
-            g.dummies[0].home = (33.0, 6.0);
+            g.dummies[0].mover.x = x;
+            g.dummies[0].mover.z = z + 6.0;
+            g.dummies[0].home = (x, z + 6.0);
             g.dummies[0].mover.y = 0.0;
             for d in g.dummies.iter_mut() {
                 d.bot.wish = (0.0, 0.0);
             }
         }
-        put_player(&mut app, 33.0, 0.0);
-        give_teddy_at(&mut app, 33.0, 0.0);
+        put_player(&mut app, x, z);
+        give_teddy_at(&mut app, x, z);
         app.world_mut().resource_mut::<Player>().yaw = std::f32::consts::PI;
         app.world_mut().resource_mut::<Player>().pitch = 0.05 - hands::CHARGE_ARC_RADIANS;
         app.world_mut().resource_mut::<Wanted>().throw_down = true;
