@@ -1,6 +1,6 @@
 {
-  "source_commit": "11c810d3dffe7fde7438c15ca9fa25a850bf8c43",
-  "protocol": 28,
+  "source_commit": "9e95556b7eb47dacda619eca5bf50c3bc1f12aa2",
+  "protocol": 29,
   "release_date": "2026-11-18",
-  "description": "Teddy Heist enclosed goal passages, prototype 0.23.36"
+  "description": "Reference mazes, shared navigation and 20 participants, prototype 0.23.37"
 }

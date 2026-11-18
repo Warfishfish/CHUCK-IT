@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- 18 November, prototype 0.23.37. Two, three and four flags select three square Teddy Heist arenas from Marcus’s SVGs. The footprint is 116.8 m on each side. Bots sample solid obstacles to build a shared navigation grid and find routes to objectives. All modes support up to 20 participants including bots. See the [map comparisons and verification](checkpoints/2026-11-18-reference-mazes/REVIEW.md).
+
 - Teddy Heist goal passages (18 November, prototype 0.23.36). Continuous walls join each doorway to a three-turn passage. Across the nine layouts, each opposing pair has a connected ground route at least 18 m longer than the direct line on the 1 m audit grid. Two-team centre-to-centre walks measure 104, 118 and 141 m. The solo bot match completed a steal and bank. [Desktop overview](checkpoints/2026-11-18-heist-goal-passages/overview.png).
 
 - Teddy Heist switchbacks (18 November). The nine layouts have 49–53 thin maze panels and screened approaches outside each base. Tall goal beacons are gone. Banking requires entering the base. The route audit checks every walkable sample for sealed pockets. Desktop and browser prototype 0.23.35.
