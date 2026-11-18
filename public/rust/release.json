@@ -1,6 +1,6 @@
 {
-  "source_commit": "0f6f419f3e3653a6fb0c7b2fdd9302fa9eba7c2a",
+  "source_commit": "7e2c0098e56c940cdbc17824a5298b3dcb19c9dd",
   "protocol": 28,
   "release_date": "2026-11-18",
-  "description": "Teddy Heist maze returns and flank barriers, prototype 0.23.34"
+  "description": "Teddy Heist thin walls, switchbacks and screened goals, prototype 0.23.35"
 }
