@@ -906,7 +906,7 @@ mod tests {
             build_world(g, &host_yard, 1, 0.0, &[])
         };
         assert_eq!(snap.round.heist_teams, 3);
-        assert_eq!(snap.round.heist_variant, 2);
+        assert_eq!(snap.round.heist_variant, 0);
 
         let mut guest = app();
         let mut guest_yard = bbq_core::yard::Yard::default();
@@ -915,7 +915,7 @@ mod tests {
             apply_world(&mut g, &mut guest_yard, &snap, 2, "Marcus");
         }
         assert_eq!(guest_yard.heist, Some(3));
-        assert_eq!(guest_yard.heist_variant, 2);
+        assert_eq!(guest_yard.heist_variant, 0);
         assert_eq!(
             bbq_core::heist::base_of_variant(3, guest_yard.heist_variant, Team::Green),
             bbq_core::heist::base_of_variant(3, 2, Team::Green),

@@ -3043,6 +3043,32 @@ mod tests {
     }
 
     #[test]
+    fn twenty_participants_finish_each_mode_and_bank_in_each_maze() {
+        for (mode, flags) in [(GameMode::FreeForAll,2), (GameMode::Teams,2), (GameMode::Smoko,2),
+            (GameMode::Race,2), (GameMode::Heist,2), (GameMode::Heist,3), (GameMode::Heist,4)] {
+            let mut app = app();
+            let mut config = setup(mode,19);
+            config.heist_teams = flags;
+            config.round_len = if mode == GameMode::Heist {180.0} else {60.0};
+            start_with(&mut app,config);
+            let g = app.world().resource::<Game>();
+            assert_eq!(g.dummies.len(),19);
+            if mode == GameMode::Heist {
+                for team in bbq_core::heist::team_keys(flags) {
+                    assert!((20/flags..=20usize.div_ceil(flags)).contains(&g.teams.count(*team)));
+                }
+            }
+            ticks(&mut app,60 * if mode == GameMode::Heist {185} else {65});
+            let g = app.world().resource::<Game>();
+            if let Some(h) = &g.heist {
+                let banks: u32 = bbq_core::heist::team_keys(flags).iter().map(|team| h.bank.get(*team)).sum();
+                eprintln!("{flags} flags, 20 participants: {banks} banks");
+                assert!(banks > 0);
+            }
+        }
+    }
+
+    #[test]
     fn heist_bots_play_for_a_while_and_nobody_gets_stuck() {
         let mut app = heist_app(2, 3);
         app.world_mut().resource_mut::<Game>().options.bots_on = true;

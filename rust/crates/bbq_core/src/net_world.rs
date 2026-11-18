@@ -14,7 +14,7 @@ use crate::net::{DecodeError, Reader, Writer};
 
 /// The most of each kind of thing in one snapshot (more than the game ever has).
 pub const MAX_ITEMS: usize = 64;
-pub const MAX_BOTS: usize = 16;
+pub const MAX_BOTS: usize = crate::net::MAX_PLAYERS - 1;
 pub const MAX_BOARD: usize = 32;
 pub const MAX_FEED: usize = 8;
 pub const MAX_FX: usize = 32;

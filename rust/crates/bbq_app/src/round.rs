@@ -108,8 +108,6 @@ pub struct RoundCtl {
     pub panel_in: f32,
     pub last_beep: i32,
     pub rng: Rng,
-    /// Last Heist layout, used to avoid an immediate repeat.
-    pub last_heist_variant: Option<usize>,
 }
 
 impl RoundCtl {
@@ -124,7 +122,6 @@ impl RoundCtl {
             panel_in: 0.0,
             last_beep: 0,
             rng: Rng::new(0x20_0D),
-            last_heist_variant: None,
         }
     }
 
@@ -156,7 +153,7 @@ pub fn name_of(g: &Game, id: PlayerId) -> String {
 
 /// Keep exactly `want` bots in the yard.
 pub fn sync_bot_count(g: &mut Game, want: usize) {
-    let want = want.min(MAX_BOTS);
+    let want = want.min(MAX_BOTS.saturating_sub(g.remotes.len()));
     // people playing online are puppets at the end of the list; they are put back last
     let before: Vec<crate::game::RemoteInfo> = g.dummies.iter().filter_map(|d| d.remote.clone()).collect();
     // keep each person's puppet as it is (where it stands, how it moves): only the list around it
@@ -240,6 +237,13 @@ pub fn assign_teams(g: &mut Game, reshuffle: bool) {
 }
 
 fn assign_bot_teams(g: &mut Game, bots: &[PlayerId], teams: &[Team]) {
+    if g.round.setup.mode == GameMode::Heist && bots.len() + g.remotes.len() + 1 == bbq_core::net::MAX_PLAYERS {
+        for &id in bots {
+            let team = *teams.iter().min_by_key(|team| g.teams.count(**team)).unwrap();
+            g.teams.set(id, team);
+        }
+        return;
+    }
     let mut cursor = 0;
     for (index, &team) in teams.iter().enumerate() {
         for _ in 0..g.round.setup.team_bots[index].min(bots.len().saturating_sub(cursor)) {
@@ -288,7 +292,7 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
 
     // a clean yard and the right number of bots
     g.world.clear();
-    sync_bot_count(g, if setup.mode==GameMode::Race {crate::race::bot_count(g,setup.race_role)} else {setup.bots});
+    sync_bot_count(g, if setup.mode==GameMode::Race {crate::race::bot_count(g,setup.race_role).max(setup.bots)} else {setup.bots});
     assign_teams(g, false);
     g.board = Scoreboard::new();
     for id in everyone(g) {
@@ -299,11 +303,7 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
     let features = yard.0.features;
     let spot = pick_chest_spot(g, setup.mode, setup.heist_teams);
     yard.0 = if setup.mode == GameMode::Heist {
-        let previous = g.round.last_heist_variant;
-        let mut variant = g.round.rng.range(0.0, heist::LAYOUTS_PER_TEAM_COUNT as f32) as usize;
-        if previous == Some(variant) { variant = (variant + 1) % heist::LAYOUTS_PER_TEAM_COUNT; }
-        g.round.last_heist_variant = Some(variant);
-        Yard::heist_variant(features, spot, setup.heist_teams, variant)
+        Yard::heist(features, spot, setup.heist_teams)
     } else if setup.mode == GameMode::Smoko {
         Yard::smoko(features, spot)
     } else {
@@ -638,6 +638,9 @@ fn start_from_args(mut game: ResMut<Game>, mut player: ResMut<Player>, mut yard:
     let s = &mut game.round.setup;
     if let Some(n) = args.iter().position(|a| a == "--bots").and_then(|i| args.get(i + 1)).and_then(|v| v.parse::<usize>().ok()) {
         s.bots = n;
+    }
+    if let Some(n) = args.iter().position(|a| a == "--flags").and_then(|i| args.get(i+1)).and_then(|v| v.parse::<usize>().ok()) {
+        s.heist_teams = n.clamp(2,4);
     }
     s.mode = match mode.as_str() {
         "heist" => GameMode::Heist,

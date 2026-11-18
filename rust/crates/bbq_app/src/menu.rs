@@ -2235,7 +2235,7 @@ fn run_requests(
         {
             let args: Vec<String> = std::env::args().collect();
             if let Some(n) = args.iter().position(|a| a == "--bots").and_then(|i| args.get(i + 1)).and_then(|v| v.parse::<usize>().ok()) {
-                settings.bots = n.min(3);
+                set_bot_total(&mut settings, n);
             }
         }
         if *screen == Screen::Menu {

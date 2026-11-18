@@ -22,12 +22,12 @@ const SERVO: &[(&str,f32,f32,f32,f32)] = &[
     ("beta_windsock.glb",-44.0,-5.0,1.0,0.2),
 ];
 const HEIST: &[(&str,f32,f32,f32,f32)] = &[
-    ("beta_tree_paperbark.glb",-58.0,-14.0,1.0,0.8),
-    ("beta_tree_gum.glb",-36.0,40.0,0.9,2.0),
-    ("beta_tree_citrus.glb",10.0,45.0,1.2,0.2),
-    ("beta_tree_paperbark.glb",57.0,17.0,1.0,-1.2),
-    ("beta_tree_gum.glb",40.0,-35.0,0.95,0.8),
-    ("beta_tree_paperbark.glb",-8.0,-45.0,0.85,1.4),
+    ("beta_tree_paperbark.glb",-64.0,-14.0,1.0,0.8),
+    ("beta_tree_gum.glb",-36.0,64.0,0.9,2.0),
+    ("beta_tree_citrus.glb",10.0,64.0,1.2,0.2),
+    ("beta_tree_paperbark.glb",64.0,17.0,1.0,-1.2),
+    ("beta_tree_gum.glb",40.0,-64.0,0.95,0.8),
+    ("beta_tree_paperbark.glb",-8.0,-64.0,0.85,1.4),
 ];
 fn spawn(mut commands:Commands,assets:Res<AssetServer>) {
     for (mode,plants) in [(GameMode::FreeForAll,BACKYARD),(GameMode::Smoko,SERVO),(GameMode::Heist,HEIST)] {

@@ -8,7 +8,7 @@ const { WebSocketServer } = require('ws');
 const PORT = process.env.PORT || 3000;
 const PUBLIC = path.join(__dirname, 'public');
 const ROOM_NAME = /^[a-z0-9][a-z0-9_.-]{0,47}$/;
-const MAX_PER_ROOM = 16;
+const MAX_PER_ROOM = 20;
 const MAX_PRESENCE_BYTES = 8192;
 const MAX_MSG_BYTES = 12288; // one relayed game message, after base64
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.ico': 'image/x-icon', '.svg': 'image/svg+xml',

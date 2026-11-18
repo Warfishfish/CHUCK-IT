@@ -146,30 +146,47 @@ pub fn blocked(yard: &Yard, x: f32, z: f32, y: f32) -> bool {
     }
 }
 
+/// Shared by runners in the same arena. Sample the actual obstacle footprints once.
+#[derive(Clone, Debug)]
+pub struct NavigationGrid {
+    half_x: i32,
+    half_z: i32,
+    width: usize,
+    walkable: Vec<bool>,
+}
+
+impl NavigationGrid {
+    fn observe(yard: &Yard) -> Self {
+        let (x, z) = if yard.heist.is_some() {
+            (crate::heist::ARENA_A, crate::heist::ARENA_B)
+        } else { (YARD_HALF_X, YARD_HALF_Z) };
+        let (half_x, half_z) = (x.floor() as i32, z.floor() as i32);
+        let walkable = (-half_z..=half_z).flat_map(|z|
+            (-half_x..=half_x).map(move |x| !blocked(yard, x as f32, z as f32, 0.0))
+        ).collect();
+        Self { half_x, half_z, width: (2 * half_x + 1) as usize, walkable }
+    }
+}
+
 /// Pick a walkable waypoint around solid Heist walls. The normal steering system handles
 /// local avoidance; this A* route keeps long objectives from circling a maze panel forever.
-fn heist_waypoint(yard: &Yard, from: V3, target: V3) -> Option<V3> {
-    const MIN_X: i32 = -53;
-    const MAX_X: i32 = 53;
-    const MIN_Z: i32 = -39;
-    const MAX_Z: i32 = 39;
-    const NX: usize = (MAX_X - MIN_X + 1) as usize;
-    const N: usize = NX * (MAX_Z - MIN_Z + 1) as usize;
-    let index = |x: i32, z: i32| ((z - MIN_Z) as usize) * NX + (x - MIN_X) as usize;
-    let point = |i: usize| V3::new(MIN_X as f32 + (i % NX) as f32, 0.0, MIN_Z as f32 + (i / NX) as f32);
+fn navigation_waypoint(yard: &Yard, from: V3, target: V3) -> Option<V3> {
+    let grid = yard.navigation.get_or_init(|| NavigationGrid::observe(yard));
+    let index = |x: i32, z: i32| ((z + grid.half_z) as usize) * grid.width + (x + grid.half_x) as usize;
+    let point = |i: usize| V3::new((i % grid.width) as f32 - grid.half_x as f32, 0.0, (i / grid.width) as f32 - grid.half_z as f32);
     let snap = |x: f32, z: f32| -> (i32, i32) { (x.round() as i32, z.round() as i32) };
     let direct_steps=((target.x-from.x).hypot(target.z-from.z)/0.6).ceil().max(1.0) as usize;
     if (1..=direct_steps).all(|i| {let t=i as f32/direct_steps as f32;!blocked(yard,from.x+(target.x-from.x)*t,from.z+(target.z-from.z)*t,from.y)}) { return Some(target); }
     let (sx, sz) = snap(from.x, from.z);
     let (gx, gz) = snap(target.x, target.z);
-    if !(MIN_X..=MAX_X).contains(&sx) || !(MIN_Z..=MAX_Z).contains(&sz)
-        || !(MIN_X..=MAX_X).contains(&gx) || !(MIN_Z..=MAX_Z).contains(&gz) { return None; }
+    if !(-grid.half_x..=grid.half_x).contains(&sx) || !(-grid.half_z..=grid.half_z).contains(&sz)
+        || !(-grid.half_x..=grid.half_x).contains(&gx) || !(-grid.half_z..=grid.half_z).contains(&gz) { return None; }
     let start = index(sx, sz);
     let end = index(gx, gz);
-    let clear = |i: usize| { let p = point(i); !blocked(yard, p.x, p.z, from.y) };
+    let clear = |i: usize| { grid.walkable[i] };
     if !clear(start) || !clear(end) { return None; }
-    let mut score = vec![i32::MAX; N];
-    let mut parent = vec![usize::MAX; N];
+    let mut score = vec![i32::MAX; grid.walkable.len()];
+    let mut parent = vec![usize::MAX; grid.walkable.len()];
     let mut open = BinaryHeap::new();
     let h = |x: i32, z: i32| { let (dx,dz)=((x-gx).abs(),(z-gz).abs()); 10*(dx+dz)-6*dx.min(dz) };
     score[start] = 0;
@@ -180,7 +197,7 @@ fn heist_waypoint(yard: &Yard, from: V3, target: V3) -> Option<V3> {
         let p = point(at); let (x,z)=(p.x as i32,p.z as i32);
         for (dx,dz) in DIRS {
             let (xx,zz)=(x+dx,z+dz);
-            if !(MIN_X..=MAX_X).contains(&xx) || !(MIN_Z..=MAX_Z).contains(&zz) { continue; }
+            if !(-grid.half_x..=grid.half_x).contains(&xx) || !(-grid.half_z..=grid.half_z).contains(&zz) { continue; }
             let next=index(xx,zz);
             if !clear(next) { continue; }
             if dx != 0 && dz != 0 && (!clear(index(x+dx,z)) || !clear(index(x,z+dz))) { continue; }
@@ -1271,20 +1288,20 @@ impl BotBrain {
         let p = self.pers;
         let mut route_wish = wish;
         self.nav_t -= dt;
-        if w.mode == GameMode::Heist && !urgent && let Some(g) = goal {
+        if w.objective_goal.is_some() && !urgent && let Some(g) = goal {
             let changed = self.nav_goal.is_none_or(|old| (old.x-g.x).hypot(old.z-g.z)>2.0);
             let reached = self.nav_point.is_some_and(|point| {
                 (point.x - me.pos.x).hypot(point.z - me.pos.z) < 0.8
             });
             if changed || reached || self.nav_t <= 0.0 {
                 self.nav_goal=Some(g);
-                self.nav_point=heist_waypoint(w.yard,me.pos,g);
-                self.nav_t=0.45;
+                self.nav_point=navigation_waypoint(w.yard,me.pos,g);
+                self.nav_t=1.2;
             }
-        } else if w.mode != GameMode::Heist || goal.is_none() || urgent {
+        } else if w.objective_goal.is_none() || goal.is_none() || urgent {
             self.nav_goal=None;self.nav_point=None;self.nav_t=0.0;
         }
-        if w.mode == GameMode::Heist && !urgent
+        if w.objective_goal.is_some() && !urgent
             && let Some(next) = self.nav_point
         {
             let dx=next.x-me.pos.x;let dz=next.z-me.pos.z;let len=dx.hypot(dz).max(1e-3);
@@ -2445,7 +2462,7 @@ mod tests {
         yard.colliders.clear();
         yard.colliders.push(crate::yard::Collider::centred(0.0, 0.0, 1.0, 16.0, 3.0));
         let from = V3::new(-12.0, 0.0, 0.0);
-        let next = heist_waypoint(&yard, from, V3::new(12.0, 0.0, 0.0)).unwrap();
+        let next = navigation_waypoint(&yard, from, V3::new(12.0, 0.0, 0.0)).unwrap();
         assert!(from.len_between(next) > 5.0, "look ahead to the bend: {next:?}");
         for i in 1..=100 {
             let t = i as f32 / 100.0;

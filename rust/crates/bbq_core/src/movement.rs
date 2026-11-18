@@ -547,13 +547,8 @@ impl Mover {
         if yard.heist.is_some() {
             let a = crate::heist::ARENA_A - 0.45;
             let b = crate::heist::ARENA_B - 0.45;
-            let q = (self.x * self.x / (a * a) + self.z * self.z / (b * b)).sqrt();
-            if q > 1.0 {
-                self.x /= q;
-                self.z /= q;
-                self.vx = 0.0;
-                self.vz = 0.0;
-            }
+            self.x = self.x.clamp(-a, a);
+            self.z = self.z.clamp(-b, b);
         } else {
             let (half_x, half_z) = if yard.race {
                 (52., 37.)

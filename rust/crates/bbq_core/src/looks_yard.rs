@@ -4027,33 +4027,19 @@ pub fn heist_look(teams: usize) -> Vec<Part> {
 pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
     use crate::heist::{self, Tint};
     let mut v = Vec::new();
-    // Dry red-earth shoulder gives the independent Heist arena a finished boundary beyond
-    // the playable grass oval. Its collision and out-of-bounds line remain the inner ellipse.
-    v.push(
-        Part::new(
-            Shape::OvalGround {
-                a: heist::ARENA_A + 7.0,
-                b: heist::ARENA_B + 7.0,
-                hole: (1000.0, 1001.0, 1000.0, 1001.0),
-                per_m: 1.0 / 16.0,
-            },
-            matt(0x765b43).no_shadow().ground(),
-        )
-        .at(0.0, 0.005, 0.0),
-    );
-    // A separate playable field: no inherited backyard grass, pool cutout or yard props.
-    v.push(
-        Part::new(
-            Shape::OvalGround {
-                a: heist::ARENA_A,
-                b: heist::ARENA_B,
-                hole: (1000.0, 1001.0, 1000.0, 1001.0),
-                per_m: 1.0 / 16.0,
-            },
-            matt(0xffffff).textured(Tex::HeistTurf).no_shadow().ground(),
-        )
-        .at(0.0, 0.015, 0.0),
-    );
+    // A zero-area hole gives both square surfaces uninterrupted world-space turf UVs.
+    for (margin, height, material) in [
+        (7.0, 0.005, matt(0x765b43).no_shadow().ground()),
+        (0.0, 0.015, matt(0xffffff).textured(Tex::HeistTurf).no_shadow().ground()),
+    ] {
+        let x = heist::ARENA_A + margin;
+        let z = heist::ARENA_B + margin;
+        v.push(Part::new(Shape::Ground {
+            x0: -x, x1: x, z0: -z, z1: z,
+            hole: (0.0, 0.0, 0.0, 0.0),
+            per_m: 1.0 / 16.0,
+        }, material).at(0.0, height, 0.0));
+    }
     for piece in heist::arena_for(teams, variant) {
         let c = piece.collider;
         let colour = match piece.tint {

@@ -13,7 +13,7 @@
 
 /// Bump this whenever a message changes, so old and new copies of the game refuse each other
 /// politely instead of misreading each other.
-pub const PROTOCOL: u16 = 28; // Cosmetic camera pitch in the existing player snapshot.
+pub const PROTOCOL: u16 = 29; // Square arenas and twenty participant slots.
 /// One signed byte, neutral exactly zero. Cosmetic only; never used to validate a throw.
 pub fn pack_pitch(pitch: f32) -> i8 {
     if !pitch.is_finite() { return 0; }
@@ -24,7 +24,7 @@ pub fn unpack_pitch(pitch: i8) -> f32 {
     pitch.max(-127) as f32 / 127.0 * crate::movement::PITCH_LIMIT
 }
 /// The most people in one yard (the browser game's limit).
-pub const MAX_PLAYERS: usize = 16;
+pub const MAX_PLAYERS: usize = 20;
 /// How often each player reports where they are.
 pub const STATE_HZ: f32 = 20.0;
 /// Names are cut to this many characters.

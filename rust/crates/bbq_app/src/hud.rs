@@ -632,11 +632,14 @@ fn update_board(
     *last = sig;
     commands.entity(*board).despawn_children();
     commands.entity(*board).with_children(|b| {
+        let compact = rows.len() > 12;
+        let font_size = if compact { 12.0 } else { 14.0 };
+        let row_padding = if compact { 0.0 } else { 3.0 };
         let row_of = |b: &mut ChildSpawnerCommands, r: &(u32, String, Color, i32, Option<Team>, u32)| {
             b.spawn((
                 Node {
                     column_gap: px(8.0),
-                    padding: UiRect::axes(px(4.0), px(3.0)),
+                    padding: UiRect::axes(px(4.0), px(row_padding)),
                     align_items: AlignItems::Center,
                     border_radius: BorderRadius::all(px(7.0)),
                     ..default()
@@ -657,9 +660,9 @@ fn update_board(
                 ));
                 row.spawn(Node { flex_grow: 1.0, column_gap: px(4.0), ..default() })
                     .with_children(|n| {
-                        n.spawn(text(r.1.clone(), 14.0, false, WHITE));
+                        n.spawn(text(r.1.clone(), font_size, false, WHITE));
                         if leader == Some(r.0) {
-                            n.spawn(text("*", 14.0, true, SUN));
+                            n.spawn(text("*", font_size, true, SUN));
                         }
                     });
                 let score = if g.rules.mode == GameMode::Heist {
@@ -667,7 +670,7 @@ fn update_board(
                 } else {
                     r.3.to_string()
                 };
-                row.spawn(text(score, 14.0, false, WHITE));
+                row.spawn(text(score, font_size, false, WHITE));
             });
         };
         if !teamed {
@@ -698,7 +701,7 @@ fn update_board(
             };
             b.spawn((
                 Node {
-                    padding: UiRect::axes(px(8.0), px(3.0)),
+                    padding: UiRect::axes(px(8.0), px(row_padding)),
                     margin: UiRect::top(px(4.0)),
                     justify_content: JustifyContent::SpaceBetween,
                     border_radius: BorderRadius::all(px(7.0)),

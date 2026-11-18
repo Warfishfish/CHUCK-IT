@@ -145,11 +145,12 @@ pub const BLOB_COLOURS: [Color; 11] = [
     Color::linear_rgb(0.95, 0.75, 0.2),
     Color::linear_rgb(0.6, 0.6, 0.9),
 ];
-pub const BLOB_NAMES: [&str; 11] = [
+pub const BLOB_NAMES: [&str; 19] = [
     "Shazza", "Davo", "Kev", "Bazza", "Trish", "Robbo", "Mick", "Nev", "Gaz", "Bruce", "Sheila",
+    "Billie", "Frankie", "Dot", "Noel", "Tess", "Jules", "Sandy", "Archie",
 ];
-/// The most bots in a yard (you make twelve, one for each spawn spot).
-pub const MAX_BOTS: usize = 11;
+/// Reserve one participant slot for the local player.
+pub const MAX_BOTS: usize = bbq_core::net_world::MAX_BOTS;
 
 pub struct CharactersPlugin;
 

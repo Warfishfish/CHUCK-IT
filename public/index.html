@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.36</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.37</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -299,6 +299,7 @@ body.touch #cds{display:none}
         <input type="radio" name="pbots" id="pb1" value="1"><label for="pb1">1</label>
         <input type="radio" name="pbots" id="pb2" value="2"><label for="pb2">2</label>
         <input type="radio" name="pbots" id="pb3" value="3" checked><label for="pb3">3</label>
+        <input type="radio" name="pbots" id="pb19" value="19"><label for="pb19">19</label>
       </div></fieldset>
       <fieldset class="seg"><legend>👥 Game mode</legend><div class="opts">
         <input type="radio" name="pmode" id="pmFfa" value="ffa" checked><label for="pmFfa">Free for all</label>
@@ -368,6 +369,7 @@ body.touch #cds{display:none}
             <input type="radio" name="mbots" id="mb1" value="1"><label for="mb1">1</label>
             <input type="radio" name="mbots" id="mb2" value="2"><label for="mb2">2</label>
             <input type="radio" name="mbots" id="mb3" value="3"><label for="mb3">3</label>
+        <input type="radio" name="mbots" id="mbots19" value="19"><label for="mbots19">19</label>
           </div></fieldset>
           <fieldset class="seg"><legend>🎯 Bot skill</legend><div class="opts">
             <input type="radio" name="mdiff" id="mdEasy" value="easy"><label for="mdEasy">Easy</label>
@@ -506,6 +508,7 @@ body.touch #cds{display:none}
         <input type="radio" name="ybots" id="yb1" value="1"><label for="yb1">1</label>
         <input type="radio" name="ybots" id="yb2" value="2"><label for="yb2">2</label>
         <input type="radio" name="ybots" id="yb3" value="3"><label for="yb3">3</label>
+        <input type="radio" name="ybots" id="ybots19" value="19"><label for="ybots19">19</label>
       </div></fieldset>
       <fieldset class="seg"><legend>Bot skill</legend><div class="opts">
         <input type="radio" name="ydiff" id="ydEasy" value="easy"><label for="ydEasy">Easy</label>
@@ -555,6 +558,7 @@ body.touch #cds{display:none}
   </div>
 </div>
 
+<script src="heist-layouts.js"></script>
 <script src="room-ws.js"></script>
 <script src="vendor/three-r147/three.min.js"></script>
 <script src="vendor/three-r147/GLTFLoader.js"></script>
@@ -659,7 +663,7 @@ function imageTex(path,rx,ry){const t=new THREE.TextureLoader().load(path,tex=>{
 function loadHeroGumTree(x,z){new THREE.GLTFLoader().load('models/gum_tree_hero.glb',g=>{const root=g.scene;root.position.set(x,0,z);root.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});(backyardRoot||scene).add(root);},undefined,e=>console.warn('Hero gum tree failed to load',e));}
 
 /* ================= WORLD ================= */
-const W=40,D=29,GRAV=18,HEIST_A=54,HEIST_B=40;
+const W=40,D=29,GRAV=18,HEIST_A=58.4,HEIST_B=58.4;
 const TANK={x:22.3,z:-23.9,r:1.3,bodyH:3.52,top:3.62,capR:1.35,ladderBottom:-19.4,ladderTop:-22.55,ladderHalf:.55};
 const HOUSE={x:0,z:-29.5,w:40,d:8,h:4.6},ROOF={edgeZ:-24.95,ridgeZ:-29.85,frontY:5.62,frontZ:-27.4,pitch:.445,width:41,backY:5.62,backZ:-31.6,backStartZ:-29.4,backEdgeZ:-34.05};
 const MOWER={x:27.6,z:-19.0},VERANDA={z:-24.05,d:1.75,x:17.5};
@@ -2094,43 +2098,31 @@ function balanceTeams(reshuffle,assignOnly){
 /* ---- Teddy Heist: steal the other team(s)' teddies out of their walled base, bank them in yours ---- */
 const HEIST_TEAM_KEYS=['r','b','g','y'];
 let heistBoard=null;
-let heistTeams=2,heistVariant=0,heistBuiltVariant=-1,lastHeistVariant=-1,heistBanked={},heistBases={},heistProps=[],heistColsSet=[];
+let heistTeams=2,heistVariant=0,heistBuiltVariant=-1,heistBanked={},heistBases={},heistProps=[],heistColsSet=[];
 const HEIST_HALF=3,HEIST_WALL_H=2.1,HEIST_BASE_R=2.55,HEIST_BANK_PTS=150;
-const HEIST_LAYOUT=[
-  {2:[{x:-41,z:0,open:'xPos'},{x:41,z:0,open:'xNeg'}],3:[{x:-39,z:-17,open:'xPos'},{x:39,z:-17,open:'xNeg'},{x:0,z:36,open:'zNeg'}],4:[{x:-39,z:-18,open:'xPos'},{x:39,z:-18,open:'xNeg'},{x:-39,z:18,open:'xPos'},{x:39,z:18,open:'xNeg'}]},
-  {2:[{x:-25,z:-23,open:'zPos'},{x:25,z:23,open:'zNeg'}],3:[{x:-41,z:14,open:'xPos'},{x:35,z:20,open:'zNeg'},{x:4,z:-35,open:'zPos'}],4:[{x:-32,z:-23,open:'zPos'},{x:32,z:-23,open:'zPos'},{x:-32,z:23,open:'zNeg'},{x:32,z:23,open:'zNeg'}]},
-  {2:[{x:-24,z:24,open:'xPos'},{x:24,z:-24,open:'xNeg'}],3:[{x:-8,z:-35,open:'zPos'},{x:38,z:0,open:'xNeg'},{x:-32,z:23,open:'xPos'}],4:[{x:-15,z:-35,open:'zPos'},{x:35,z:-12,open:'xNeg'},{x:15,z:35,open:'zNeg'},{x:-35,z:12,open:'xPos'}]}
-];
-const heistLayout=(n=heistTeams,v=heistVariant)=>HEIST_LAYOUT[(v|0)%3][clamp(n|0,2,4)];
-const inHeistOval=(x,z,r=0)=>{const a=HEIST_A-r,b=HEIST_B-r;return a>0&&b>0&&x*x/(a*a)+z*z/(b*b)<=1;};
+function heistLayout(n=heistTeams) {
+  const c=HEIST_A*.875;
+  return [{x:-c,z:-c,open:'xPos'},{x:c,z:n===2?c:-c,open:'xNeg'},
+          {x:-c,z:c,open:'xPos'},{x:c,z:c,open:'xNeg'}].slice(0,n);
+}
+const insideHeist=(x,z,r=0)=>Math.abs(x)<=HEIST_A-r && Math.abs(z)<=HEIST_B-r;
 function heistKeysArr(){return HEIST_TEAM_KEYS.slice(0,heistTeams);}
-function clearHeistProps(){for(const o of heistProps)if(o.parent)o.parent.remove(o);heistProps.length=0;yardFence.forEach(o=>o.visible=true);if(yardLawn)yardLawn.visible=true;if(backyardRoot)backyardRoot.visible=true;
+function clearHeistProps(){mazeWalkable=null;for(const o of heistProps)if(o.parent)o.parent.remove(o);heistProps.length=0;yardFence.forEach(o=>o.visible=true);if(yardLawn)yardLawn.visible=true;if(backyardRoot)backyardRoot.visible=true;
   for(const c of heistColsSet){const i=colliders.indexOf(c);if(i>=0)colliders.splice(i,1);}heistColsSet.length=0;heistBases={};heistBanked={};heistSpawnN={};heistBoard=null;}
 function buildHeistWall(cx,cz,w,d,color,h){h=h||HEIST_WALL_H;heistProps.push(mesh(new THREE.BoxGeometry(w,h,d),mat(color),cx,h/2,cz));
   col(cx,cz,w,d,h);heistColsSet.push(colliders[colliders.length-1]);}
 // true when (x,z) is at least r clear of every heist wall/block
-function heistClear(x,z,r){if(!inHeistOval(x,z,r))return false;for(const c of heistColsSet)if(x>c.x0-r&&x<c.x1+r&&z>c.z0-r&&z<c.z1+r)return false;return true;}
+function heistClear(x,z,r){if(!insideHeist(x,z,r))return false;for(const c of heistColsSet)if(x>c.x0-r&&x<c.x1+r&&z>c.z0-r&&z<c.z1+r)return false;return true;}
 const heistSignTextures=new Map();
 function heistSignTexture(key){if(heistSignTextures.has(key))return heistSignTextures.get(key);const tex=textTex(320,96,(ctx,w,h)=>{
   ctx.fillStyle='#17231f';ctx.fillRect(0,0,w,h);ctx.fillStyle=TEAMS[key].css;ctx.fillRect(0,0,12,h);ctx.fillStyle='#fff4d2';ctx.font='900 39px system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(TEAMS[key].name.toUpperCase()+' BASE',w/2+5,34);ctx.font='800 24px system-ui,sans-serif';ctx.fillStyle='#f5c84a';ctx.fillText('BANK TEDDIES',w/2+5,72);});
   heistSignTextures.set(key,tex);return tex;}
-// the Heist yard is an oval, not a rectangle: everything outside an ellipse is filled with thin stone steps (so the corners curve away),
-// plus a half-round bay pushed into the middle of each side. Axes are chosen so every base (2, 3 or 4 teams) sits inside with room to walk round it.
-const HEIST_ARENA={A:HEIST_A,B:HEIST_B,step:1,bay:{r:6,depth:3.6}};
 let heistTurfTex=null;
-function buildHeistArena(){const {A,B,step,bay}=HEIST_ARENA;let n=0;
-  const put=(cx,cz,w,d)=>{buildHeistWall(cx,cz,w,d,(n++%2)?0x6d7178:0x80848b,2.6);};
-  for(let zc=-B+step/2;zc<B;zc+=step){
-    const e=Math.abs(zc)>=B?0:A*Math.sqrt(1-(zc/B)*(zc/B));            // oval edge at this z
-    const w=A-Math.min(A,e);if(w>.35){put(-A+w/2,zc,w,step);put(A-w/2,zc,w,step);}   // fill outside the oval, both sides
-    if(Math.abs(zc)<bay.r){const dep=bay.depth*Math.sqrt(1-(zc/bay.r)*(zc/bay.r));  // half-round bay in the middle of each side wall
-      if(dep>.5){put(-A+dep/2,zc,dep,step);put(A-dep/2,zc,dep,step);}}}
-  const apronShape=new THREE.Shape();for(let i=0;i<=128;i++){const t=i/128*Math.PI*2,x=(A+7)*Math.cos(t),y=-(B+7)*Math.sin(t);if(i===0)apronShape.moveTo(x,y);else apronShape.lineTo(x,y);}
-  const apron=mesh(new THREE.ShapeGeometry(apronShape),mat(0x765b43),0,-.055,0);apron.rotation.x=-Math.PI/2;apron.castShadow=false;apron.receiveShadow=true;heistProps.push(apron);
-  const ground=new THREE.Shape();for(let i=0;i<=128;i++){const t=i/128*Math.PI*2,x=A*Math.cos(t),y=-B*Math.sin(t);if(i===0)ground.moveTo(x,y);else ground.lineTo(x,y);}
+function buildHeistArena(){
+  const A=HEIST_A,B=HEIST_B;
   if(!heistTurfTex)heistTurfTex=imageTex('textures/heist_turf.png',Math.round(A/8),Math.round(B/8));
   const turfMat=new THREE.MeshLambertMaterial({map:heistTurfTex,color:0xd7e0b8});
-  const lawn=mesh(new THREE.ShapeGeometry(ground),turfMat,0,.015,0);lawn.rotation.x=-Math.PI/2;lawn.castShadow=false;lawn.receiveShadow=true;heistProps.push(lawn);
+  const lawn=mesh(new THREE.PlaneGeometry(2*A,2*B),turfMat,0,.015,0);lawn.rotation.x=-Math.PI/2;lawn.castShadow=false;lawn.receiveShadow=true;heistProps.push(lawn);
   if(yardLawn)yardLawn.visible=false;yardFence.forEach(o=>o.visible=false);}
 // a big four-sided scoreboard floating over the middle of the yard: teddies banked + points per team, readable from anywhere
 function drawHeistBoard(){const b=heistBoard;if(!b)return;const c=b.ctx,keys=heistKeysArr(),N=640;
@@ -2186,88 +2178,15 @@ function heistBotGoalRaw(ch){const myT=teamOf.get(ch.id),home=myT&&heistBases[my
   const inBase=eb&&Math.abs(best.pos.x-eb.x)<HEIST_HALF&&Math.abs(best.pos.z-eb.z)<HEIST_HALF;
   return inBase?heistVia(ch,eb,best.pos):best.pos;}
 // each team spawns inside its own base rather than at random yard spots
-const HEIST_SPAWN_OFF=[[0,2.1],[0,-2.1],[2.1,0],[-2.1,0]];let heistSpawnN={};
+const HEIST_SPAWN_OFF=Array.from({length:25},(_,i)=>[Math.floor(i/5)-2,i%5-2]);let heistSpawnN={};
 function heistSpawnFor(ch){if(gameMode!=='heist')return null;const t=teamOf.get(ch.id),b=t&&heistBases[t];if(!b)return null;
-  const n=heistSpawnN[t]=(heistSpawnN[t]||0)+1,o=HEIST_SPAWN_OFF[(n-1)%4];return [b.x+o[0],b.z+o[1]];}
-function buildHeistCenterpiece(layout) {
-  const panels = [
-    [-7.0, -29.0, 26.0, 0.32],
-    [16.0, -29.0, 22.0, 0.32],
-    [-18.0, -15.0, 34.0, 0.32],
-    [19.0, -15.0, 20.0, 0.32],
-    [-18.0, 0.0, 22.0, 0.32],
-    [9.0, 0.0, 36.0, 0.32],
-    [-20.0, 17.5, 28.0, 0.32],
-    [16.0, 15.0, 26.0, 0.32],
-    [-8.0, 29.0, 24.0, 0.32],
-    [18.0, 29.0, 20.0, 0.32],
-    [-4.0, -22.0, 0.32, 12.0],
-    [7.0, -8.0, 0.32, 12.0],
-    [-9.0, 8.0, 0.32, 12.0],
-    [5.0, 22.0, 0.32, 12.0],
-    [-30.0, -21.6, 0.32, 12.4],
-    [-13.0, -22.0, 0.32, 8.0],
-    [25.0, -22.0, 0.32, 12.4],
-    [-35.0, -7.2, 0.32, 8.8],
-    [35.0, -7.2, 0.32, 8.8],
-    [-39.0, 5.0, 10.0, 0.32],
-    [38.0, 6.0, 10.0, 0.32],
-    [-32.0, 10.8, 0.32, 12.6],
-    [25.0, 5.6, 0.32, 10.4],
-    [-4.2, 8.0, 8.8, 0.32],
-    [-8.0, 22.8, 0.32, 11.6],
-    [20.0, 21.4, 0.32, 12.0],
-    [33.0, 19.0, 0.32, 9.0],
-    [-42.0, -8.0, 0.32, 8.0],
-    [-43.0, 14.0, 0.32, 8.0],
-    [-35.0, 23.0, 10.0, 0.32],
-    [-36.0, -29.0, 8.0, 0.32],
-    [-22.0, -33.0, 7.0, 0.32],
-    [-21.0, -24.0, 10.0, 0.32],
-    [-23.0, -7.0, 0.32, 8.0],
-    [-14.0, -7.0, 10.0, 0.32],
-    [-5.0, -9.0, 5.0, 0.32],
-    [0.0, -20.0, 9.0, 0.32],
-    [11.0, -23.0, 0.32, 7.0],
-    [28.0, -25.0, 9.0, 0.32],
-    [37.0, -18.0, 0.32, 8.0],
-    [44.0, -12.0, 0.32, 8.0],
-    [34.0, -1.0, 10.0, 0.32],
-    [46.0, 1.0, 0.32, 7.0],
-    [30.0, 10.0, 8.0, 0.32],
-    [38.0, 15.0, 0.32, 7.0],
-    [27.0, 26.0, 9.0, 0.32],
-    [12.0, 22.0, 8.0, 0.32],
-    [-1.0, 15.0, 0.32, 8.0],
-    [-15.0, 22.0, 9.0, 0.32],
-    [-23.0, 24.0, 0.32, 7.0],
-    [-31.0, 21.0, 0.32, 7.0],
-    [-35.0, 10.0, 8.0, 0.32],
-    [0.0, 33.0, 8.0, 0.32],
-  ];
-  const approaches = layout.map(base => {
-    const [fx, fz] = {xPos:[1,0], xNeg:[-1,0], zPos:[0,1], zNeg:[0,-1]}[base.open];
-    const panel = (depth, lateral, length, across) => {
-      const x = base.x + fx * depth - fz * lateral;
-      const z = base.z + fz * depth + fx * lateral;
-      const [w, d] = (fx !== 0) === across ? [.32, length] : [length, .32];
-      return [x, z, w, d];
-    };
-    const along = (start,end,side) => panel((start+end)/2,side,end-start,false);
-    const across = (depth,left,right) => panel(depth,(left+right)/2,right-left,true);
-    return {base, gx:base.x+(HEIST_HALF+1.2)*fx, gz:base.z+(HEIST_HALF+1.2)*fz,
-      walls:[across(10,-3,5.5), along(3,10,-3), along(10,12.5,5.5), across(12.5,-2,5.5),
-             along(3,4,3), across(4,3,11.5), along(4,18.5,11.5), across(18.5,-2,11.5)]};
-  });
-  const screens = approaches.flatMap(approach => approach.walls);
-  panels.forEach(([x,z,w,d], i) => {
-    const clear = (px,pz,margin) => Math.abs(px-x)>w/2+margin || Math.abs(pz-z)>d/2+margin;
-    if (approaches.every(({base,gx,gz}) => clear(base.x,base.z,HEIST_BASE_R+.75) && clear(gx,gz,3.3))
-        && screens.every(([ax,az,aw,ad]) => Math.abs(x-ax)>(w+aw)/2+2.3 || Math.abs(z-az)>(d+ad)/2+2.3)) {
-      buildHeistWall(x,z,w,d,i%2 ? 0x334e55 : 0x557774,3.2);
-    }
-  });
-  for (const [x,z,w,d] of screens) buildHeistWall(x,z,w,d,0x557774,3.2);
+  const n=heistSpawnN[t]=(heistSpawnN[t]||0)+1,o=HEIST_SPAWN_OFF[(n-1)%HEIST_SPAWN_OFF.length];return [b.x+o[0],b.z+o[1]];}
+function buildHeistCenterpiece(){
+  const cell=HEIST_A/8;
+  for(const [n,x,z,ex,ez] of heistWallRuns){
+    if(n===heistTeams)buildHeistWall(((x+ex)/2-8)*cell,((z+ez)/2-8)*cell,
+      Math.max(.32,(ex-x)*cell),Math.max(.32,(ez-z)*cell),x===ex?0x557774:0x334e55,3.2);
+  }
 }
 function buildHeistBases(n,variant=heistVariant){clearHeistProps();if(backyardRoot)backyardRoot.visible=false;heistTeams=clamp(n|0,2,4);heistVariant=(variant|0)%3;heistBuiltVariant=heistVariant;
   const keys=heistKeysArr(),layout=heistLayout(heistTeams,heistVariant),H=HEIST_HALF,th=.35;
@@ -2458,7 +2377,7 @@ const NPC_LINES_ADULT={chat:["These snags have seen things.","Dunny's blocked ag
   bubble.userData={c:bc,t:bt};
   g.position.copy(NPC.pos);scene.add(g);Object.assign(NPC,{mesh:g,body,arm,bubble});featObjs.bbq.push(g);})();
 // Group every static Backyard BBQ object and mark its colliders together. Teddy Heist swaps this
-// complete yard out for its own oval field, while character and item entities remain independent.
+// complete yard out for its own maze field, while character and item entities remain independent.
 backyardRoot=new THREE.Group();backyardRoot.name='Backyard BBQ environment';
 for(const o of [...scene.children])if(!worldChildrenBefore.has(o)){scene.remove(o);backyardRoot.add(o);}
 scene.add(backyardRoot);
@@ -2843,7 +2762,7 @@ function playFx(a){
   else if(k==='over'){}
   else if(k==='rs'){if(!isAuth&&me&&Array.isArray(a[1])){const m=a[1].find(e=>Array.isArray(e)&&e[0]===myId);if(m)teleport(me,num(m[1],0),num(m[2],0));}}
 }
-function teleport(ch,x,z){if(gameMode==='heist'){const q=Math.sqrt(x*x/((HEIST_A-1)**2)+z*z/((HEIST_B-1)**2));if(q>1){x/=q;z/=q;}}else{x=clamp(x,-W+1,W-1);z=clamp(z,-D+1,D-1);}ch.pos.set(x,0,z);ch.vel.set(0,0,0);ch.stun=0;if(ch.kind==='me'){ch.yaw=Math.atan2(ch.pos.x,ch.pos.z);ch.pitch=-.05;}else ch.face=Math.atan2(-ch.pos.x,-ch.pos.z);}
+function teleport(ch,x,z){if(gameMode==='heist'){x=clamp(x,-HEIST_A+1,HEIST_A-1);z=clamp(z,-HEIST_B+1,HEIST_B-1);}else{x=clamp(x,-W+1,W-1);z=clamp(z,-D+1,D-1);}ch.pos.set(x,0,z);ch.vel.set(0,0,0);ch.stun=0;if(ch.kind==='me'){ch.yaw=Math.atan2(ch.pos.x,ch.pos.z);ch.pitch=-.05;}else ch.face=Math.atan2(-ch.pos.x,-ch.pos.z);}
 
 /* ================= HITS (each client checks its own body) ================= */
 function checkHits(it){for(const ch of chars.values()){
@@ -2870,7 +2789,7 @@ function hitWall(it,axis){const d=it.def,sp=it.vel.length();
   if(sp>5)fx(it.type==='gnome'?'clonk':'thud',r2(it.pos.x),r2(it.pos.y),r2(it.pos.z));return false;}
 function onSurface(it,h,c){
   const d=it.def,sp=it.vel.length();
-  if((gameMode==='heist'&&!inHeistOval(it.pos.x,it.pos.z))||(gameMode!=='heist'&&(Math.abs(it.pos.x)>W||Math.abs(it.pos.z)>D))){if(it.heistTeam!=null&&isAuth&&heistBases[it.heistTeam]){heistReturnTeddy(it);return;}if(it.thrower)fx('over',it.thrower);removeItem(it);return;}
+  if((gameMode==='heist'&&!insideHeist(it.pos.x,it.pos.z))||(gameMode!=='heist'&&(Math.abs(it.pos.x)>W||Math.abs(it.pos.z)>D))){if(it.heistTeam!=null&&isAuth&&heistBases[it.heistTeam]){heistReturnTeddy(it);return;}if(it.thrower)fx('over',it.thrower);removeItem(it);return;}
   if(h===0&&inActivePool(it.pos)){if(sp>2)fx('splash',r2(it.pos.x),r2(it.pos.z));if(d.smash){removeItem(it);return;}restItem(it,.02);it.pos.y=WATER_Y+.04;return;}
   if(d.smash&&sp>5){authSmash(it);return;}
   if(sp>5)fx(it.type==='gnome'?'clonk':'thud',r2(it.pos.x),r2(h+.05),r2(it.pos.z));
@@ -3069,7 +2988,7 @@ function updateChar(ch,dt){
     if(d2>1e-6){const d=Math.sqrt(d2),nx=dx/d,nz=dz/d;ch.pos.x+=nx*(R-d);ch.pos.z+=nz*(R-d);const vn=ch.vel.x*nx+ch.vel.z*nz;if(vn<0){ch.vel.x-=vn*nx;ch.vel.z-=vn*nz;}}
     else{const l=ch.pos.x-c.x0,r=c.x1-ch.pos.x,b=ch.pos.z-c.z0,f=c.z1-ch.pos.z,m=Math.min(l,r,b,f);
       if(m===l)ch.pos.x=c.x0-R;else if(m===r)ch.pos.x=c.x1+R;else if(m===b)ch.pos.z=c.z0-R;else ch.pos.z=c.z1+R;}}
-  if(gameMode==='heist'){const q=Math.sqrt(ch.pos.x*ch.pos.x/((HEIST_A-.45)**2)+ch.pos.z*ch.pos.z/((HEIST_B-.45)**2));if(q>1){ch.pos.x/=q;ch.pos.z/=q;ch.vel.x=ch.vel.z=0;}}
+  if(gameMode==='heist'){ch.pos.x=clamp(ch.pos.x,-HEIST_A+.45,HEIST_A-.45);ch.pos.z=clamp(ch.pos.z,-HEIST_B+.45,HEIST_B-.45);}
   else{ch.pos.x=clamp(ch.pos.x,-W+.45,W-.45);
     const roofRide=ch.pos.y>HOUSE.h+.15&&Math.abs(ch.pos.x)<=ROOF.width/2+.45&&ch.pos.z>=ROOF.backEdgeZ-.45&&ch.pos.z<=ROOF.edgeZ+.45;
     const yardHalfZ=roofRide?Math.max(D,-ROOF.backEdgeZ):D;ch.pos.z=clamp(ch.pos.z,-yardHalfZ+.45,yardHalfZ-.45);}
@@ -3194,17 +3113,21 @@ function syncCharMesh(ch,dt){
 /* ================= BOT BRAINS (authority only) ================= */
 function nearestFreeItem(ch){let best=null,bd=1e9;for(const it of items.values()){if(it.state!=='ground'||it.def.melee)continue;if(it.claimedBy&&it.claimedBy!==ch&&it.claimedBy.ai&&it.claimedBy.ai.claim===it)continue;
   const d=Math.hypot(it.pos.x-ch.pos.x,it.pos.z-ch.pos.z)+(it.groundY>.1?1.5:0);if(d<bd){bd=d;best=it;}}return best;}
-function blocked(x,z,y){for(const c of colliders){if((gameMode==='heist'&&c.yardOnly)||c.roofSurface||c.tankLadder||c.h<.4||y>=c.h-.3)continue;if(x>c.x0-.45&&x<c.x1+.45&&z>c.z0-.45&&z<c.z1+.45)return true;}return gameMode==='heist'?!inHeistOval(x,z,.6):Math.abs(x)>W-.6||Math.abs(z)>D-.6;}
+function blocked(x,z,y){for(const c of colliders){if((gameMode==='heist'&&c.yardOnly)||c.roofSurface||c.tankLadder||c.h<.4||y>=c.h-.3)continue;if(x>c.x0-.45&&x<c.x1+.45&&z>c.z0-.45&&z<c.z1+.45)return true;}return gameMode==='heist'?!insideHeist(x,z,.6):Math.abs(x)>W-.6||Math.abs(z)>D-.6;}
 function los(a,b){for(let i=1;i<8;i++){const t=i/8,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;for(const c of colliders){if((gameMode==='heist'&&c.yardOnly)||c.h<=1.6)continue;if(x>c.x0&&x<c.x1&&z>c.z0&&z<c.z1)return false;}}return true;}
 // Heist bots follow a smoothed A* waypoint through the same solid maze as players. This avoids
 // long straight-line goals repeatedly pushing into a wall, without changing speed or collision.
+let mazeWalkable=null;
 function heistWaypoint(from,target){
-  const MIN_X=-53,MAX_X=53,MIN_Z=-39,MAX_Z=39,NX=MAX_X-MIN_X+1,N=NX*(MAX_Z-MIN_Z+1);
+  const MAX_X=Math.floor(HEIST_A),MIN_X=-MAX_X,MAX_Z=Math.floor(HEIST_B),MIN_Z=-MAX_Z,NX=MAX_X-MIN_X+1,N=NX*(MAX_Z-MIN_Z+1);
   const index=(x,z)=>(z-MIN_Z)*NX+(x-MIN_X),point=i=>({x:MIN_X+i%NX,z:MIN_Z+Math.floor(i/NX)});
   const direct=Math.ceil(Math.hypot(target.x-from.x,target.z-from.z)/.6);
   let clear=true;for(let i=1;i<=direct;i++){const t=i/Math.max(1,direct);if(blocked(from.x+(target.x-from.x)*t,from.z+(target.z-from.z)*t,from.y)){clear=false;break;}}
   if(clear)return {x:target.x,z:target.z};
-  const openCell=(x,z)=>x>=MIN_X&&x<=MAX_X&&z>=MIN_Z&&z<=MAX_Z&&!blocked(x,z,from.y);
+  if(!mazeWalkable)mazeWalkable=Uint8Array.from({length:N},(_,i)=>{
+    const p=point(i);return blocked(p.x,p.z,0)?0:1;
+  });
+  const openCell=(x,z)=>x>=MIN_X&&x<=MAX_X&&z>=MIN_Z&&z<=MAX_Z&&mazeWalkable[index(x,z)];
   const snap=(x,z)=>{let bx=Math.round(x),bz=Math.round(z);if(openCell(bx,bz))return [bx,bz];
     for(let r=1;r<=3;r++){let best=null,bd=1e9;for(let dz=-r;dz<=r;dz++)for(let dx=-r;dx<=r;dx++){if(Math.max(Math.abs(dx),Math.abs(dz))!==r)continue;const xx=Math.round(x)+dx,zz=Math.round(z)+dz,d=(xx-x)**2+(zz-z)**2;if(d<bd&&openCell(xx,zz)){best=[xx,zz];bd=d;}}if(best)return best;}return null;};
   const s=snap(from.x,from.z),g=snap(target.x,target.z);if(!s||!g)return null;
@@ -3348,7 +3271,7 @@ function botSteer(ch,dt,arrive,urgent,goal){const ai=ch.ai,P=ai.pers;
   ai.navTime=(ai.navTime||0)-dt;
   if(gameMode==='heist'&&!urgent&&goal){const changed=!ai.navGoal||Math.hypot(goal.x-ai.navGoal.x,goal.z-ai.navGoal.z)>2.0;
     const reached=ai.navPoint&&Math.hypot(ch.pos.x-ai.navPoint.x,ch.pos.z-ai.navPoint.z)<.8;
-    if(changed||reached||ai.navTime<=0){ai.navGoal={x:goal.x,z:goal.z};ai.navPoint=heistWaypoint(ch.pos,goal);ai.navTime=.45;}
+    if(changed||reached||ai.navTime<=0){ai.navGoal={x:goal.x,z:goal.z};ai.navPoint=heistWaypoint(ch.pos,goal);ai.navTime=1.2;}
     if(ai.navPoint){wx=ai.navPoint.x-ch.pos.x;wz=ai.navPoint.z-ch.pos.z;const l=Math.hypot(wx,wz);if(l>.01){wx/=l;wz/=l;m=1;}}}
   else if(gameMode!=='heist'||!goal||urgent){ai.navGoal=null;ai.navPoint=null;ai.navTime=0;}
   if(goal&&!urgent)m*=botApproachSpeed(arrive);
@@ -3425,7 +3348,7 @@ function peerLeft(p){const id=net.idByPeer.get(p.peer);if(!id)return;net.idByPee
   net.seen.delete(id);scoreDirty=true;}
 function updateRemotePlayer(id,pr){
   let ch=chars.get(id);const name=cleanName(pr.n),color=clamp(num(pr.c,0xffffff)|0,0,0xffffff);
-  if(!ch){ch=createChar(id,name,color,'proxy',[num(pr.p[0],0),num(pr.p[2],0)]);if(isAuth)ensureStats(ch);}
+  if(!ch){ch=createChar(id,name,color,'proxy',[num(pr.p[0],0),num(pr.p[2],0)]);if(isAuth){ensureStats(ch);syncBots();}}
   else if(ch.color!==color){removeChar(ch);ch=createChar(id,name,color,'proxy',[num(pr.p[0],0),num(pr.p[2],0)]);if(isAuth)ensureStats(ch);}
   else{setCharName(ch,name);if(isAuth&&stats[id]&&stats[id].name!==name){stats[id].name=name;scoreDirty=true;}}
   if(color===myColor&&id<myId){const nc=PALETTE.find(c=>c!==color&&![...chars.values()].some(o=>o.color===c));if(nc!==undefined){myColor=nc;if(me)me.color=nc;if(isAuth&&stats[myId]){stats[myId].color=nc;scoreDirty=true;}}}
@@ -3602,9 +3525,10 @@ function leaveYard(msg){
 function syncBots(){
   // host: keep the requested number of bots in the yard
   const bots=[...chars.values()].filter(c=>c.kind==='bot');
-  while(bots.length>botCount){const b=bots.pop();for(const it of heldOf(b.id))authDrop(b.id,it);removeChar(b);delete stats[b.id];scoreDirty=true;}
+  const available=Math.min(botCount,Math.max(0,20-(chars.size-bots.length)));
+  while(bots.length>available){const b=bots.pop();for(const it of heldOf(b.id))authDrop(b.id,it);removeChar(b);delete stats[b.id];scoreDirty=true;}
   const used=new Set([...chars.values()].map(c=>c.color));let i=0;
-  while(bots.length<botCount){const id='b'+(++i);if(chars.has(id))continue;const pool=FEAT.adult?BOT_NAMES_ADULT:BOT_NAMES;const name=pool.find(n=>![...chars.values()].some(c=>c.name===n))||('Bot '+i);
+  while(bots.length<available){const id='b'+(++i);if(chars.has(id))continue;const pool=FEAT.adult?BOT_NAMES_ADULT:BOT_NAMES;const name=pool.find(n=>![...chars.values()].some(c=>c.name===n))||('Bot '+i);
     const color=PALETTE.find(c=>!used.has(c))||pick(PALETTE);used.add(color);const sp=pick(CHAR_SPAWNS);const b=createChar(id,name,color,'bot',sp);ensureStats(b);bots.push(b);}
 }
 function radio(name){const el=document.querySelector(`input[name=${name}]:checked`);return el?el.value:'';}
@@ -3711,7 +3635,7 @@ function updateTrajectory(){
   for(let i=0;i<TRJ_N;i++){for(let k=0;k<2;k++){v.y-=g*.018;p.addScaledVector(v,.018);}
     trjPos[n*3]=p.x;trjPos[n*3+1]=p.y;trjPos[n*3+2]=p.z;n++;
     if(p.y<=0){hitY=0;break;}let stop=false;for(const c of colliders){if((gameMode==='heist'&&c.yardOnly)||c.tankLadder)continue;if(p.y<c.h&&p.x>c.x0&&p.x<c.x1&&p.z>c.z0&&p.z<c.z1){stop=true;hitY=c.h;break;}}if(stop)break;
-    if(gameMode==='heist'?!inHeistOval(p.x,p.z):Math.abs(p.x)>W+1||Math.abs(p.z)>D+1)break;}
+    if(gameMode==='heist'?!insideHeist(p.x,p.z):Math.abs(p.x)>W+1||Math.abs(p.z)>D+1)break;}
   trjGeo.setDrawRange(0,n);trjGeo.attributes.position.needsUpdate=true;trj.visible=true;
   if(hitY!==null){land.visible=true;land.position.set(p.x,hitY+.03,p.z);}else land.visible=false;
 }
@@ -3868,10 +3792,14 @@ function authStartRound(){
   if(mode==='mp'&&gameMode==='teams')balanceTeams(false,teamsManual);else if(mode==='mp'&&gameMode==='heist')assignHeistTeams(false);
   stats={};for(const ch of chars.values())ensureStats(ch);
   chestStock=2;chestT=CHEST.refill;
-  if(gameMode==='heist'){heistVariant=Math.floor(Math.random()*3);if(heistVariant===lastHeistVariant)heistVariant=(heistVariant+1)%3;lastHeistVariant=heistVariant;buildHeistBases(heistTeams,heistVariant);heistSpawnTeddies();}else clearHeistProps();
+  if(gameMode==='heist'){heistVariant=0;buildHeistBases(heistTeams,heistVariant);heistSpawnTeddies();}else clearHeistProps();
   {let i,tries=0;do{i=Math.floor(Math.random()*CHEST_SPOTS.length);tries++;}while(CHEST_SPOTS.length>1&&(i===CHEST.spot||(gameMode==='heist'&&tries<40&&!heistClear(CHEST_SPOTS[i][0],CHEST_SPOTS[i][1],1.4))));moveChest(i);}
   npcReset();
-  const sp=CHAR_SPAWNS.slice().sort(()=>Math.random()-.5);const assign=[];let i=0;
+  const sp=CHAR_SPAWNS.filter(([x,z])=>!blocked(x,z,0));
+  for(let x=-30;x<=30;x+=6)for(let z=-18;z<=24;z+=6){
+    if(!blocked(x,z,0)&&sp.every(([a,b])=>Math.hypot(a-x,b-z)>2))sp.push([x,z]);
+  }
+  sp.sort(()=>Math.random()-.5);const assign=[];let i=0;
   for(const ch of chars.values()){const s=heistSpawnFor(ch)||sp[i++%sp.length];if(ch.kind==='proxy')assign.push([ch.id,s[0],s[1]]);else teleport(ch,s[0],s[1]);}
   if(assign.length)fx('rs',assign);
   const ss=SPAWNS.filter(q=>gameMode!=='heist'||heistClear(q[0],q[1],1.2)).sort(()=>Math.random()-.5);for(let k=0;k<Math.min(ss.length,8+Math.floor(chars.size*1.5));k++)spawnItem(k<3?TYPES[k]:randomType(),ss[k][0],ss[k][1],true);
@@ -3894,7 +3822,7 @@ function backToLobby(){state='warmup';clearHeistProps();carryReset();resultsOpen
 function startSolo(){
   ac();mode='solo';isAuth=true;myId='me';clearWorld();roundLen=+radio('len');difficulty=radio('diff');
   me=createChar('me',myName,PALETTE[0],'me',CHAR_SPAWNS[0]);myColor=PALETTE[0];
-  const nb=radio('pbots')===''?3:clamp(+radio('pbots'),0,3);['Shazza','Davo','Kev'].slice(0,nb).forEach((n,i)=>createChar('b'+i,n,PALETTE[i+1],'bot',CHAR_SPAWNS[i+1]));
+  botCount=radio('pbots')===''?3:clamp(+radio('pbots'),0,19);syncBots();
   const sheist=radio('pmode')==='heist';gameMode=sheist?'heist':radio('pmode')==='teams'?'teams':'ffa';friendlyFire=!sheist&&radio('pff')==='1';fallDur=10;readFeatUI('#pFeat','pcontent');matchLen=sheist?1:+radio('prounds')||1;matchOver=true;matchNo=0;teamsManual=false;teamOf.clear();if(gameMode==='teams')balanceTeams(true);else if(gameMode==='heist'){heistTeams=clamp(+radio('pheist')||2,2,4);assignHeistTeams(true);}
   hintStage=hintStage>=3?3:0;hintHideT=0;hintEl.style.opacity=0;
   authStartRound();requestLock();canvas.focus();refreshOverlays();

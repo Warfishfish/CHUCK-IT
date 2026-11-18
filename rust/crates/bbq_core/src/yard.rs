@@ -354,6 +354,7 @@ impl Default for Features {
 pub struct Yard {
     /// Separate enlarged race arena; disables legacy pool/trampoline.
     pub race: bool,
+    pub navigation: std::sync::OnceLock<crate::bots::NavigationGrid>,
     pub colliders: Vec<Collider>,
     pub features: Features,
     pub chest_spot: usize,
@@ -519,6 +520,7 @@ impl Yard {
             chest_spot,
             heist: None,
             heist_variant: 0,
+            navigation: Default::default(),
             race: false,
         }
     }
@@ -579,7 +581,7 @@ impl Yard {
         if self.heist.is_some() {
             let a = crate::heist::ARENA_A - r;
             let b = crate::heist::ARENA_B - r;
-            if a <= 0.0 || b <= 0.0 || x * x / (a * a) + z * z / (b * b) >= 1.0 {
+            if a <= 0.0 || b <= 0.0 || x.abs() >= a || z.abs() >= b {
                 return false;
             }
         }
@@ -658,7 +660,7 @@ pub fn inside_yard(x: f32, z: f32, margin: f32) -> bool {
 pub fn inside_heist(x: f32, z: f32, margin: f32) -> bool {
     let a = crate::heist::ARENA_A - margin;
     let b = crate::heist::ARENA_B - margin;
-    a > 0.0 && b > 0.0 && x * x / (a * a) + z * z / (b * b) <= 1.0
+    a > 0.0 && b > 0.0 && x.abs() <= a && z.abs() <= b
 }
 
 #[cfg(test)]
