@@ -9,7 +9,7 @@ pub const BASE_HALF: f32 = 3.0;
 pub const WALL_THICKNESS: f32 = 0.35;
 pub const WALL_HEIGHT: f32 = 2.1;
 /// Banking zone radius around a base centre.
-pub const BASE_RADIUS: f32 = 4.3;
+pub const BASE_RADIUS: f32 = 2.55;
 /// A teddy lying this close to its own base counts as "already home".
 pub const HOME_RADIUS: f32 = 2.6;
 /// Points per banked teddy (see `scoring::HEIST_BANK`).
@@ -278,54 +278,99 @@ fn oval_steps() -> Vec<Piece> {
     v
 }
 
-/// A broad laser-tag maze. Alternating openings force runners to turn and choose a route
-/// while keeping several loops open for escapes and counter-attacks. Walls stop normal jumps.
+/// The first turn at a base happens between two short side walls and a wider screen.
+fn approach_panels(base: BaseDef) -> [(f32, f32, f32, f32); 3] {
+    let (fx, fz) = match base.open {
+        Open::XPos => (1.0, 0.0),
+        Open::XNeg => (-1.0, 0.0),
+        Open::ZPos => (0.0, 1.0),
+        Open::ZNeg => (0.0, -1.0),
+    };
+    let panel = |depth: f32, lateral: f32, length, across| {
+        let x = base.x + fx * depth - fz * lateral;
+        let z = base.z + fz * depth + fx * lateral;
+        let (w,d) = if (fx != 0.0) == across { (0.32, length) } else { (length, 0.32) };
+        (x,z,w,d)
+    };
+    [panel(7.6, 0.0, 11.8, true), panel(4.15, -3.0, 1.5, false), panel(4.15, 3.0, 1.5, false)]
+}
+
+/// Thin panels with offset openings create junctions, doglegs and reconnecting loops.
 fn maze_walls(bases: &[BaseDef]) -> Vec<Piece> {
     let panels = [
-        // Three staggered cross-arena gates create short contested runs and longer reconnecting flanks.
-        (-7.0, -29.0, 26.0, 0.8, false), (16.0, -29.0, 22.0, 0.8, true),
-        (-18.0, -15.0, 34.0, 0.8, true), (19.0, -15.0, 20.0, 0.8, false),
-        (-18.0, 0.0, 22.0, 0.8, false), (9.0, 0.0, 36.0, 0.8, true),
-        (-20.0, 17.5, 28.0, 0.8, true), (16.0, 15.0, 26.0, 0.8, false),
-        (-8.0, 29.0, 24.0, 0.8, false), (18.0, 29.0, 20.0, 0.8, true),
-        // Cross-walls turn the gates into connected loops. Nothing enters the pool's full rim.
-        (-4.0, -22.0, 0.8, 12.0, true), (7.0, -8.0, 0.8, 12.0, false),
-        (-9.0, 8.0, 0.8, 12.0, true), (5.0, 22.0, 0.8, 12.0, false),
+        (-7.0, -29.0, 26.0, 0.32),
+        (16.0, -29.0, 22.0, 0.32),
+        (-18.0, -15.0, 34.0, 0.32),
+        (19.0, -15.0, 20.0, 0.32),
+        (-18.0, 0.0, 22.0, 0.32),
+        (9.0, 0.0, 36.0, 0.32),
+        (-20.0, 17.5, 28.0, 0.32),
+        (16.0, 15.0, 26.0, 0.32),
+        (-8.0, 29.0, 24.0, 0.32),
+        (18.0, 29.0, 20.0, 0.32),
+        (-4.0, -22.0, 0.32, 12.0),
+        (7.0, -8.0, 0.32, 12.0),
+        (-9.0, 8.0, 0.32, 12.0),
+        (5.0, 22.0, 0.32, 12.0),
+        (-30.0, -21.6, 0.32, 12.4),
+        (-13.0, -22.0, 0.32, 8.0),
+        (25.0, -22.0, 0.32, 12.4),
+        (-35.0, -7.2, 0.32, 8.8),
+        (35.0, -7.2, 0.32, 8.8),
+        (-39.0, 5.0, 10.0, 0.32),
+        (38.0, 6.0, 10.0, 0.32),
+        (-32.0, 10.8, 0.32, 12.6),
+        (25.0, 5.6, 0.32, 10.4),
+        (-4.2, 8.0, 8.8, 0.32),
+        (-8.0, 22.8, 0.32, 11.6),
+        (20.0, 21.4, 0.32, 12.0),
+        (33.0, 19.0, 0.32, 9.0),
+        (-42.0, -8.0, 0.32, 8.0),
+        (-43.0, 14.0, 0.32, 8.0),
+        (-35.0, 23.0, 10.0, 0.32),
+        (-36.0, -29.0, 8.0, 0.32),
+        (-22.0, -33.0, 7.0, 0.32),
+        (-21.0, -24.0, 10.0, 0.32),
+        (-23.0, -7.0, 0.32, 8.0),
+        (-14.0, -7.0, 10.0, 0.32),
+        (-5.0, -9.0, 5.0, 0.32),
+        (0.0, -20.0, 9.0, 0.32),
+        (11.0, -23.0, 0.32, 7.0),
+        (28.0, -25.0, 9.0, 0.32),
+        (37.0, -18.0, 0.32, 8.0),
+        (44.0, -12.0, 0.32, 8.0),
+        (34.0, -1.0, 10.0, 0.32),
+        (46.0, 1.0, 0.32, 7.0),
+        (30.0, 10.0, 8.0, 0.32),
+        (38.0, 15.0, 0.32, 7.0),
+        (27.0, 26.0, 9.0, 0.32),
+        (12.0, 22.0, 8.0, 0.32),
+        (-1.0, 15.0, 0.32, 8.0),
+        (-15.0, 22.0, 9.0, 0.32),
+        (-23.0, 24.0, 0.32, 7.0),
+        (-31.0, 21.0, 0.32, 7.0),
+        (-35.0, 10.0, 8.0, 0.32),
+        (0.0, 33.0, 8.0, 0.32),
     ];
-    let piece = |x, z, w, d, alt| Piece {
+    let fixed_approaches: Vec<_> = bases.iter().copied().flat_map(approach_panels).collect();
+    let piece = |(x, z, w, d), alt| Piece {
         collider: Collider::centred(x, z, w, d, 3.2).of(Kind::HeistCrate),
         tint: Tint::Maze(alt),
     };
-    // Returns break up the straight lanes between the cross-walls. The outer wings
-    // interrupt fence-side shortcuts while leaving routes around either end.
-    let returns = [
-        (-30.00, -21.60, 0.80, 12.40),
-        (-13.00, -22.00, 0.80, 12.40),
-        (25.00, -22.00, 0.80, 12.40),
-        (-35.00, -7.20, 0.80, 8.80),
-        (35.00, -7.20, 0.80, 8.80),
-        (-39.00, 5.00, 10.00, 0.80),
-        (38.00, 6.00, 10.00, 0.80),
-        (-32.00, 10.80, 0.80, 12.60),
-        (25.00, 5.60, 0.80, 10.40),
-        (-4.20, 8.00, 8.80, 0.80),
-        (-8.00, 22.80, 0.80, 11.60),
-        (20.00, 21.40, 0.80, 12.00),
-        (33.00, 19.00, 0.80, 9.00),
-    ];
-    panels.into_iter().map(|(x, z, w, d, alt)| piece(x, z, w, d, alt))
-        .chain(returns.into_iter().enumerate().filter_map(|(i, (x, z, w, d))| {
-            let clears_bases = bases.iter().all(|&base| {
-                let door = gate(base);
-                // Keep the whole banking circle clear and leave room to turn at the doorway.
-                let clear = |px: f32, pz: f32, margin: f32| {
-                    (px - x).abs() > w * 0.5 + margin || (pz - z).abs() > d * 0.5 + margin
-                };
-                clear(base.x, base.z, BASE_RADIUS + 0.75) && clear(door.x, door.z, 2.25)
-            });
-            clears_bases.then(|| piece(x, z, w, d, i % 2 == 0))
-        }))
-        .collect()
+    panels.into_iter().enumerate().filter_map(|(i, (x, z, w, d))| {
+        let clear = |px: f32, pz: f32, margin: f32| {
+            (px-x).abs() > w*0.5+margin || (pz-z).abs() > d*0.5+margin
+        };
+        let clears_bases = bases.iter().all(|&base| {
+            let door = gate(base);
+            clear(base.x,base.z,BASE_RADIUS+0.75) && clear(door.x,door.z,3.3)
+        });
+        // Leave room to get around either end of every base screen.
+        let clears_approaches = fixed_approaches.iter().all(|&(ax,az,aw,ad)| {
+            (x-ax).abs() > (w+aw)*0.5+2.3 || (z-az).abs() > (d+ad)*0.5+2.3
+        });
+        (clears_bases && clears_approaches).then(|| piece((x,z,w,d),i%2==0))
+    }).chain(fixed_approaches.iter().copied().map(|panel| piece(panel,true))).collect()
 }
 
 /// Everything solid that Heist adds to the yard, for `teams` teams.
@@ -615,9 +660,9 @@ mod tests {
 
     #[test]
     fn banking_rules() {
-        assert!(can_bank(Team::Red, Team::Blue, 4.0, false, false));
+        assert!(can_bank(Team::Red, Team::Blue, 2.4, false, false));
         assert!(
-            !can_bank(Team::Red, Team::Blue, 4.3, false, false),
+            !can_bank(Team::Red, Team::Blue, BASE_RADIUS, false, false),
             "must be inside the zone"
         );
         assert!(
@@ -714,20 +759,17 @@ mod tests {
     }
 
     #[test]
-    fn every_layout_has_connected_clear_routes_and_pool_clearance() {
+    fn every_layout_has_thin_walls_and_connected_clear_routes() {
         let walls: Vec<_> = arena(2)
             .into_iter()
             .filter(|p| matches!(p.tint, Tint::Maze(_)))
             .collect();
-        assert!(walls.len() >= 23);
+        assert!(walls.len() >= 34);
         assert!(walls.iter().all(|p| p.collider.h >= 3.2));
-        for p in &walls {
+        assert!(walls.iter().all(|p| {
             let c = p.collider;
-            // Include the outer coping and a 0.9 m blob width around the complete pool rim.
-            assert!(c.x1 + 0.9 < crate::yard::POOL_X0 - 0.3 || c.x0 - 0.9 > crate::yard::POOL_X1 + 0.3
-                || c.z1 + 0.9 < crate::yard::POOL_Z0 - 0.3 || c.z0 - 0.9 > crate::yard::POOL_Z1 + 0.3,
-                "maze wall overlaps the pool rim: {:?}", c);
-        }
+            (c.x1-c.x0).min(c.z1-c.z0) < 0.33
+        }));
         for n in 2..=4 {
           for variant in 0..LAYOUTS_PER_TEAM_COUNT {
             let yard = crate::yard::Yard::heist_variant(Default::default(), 0, n, variant);
@@ -735,7 +777,7 @@ mod tests {
             let clear = |x: f32, z: f32| !walls.iter().any(|p| {
                 x > p.collider.x0 - 0.65 && x < p.collider.x1 + 0.65 && z > p.collider.z0 - 0.65 && z < p.collider.z1 + 0.65
             });
-            assert!(walls.len() >= 23, "teams={n} layout={variant} lost too many returns");
+            assert!(walls.len() >= 34, "teams={n} layout={variant} lost too many returns");
             let bases = layout_for(n, variant);
             // Flood a 1 m grid with 0.65 m clearance, wider than a player's collision radius.
             let cell = |base: BaseDef| (base.x.round() as i32, base.z.round() as i32);
@@ -751,9 +793,19 @@ mod tests {
                     }
                 }
             }
+            for x in -54..=54 {
+                for z in -40..=40 {
+                    assert!(!yard.heist_clear(x as f32, z as f32, 0.65) || reached.contains(&(x,z)),
+                        "sealed floor pocket at ({x}, {z}): teams={n} layout={variant}");
+                }
+            }
             for base in bases {
                 assert!(reached.contains(&cell(base)), "disconnected base: teams={n} layout={variant} base={base:?}");
                 assert!(yard.heist_clear(base.x, base.z, 0.45), "base interior blocked: teams={n} layout={variant} base=({}, {})", base.x, base.z);
+                let (sx, sz, _, _) = approach_panels(base)[0];
+                assert!(!yard.heist_clear(sx, sz, 0.0), "straight approach to {base:?} must hit the screen");
+                assert!(BASE_RADIUS + WALL_THICKNESS * 0.5 < BASE_HALF,
+                    "the banking circle must stay inside the walls");
                 let g = gate(base);
                 assert!(yard.heist_clear(g.x, g.z, 0.45) && clear(g.x,g.z), "base doorway blocked: teams={n} layout={variant}");
                 for &(ox, oz) in &SPAWN_OFFSETS {

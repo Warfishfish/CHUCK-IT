@@ -445,12 +445,9 @@ fn sync_heist_props(
             bbq_core::teams::Team::Yellow => (0xf2c744, meshes.add(Cylinder::new(0.48, 0.65))),
             bbq_core::teams::Team::Wildcard => (0xffffff, meshes.add(Cuboid::new(0.6, 0.6, 0.6))),
         };
-        let pole_mat = mats.add(StandardMaterial { base_color: hex(0xefe5cf), unlit: true, ..default() });
         let emblem_mat = mats.add(StandardMaterial { base_color: hex(colour), unlit: true, ..default() });
-        commands.spawn((Mesh3d(meshes.add(Cylinder::new(0.08, 1.6))), MeshMaterial3d(pole_mat),
-            Transform::from_xyz(base.x, 2.9, base.z), HeistProp));
         commands.spawn((Mesh3d(emblem), MeshMaterial3d(emblem_mat),
-            Transform::from_xyz(base.x, 3.8, base.z), HeistProp));
+            Transform::from_xyz(base.x, 2.64, base.z), HeistProp));
     }
     // the big four-sided scoreboard floating over the middle: a dark cube with the picture of
     // the scores on each side (Text2d is not drawn by the 3D camera, so it is a small texture)

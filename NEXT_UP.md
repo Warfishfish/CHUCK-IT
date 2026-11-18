@@ -2,6 +2,10 @@
 
 Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it with a friend. The focus now is graphics, gameplay, UI and character customization. One item at a time; screenshots and a yes before anything is committed.
 
+## Teddy Heist switchbacks · 18 November 2026
+
+The denser maze adds screened base entrances, more corners and thinner panels. The beacon height and banking circle changed so players have to find the entrance and bring the teddy inside. See [the review](checkpoints/2026-11-18-heist-switchbacks/REVIEW.md).
+
 ## Teddy Heist maze · 18 November 2026
 
 Added wall returns and outer lane barriers across all nine base layouts. Check the [route measurements and in-game views](checkpoints/2026-11-18-heist-maze/REVIEW.md). The separate turf and wall contrast pass remains on the graphics list.

@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.34</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.35</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -2095,7 +2095,7 @@ function balanceTeams(reshuffle,assignOnly){
 const HEIST_TEAM_KEYS=['r','b','g','y'];
 let heistBoard=null;
 let heistTeams=2,heistVariant=0,heistBuiltVariant=-1,lastHeistVariant=-1,heistBanked={},heistBases={},heistProps=[],heistColsSet=[];
-const HEIST_HALF=3,HEIST_WALL_H=2.1,HEIST_BASE_R=4.3,HEIST_BANK_PTS=150;
+const HEIST_HALF=3,HEIST_WALL_H=2.1,HEIST_BASE_R=2.55,HEIST_BANK_PTS=150;
 const HEIST_LAYOUT=[
   {2:[{x:-41,z:0,open:'xPos'},{x:41,z:0,open:'xNeg'}],3:[{x:-39,z:-17,open:'xPos'},{x:39,z:-17,open:'xNeg'},{x:0,z:36,open:'zNeg'}],4:[{x:-39,z:-18,open:'xPos'},{x:39,z:-18,open:'xNeg'},{x:-39,z:18,open:'xPos'},{x:39,z:18,open:'xNeg'}]},
   {2:[{x:-25,z:-23,open:'zPos'},{x:25,z:23,open:'zNeg'}],3:[{x:-41,z:14,open:'xPos'},{x:35,z:20,open:'zNeg'},{x:4,z:-35,open:'zPos'}],4:[{x:-32,z:-23,open:'zPos'},{x:32,z:-23,open:'zPos'},{x:-32,z:23,open:'zNeg'},{x:32,z:23,open:'zNeg'}]},
@@ -2189,23 +2189,83 @@ function heistBotGoalRaw(ch){const myT=teamOf.get(ch.id),home=myT&&heistBases[my
 const HEIST_SPAWN_OFF=[[0,2.1],[0,-2.1],[2.1,0],[-2.1,0]];let heistSpawnN={};
 function heistSpawnFor(ch){if(gameMode!=='heist')return null;const t=teamOf.get(ch.id),b=t&&heistBases[t];if(!b)return null;
   const n=heistSpawnN[t]=(heistSpawnN[t]||0)+1,o=HEIST_SPAWN_OFF[(n-1)%4];return [b.x+o[0],b.z+o[1]];}
-function buildHeistCenterpiece(layout){
-  // Long alternating gates create a contested route and reconnecting flanks, with a clear
-  // central return corridor around the contested teddy lanes.
-  const panels=[[-7,-29,26,.8],[16,-29,22,.8],[-18,-15,34,.8],[19,-15,20,.8],
-    [-18,0,22,.8],[9,0,36,.8],[-20,17.5,28,.8],[16,15,26,.8],[-8,29,24,.8],[18,29,20,.8],
-    [-4,-22,.8,12],[7,-8,.8,12],[-9,8,.8,12],[5,22,.8,12]];
-  const returns=[[-30,-21.6,0.8,12.4],[-13,-22,0.8,12.4],[25,-22,0.8,12.4],[-35,-7.2,0.8,8.8],[35,-7.2,0.8,8.8],[-39,5,10,0.8],[38,6,10,0.8],[-32,10.8,0.8,12.6],[25,5.6,0.8,10.4],[-4.2,8,8.8,0.8],[-8,22.8,0.8,11.6],[20,21.4,0.8,12],[33,19,0.8,9]];
-  for(const [x,z,w,d] of returns){
-    const clear=(px,pz,margin)=>Math.abs(px-x)>w/2+margin||Math.abs(pz-z)>d/2+margin;
-    if(layout.every(b=>{
-      const gateOffset=HEIST_HALF+1.2;
-      const gx=b.x+(b.open==='xPos'?gateOffset:b.open==='xNeg'?-gateOffset:0);
-      const gz=b.z+(b.open==='zPos'?gateOffset:b.open==='zNeg'?-gateOffset:0);
-      return clear(b.x,b.z,HEIST_BASE_R+.75)&&clear(gx,gz,2.25);
-    }))panels.push([x,z,w,d]);
-  }
-  panels.forEach((p,i)=>buildHeistWall(p[0],p[1],p[2],p[3],i%2?0x557774:0x334e55,3.2));}
+function buildHeistCenterpiece(layout) {
+  const panels = [
+    [-7.0, -29.0, 26.0, 0.32],
+    [16.0, -29.0, 22.0, 0.32],
+    [-18.0, -15.0, 34.0, 0.32],
+    [19.0, -15.0, 20.0, 0.32],
+    [-18.0, 0.0, 22.0, 0.32],
+    [9.0, 0.0, 36.0, 0.32],
+    [-20.0, 17.5, 28.0, 0.32],
+    [16.0, 15.0, 26.0, 0.32],
+    [-8.0, 29.0, 24.0, 0.32],
+    [18.0, 29.0, 20.0, 0.32],
+    [-4.0, -22.0, 0.32, 12.0],
+    [7.0, -8.0, 0.32, 12.0],
+    [-9.0, 8.0, 0.32, 12.0],
+    [5.0, 22.0, 0.32, 12.0],
+    [-30.0, -21.6, 0.32, 12.4],
+    [-13.0, -22.0, 0.32, 8.0],
+    [25.0, -22.0, 0.32, 12.4],
+    [-35.0, -7.2, 0.32, 8.8],
+    [35.0, -7.2, 0.32, 8.8],
+    [-39.0, 5.0, 10.0, 0.32],
+    [38.0, 6.0, 10.0, 0.32],
+    [-32.0, 10.8, 0.32, 12.6],
+    [25.0, 5.6, 0.32, 10.4],
+    [-4.2, 8.0, 8.8, 0.32],
+    [-8.0, 22.8, 0.32, 11.6],
+    [20.0, 21.4, 0.32, 12.0],
+    [33.0, 19.0, 0.32, 9.0],
+    [-42.0, -8.0, 0.32, 8.0],
+    [-43.0, 14.0, 0.32, 8.0],
+    [-35.0, 23.0, 10.0, 0.32],
+    [-36.0, -29.0, 8.0, 0.32],
+    [-22.0, -33.0, 7.0, 0.32],
+    [-21.0, -24.0, 10.0, 0.32],
+    [-23.0, -7.0, 0.32, 8.0],
+    [-14.0, -7.0, 10.0, 0.32],
+    [-5.0, -9.0, 5.0, 0.32],
+    [0.0, -20.0, 9.0, 0.32],
+    [11.0, -23.0, 0.32, 7.0],
+    [28.0, -25.0, 9.0, 0.32],
+    [37.0, -18.0, 0.32, 8.0],
+    [44.0, -12.0, 0.32, 8.0],
+    [34.0, -1.0, 10.0, 0.32],
+    [46.0, 1.0, 0.32, 7.0],
+    [30.0, 10.0, 8.0, 0.32],
+    [38.0, 15.0, 0.32, 7.0],
+    [27.0, 26.0, 9.0, 0.32],
+    [12.0, 22.0, 8.0, 0.32],
+    [-1.0, 15.0, 0.32, 8.0],
+    [-15.0, 22.0, 9.0, 0.32],
+    [-23.0, 24.0, 0.32, 7.0],
+    [-31.0, 21.0, 0.32, 7.0],
+    [-35.0, 10.0, 8.0, 0.32],
+    [0.0, 33.0, 8.0, 0.32],
+  ];
+  const approaches = layout.map(base => {
+    const [fx, fz] = {xPos:[1,0], xNeg:[-1,0], zPos:[0,1], zNeg:[0,-1]}[base.open];
+    const panel = (depth, lateral, length, across) => {
+      const x = base.x + fx * depth - fz * lateral;
+      const z = base.z + fz * depth + fx * lateral;
+      const [w, d] = (fx !== 0) === across ? [.32, length] : [length, .32];
+      return [x, z, w, d];
+    };
+    return {base, gx:base.x+(HEIST_HALF+1.2)*fx, gz:base.z+(HEIST_HALF+1.2)*fz,
+      walls:[panel(7.6,0,11.8,true), panel(4.15,-3,1.5,false), panel(4.15,3,1.5,false)]};
+  });
+  const screens = approaches.flatMap(approach => approach.walls);
+  panels.forEach(([x,z,w,d], i) => {
+    const clear = (px,pz,margin) => Math.abs(px-x)>w/2+margin || Math.abs(pz-z)>d/2+margin;
+    if (approaches.every(({base,gx,gz}) => clear(base.x,base.z,HEIST_BASE_R+.75) && clear(gx,gz,3.3))
+        && screens.every(([ax,az,aw,ad]) => Math.abs(x-ax)>(w+aw)/2+2.3 || Math.abs(z-az)>(d+ad)/2+2.3)) {
+      buildHeistWall(x,z,w,d,i%2 ? 0x334e55 : 0x557774,3.2);
+    }
+  });
+  for (const [x,z,w,d] of screens) buildHeistWall(x,z,w,d,0x557774,3.2);
+}
 function buildHeistBases(n,variant=heistVariant){clearHeistProps();if(backyardRoot)backyardRoot.visible=false;heistTeams=clamp(n|0,2,4);heistVariant=(variant|0)%3;heistBuiltVariant=heistVariant;
   const keys=heistKeysArr(),layout=heistLayout(heistTeams,heistVariant),H=HEIST_HALF,th=.35;
   layout.forEach((b,i)=>{const key=keys[i];if(!key)return;const color=TEAMS[key].color;
@@ -2217,9 +2277,8 @@ function buildHeistBases(n,variant=heistVariant){clearHeistProps();if(backyardRo
     const flat=(geo,op,y)=>{const o=mesh(geo,new THREE.MeshBasicMaterial({color,transparent:true,opacity:op,depthWrite:false,side:THREE.DoubleSide}),b.x,y,b.z);o.castShadow=false;o.receiveShadow=false;heistProps.push(o);return o;};
     flat(new THREE.CircleGeometry(HEIST_BASE_R,40),.4,.03).rotation.x=-Math.PI/2;       // coloured floor pad = the banking zone
     flat(new THREE.RingGeometry(HEIST_BASE_R-.3,HEIST_BASE_R,48),.9,.04).rotation.x=-Math.PI/2;
-    flat(new THREE.CylinderGeometry(.95,.95,15,18,1,true),.16,7.5);                      // light beam you can spot across the yard
-    heistProps.push(mesh(new THREE.CylinderGeometry(.13,.13,7.5,8),mat(0xf2f2f2),b.x,3.75,b.z));
-    const fl=mesh(new THREE.PlaneGeometry(2.6,1.5),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}),b.x+1.3,6.6,b.z);fl.castShadow=false;heistProps.push(fl);
+    heistProps.push(mesh(new THREE.CylinderGeometry(.06,.06,2.35,8),mat(0xf2f2f2),b.x,1.175,b.z));
+    const fl=mesh(new THREE.PlaneGeometry(1,.55),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide}),b.x+.5,2.03,b.z);fl.castShadow=false;heistProps.push(fl);
     heistProps.push(mesh(new THREE.SphereGeometry(.28,10,8),mat(0xffffff),b.x,7.6,b.z));
     // A readable entrance marker doubles as a bank cue without adding an obstacle to the doorway.
     const signTex=heistSignTexture(key);

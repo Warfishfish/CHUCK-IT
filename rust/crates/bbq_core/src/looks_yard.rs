@@ -4146,38 +4146,14 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
             .at(def.x, 0.04, def.z)
             .turn(-HALF_PI, 0.0, 0.0),
         );
-        // a light beam you can spot across the yard
+        // Keep the team's colours inside the base, below the surrounding maze walls.
+        v.push(cyl(0.06, 0.06, 2.35, 8, matt(0xf2f2f2), def.x, 1.175, def.z));
         v.push(
             Part::new(
-                Shape::Cylinder {
-                    top: 0.95,
-                    bottom: 0.95,
-                    h: 15.0,
-                    seg: 18,
-                    caps: false,
-                },
-                flat(0.16),
-            )
-            .at(def.x, 7.5, def.z),
-        );
-        v.push(cyl(0.13, 0.13, 7.5, 8, matt(0xf2f2f2), def.x, 3.75, def.z));
-        v.push(
-            Part::new(
-                Shape::Quad { w: 2.6, h: 1.5 },
+                Shape::Quad { w: 1.0, h: 0.55 },
                 matt(col).unlit().both_sides().no_shadow(),
             )
-            .at(def.x + 1.3, 6.6, def.z),
-        );
-        v.push(
-            Part::new(
-                Shape::Sphere {
-                    r: 0.28,
-                    ws: 10,
-                    hs: 8,
-                },
-                matt(0xffffff),
-            )
-            .at(def.x, 7.6, def.z),
+            .at(def.x + 0.5, 2.03, def.z),
         );
         // A compact entrance sign makes the base and its banking purpose easier to spot. The
         // team-coloured board and warm lettering strokes stay above the doorway with no collider.
@@ -5708,14 +5684,14 @@ mod tests {
     }
 
     #[test]
-    fn the_heist_look_has_walls_pads_beams_and_flags_for_every_team() {
+    fn the_heist_look_has_walls_and_pads_without_tall_beams() {
         for n in 2..=4usize {
             let v = heist_look(n);
             let beams = v
                 .iter()
                 .filter(|p| matches!(p.shape, Shape::Cylinder { h, caps: false, .. } if (h - 15.0).abs() < 1e-5))
                 .count();
-            assert_eq!(beams, n);
+            assert_eq!(beams, 0);
             let pads = v
                 .iter()
                 .filter(|p| matches!(p.shape, Shape::Disc { seg: 40, .. }))
