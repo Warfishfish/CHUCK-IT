@@ -6,7 +6,8 @@ Dazza starts taking requests after 30 seconds. The drink handover starts an esco
 
 ## Visual review
 
-- [Team result](team-result.png) and [20-participant podium](podium.png)
+- [Team result](team-result.png) and [legacy podium](podium.png)
+- Native podium framing with [two participants](native-podium-two.png) and [twenty participants](native-podium-20.png), plus a [tied round with the results controls visible](native-draw-scoreboard.png)
 - [Crate vault](vault.png), [open hatch](hatch.png) and [underground junction](junction.png)
 - Dazza's [first drink](first-drink.png), [tipsy stage](tipsy.png), [wobbly stage](wobbly.png) and [water handover](water.png)
 - Player-height legacy replays showing a [fork](fork.webm), [corner](corner.webm), [opposing traffic](traffic.webm) and [carrier return](carrier.webm)
@@ -14,6 +15,7 @@ Dazza starts taking requests after 30 seconds. The drink handover starts an esco
 ## Test coverage
 
 - 744 Rust workspace tests passed with 3 ignored. Collision tests cleared all six vaults with and without a teddy and all nine tunnel exits with the hatch closed behind the carrier. The three 20-participant Heist runs banked 8, 12 and 16 teddies, respectively.
-- The legacy browser fixture ran all three layouts and opened the hatch for 12 seconds per successful escort. The results fixture gave a player on the losing team the highest personal score. Separate host and guest sessions plus a late join verified replicated hatch state, a second player handing over cider, and the allowance staying at one use.
+- The legacy browser fixture ran all three layouts and opened the hatch for 12 seconds per successful escort. The results fixture gave a player on the losing team the highest personal score. A second fixture checked request expiry and retry, a wobbly escort, water reducing intoxication, enemy tailgating, and one opening per team on every layout. Separate host and guest sessions plus a late join verified replicated hatch state, a second player handing over cider, and the allowance staying at one use.
 - In the two-flag legacy bot replay, both builds sent bots to two different exits from the same junction. The first carrier got home around second 73 in both runs. Neither run registered a contact event of two seconds under the sampler's definition of a bot near a wall, moving less than 0.08 m over 0.2 seconds while trying to move. These observations are from simulated input and camera replays. They do not measure every obstruction in a live match.
+- The final native executable loaded all three flag counts and rendered both podium sizes from a controlled results state. A separate two-client native relay check reached play with zero bots.
 - The Rust game currently offers Heist in solo mode. Legacy Heist supports a host and guests. Human playtesting of the full scenario matrix remains outstanding.
