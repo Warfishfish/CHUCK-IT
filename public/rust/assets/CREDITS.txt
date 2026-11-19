@@ -26,3 +26,11 @@ https://creativecommons.org/publicdomain/zero/1.0/
 Imported through Blender MCP at 1K; runtime colour/normal maps reduced to
 512px. Colour lightened and desaturated for pale gum bark; normal strength
 baked down to 20%. Roughness/displacement maps omitted from runtime.
+
+TEDDY HEIST SOUND EFFECTS — sourced from Freesound public previews
+Whoosh — qubodup, https://freesound.org/people/qubodup/sounds/60013/
+BODY FALL - V HVY - DIRT — leonelmail, https://freesound.org/people/leonelmail/sounds/504626/
+metdoorcreakopen.wav — Mihacappy, https://freesound.org/people/Mihacappy/sounds/828132/
+bell ding 1.wav — 5ro4 (Alva Majo), https://freesound.org/people/5ro4/sounds/611113/
+All four: CC0 1.0 Universal, https://creativecommons.org/publicdomain/zero/1.0/
+Trimmed, converted to mono WAV, gain adjusted and faded for in-game use.
