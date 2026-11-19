@@ -23,6 +23,31 @@
   <script type="module">
     import { installPointerLock } from './pointer-lock.js';
     installPointerLock(document, window);
+    // Rust opens its audio device during startup, before browsers allow sound.
+    // Resume that device from a real click or key press on the game page.
+    if (window.AudioContext) {
+      const pendingAudio = new Set();
+      const resumeAudio = context => {
+        if (context.state === 'closed') {
+          pendingAudio.delete(context);
+          return;
+        }
+        context.resume().then(() => pendingAudio.delete(context)).catch(() => {});
+      };
+      window.AudioContext = new Proxy(window.AudioContext, {
+        construct(AudioContext, args, newTarget) {
+          const context = Reflect.construct(AudioContext, args, newTarget);
+          if (context.state !== 'running') {
+            pendingAudio.add(context);
+            if (navigator.userActivation?.isActive) resumeAudio(context);
+          }
+          return context;
+        },
+      });
+      const unlockAudio = () => pendingAudio.forEach(resumeAudio);
+      window.addEventListener('pointerup', unlockAudio, { capture: true });
+      window.addEventListener('keydown', unlockAudio, { capture: true });
+    }
     const msg = document.getElementById('msg');
     if (!navigator.gpu) {
       msg.innerHTML = 'This browser cannot run the game yet.<small>It needs WebGPU: use a recent Chrome, Edge, Safari or Firefox on a computer.</small>';
