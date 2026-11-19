@@ -372,19 +372,24 @@ pub struct Stray {
     pub on_ground: bool,
 }
 
+pub fn guard_post(base: BaseDef) -> V3 {
+    let centre = V3::new(base.x, 0.0, base.z);
+    let approach = (gate(base) - centre).normalised();
+    centre + approach * 1.7 + V3::new(-approach.z, 0.0, approach.x) * 1.65
+}
+
 /// What one bot should be going for (`heistBotGoal`), in priority order: bring a stolen teddy
 /// home; chase someone running off with one of ours; touch one of ours that got dropped; guard
 /// (the first bot of a team of two or more); otherwise raid the nearest enemy teddy.
-/// `patrol` is the guard's current corner (0 to 3); it advances as they reach each one.
+/// The guard watches the doorway from an offset position inside the base.
 pub fn bot_goal(
     me: &Who,
     hands_free: bool,
     teams: usize,
     people: &[Who],
     teddies: &[Stray],
-    patrol: &mut u32,
 ) -> Option<V3> {
-    bot_goal_variant(me, hands_free, teams, 0, people, teddies, patrol)
+    bot_goal_variant(me, hands_free, teams, 0, people, teddies)
 }
 
 pub fn bot_goal_variant(
@@ -394,7 +399,6 @@ pub fn bot_goal_variant(
     variant: usize,
     people: &[Who],
     teddies: &[Stray],
-    patrol: &mut u32,
 ) -> Option<V3> {
     let bases = layout_for(teams, variant);
     let base_of_team = |t: Team| -> Option<BaseDef> {
@@ -444,17 +448,7 @@ pub fn bot_goal_variant(
         let mates: Vec<&Who> = people.iter().filter(|c| c.team == me.team).collect();
         let first_bot = mates.iter().filter(|c| c.is_bot).map(|c| c.id).min();
         if mates.len() >= 2 && first_bot == Some(me.id) {
-            for c in people {
-                if c.team != me.team && c.pos.horiz_dist(home_c) < 10.0 {
-                    return Some(c.pos);
-                }
-            }
-            let ang = *patrol as f32 * std::f32::consts::FRAC_PI_2 + std::f32::consts::FRAC_PI_4;
-            let wp = V3::new(home.x + ang.cos() * 1.9, 0.0, home.z + ang.sin() * 1.9);
-            if wp.horiz_dist(me.pos) < 0.9 {
-                *patrol = (*patrol + 1) % 4;
-            }
-            return Some(via(me.pos, home, wp));
+            return Some(via(me.pos, home, guard_post(home)));
         }
         // otherwise raid: the nearest enemy teddy
         if !hands_free {
@@ -809,8 +803,7 @@ mod tests {
     fn a_thief_heads_home_through_the_doorway() {
         let mut me = who(1, 0.0, 10.0, Team::Red, true);
         me.carrying = vec![Team::Blue];
-        let mut patrol = 0;
-        let g = bot_goal(&me, false, 2, std::slice::from_ref(&me), &[], &mut patrol).unwrap();
+        let g = bot_goal(&me, false, 2, std::slice::from_ref(&me), &[]).unwrap();
         // red's base is at (-20, 0), door at (-15.8, 0)
         assert_eq!(g, gate(base_of(2, Team::Red).unwrap()));
     }
@@ -825,14 +818,12 @@ mod tests {
             f.carrying = vec![Team::Red];
             f
         };
-        let mut patrol = 0;
         let g = bot_goal(
             &me,
             true,
             2,
             &[me.clone(), thief.clone(), far],
             &[],
-            &mut patrol,
         )
         .unwrap();
         assert_eq!(g, thief.pos);
@@ -853,8 +844,7 @@ mod tests {
                 on_ground: true,
             }, // dropped
         ];
-        let mut patrol = 0;
-        let g = bot_goal(&me, true, 2, std::slice::from_ref(&me), &strays, &mut patrol).unwrap();
+        let g = bot_goal(&me, true, 2, std::slice::from_ref(&me), &strays).unwrap();
         assert_eq!(g, V3::new(6.0, 0.2, 2.0));
     }
 
@@ -868,38 +858,24 @@ mod tests {
             on_ground: true,
         }];
         let people = [a.clone(), b.clone()];
-        let mut pa = 0;
-        let mut pb = 0;
-        // bot 1 patrols a corner of its own base
-        let ga = bot_goal(&a, true, 2, &people, &strays, &mut pa).unwrap();
+        // bot 1 holds a doorway post inside its own base
+        let ga = bot_goal(&a, true, 2, &people, &strays).unwrap();
         assert!(ga.horiz_dist(V3::new(red().x, 0.0, red().z)) < 4.5, "{ga:?}");
         // bot 2 leaves by its doorway before raiding.
-        let gb = bot_goal(&b, true, 2, &people, &strays, &mut pb).unwrap();
+        let gb = bot_goal(&b, true, 2, &people, &strays).unwrap();
         assert_eq!(gb, gate(base_of(2, Team::Red).unwrap()));
     }
 
     #[test]
-    fn a_guard_goes_for_an_intruder_near_home_and_otherwise_walks_its_patrol() {
-        let a = who(1, gate(red()).x, red().z, Team::Red, true); // just outside the door
-        let mate = who(2, red().x-1.0, red().z-1.0, Team::Red, false);
-        let intruder = who(3, red().x, red().z+6.0, Team::Blue, false);
-        let mut patrol = 0;
-        let g = bot_goal(
-            &a,
-            true,
-            2,
-            &[a.clone(), mate.clone(), intruder.clone()],
-            &[],
-            &mut patrol,
-        )
-        .unwrap();
-        assert_eq!(g, intruder.pos);
-        // at a patrol corner it moves on to the next
-        let ang = std::f32::consts::FRAC_PI_4;
-        let corner = who(1, red().x + ang.cos() * 1.9, red().z + ang.sin() * 1.9, Team::Red, true);
-        let mut patrol = 0;
-        bot_goal(&corner, true, 2, &[corner.clone(), mate], &[], &mut patrol);
-        assert_eq!(patrol, 1);
+    fn a_guard_keeps_its_doorway_post_when_an_intruder_passes() {
+        let guard = who(1, red().x, red().z, Team::Red, true);
+        let mate = who(2, red().x - 1.0, red().z - 1.0, Team::Red, false);
+        let intruder = who(3, red().x, red().z + 6.0, Team::Blue, false);
+        let post = bot_goal(&guard, true, 2, &[guard.clone(), mate.clone(), intruder], &[])
+            .unwrap();
+        assert!(post.horiz_dist(V3::new(red().x, 0.0, red().z)) > 2.0);
+        let on_post = Who { pos: post, ..guard };
+        assert_eq!(bot_goal(&on_post, true, 2, &[on_post.clone(), mate], &[]), Some(post));
     }
 
     #[test]
@@ -922,18 +898,17 @@ mod tests {
                 on_ground: false,
             },
         ];
-        let mut patrol = 0;
         // the nearest on-the-ground enemy teddy that is not in a base
-        let g = bot_goal(&me, true, 2, std::slice::from_ref(&me), &strays, &mut patrol).unwrap();
+        let g = bot_goal(&me, true, 2, std::slice::from_ref(&me), &strays).unwrap();
         assert_eq!(g, V3::new(8.0, 0.2, 0.0));
         assert_eq!(
-            bot_goal(&me, false, 2, std::slice::from_ref(&me), &strays, &mut patrol),
+            bot_goal(&me, false, 2, std::slice::from_ref(&me), &strays),
             None
         );
         // someone with no base (not a team in this game) has no goal
         let alien = who(9, 0.0, 0.0, Team::Green, true);
         assert_eq!(
-            bot_goal(&alien, true, 2, std::slice::from_ref(&alien), &strays, &mut patrol),
+            bot_goal(&alien, true, 2, std::slice::from_ref(&alien), &strays),
             None
         );
     }
@@ -946,8 +921,7 @@ mod tests {
             pos: V3::new(2.0, 0.2, 6.0),
             on_ground: true,
         }];
-        let mut patrol = 0;
-        let g = bot_goal(&me, true, 2, std::slice::from_ref(&me), &strays, &mut patrol).unwrap();
+        let g = bot_goal(&me, true, 2, std::slice::from_ref(&me), &strays).unwrap();
         assert_eq!(g, gate(base_of(2, Team::Red).unwrap()));
     }
 }

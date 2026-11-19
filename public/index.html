@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.39</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.40</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -2244,19 +2244,24 @@ function heistBotGoalRaw(ch){const myT=teamOf.get(ch.id),home=myT&&heistBases[my
   if(held.some(i=>i.heistTeam!=null&&i.heistTeam!==myT))return heistVia(ch,home,new V3(home.x,0,home.z));          // carrying a stolen teddy: get it home
   let carrier=null,cd=22;                                                                          // an enemy is running off with one of ours: chase
   for(const c of chars.values()){if(c===ch||teamOf.get(c.id)===myT)continue;
-    if(heldOf(c.id).some(i=>i.heistTeam===myT)){const d=Math.hypot(c.pos.x-ch.pos.x,c.pos.z-ch.pos.z);if(d<cd&&los(ch.pos,c.pos)){cd=d;carrier=c;}}}
+    if(heldOf(c.id).some(i=>i.heistTeam===myT)){const d=Math.hypot(c.pos.x-ch.pos.x,c.pos.z-ch.pos.z);if(d<cd&&Math.abs(ch.pos.y-c.pos.y)<2&&los(ch.pos,c.pos)){
+      const closerMate=[...chars.values()].some(mate=>mate!==ch&&mate.kind==='bot'&&teamOf.get(mate.id)===myT
+        &&!heldOf(mate.id).some(it=>it.heistTeam!=null)
+        &&Math.hypot(mate.pos.x-c.pos.x,mate.pos.z-c.pos.z)<d
+        &&Math.abs(mate.pos.y-c.pos.y)<2&&los(mate.pos,c.pos));
+      if(!closerMate){cd=d;carrier=c;}
+    }}}
   if(carrier)return carrier.pos;
   let loose=null,ld=20;                                                                            // one of ours got dropped away from home: touch it to send it back
   for(const it of items.values()){if(it.heistTeam!==myT||it.state!=='ground')continue;
     if(Math.hypot(it.pos.x-home.x,it.pos.z-home.z)<2.8)continue;const d=Math.hypot(it.pos.x-ch.pos.x,it.pos.z-ch.pos.z);if(d<ld){ld=d;loose=it;}}
   if(loose)return loose.pos;
   const mates=[...chars.values()].filter(c=>teamOf.get(c.id)===myT);
-  if(mates.length>=2&&mates.find(c=>c.kind==='bot')===ch){                                         // one bot per team of 2+ guards the base
-    for(const c of chars.values()){if(teamOf.get(c.id)===myT)continue;if(Math.hypot(c.pos.x-home.x,c.pos.z-home.z)<10)return c.pos;}
-    const ai=ch.ai;if(ai.patrolI==null)ai.patrolI=Math.floor(Math.random()*4);
-    const ang=ai.patrolI*Math.PI/2+Math.PI/4,wp=new V3(home.x+Math.cos(ang)*1.9,0,home.z+Math.sin(ang)*1.9);
-    if(Math.hypot(wp.x-ch.pos.x,wp.z-ch.pos.z)<.9)ai.patrolI=(ai.patrolI+1)%4;
-    return heistVia(ch,home,wp);}
+  if(mates.length>=2&&mates.find(c=>c.kind==='bot')===ch){
+    const approach=heistGate(home).sub(new V3(home.x,0,home.z)).normalize();
+    const post=new V3(home.x+approach.x*1.7-approach.z*1.65,0,home.z+approach.z*1.7+approach.x*1.65);
+    return heistVia(ch,home,post);
+  }
   let best=null,bd=1e9,hands=heldOf(ch.id).length<2;                                               // otherwise raid: nearest enemy teddy
   if(!hands)return null;
   for(const it of items.values()){if(it.heistTeam==null||it.heistTeam===myT||it.state!=='ground')continue;
@@ -2365,7 +2370,7 @@ function createChar(id,name,color,kind,sp){
   Object.assign(ch,{mesh:g,body,belly,bellyWob:0,bellyVel:0,hand,handL,crown,stars,tag,sash,smokoCan,sink:0});
   scene.add(g);
   if(kind==='me')g.visible=false;
-  if(kind==='bot'){ch.isBot=true;ch.ai={target:null,retarget:0,orbit:1,flip:rand(1,3),windup:0,throwCd:rand(1,2),range:rand(8,13),seen:new WeakSet(),claim:null,stuckT:1,lastPos:ch.pos.clone(),wander:0,wanderDir:new THREE.Vector2(),
+  if(kind==='bot'){ch.isBot=true;ch.ai={target:null,retarget:0,disengage:0,windup:0,throwCd:rand(1,2),range:rand(8,13),seen:new WeakSet(),claim:null,stuckT:1,lastPos:ch.pos.clone(),wander:0,wanderDir:new THREE.Vector2(),
     pers:{react:rand(.14,.32),wob:rand(.1,.26),pause:rand(.02,.055),turn:rand(5.5,8),look:rand(6,10)}, // each bot keeps its own little habits all game
     mv:new THREE.Vector2(),orbitS:1,idleGoal:null,idleT:0,avoidSide:Math.random()<.5?-1:1,hesT:0,pauseT:0,lookYaw:0,glanceT:0,glanceAt:null,wasStun:false,lastGoal:null};}
   chars.set(id,ch);return ch;
@@ -3221,7 +3226,21 @@ function syncCharMesh(ch,dt){
 function nearestFreeItem(ch){let best=null,bd=1e9;for(const it of items.values()){if(it.state!=='ground'||it.def.melee)continue;if(it.claimedBy&&it.claimedBy!==ch&&it.claimedBy.ai&&it.claimedBy.ai.claim===it)continue;
   const d=Math.hypot(it.pos.x-ch.pos.x,it.pos.z-ch.pos.z)+(it.groundY>.1?1.5:0);if(d<bd){bd=d;best=it;}}return best;}
 function blocked(x,z,y){for(const c of colliders){if((gameMode==='heist'&&c.yardOnly)||c.roofSurface||c.tankLadder||c.h<.4||y>=c.h-.3)continue;if(x>c.x0-.45&&x<c.x1+.45&&z>c.z0-.45&&z<c.z1+.45)return true;}return gameMode==='heist'?!insideHeist(x,z,.6):Math.abs(x)>W-.6||Math.abs(z)>D-.6;}
-function los(a,b){for(let i=1;i<8;i++){const t=i/8,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;for(const c of colliders){if((gameMode==='heist'&&c.yardOnly)||c.h<=1.6)continue;if(x>c.x0&&x<c.x1&&z>c.z0&&z<c.z1)return false;}}return true;}
+function los(a,b){
+  for(const wall of colliders){
+    if((gameMode==='heist'&&wall.yardOnly)||wall.h<=1.6)continue;
+    let entry=0,exit=1;
+    for(const [start,end,min,max] of [[a.x,b.x,wall.x0,wall.x1],[a.z,b.z,wall.z0,wall.z1]]){
+      const delta=end-start;
+      if(Math.abs(delta)<.00001){if(start<min||start>max){entry=2;break;}continue;}
+      const first=(min-start)/delta,last=(max-start)/delta;
+      entry=Math.max(entry,Math.min(first,last));
+      exit=Math.min(exit,Math.max(first,last));
+    }
+    if(entry<=exit)return false;
+  }
+  return true;
+}
 // Heist bots follow a smoothed A* waypoint through the same solid maze as players. This avoids
 // long straight-line goals repeatedly pushing into a wall, without changing speed or collision.
 let mazeWalkable=null;
@@ -3259,9 +3278,24 @@ function heistWaypoint(from,target,runner){
 function ballistic(from,to,speed,g){const dx=to.x-from.x,dz=to.z-from.z,dy=to.y-from.y,h=Math.hypot(dx,dz);if(h<.1)return null;
   const v2=speed*speed,disc=v2*v2-g*(g*h*h+2*dy*v2);if(disc<0)return null;const ang=Math.atan((v2-Math.sqrt(disc))/(g*h));
   const c=Math.cos(ang),s=Math.sin(ang);return{v:new V3(dx/h*c*speed,s*speed,dz/h*c*speed),t:h/(speed*c)};}
-function pickTarget(ch){const df=DIFF[difficulty];let best=null,bs=-1;for(const o of chars.values()){if(o===ch||sameTeam(ch.id,o.id)||o.smokoSeat>=0)continue;const d=o.pos.distanceTo(ch.pos);
-  let s=1/(d+3)*(o.id===leaderId?2.8:1)*(!o.isBot?df.bias:1)*rand(.6,1.4);if(o.stun>0)s*=.7;if(ch.ai.meleeOnly&&o.downT>.3)s*=.05;if(s>bs){bs=s;best=o;}}
-  ch.ai.target=best;ch.ai.retarget=rand(3,6);ch.ai.range=rand(7,13);}
+function canEngage(ch,other){
+  const reach=ch.ai.meleeOnly?10:24;
+  return other!==ch&&!sameTeam(ch.id,other.id)&&other.smokoSeat<0&&other.downT<=.3&&other.stun<=0
+    &&ch.pos.distanceTo(other.pos)<reach&&los(ch.pos,other.pos);
+}
+function pickTarget(ch){
+  let best=null,bestWeight=-1;
+  for(const other of chars.values()){
+    if(!canEngage(ch,other))continue;
+    const weight=(other.id===leaderId?2.8:1)*rand(.6,1.4)/(ch.pos.distanceTo(other.pos)+3);
+    if(weight>bestWeight){bestWeight=weight;best=other;}
+  }
+  ch.ai.target=best;ch.ai.retarget=rand(3,5);ch.ai.range=rand(7,13);
+}
+function breakContact(ch){
+  const ai=ch.ai;
+  ai.target=null;ai.windup=0;ai.disengage=rand(2.5,4.5);ai.idleGoal=null;ch.charging=false;
+}
 function botThrow(ch,t){const it=selItem(ch);if(!it)return;const d=it.def,df=DIFF[difficulty];
   const from=new V3();ch.hand.getWorldPosition(from);
   const aim=t.pos.clone();aim.y+=1.0-(t.inPool?POOL_SINK*.6:0);const speed=d.speed*rand(.85,1)*df.spd,g=GRAV*d.grav;
@@ -3303,8 +3337,9 @@ function botErrand(ch,dt){const e=ch.ai.errand;e.t-=dt;
   const ms=meatSpot(ch);if(!ms)return goal;authMeatGrab(ch.id,ms);return null;}
 function aiUpdate(ch,dt){
   const ai=ch.ai,df=DIFF[difficulty];ch.wish.set(0,0);
-  if(gameMode==='heist' && state==='play' && ch.stun<=0){
-    const goal=heistBotGoal(ch),seed=parseInt(String(ch.id).replace(/[^0-9]/g,''),10)||0;
+  const hg=gameMode==='heist'&&state==='play'&&ch.stun<=0?heistBotGoal(ch):null;
+  if(hg){
+    const goal=hg,seed=parseInt(String(ch.id).replace(/[^0-9]/g,''),10)||0;
     if(goal){
       let target=null,jump=false;
       if(ch.underground){
@@ -3323,14 +3358,12 @@ function aiUpdate(ch,dt){
       if(target){ch.wish.set(target.x-ch.pos.x,target.z-ch.pos.z).normalize();ch.face=Math.atan2(ch.wish.x,ch.wish.y);if(jump)botHop(ch);return;}
     }
   }
-  if(!ai.mv){ai.mv=new THREE.Vector2();ai.pers={react:.22,wob:.18,pause:.035,turn:6.5,look:8};ai.orbitS=ai.orbit;ai.avoidSide=1;ai.hesT=ai.pauseT=ai.glanceT=ai.idleT=0;}
+  if(!ai.mv){ai.mv=new THREE.Vector2();ai.pers={react:.22,wob:.18,pause:.035,turn:6.5,look:8};ai.avoidSide=1;ai.hesT=ai.pauseT=ai.glanceT=ai.idleT=0;}
   if(state==='countdown'){if(ch.smokoSeat>=0)ch.smokoSeat=-1;ai.errand=null;ai.mv.set(0,0);return;}
   if(ch.stun>0){ai.windup=0;ch.charging=false;ai.wasStun=true;ai.mv.multiplyScalar(.5);return;}
   if(ai.wasStun){ai.wasStun=false;ai.hesT=ai.pers.react+rand(.05,.2);} // shake it off for a moment after being hit
   if(botHelp(ch,dt)){ai.mv.copy(ch.wish);return;}
-  ai.retarget-=dt;ai.throwCd-=dt;ai.flip-=dt;ai.stuckT-=dt;ai.wander-=dt;ai.hesT-=dt;ai.pauseT-=dt;ai.glanceT-=dt;ai.idleT-=dt;
-  if(ai.flip<=0){ai.orbit*=-1;ai.flip=rand(1.8,4.2);}
-  ai.orbitS+=(ai.orbit-ai.orbitS)*(1-Math.exp(-2.2*dt)); // swing round to the other side gradually, not a 180 on the spot
+  ai.retarget-=dt;ai.throwCd-=dt;ai.disengage=Math.max(0,(ai.disengage||0)-dt);ai.stuckT-=dt;ai.wander-=dt;ai.hesT-=dt;ai.pauseT-=dt;ai.glanceT-=dt;ai.idleT-=dt;
   for(const it of items.values()){if(it.state!=='flying'||!it.live||it.thrower===ch.id||ai.seen.has(it))continue;
     const rx=ch.pos.x-it.pos.x,rz=ch.pos.z-it.pos.z,dist=Math.hypot(rx,rz);if(dist>9)continue;
     const vh=Math.hypot(it.vel.x,it.vel.z);if(vh<1)continue;const closing=(it.vel.x*rx+it.vel.z*rz)/(dist||1);if(closing<vh*.85)continue;
@@ -3340,33 +3373,34 @@ function aiUpdate(ch,dt){
     else if(Math.random()<df.juke){if(ch.grounded&&Math.random()<.55)botHop(ch);
       else{const s=Math.random()<.5?-1:1,l=Math.hypot(it.vel.x,it.vel.z)||1;ai.sideT=.42;ai.sideDir=new THREE.Vector2(-it.vel.z/l*s,it.vel.x/l*s);}}}
   let goal=null,faceTo=null;const near=nearestFreeItem(ch);const nHeld=heldOf(ch.id).length;
-  const hg=gameMode==='heist'?heistBotGoal(ch):null;
   const carryingTeddy=gameMode==='heist'&&heldOf(ch.id).some(i=>i.heistTeam!=null&&i.heistTeam!==teamOf.get(ch.id));
   // little errands: a drink at the bar, a sit at smoko, a dildo from the chest, meat off Dazza's table
   if(ai.errCd==null)ai.errCd=rand(6,16);ai.errCd-=dt;
   if(!ai.errand&&ai.errCd<=0&&gameMode!=='heist'){ai.errCd=rand(14,26);ai.errand=botPickErrand(ch);}
   if(ai.errand){const r=botErrand(ch,dt);if(r===true){ch.wish.set(0,0);ai.mv.set(0,0);return;}if(r)goal=r;else ai.errand=null;}
   const mel=selItem(ch);ai.meleeOnly=!!(mel&&mel.def.melee&&!mel.def.throwable);
+  if(ai.target&&(ai.retarget<=0||!chars.has(ai.target.id)||!canEngage(ch,ai.target)))breakContact(ch);
+  const canFight=mel&&!carryingTeddy&&(gameMode!=='heist'||mel.heistTeam==null)&&(ai.meleeOnly||ai.throwCd<=0);
+  if(!canFight||goal){ai.target=null;ai.windup=0;ch.charging=false;}
+  else if(!ai.target&&ai.disengage===0)pickTarget(ch);
   if(goal||carryingTeddy){}
-  else if(ai.meleeOnly){ // up close and slap them
-    if(!ai.target||ai.retarget<=0||!chars.has(ai.target.id)||(mel.def.melee==='down'&&ai.target.downT>.3))pickTarget(ch);
+  else if(ai.meleeOnly){
     const t=ai.target;if(t){faceTo=t.pos;const d=Math.hypot(t.pos.x-ch.pos.x,t.pos.z-ch.pos.z)||1;
-      if(d>1.6)goal=t.pos;
+      if(!hg&&d>1.6)goal=t.pos;
       if(d<2.1&&elapsed-ch.lastSwing>.9){ch.lastSwing=elapsed;ch.face=Math.atan2(t.pos.x-ch.pos.x,t.pos.z-ch.pos.z);
-        if(t.smokoSeat>=0||t.downT>.3&&mel.def.melee==='down')fx('sw',ch.id);else authSlap(ch.id,t.id,mel);}}
+        if(t.smokoSeat>=0||t.downT>.3&&mel.def.melee==='down')fx('sw',ch.id);else authSlap(ch.id,t.id,mel);breakContact(ch);}}
     else goal=botIdleGoal(ch);}
   else if(nHeld===0){if(near){goal=near.pos;near.claimedBy=ch;ai.claim=near;}else goal=botIdleGoal(ch);}
   else{
-    if(!ai.target||ai.retarget<=0||!chars.has(ai.target.id))pickTarget(ch);
     const t=ai.target;
     if(t){const tx=t.pos.x-ch.pos.x,tz=t.pos.z-ch.pos.z,dist=Math.hypot(tx,tz)||1;faceTo=t.pos;
       if(nHeld<2&&near&&Math.hypot(near.pos.x-ch.pos.x,near.pos.z-ch.pos.z)<4.5&&ai.windup<=0){goal=near.pos;near.claimedBy=ch;ai.claim=near;}
-      else{const nx=tx/dist,nz=tz/dist;let mx=0,mz=0;if(dist>ai.range+2.5){mx=nx;mz=nz;}else if(dist<ai.range-3){mx=-nx;mz=-nz;}
-        mx+=-nz*ai.orbitS*.75;mz+=nx*ai.orbitS*.75;ch.wish.set(mx,mz);if(ch.wish.length()>1)ch.wish.normalize();}
-      if(ai.windup>0){ai.windup-=dt;ch.charging=true;if(ai.windup<=0)botThrow(ch,t);}
+      else if(ai.windup<=0&&dist>ai.range+2.5)ch.wish.set(tx/dist,tz/dist);
+      if(ai.windup>0){ai.windup-=dt;ch.charging=true;if(ai.windup<=0){botThrow(ch,t);breakContact(ch);}}
       else if(ai.throwCd<=0&&dist<21&&los(ch.pos,t.pos)&&selItem(ch)){ai.windup=selItem(ch).def.charge*rand(.55,1);ch.charge=0;}
     }
   }
+  if(!goal&&!hg&&!ai.target)goal=botIdleGoal(ch);
   if(hg){goal=hg;faceTo=faceTo||hg;}
   let arrive=99;
   if(goal){const gx=goal.x-ch.pos.x,gz=goal.z-ch.pos.z,gl=Math.hypot(gx,gz)||1;arrive=gl;ch.wish.set(gx/gl,gz/gl);if(!faceTo)faceTo=goal;
@@ -3389,8 +3423,12 @@ function aiUpdate(ch,dt){
 // a spot to amble towards when there's nothing better to do; kept until reached or bored of it
 function botIdleGoal(ch){const ai=ch.ai;
   if(!ai.idleGoal||ai.idleT<=0||Math.hypot(ai.idleGoal.x-ch.pos.x,ai.idleGoal.z-ch.pos.z)<1.3){
-    for(let i=0;i<8;i++){const x=rand(-7,7),z=rand(-6,6);if(!blocked(x,z,0)){ai.idleGoal=new V3(x,0,z);break;}}
-    if(!ai.idleGoal)ai.idleGoal=new V3(rand(-3,3),0,rand(-3,3));ai.idleT=rand(2.5,4.5);}
+    ai.idleGoal=null;
+    for(let i=0;i<8;i++){
+      const spot=gameMode==='heist'?ch.pos.clone().add(new V3(rand(-4,4),0,rand(-4,4))):new V3(rand(-7,7),0,rand(-6,6));
+      if(!blocked(spot.x,spot.z,spot.y)&&(gameMode!=='heist'||los(ch.pos,spot))){ai.idleGoal=spot;break;}
+    }
+    ai.idleGoal??=ch.pos.clone();ai.idleT=rand(2.5,4.5);}
   return ai.idleGoal;}
 function botApproachSpeed(distance){const t=clamp((distance-.45)/(3.6-.45),0,1);return t*t*(3-2*t);}
 /* Turns the bot's raw "go that way" into something that looks like a person walking:
@@ -3901,7 +3939,7 @@ function announceResult(){
 }
 function podiumPosition(i){return i===0?[0,1.65,0]:i===1?[-2.3,1.05,0]:i===2?[2.3,.72,0]:[((i-3)%9-4)*1.35,.2+Math.floor((i-3)/9)*.9,-2.5-Math.floor((i-3)/9)*1.5];}
 function updateCelebration(){
-  if(state!=='results'||!celebrationEnds||resultsOpen){if(podiumStage){scene.remove(podiumStage);podiumStage.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.userData.placard){o.material.map.dispose();o.material.dispose();}});podiumStage=null;}return;}
+  if(state!=='results'||!celebrationEnds||resultsOpen){if(podiumStage){scene.remove(podiumStage);podiumStage.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.userData.placard||o.userData.podiumName){o.material.map.dispose();o.material.dispose();}});podiumStage=null;for(const ch of chars.values())ch.tag.visible=true;}return;}
   if(elapsed>=celebrationEnds){openScorecard();return;}
   if(!matchOver||celebrationEnds-elapsed>5.6)return;
   if(!podiumStage){
@@ -3909,6 +3947,11 @@ function updateCelebration(){
     mesh(new THREE.BoxGeometry(16,.4,9),mat(0x29443c),0,-.2,-2,podiumStage);
     finalRanks.slice(0,3).forEach((r,i)=>{const [x,h,z]=podiumPosition(i);
       mesh(new THREE.BoxGeometry(2.25,h,1.85),mat(0x284e52),x,h/2,z,podiumStage);
+      const tag=nameTag(r[1],r[2]);
+      tag.position.set(x,h+2.65,z);
+      tag.scale.set(2.7,.68,1);
+      tag.userData.podiumName=true;
+      podiumStage.add(tag);
       const [points,hits]=matchPersonal.get(r[0])||r.slice(3,5);
       const texture=textTex(512,128,(c,w,h)=>{c.fillStyle='#183638';c.fillRect(0,0,w,h);c.fillStyle='#fff6dd';c.textAlign='center';c.font='bold 48px sans-serif';c.fillText('#'+(i+1)+'  '+r[1],w/2,53,w-12);c.font='36px sans-serif';c.fillText(points+' points · '+hits+' hits',w/2,108);});
       mesh(new THREE.PlaneGeometry(2,.5),new THREE.MeshBasicMaterial({map:texture}),x,h*.5,.93,podiumStage).userData.placard=true;
@@ -3917,7 +3960,7 @@ function updateCelebration(){
   }
   camera.position.set(0,94.3,11);camera.lookAt(0,91.4,-1);camera.updateMatrixWorld();
   finalRanks.forEach((r,i)=>{const ch=chars.get(r[0]);if(!ch)return;const [x,y,z]=podiumPosition(i),b=elapsed*(4+i%3)+i*1.7;
-    ch.mesh.visible=true;ch.mesh.position.set(x,90+y+Math.max(0,Math.sin(b))*(i===0?.22:.06),z);ch.mesh.rotation.set(0,0,Math.sin(b)*.1);
+    ch.tag.visible=false;ch.mesh.visible=true;ch.mesh.position.set(x,90+y+Math.max(0,Math.sin(b))*(i===0?.22:.06),z);ch.mesh.rotation.set(0,0,Math.sin(b)*.1);
     const high=i<3||i%4===0,cry=i>=3&&i%4===2;
     ch.hand.position.set(high?.55:cry?.16:.24,high?1.65+Math.sin(b)*.2:cry?1.5:1,.3);
     ch.handL.position.set(high?-.55:cry?-.16:-.24,high?1.65-Math.sin(b)*.2:cry?1.5:1,.3);

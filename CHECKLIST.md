@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.40 adds overhead podium names, makes Heist guards hold a doorway post, and sends the nearest teammate with a sightline after a stolen teddy. Armed bots break off after a throw, swing, blocked sightline or short pursuit.
+
 - Teddy Heist base flags fly on 14 m poles. A fold in the team-coloured cloth keeps it visible from side passages on all three maps. Desktop and browser prototype 0.23.38.
 
 - 18 November, prototype 0.23.37. Two, three and four flags select three square Teddy Heist arenas from Marcus’s SVGs. The footprint is 116.8 m on each side. Bots sample solid obstacles to build a shared navigation grid and find routes to objectives. All modes support up to 20 participants including bots. See the [map comparisons and verification](checkpoints/2026-11-18-reference-mazes/REVIEW.md).

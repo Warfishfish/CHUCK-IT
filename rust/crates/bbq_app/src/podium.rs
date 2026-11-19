@@ -34,10 +34,11 @@ fn stage(
     mut commands: Commands,
     g: Res<Game>,
     time: Res<Time>,
+    settings: Res<crate::menu::Settings>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
     old: Query<Entity, With<Stage>>,
-    mut camera: Query<&mut Transform, (With<EyeCamera>, Without<BlobRoot>, Without<CarriedAvatar>)>,
+    mut camera: Query<(&Camera, &mut Transform), (With<EyeCamera>, Without<BlobRoot>, Without<CarriedAvatar>)>,
     mut runners: Query<
         (Option<&Blob>, &mut Transform, &mut Visibility),
         (
@@ -55,7 +56,41 @@ fn stage(
         }
         return;
     }
+    let stage_camera =
+        Transform::from_xyz(0., 134.4, 11.).looking_at(Vec3::new(0., 131.4, -0.8), Vec3::Y);
     if old.is_empty() {
+        if let Ok((view, _)) = camera.single() {
+            let transform = GlobalTransform::from(stage_camera);
+            for (rank, id) in g.round.podium.iter().take(3).enumerate() {
+                let Ok(anchor) = view.world_to_viewport(&transform, place(rank) + Vec3::Y * 2.9)
+                else {
+                    continue;
+                };
+                let name = if *id == PLAYER_ID {
+                    settings.name.clone()
+                } else {
+                    crate::round::name_of(&g, *id)
+                };
+                commands.spawn((
+                    Stage,
+                    Text::new(name),
+                    TextLayout::justify(Justify::Center),
+                    TextFont { font_size: FontSize::Px(18.), ..default() },
+                    TextColor(Color::WHITE),
+                    BackgroundColor(Color::srgba(0.05, 0.11, 0.12, 0.94)),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: px(anchor.x - 70.0),
+                        top: px(anchor.y),
+                        width: px(140.0),
+                        padding: UiRect::vertical(px(4.0)),
+                        border_radius: BorderRadius::all(px(8.0)),
+                        ..default()
+                    },
+                ));
+            }
+        }
+
         commands
             .spawn((
                 Stage,
@@ -146,8 +181,8 @@ fn stage(
                 }
             });
     }
-    for mut tf in &mut camera {
-        *tf = Transform::from_xyz(0., 134.4, 11.).looking_at(Vec3::new(0., 131.4, -0.8), Vec3::Y);
+    for (_, mut tf) in &mut camera {
+        *tf = stage_camera;
     }
     for (blob, mut tf, mut vis) in &mut runners {
         let id = match blob {

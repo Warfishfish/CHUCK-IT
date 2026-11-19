@@ -349,7 +349,7 @@ pub fn goal_for_bot(g: &mut Game, p: &Player, i: usize, yard: &bbq_core::yard::Y
         id: PLAYER_ID,
         // The human is a real objective for defending bots. Treating them as if they stood at
         // the origin sent defenders to the wrong maze branch whenever a teddy was stolen.
-        pos: V3::new(p.mover.x, 0.0, p.mover.z),
+        pos: V3::new(p.mover.x, p.mover.y, p.mover.z),
         team: g.teams.get(PLAYER_ID).unwrap_or(Team::Wildcard),
         is_bot: false,
         carrying: carrying_of(g, g.slots.ids()),
@@ -357,9 +357,9 @@ pub fn goal_for_bot(g: &mut Game, p: &Player, i: usize, yard: &bbq_core::yard::Y
     for d in &g.dummies {
         people.push(Who {
             id: d.id,
-            pos: V3::new(d.mover.x, 0.0, d.mover.z),
+            pos: V3::new(d.mover.x, d.mover.y, d.mover.z),
             team: g.teams.get(d.id).unwrap_or(Team::Wildcard),
-            is_bot: true,
+            is_bot: d.remote.is_none(),
             carrying: carrying_of(g, d.bot.slots.ids()),
         });
     }
@@ -376,18 +376,24 @@ pub fn goal_for_bot(g: &mut Game, p: &Player, i: usize, yard: &bbq_core::yard::Y
         })
         .collect();
     let me = people[i + 1].clone();
-    people.retain(|who| who.team==me.team || (who.pos.horiz_dist(me.pos)<24.0 && bbq_core::bots::line_of_sight(yard,me.pos,who.pos)));
+    let can_see = |from: V3, to: V3| {
+        (from.y - to.y).abs() < 2.0 && from.horiz_dist(to) < 22.0
+            && bbq_core::bots::line_of_sight(yard, from, to)
+    };
+    // Only the nearest available teammate with a clear sightline handles a carrier.
+    // Raiders already carrying a teddy stay committed to banking it.
+    let observed: Vec<_> = people.iter().filter(|who| {
+        if who.team == me.team { return true; }
+        if !who.carrying.contains(&me.team) || !can_see(me.pos, who.pos) { return false; }
+        let distance = me.pos.horiz_dist(who.pos);
+        !people.iter().any(|mate| mate.id != id && mate.team == me.team && mate.is_bot
+            && mate.carrying.is_empty()
+            && (mate.pos.horiz_dist(who.pos), mate.id) < (distance, id)
+            && can_see(mate.pos, who.pos))
+    }).cloned().collect();
     let carrying_stolen = me.carrying.iter().any(|t| *t != my_team);
     let hands_free = g.dummies[i].bot.slots.len() < 2;
-    let mut patrol = g
-        .crowd
-        .brains
-        .get_mut(&id)
-        .map_or(0, |b| b.patrol_corner_or_zero());
-    let goal = heist::bot_goal_variant(&me, hands_free, teams, variant, &people, &strays, &mut patrol);
-    if let Some(b) = g.crowd.brains.get_mut(&id) {
-        b.set_patrol_corner(patrol);
-    }
+    let goal = heist::bot_goal_variant(&me, hands_free, teams, variant, &observed, &strays);
     (goal, carrying_stolen)
 }
 

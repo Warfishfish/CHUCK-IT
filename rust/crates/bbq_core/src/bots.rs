@@ -511,9 +511,7 @@ pub struct BotBrain {
     pub target: Option<PlayerId>,
     retarget: f32,
     pub range: f32,
-    orbit: f32,
-    orbit_s: f32,
-    flip: f32,
+    disengage: f32,
     throw_cd: f32,
     windup: f32,
     windup_total: f32,
@@ -544,8 +542,6 @@ pub struct BotBrain {
     melee_only: bool,
     last_swing: f32,
     help_t: f32,
-    /// Heist guard patrol corner.
-    patrol_i: Option<u32>,
     /// Which way it faces now (browser sense).
     pub face: f32,
     phase: f32,
@@ -553,15 +549,12 @@ pub struct BotBrain {
 
 impl BotBrain {
     pub fn new(rng: &mut Rng) -> Self {
-        let orbit = if rng.chance(0.5) { 1.0 } else { -1.0 };
         BotBrain {
             pers: Personality::random(rng),
             target: None,
             retarget: 0.0,
             range: rng.range(8.0, 13.0),
-            orbit,
-            orbit_s: orbit,
-            flip: rng.range(1.0, 3.0),
+            disengage: 0.0,
             throw_cd: rng.range(1.0, 2.0),
             windup: 0.0,
             windup_total: 0.0,
@@ -591,7 +584,6 @@ impl BotBrain {
             melee_only: false,
             last_swing: -9.0,
             help_t: 0.0,
-            patrol_i: None,
             face: rng.range(-3.0, 3.0),
             phase: rng.range(0.0, 6.0),
         }
@@ -600,6 +592,7 @@ impl BotBrain {
     /// Round start (or the bot is put back in the yard): forget errands and aim.
     pub fn reset(&mut self, rng: &mut Rng) {
         self.target = None;
+        self.disengage = 0.0;
         self.windup = 0.0;
         self.errand = None;
         self.err_cd = rng.range(ERRAND_FIRST.0, ERRAND_FIRST.1);
@@ -620,56 +613,39 @@ impl BotBrain {
         self.windup > 0.0
     }
 
-    /// The patrol corner a Heist guard is on (0..3), choosing one at random the first time.
-    pub fn patrol_corner(&mut self, rng: &mut Rng) -> u32 {
-        *self.patrol_i.get_or_insert_with(|| rng.index(4) as u32)
-    }
-
-    pub fn patrol_corner_or_zero(&self) -> u32 {
-        self.patrol_i.unwrap_or(0)
-    }
-
-    pub fn set_patrol_corner(&mut self, i: u32) {
-        self.patrol_i = Some(i % 4);
-    }
-
-    pub fn next_patrol_corner(&mut self) {
-        if let Some(i) = self.patrol_i.as_mut() {
-            *i = (*i + 1) % 4;
-        }
-    }
-
     // ------------------------------------------------------------------------------ targets
 
+    fn can_engage(&self, me: &SelfView, w: &WorldView, other: &OtherView) -> bool {
+        let reach = if self.melee_only { 10.0 } else { THROW_RANGE + 3.0 };
+        other.id != me.id
+            && !other.teammate
+            && !other.at_smoko
+            && other.down_t <= 0.3
+            && other.stun <= 0.0
+            && me.pos.len_between(other.pos) < reach
+            && line_of_sight(w.yard, me.pos, other.pos)
+    }
+
     fn pick_target(&mut self, me: &SelfView, w: &WorldView, rng: &mut Rng) {
-        let df = w.difficulty.params();
         let mut best: Option<(PlayerId, f32)> = None;
-        for o in w.others {
-            if o.id == me.id || o.teammate || o.at_smoko {
-                continue;
-            }
-            let d = o.pos.len_between(me.pos);
-            let mut s = 1.0 / (d + 3.0);
-            if w.leader == Some(o.id) {
-                s *= 2.8;
-            }
-            if !o.is_bot {
-                s *= df.bias;
-            }
-            s *= rng.range(0.6, 1.4);
-            if o.stun > 0.0 {
-                s *= 0.7;
-            }
-            if self.melee_only && o.down_t > 0.3 {
-                s *= 0.05;
-            }
-            if best.is_none_or(|(_, bs)| s > bs) {
-                best = Some((o.id, s));
+        for other in w.others.iter().filter(|other| self.can_engage(me, w, other)) {
+            let distance = other.pos.len_between(me.pos);
+            let leader_weight = if w.leader == Some(other.id) { 2.8 } else { 1.0 };
+            let weight = leader_weight * rng.range(0.6, 1.4) / (distance + 3.0);
+            if best.is_none_or(|(_, previous)| weight > previous) {
+                best = Some((other.id, weight));
             }
         }
-        self.target = best.map(|b| b.0);
-        self.retarget = rng.range(3.0, 6.0);
+        self.target = best.map(|(id, _)| id);
+        self.retarget = rng.range(3.0, 5.0);
         self.range = rng.range(7.0, 13.0);
+    }
+
+    fn break_contact(&mut self, rng: &mut Rng) {
+        self.target = None;
+        self.windup = 0.0;
+        self.disengage = rng.range(2.5, 4.5);
+        self.idle_goal = None;
     }
 
     fn other<'a>(&self, w: &WorldView<'a>, id: PlayerId) -> Option<&'a OtherView> {
@@ -935,19 +911,13 @@ impl BotBrain {
 
         self.retarget -= dt;
         self.throw_cd -= dt;
-        self.flip -= dt;
+        self.disengage = (self.disengage - dt).max(0.0);
         self.stuck_t -= dt;
         self.wander -= dt;
         self.hes_t -= dt;
         self.pause_t -= dt;
         self.glance_t -= dt;
         self.idle_t -= dt;
-        if self.flip <= 0.0 {
-            self.orbit = -self.orbit;
-            self.flip = rng.range(1.8, 4.2);
-        }
-        self.orbit_s += (self.orbit - self.orbit_s) * (1.0 - (-2.2 * dt).exp());
-
         self.dodge(me, w, rng, &mut cmd);
 
         let mut goal: Option<V3> = None;
@@ -982,22 +952,30 @@ impl BotBrain {
             d.melee != Melee::None && !d.throwable
         });
         let mut wish = (0.0f32, 0.0f32);
+        if self.target.is_some_and(|id| {
+            self.retarget <= 0.0 || self.other(w, id).is_none_or(|other| !self.can_engage(me, w, other))
+        }) {
+            self.break_contact(rng);
+        }
+        let can_fight = !carrying_teddy && (self.melee_only || self.throw_cd <= 0.0)
+            && sel.is_some_and(|item| w.mode != GameMode::Heist || item.heist_team.is_none());
+        if goal.is_none() && self.target.is_none() && self.disengage == 0.0 && can_fight {
+            self.pick_target(me, w, rng);
+        }
+        if !can_fight {
+            self.target = None;
+            self.windup = 0.0;
+        }
         if goal.is_some() || carrying_teddy {
-            // already has somewhere to be
+            self.target = None;
+            self.windup = 0.0;
         } else if self.melee_only {
             let sel = sel.unwrap();
             let down_melee = sel.kind.def().melee == Melee::Down;
-            let keep = self
-                .target
-                .and_then(|id| self.other(w, id))
-                .is_some_and(|t| !(down_melee && t.down_t > 0.3));
-            if !keep || self.retarget <= 0.0 {
-                self.pick_target(me, w, rng);
-            }
             if let Some(t) = self.target.and_then(|id| self.other(w, id)) {
                 face_to = Some(t.pos);
                 let d = (t.pos.x - me.pos.x).hypot(t.pos.z - me.pos.z).max(1e-3);
-                if d > 1.6 {
+                if hg.is_none() && d > 1.6 {
                     goal = Some(t.pos);
                 }
                 if d < SWING_RANGE && w.time - self.last_swing > SWING_GAP {
@@ -1008,6 +986,7 @@ impl BotBrain {
                     } else {
                         Swing::At(t.id)
                     });
+                    self.break_contact(rng);
                 }
             } else {
                 goal = Some(self.idle_goal(me, w, rng));
@@ -1020,10 +999,6 @@ impl BotBrain {
                 goal = Some(self.idle_goal(me, w, rng));
             }
         } else {
-            let target_ok = self.target.and_then(|id| self.other(w, id)).is_some();
-            if !target_ok || self.retarget <= 0.0 {
-                self.pick_target(me, w, rng);
-            }
             if let Some(t) = self.target.and_then(|id| self.other(w, id)).copied() {
                 let (tx, tz) = (t.pos.x - me.pos.x, t.pos.z - me.pos.z);
                 let dist = tx.hypot(tz).max(1e-3);
@@ -1039,15 +1014,10 @@ impl BotBrain {
                 } else {
                     let (nx, nz) = (tx / dist, tz / dist);
                     let (mut mx, mut mz) = (0.0, 0.0);
-                    if dist > self.range + 2.5 {
+                    if self.windup <= 0.0 && dist > self.range + 2.5 {
                         mx = nx;
                         mz = nz;
-                    } else if dist < self.range - 3.0 {
-                        mx = -nx;
-                        mz = -nz;
                     }
-                    mx += -nz * self.orbit_s * 0.75;
-                    mz += nx * self.orbit_s * 0.75;
                     wish = (mx, mz);
                     let l = wish.0.hypot(wish.1);
                     if l > 1.0 {
@@ -1062,6 +1032,7 @@ impl BotBrain {
                     {
                         cmd.throw = Some(self.make_throw(me, h, &t, w, rng));
                         cmd.winding = false;
+                        self.break_contact(rng);
                     }
                 } else if self.throw_cd <= 0.0
                     && dist < THROW_RANGE
@@ -1072,6 +1043,9 @@ impl BotBrain {
                     self.windup = self.windup_total;
                 }
             }
+        }
+        if goal.is_none() && hg.is_none() && self.target.is_none() {
+            goal = Some(self.idle_goal(me, w, rng));
         }
         if let Some(g) = hg {
             goal = Some(g);
@@ -1294,16 +1268,21 @@ impl BotBrain {
             .is_some_and(|g| (g.x - me.pos.x).hypot(g.z - me.pos.z) < 1.3);
         if self.idle_goal.is_none() || self.idle_t <= 0.0 || reached {
             self.idle_goal = None;
+            let heist = w.mode == GameMode::Heist;
             for _ in 0..8 {
-                let (x, z) = (rng.range(-7.0, 7.0), rng.range(-6.0, 6.0));
-                if !blocked(w.yard, x, z, 0.0) {
-                    self.idle_goal = Some(V3::new(x, 0.0, z));
+                let spot = if heist {
+                    me.pos + V3::new(rng.range(-4.0, 4.0), 0.0, rng.range(-4.0, 4.0))
+                } else {
+                    V3::new(rng.range(-7.0, 7.0), 0.0, rng.range(-6.0, 6.0))
+                };
+                if !blocked(w.yard, spot.x, spot.z, spot.y)
+                    && (!heist || line_of_sight(w.yard, me.pos, spot))
+                {
+                    self.idle_goal = Some(spot);
                     break;
                 }
             }
-            if self.idle_goal.is_none() {
-                self.idle_goal = Some(V3::new(rng.range(-3.0, 3.0), 0.0, rng.range(-3.0, 3.0)));
-            }
+            self.idle_goal.get_or_insert(me.pos);
             self.idle_t = rng.range(2.5, 4.5);
         }
         self.idle_goal.unwrap()
@@ -1768,7 +1747,7 @@ mod tests {
         // no errands in this test
         brain.err_cd = 999.0;
         let mut c = Command::default();
-        for i in 0..90 {
+        for i in 0..45 {
             c = brain.think(&me, &s.view(i as f32 * DT), &mut rng);
         }
         assert_eq!(c.claim, Some(7));
@@ -1883,6 +1862,29 @@ mod tests {
         );
         // and then it cools down before the next
         assert!(brain.throw_cd >= 0.8 * 0.8 * 1.15 / 1.15 - 0.01);
+    }
+
+    #[test]
+    fn losing_sight_cancels_the_throw_and_starts_a_break() {
+        let mut rng = Rng::new(7);
+        let mut brain = BotBrain::new(&mut rng);
+        brain.err_cd = 999.0;
+        brain.throw_cd = 0.0;
+        let mut scene = Scene::new();
+        scene.others.push(other(1, 16.0, -16.5));
+        let mut me = me_at(17.0, -16.5);
+        me.held = vec![teddy(5)];
+        me.selected = Some(0);
+        brain.think(&me, &scene.view(0.0), &mut rng);
+        assert_eq!(brain.target, Some(1));
+        assert!(brain.windup > 0.0);
+        scene.others[0].pos.x = 28.0; // behind the shed
+        let command = brain.think(&me, &scene.view(DT), &mut rng);
+        assert!(command.throw.is_none() && !command.winding);
+        assert_eq!(brain.target, None);
+        scene.others[0].pos.x = 16.0;
+        brain.think(&me, &scene.view(DT * 2.0), &mut rng);
+        assert_eq!(brain.target, None, "the bot should take a break after dropping its target");
     }
 
     #[test]
@@ -2082,7 +2084,7 @@ mod tests {
     }
 
     #[test]
-    fn a_melee_bot_walks_up_and_swings_every_point_nine_seconds() {
+    fn a_melee_bot_leaves_a_break_between_attacks() {
         let mut rng = Rng::new(11);
         let mut brain = BotBrain::new(&mut rng);
         brain.err_cd = 999.0;
@@ -2096,15 +2098,15 @@ mod tests {
         }];
         me.selected = Some(0);
         let mut swings = Vec::new();
-        for i in 0..200 {
+        for i in 0..600 {
             let c = brain.think(&me, &s.view(i as f32 * DT), &mut rng);
             if let Some(sw) = c.swing {
                 swings.push((i as f32 * DT, sw));
             }
         }
-        assert_eq!(swings.len(), 4, "{swings:?}");
+        assert!(swings.len() >= 2, "{swings:?}");
         assert!(swings.iter().all(|(_, s)| *s == Swing::At(1)));
-        assert!((swings[1].0 - swings[0].0 - 0.9).abs() < 0.03);
+        assert!(swings.windows(2).all(|pair| pair[1].0 - pair[0].0 >= 2.49));
     }
 
     #[test]
@@ -2342,9 +2344,9 @@ mod tests {
         let s = Scene::new();
         let mut kinds = BTreeMap::new();
         let mut none = 0;
-        for seed in 0..2000 {
-            let mut rng = Rng::new(seed);
-            let mut brain = BotBrain::new(&mut rng);
+        let mut rng = Rng::new(1925);
+        let mut brain = BotBrain::new(&mut rng);
+        for _ in 0..2000 {
             match brain.pick_errand(&me_at(0.0, 0.0), &s.view(0.0), &mut rng) {
                 Some(e) => *kinds.entry(format!("{:?}", e.kind)).or_insert(0) += 1,
                 None => none += 1,

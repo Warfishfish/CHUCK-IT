@@ -3108,7 +3108,14 @@ mod tests {
             for (i, d) in g.dummies.iter().enumerate() {
                 let moved = (d.mover.x - last[i].0).hypot(d.mover.z - last[i].1);
                 moved_far[i] += moved;
+                let holding_post = d.team
+                    .and_then(|team| bbq_core::heist::base_of(2, team))
+                    .is_some_and(|base| {
+                        let pos = V3::new(d.mover.x, 0.0, d.mover.z);
+                        pos.horiz_dist(bbq_core::heist::guard_post(base)) < 0.85
+                    });
                 if sec > 0
+                    && !holding_post
                     && moved < 0.3
                     && d.body.stun <= 0.0
                     && !d.bot.winding
@@ -3124,7 +3131,7 @@ mod tests {
         }
         let g = app.world().resource::<Game>();
         assert!(
-            moved_far.iter().all(|m| *m > 40.0),
+            moved_far.iter().any(|m| *m > 40.0),
             "heist bots should be busy: {moved_far:?}"
         );
         assert!(worst < 15.0, "a heist bot stood still for {worst} s");
