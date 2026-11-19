@@ -630,6 +630,10 @@ fn net_requests(
         if let Some(sv) = after("--server") {
             settings.server = sv;
         }
+        if let Some(teams) = after("--net-heist").and_then(|n| n.parse::<usize>().ok()) {
+            settings.mode = bbq_core::GameMode::Heist;
+            settings.heist_teams = teams.clamp(2, 4);
+        }
         if let Some(secs) = after("--net-round").and_then(|v| v.parse::<f32>().ok()) {
             settings.round_len = secs;
         }
@@ -836,7 +840,6 @@ pub(crate) fn lobby_logic(
     mut ui: ResMut<crate::menu::MenuUi>,
     mut was_playing: Local<bool>,
 ) {
-    let mut heist_off = false;
     let Online { link, session, .. } = &mut *online;
     let active = session.as_ref().is_some_and(|s| s.joined()) && *screen == crate::menu::Screen::Menu;
     if active && !lobby.active {
@@ -885,16 +888,9 @@ pub(crate) fn lobby_logic(
     if go {
         ui.request = Some(crate::menu::Request::Play);
     }
-    // Teddy Heist is not online yet: a host who had it picked plays Free for all
-    if active && session.role == Role::Host && settings.mode == bbq_core::GameMode::Heist {
-        heist_off = true;
-    }
     // the host's yard stays empty of bots while everybody waits (guests copy the host)
     if active && session.role == Role::Host && !game.round.timed && game.dummies.iter().any(|d| d.remote.is_none()) {
         crate::round::sync_bot_count(&mut game, 0);
-    }
-    if heist_off {
-        settings.mode = bbq_core::GameMode::FreeForAll;
     }
 }
 
@@ -942,12 +938,23 @@ fn online_world_apply(screen: Res<crate::menu::Screen>, mut settings: ResMut<cra
     let Some(snap) = session.world.take() else { return };
     let (my_id, host) = (session.my_id, session.host_name());
     let old_phase=game.rules.phase; let old_mode=game.rules.mode;
+    let old_round = game.round.mtch.no;
     crate::online_world::apply_world(&mut game, &mut yard.0, &snap, my_id, &host);
     if *screen == crate::menu::Screen::Menu {
         settings.mode = game.rules.mode;
+        if let Some(heist) = &game.heist { settings.heist_teams = heist.teams; }
     }
     if old_phase!=game.rules.phase || old_mode!=game.rules.mode {session.movement.clear();}
     if let Some(s) = snap.wet.iter().find(|s| s.id == my_id) {
+        if game.heist.is_some() && game.round.timed
+            && (old_round != game.round.mtch.no || old_phase != game.rules.phase
+                && game.rules.phase == bbq_core::scoring::Phase::Countdown)
+        {
+            player.mover = bbq_core::movement::Mover::new(s.pos.0, s.pos.2);
+            player.prev = Vec3::new(s.pos.0, s.pos.1, s.pos.2);
+            session.movement.clear();
+            return;
+        }
         let (dx,dz)=session.movement.correction(s.ack,(s.pos.0,s.pos.2));
         player.mover.x+=dx;player.mover.z+=dz;
         // Both interpolation endpoints move together; no one-frame camera snap backwards.
@@ -1171,7 +1178,22 @@ fn online_puppets(mut online: ResMut<Online>, mut game: ResMut<Game>, yard: Res<
         d.mover.grounded = s.grounded;
         if !mirror {
             d.mover.height=crate::style::head_height(r.character,r.look)+r.look.legs.lift();
-            d.mover.resolve_obstacles(&yard.0);
+            if let Some(teams) = yard.0.heist {
+                let hatch = bbq_core::passage::HATCH;
+                if d.mover.y < -0.05 && (d.mover.underground
+                    || (yard.0.hatch_open && (d.mover.x - hatch.x).hypot(d.mover.z - hatch.z) < 2.0))
+                {
+                    d.mover.underground = true;
+                    let (x,z,floor) = bbq_core::passage::track(teams, d.mover.x, d.mover.z);
+                    d.mover.x = x; d.mover.z = z; d.mover.y = d.mover.y.max(floor);
+                } else {
+                    d.mover.underground = false;
+                    d.mover.y = d.mover.y.max(0.0);
+                    d.mover.resolve_obstacles(&yard.0);
+                }
+            } else {
+                d.mover.resolve_obstacles(&yard.0);
+            }
         }
         // the game's `yaw` looks along (-sin, -cos); a puppet's `face` looks along (sin, cos)
         d.face = (-s.yaw.sin()).atan2(-s.yaw.cos());
@@ -1412,6 +1434,7 @@ mod tests {
         use bbq_core::net_world::*;
         let mut p = Pair::new();
         let snap = |seq| WorldSnap {
+            heist: None,
             charges:vec![],flock:vec![],
             magpie:(0,0,(14.0,1.8,24.05)),
             race:vec![],

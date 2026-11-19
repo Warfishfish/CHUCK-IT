@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.41 opens Teddy Heist in the Rust With mates lobby. The host owns banking, hatch state and drink handovers. Players join before the round starts. Team start slots now spread out into clear approach lanes. Lighter turf, contrasting walls and painted doorway marks improve readability.
+
 - Prototype 0.23.40 adds overhead podium names, makes Heist guards hold a doorway post, and sends the nearest teammate with a sightline after a stolen teddy. Armed bots break off after a throw, swing, blocked sightline or short pursuit.
 
 - Teddy Heist base flags fly on 14 m poles. A fold in the team-coloured cloth keeps it visible from side passages on all three maps. Desktop and browser prototype 0.23.38.

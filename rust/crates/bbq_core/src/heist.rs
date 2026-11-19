@@ -1,4 +1,4 @@
-//! Teddy Heist rules (spec section 13). Only banking a teddy scores.
+//! Teddy Heist rules (spec section 13). Banks determine the winning team.
 
 use std::collections::BTreeMap;
 
@@ -156,6 +156,10 @@ impl Bank {
         self.banked.get(&team).copied().unwrap_or(0)
     }
 
+    pub fn from_counts(counts: [u32; 4], teams: usize) -> Self {
+        Self { banked: team_keys(teams).iter().copied().zip(counts).collect() }
+    }
+
     pub fn points(&self, team: Team) -> i32 {
         self.get(team) as i32 * BANK_POINTS
     }
@@ -295,6 +299,38 @@ pub fn base_of_variant(teams: usize, variant: usize, team: Team) -> Option<BaseD
 }
 
 /// Where the `n`th person of `team` starts (inside their own base).
+/// Start slots in the base and along its immediately reachable approach lanes.
+pub fn spawn_slots(yard: &crate::yard::Yard, team: Team) -> Vec<(f32, f32)> {
+    let Some(teams) = yard.heist else { return Vec::new(); };
+    let Some(base) = base_of_variant(teams, yard.heist_variant, team) else { return Vec::new(); };
+    let doorway = gate(base);
+    let direction = (doorway - V3::new(base.x, 0.0, base.z)).normalised();
+    let side = V3::new(-direction.z, 0.0, direction.x);
+    let mut lanes = Vec::new();
+    for row in 0..if teams == 2 { 4 } else { 8 } {
+        for offset in [1.3, -1.3, 2.6, -2.6] {
+            let near_door = doorway + side * offset;
+            let step = row as f32 * 1.3;
+            let spot = near_door + direction * step;
+            let clear = (0..=row * 4).all(|i| {
+                let at = near_door + direction * (i as f32 * 0.325);
+                yard.heist_clear(at.x, at.z, 0.65)
+            });
+            if clear { lanes.push((spot.x, spot.z)); }
+        }
+    }
+    let mut slots = Vec::new();
+    let mut lanes = lanes.into_iter();
+    for (index, (x,z)) in SPAWN_OFFSETS.into_iter().enumerate() {
+        slots.push((base.x+x,base.z+z));
+        if index > 0 && let Some(lane) = lanes.next() {
+            slots.push(lane);
+        }
+    }
+    slots.extend(lanes);
+    slots
+}
+
 pub fn spawn_in_base(teams: usize, team: Team, n: usize) -> Option<(f32, f32)> {
     spawn_in_base_variant(teams, 0, team, n)
 }
@@ -725,6 +761,23 @@ mod tests {
                 }
             }
           }
+        }
+    }
+
+    #[test]
+    fn spawn_slots_spread_teams_across_clear_approaches() {
+        for n in 2..=4 {
+            let yard = crate::yard::Yard::heist(Default::default(), 0, n);
+            for &team in team_keys(n) {
+                let base = base_of(n, team).unwrap();
+                let slots = spawn_slots(&yard, team);
+                assert!(slots.len() > SPAWN_OFFSETS.len(), "{n} flags, {team:?}");
+                assert!(slots.iter().take(5).any(|&(x,z)| !inside_base(base, x, z)));
+                for (i, &(x,z)) in slots.iter().enumerate() {
+                    assert!(yard.heist_clear(x, z, 0.45), "blocked {n} {team:?} ({x},{z})");
+                    assert!(slots[..i].iter().all(|&(a,b)| (a-x).hypot(b-z) >= 0.95));
+                }
+            }
         }
     }
 

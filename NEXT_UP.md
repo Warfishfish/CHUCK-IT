@@ -2,6 +2,10 @@
 
 Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it with a friend. The focus now is graphics, gameplay, UI and character customization. One item at a time; screenshots and a yes before anything is committed.
 
+## Teddy Heist online and spawn pass · 19 November 2026
+
+Rust Heist is available in With mates for 2–4 flags. Enter the lobby before the host starts. Prototype 0.23.41 spreads team spawns into the approach lanes and adds brighter turf and doorway markings. The next review is a full round with friends, including whether throwing a teddy to a teammate or taking a vault or tunnel saves too much time.
+
 ## Teddy Heist reference maps · 18 November 2026
 
 The square two-, three- and four-flag references replace the previous nine rotating layouts. [View the map comparisons and route checks](checkpoints/2026-11-18-reference-mazes/REVIEW.md).
@@ -130,7 +134,7 @@ These are queued alongside the Smoko graphics roadmap. Work one item at a time a
 - Teddies on the trampoline: tune the bounce by feel
 - Hand and first-person feel checks (flop, throw, slap) on Marcus's Mac
 - Gamepad: try on a real controller, menu navigation, button remapping
-- Online (parked): 9.5 rest (bar, chest, smoko, drag, emotes, help up), 9.7 leaving and rejoining, 9.8 Heist online and the lobby list, 9.9 lag tests
+- Online (parked): 9.5 rest (bar, chest, smoko, drag, emotes, help up), 9.7 leaving and rejoining, 9.8 lobby list, 9.9 lag tests
 
 ## UI
 - Gamepad-friendly menus (tabs, tick boxes, sliders)

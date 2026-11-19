@@ -4108,9 +4108,9 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
             }
             Tint::Maze(light) => {
                 if light {
-                    0x557774
+                    0x648986
                 } else {
-                    0x334e55
+                    0x456974
                 }
             }
         };
@@ -4155,6 +4155,14 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
     {
         use heist::Open;
         let col = team_colour(*team);
+        let centre = V3::new(def.x, 0.0, def.z);
+        let axis = (heist::gate(def) - centre).normalised();
+        let right = V3::new(-axis.z, 0.0, axis.x);
+        for side in [-1.0, 1.0] {
+            let mark = centre + axis * 3.4 + right * (side * 2.12);
+            v.push(cuboid(0.26, 0.025, 2.05, matt(0xe8d9b0).unlit().no_shadow(),
+                mark.x, 0.025, mark.z).turn(0.0, axis.x.atan2(axis.z), 0.0));
+        }
         let flat = |op: f32| matt(col).unlit().see_through(op).both_sides().no_shadow();
         // the coloured banking pad and its ring
         v.push(

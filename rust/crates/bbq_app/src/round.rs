@@ -349,15 +349,14 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
     }
     g.rng.shuffle(&mut spots);
     let mut next = 0;
-    let mut team_spawned: std::collections::BTreeMap<Team, usize> = Default::default();
+    let mut heist_slots: std::collections::BTreeMap<_,_> =
+        heist::team_keys(setup.heist_teams).iter().map(|&team| {
+            (team, heist::spawn_slots(&yard.0, team).into_iter())
+        }).collect();
     let mut place = |g: &mut Game, id: PlayerId| -> (f32, f32) {
         if setup.mode == GameMode::Heist
-            && let Some(t) = g.teams.get(id)
-            && let Some(at) = heist::spawn_in_base_variant(setup.heist_teams, yard.0.heist_variant, t, {
-                let n = team_spawned.entry(t).or_insert(0);
-                *n += 1;
-                *n - 1
-            })
+            && let Some(team) = g.teams.get(id)
+            && let Some(at) = heist_slots.get_mut(&team).and_then(Iterator::next)
         {
             return at;
         }

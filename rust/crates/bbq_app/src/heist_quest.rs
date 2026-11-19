@@ -73,18 +73,13 @@ fn eligible(g: &Game, team: Team) -> bool {
     q.age >= WARMUP && q.age >= q.ready && !q.used.contains(&team)
 }
 
-fn nearby(g: &Game, p: &Player) -> bool {
-    g.heist.is_some()
-        && g.rules.in_play()
-        && !p.mover.underground
-        && g.life
-            .dazza
-            .pos
-            .horiz_dist(V3::new(p.mover.x, 0.0, p.mover.z))
-            < REACH
+fn nearby(g: &Game, pos: V3) -> bool {
+    g.heist.is_some() && g.rules.in_play() && pos.y >= -0.05
+        && g.life.dazza.pos.horiz_dist(pos) < REACH
 }
+
 pub fn prompt(g: &Game, p: &Player) -> Option<String> {
-    if !nearby(g, p) {
+    if !nearby(g, V3::new(p.mover.x, p.mover.y, p.mover.z)) {
         return None;
     }
     let q = &g.life.quest;
@@ -99,11 +94,13 @@ pub fn prompt(g: &Game, p: &Player) -> Option<String> {
             "R: deliver Dazza’s cold drink"
         } else if held {
             "R: shout Dazza a drink"
+        } else if q.request.is_some_and(|(owner, _)| owner != PLAYER_ID) {
+            "Dazza is helping another player"
         } else if q.escort {
             "Follow Dazza to the hatch"
         } else if q.used.contains(&team) {
             "Your team has used its hatch opening"
-        } else if q.age < WARMUP || q.age < q.ready {
+        } else if !g.mirror && (q.age < WARMUP || q.age < q.ready) {
             "Dazza’s on smoko"
         } else {
             "Dazza wants a cold drink from the centre lanes"
@@ -113,15 +110,13 @@ pub fn prompt(g: &Game, p: &Player) -> Option<String> {
 }
 
 pub fn interact(g: &mut Game, p: &Player) -> bool {
-    if !nearby(g, p) {
-        return false;
-    }
-    let Some(team) = g.teams.get(PLAYER_ID) else {
-        return false;
-    };
-    let Some(id) = g.slots.selected() else {
-        return false;
-    };
+    let Some(id) = g.slots.selected() else { return false; };
+    hand_over(g, PLAYER_ID, V3::new(p.mover.x, p.mover.y, p.mover.z), id)
+}
+
+pub fn hand_over(g: &mut Game, who: PlayerId, pos: V3, id: ItemId) -> bool {
+    if !nearby(g, pos) { return false; }
+    let Some(team) = g.teams.get(who) else { return false; };
     let Some(item) = g
         .world
         .items
@@ -138,7 +133,7 @@ pub fn interact(g: &mut Game, p: &Player) -> bool {
         .find(|(i, _)| *i == id)
         .map(|(_, name)| *name)
         .unwrap_or(if alcoholic { "beer" } else { "soft drink" });
-    let delivery = q.request == Some((PLAYER_ID, team)) && !q.escort;
+    let delivery = q.request == Some((who, team)) && !q.escort;
     q.tipsy = (q.tipsy + if alcoholic { 1.0 } else { -1.0 }).clamp(0.0, 4.0);
     let say = if delivery {
         q.escort = true;
@@ -156,7 +151,11 @@ pub fn interact(g: &mut Game, p: &Player) -> bool {
         "Cheers, mate. That one barely touched the sides."
     };
     q.chatter = q.age + 9.0;
-    g.slots.remove(id);
+    if who == PLAYER_ID {
+        g.slots.remove(id);
+    } else if let Some(guest) = g.dummies.iter_mut().find(|d| d.id == who) {
+        guest.bot.slots.remove(id);
+    }
     g.world.remove(id);
     if !say.is_empty() {
         g.life.dazza_says(say);
@@ -171,21 +170,32 @@ pub fn tick(g: &mut Game, p: &Player, yard: &mut Yard, dt: f32) {
         return;
     }
     let pos = g.life.dazza.pos;
-    let me = V3::new(p.mover.x, p.mover.y, p.mover.z);
-    let team = g.teams.get(PLAYER_ID);
-    let can_request = team.is_some_and(|t| eligible(g, t));
+    let local_pos = V3::new(p.mover.x, p.mover.y, p.mover.z);
+    let humans = std::iter::once((PLAYER_ID, local_pos)).chain(
+        g.dummies.iter().filter(|d| d.remote.is_some())
+            .map(|d| (d.id, V3::new(d.mover.x, d.mover.y, d.mover.z))),
+    );
+    let mut others = humans.clone();
+    let candidate = others.find_map(|(id, at)| {
+        let team = g.teams.get(id)?;
+        (eligible(g, team) && nearby(g, at)).then_some((id, team))
+    });
+    let escort_pos = g.life.quest.request.and_then(|(id, _)| {
+        humans.clone().find_map(|(who, at)| (who == id).then_some(at))
+    });
+    let escort_distance = escort_pos.map_or(f32::INFINITY, |at| (pos - at).len());
     let q = &mut g.life.quest;
     q.age += dt;
     q.tipsy = (q.tipsy - dt / 90.0).max(0.0);
     yard.hatch_open = q.age < q.until;
-    if q.request.is_some() && q.age >= q.deadline {
+    if q.request.is_some() && (q.age >= q.deadline || escort_pos.is_none()) {
         q.request = None;
         q.escort = false;
         q.replan = 0.0;
     }
     let mut say = None;
-    if q.request.is_none() && can_request && me.y >= 0.0 && pos.horiz_dist(me) < REACH {
-        q.request = team.map(|t| (PLAYER_ID, t));
+    if q.request.is_none() && candidate.is_some() {
+        q.request = candidate;
         q.deadline = q.age + TIMEOUT;
         say = Some("Got a cold one, mate? Try the lanes by the middle scoreboard.");
     }
@@ -195,12 +205,12 @@ pub fn tick(g: &mut Game, p: &Player, yard: &mut Yard, dt: f32) {
         PATROL[q.patrol % 4]
     };
     let distance = pos.horiz_dist(target);
-    if q.escort && pos.horiz_dist(me) < 9.0 && distance + 0.5 < q.best {
+    if q.escort && escort_distance < 9.0 && distance + 0.5 < q.best {
         q.best = distance;
         q.deadline = q.age + TIMEOUT;
     }
     if distance < 0.8 {
-        if q.escort && pos.horiz_dist(me) < 6.0 {
+        if q.escort && escort_distance < 6.0 {
             if let Some((_, team)) = q.request.take() {
                 q.used.push(team);
             }
@@ -212,7 +222,7 @@ pub fn tick(g: &mut Game, p: &Player, yard: &mut Yard, dt: f32) {
         }
         q.patrol += 1;
         q.replan = 0.0;
-    } else if (q.escort && pos.horiz_dist(me) < 9.0) || (!q.escort && pos.horiz_dist(me) > 2.0) {
+    } else if (q.escort && escort_distance < 9.0) || (!q.escort && escort_distance > 2.0) {
         q.replan -= dt;
         if q.replan <= 0.0 || q.waypoint.is_none_or(|w| w.horiz_dist(pos) < 0.3) {
             q.waypoint = navigation_waypoint(yard, pos, target);
@@ -230,7 +240,7 @@ pub fn tick(g: &mut Game, p: &Player, yard: &mut Yard, dt: f32) {
             }
         }
     }
-    if say.is_none() && !q.escort && q.tipsy > 0.65 && q.age >= q.chatter && pos.horiz_dist(me) < 10.0 {
+    if say.is_none() && !q.escort && q.tipsy > 0.65 && q.age >= q.chatter && pos.horiz_dist(local_pos) < 10.0 {
         let lines = if q.tipsy > 1.8 {
             [
                 "Follow me. If I follow you too, we’ll be here all arvo.",
@@ -249,6 +259,36 @@ pub fn tick(g: &mut Game, p: &Player, yard: &mut Yard, dt: f32) {
         q.chatter = q.age + 12.0;
         g.life.dazza_says(line);
     }
+}
+
+pub fn snapshot(
+    g: &Game,
+    heist: &crate::heist_app::HeistState,
+    hatch_open: bool,
+    net: impl Fn(PlayerId) -> u32,
+) -> bbq_core::net_world::HeistSnap {
+    let quest = &g.life.quest;
+    bbq_core::net_world::HeistSnap {
+        banks: bbq_core::heist::TEAM_KEYS.map(|team| heist.bank.get(team)),
+        hatch_open,
+        tipsy: quest.tipsy,
+        requesting: quest.request.map_or(0, |(owner, _)| net(owner)),
+        escort: quest.escort,
+    }
+}
+
+pub fn apply_snapshot(
+    g: &mut Game,
+    snap: Option<&bbq_core::net_world::HeistSnap>,
+    local: impl Fn(u32) -> PlayerId,
+) {
+    let quest = &mut g.life.quest;
+    quest.request = snap.filter(|s| s.requesting != 0).and_then(|s| {
+        let owner = local(s.requesting);
+        g.teams.get(owner).map(|team| (owner, team))
+    });
+    quest.tipsy = snap.map_or(0.0, |s| s.tipsy);
+    quest.escort = snap.is_some_and(|s| s.escort);
 }
 
 #[derive(bevy::prelude::Component)]

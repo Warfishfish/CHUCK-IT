@@ -263,7 +263,8 @@ pub fn build_world(g: &Game, yard: &Yard, seq: u32, feed_after: f32, fx: &[FxEve
     charges.push((net(PLAYER_ID),if g.wind.charging{g.wind.charge}else{0.0},g.charge.falls.get(&PLAYER_ID).map_or(0.0,|t|(*t-g.now).max(0.0))));
     for d in &g.dummies {if d.remote.is_some(){charges.push((net(d.id),if d.bot.winding{d.bot.wind_progress}else{0.0},g.charge.falls.get(&d.id).map_or(0.0,|t|(*t-g.now).max(0.0))));}}
     let flock=g.flock.iter().map(|b|(b.phase,if b.target==0{0}else{net(b.target)},(b.pos.x,b.pos.y,b.pos.z))).collect();
-    WorldSnap { flock, charges, magpie, race, wet, seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
+    let heist = g.heist.as_ref().map(|h| crate::heist_quest::snapshot(g, h, yard.hatch_open, net));
+    WorldSnap { heist, flock, charges, magpie, race, wet, seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
 }
 
 /// Make this game look like the host's. `my_net` is our own number; `host_name` replaces
@@ -504,6 +505,14 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
             g.teams.set(local(*id), t);
         }
     }
+    g.heist = heist.filter(|_| g.rules.mode == GameMode::Heist).map(|teams| {
+        crate::heist_app::HeistState {
+            teams, variant: heist_variant,
+            bank: bbq_core::heist::Bank::from_counts(snap.heist.as_ref().map_or([0; 4], |h| h.banks), teams),
+        }
+    });
+    yard.hatch_open = snap.heist.as_ref().is_some_and(|h| h.hatch_open) && g.rules.in_play();
+    crate::heist_quest::apply_snapshot(g, snap.heist.as_ref(), local);
     if !was_over && g.rules.phase == Phase::Results && g.round.timed {
         crate::round::end_round(g);
         g.round.totals=snap.board.iter().map(|r|(local(r.id),(r.match_points,r.match_hits))).collect();
@@ -900,13 +909,19 @@ mod tests {
     #[test]
     fn late_joiner_rebuilds_the_hosts_heist_layout() {
         let mut host = host_with_a_guest();
-        let host_yard = bbq_core::yard::Yard::heist_variant(
+        let mut host_yard = bbq_core::yard::Yard::heist_variant(
             bbq_core::yard::Features::default(),
             0,
             3,
             2,
         );
-        host.world_mut().resource_mut::<Game>().rules.mode = bbq_core::GameMode::Heist;
+        host_yard.hatch_open = true;
+        {
+            let mut game = host.world_mut().resource_mut::<Game>();
+            game.rules.mode = bbq_core::GameMode::Heist;
+            crate::heist_app::start(&mut game, &host_yard);
+            game.heist.as_mut().unwrap().bank.add(Team::Green);
+        }
         let snap = {
             let g = host.world().resource::<Game>();
             build_world(g, &host_yard, 1, 0.0, &[])
@@ -921,11 +936,41 @@ mod tests {
             apply_world(&mut g, &mut guest_yard, &snap, 2, "Marcus");
         }
         assert_eq!(guest_yard.heist, Some(3));
+        assert!(guest_yard.hatch_open);
+        assert_eq!(guest.world().resource::<Game>().heist.as_ref().unwrap().bank.get(Team::Green), 1);
         assert_eq!(guest_yard.heist_variant, 0);
         assert_eq!(
             bbq_core::heist::base_of_variant(3, guest_yard.heist_variant, Team::Green),
             bbq_core::heist::base_of_variant(3, 2, Team::Green),
         );
+    }
+
+    #[test]
+    fn guest_drink_is_host_validated_and_consumed_once() {
+        let mut host = host_with_a_guest();
+        let mut yard = bbq_core::yard::Yard::heist(Default::default(), 0, 2);
+        let item = give_guest(&mut host, ItemKind::Stubby, None);
+        let player = host.world_mut().remove_resource::<Player>().unwrap();
+        {
+            let mut game = host.world_mut().resource_mut::<Game>();
+            game.rules.mode = GameMode::Heist;
+            game.teams.set(REMOTE_ID_BASE + 2, Team::Blue);
+            crate::heist_app::start(&mut game, &yard);
+            for _ in 0..60 * 31 { crate::heist_quest::tick(&mut game, &player, &mut yard, 1.0 / 60.0); }
+            let cook = game.life.dazza.pos;
+            game.dummies[0].mover.x = cook.x;
+            game.dummies[0].mover.z = cook.z;
+            crate::heist_quest::tick(&mut game, &player, &mut yard, 1.0 / 60.0);
+        }
+        host.world_mut().insert_resource(player);
+        act(&mut host, GuestAct::HeistDrink { item });
+        act(&mut host, GuestAct::HeistDrink { item });
+        let game = host.world().resource::<Game>();
+        let snap = build_world(game, &yard, 1, 0.0, &[]).heist.unwrap();
+        assert!(!game.world.items.contains_key(&item));
+        assert_eq!(snap.requesting, 2);
+        assert!(snap.escort);
+        assert!(!snap.hatch_open);
     }
 
     #[test]
@@ -1443,6 +1488,12 @@ pub fn guest_hands(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
         if std::mem::take(&mut wanted.grab_released) { g.net_acts.push(GuestAct::Carry {pressed:false}); }
         g.prompt = if g.now < g.smoko.guest_until {"Being carried or thrown — the host controls your landing"} else if g.smoko.guest_carrying {"Deliver to SMOKO • Tap F: drop • Hold F, release: throw"} else {"SMOKO: Knock someone down → F to pick up → deliver (+100)"}.into();
     }
+    if g.rules.mode == GameMode::Heist {
+        g.prompt = crate::heist_quest::prompt(g, p).unwrap_or_default();
+        if std::mem::take(&mut wanted.interact_pressed) && let Some(item) = g.slots.selected() {
+            g.net_acts.push(GuestAct::HeistDrink { item });
+        }
+    }
     let now = g.now;
     g.catcher.tick(dt);
     let before = g.slots.selected();
@@ -1675,6 +1726,12 @@ pub fn apply_guest_act(g: &mut Game, p: &mut Player, net_id: u32, act: &GuestAct
     let can_act = in_play && !g.smoko.carries.contains_key(&id) && g.dummies[i].body.stun <= 0.0 && !g.dummies[i].body.is_down() && g.dummies[i].seat.is_none();
     let holds = |g: &Game, item: u32| g.dummies[i].bot.slots.ids().contains(&item);
     match act {
+        GuestAct::HeistDrink { item } => {
+            if can_act && holds(g, *item) {
+                let pos = V3::new(g.dummies[i].mover.x, g.dummies[i].mover.y, g.dummies[i].mover.z);
+                crate::heist_quest::hand_over(g, id, pos, *item);
+            }
+        }
         GuestAct::Charge{..} | GuestAct::RaceRole {..} | GuestAct::RaceTug => {},
         GuestAct::BareSlap => {if can_act {crate::life::guest_bare_slap(g,p,i);}},
         GuestAct::Carry { pressed } => crate::smoko_mode::input(g,p,id,*pressed),

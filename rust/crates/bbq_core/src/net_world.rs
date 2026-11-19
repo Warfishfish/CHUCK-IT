@@ -159,7 +159,17 @@ pub struct RaceSnap {
     pub return_to:(f32,f32,f32), pub tug_remaining:f32, pub carried_by:u32, pub protected_remaining:f32,
 }
 #[derive(Clone, Debug, PartialEq)]
+pub struct HeistSnap {
+    pub banks: [u32; 4],
+    pub hatch_open: bool,
+    pub tipsy: f32,
+    pub requesting: u32,
+    pub escort: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct WorldSnap {
+    pub heist: Option<HeistSnap>,
     /// Host state: id, charge fraction, overhold recovery seconds.
     pub charges: Vec<(u32,f32,f32)>,
     pub flock:Vec<(u8,u32,(f32,f32,f32))>,
@@ -197,6 +207,14 @@ impl WorldSnap {
         }
         w.u8(self.race.len().min(MAX_BOARD) as u8);
         for s in self.race.iter().take(MAX_BOARD) {w.u32(s.id);w.u8(s.thrower as u8);w.u8(s.passed);w.f32(s.finish);w.u32(s.score);w.u32(s.streak);w.u32(s.hits);w.u8(s.disconnected as u8);w.triple(s.return_to);w.f32(s.tug_remaining);w.u32(s.carried_by);w.f32(s.protected_remaining);}
+        w.u8(self.heist.is_some() as u8);
+        if let Some(heist) = &self.heist {
+            for banks in heist.banks { w.u32(banks); }
+            w.u8(heist.hatch_open as u8);
+            w.f32(heist.tipsy);
+            w.u32(heist.requesting);
+            w.u8(heist.escort as u8);
+        }
         w.u32(self.seq);
         w.f32(self.now);
         let r = &self.round;
@@ -301,6 +319,15 @@ impl WorldSnap {
         }
         let n=count(r,MAX_BOARD)?;let mut race=Vec::with_capacity(n);
         for _ in 0..n {race.push(RaceSnap{id:r.u32()?,thrower:r.u8()?!=0,passed:r.u8()?.min(24),finish:r.f32()?,score:r.u32()?,streak:r.u32()?,hits:r.u32()?,disconnected:r.u8()?!=0,return_to:r.triple()?,tug_remaining:r.f32()?.clamp(0.0,2.0),carried_by:r.u32()?,protected_remaining:r.f32()?.clamp(0.0,6.0)});}
+        let heist = if r.u8()? != 0 {
+            Some(HeistSnap {
+                banks: [r.u32()?, r.u32()?, r.u32()?, r.u32()?],
+                hatch_open: r.u8()? != 0,
+                tipsy: r.f32()?.clamp(0.0, 4.0),
+                requesting: r.u32()?,
+                escort: r.u8()? != 0,
+            })
+        } else { None };
         let seq = r.u32()?;
         let now = r.f32()?;
         let round = RoundSnap {
@@ -394,7 +421,7 @@ impl WorldSnap {
         for _ in 0..n {
             fx.push(FxSnap { kind: r.u8()?, at: r.triple()?,scale:r.f32()?.clamp(0.5,2.0) });
         }
-        Ok(WorldSnap { flock, charges, magpie, race, wet, seq, now, round, items, bots, dazza, board, teams, feed, fx })
+        Ok(WorldSnap { heist, flock, charges, magpie, race, wet, seq, now, round, items, bots, dazza, board, teams, feed, fx })
     }
 }
 
@@ -405,6 +432,7 @@ mod tests {
 
     fn sample() -> WorldSnap {
         WorldSnap {
+            heist: Some(HeistSnap { banks: [1, 0, 2, 0], hatch_open: true, tipsy: 1.0, requesting: 42, escort: false }),
             charges:vec![(2,0.7,1.5)],flock:vec![(4,2,(1.0,2.0,3.0))],
             magpie:(0,0,(14.0,2.2,23.05)),
             race:vec![],

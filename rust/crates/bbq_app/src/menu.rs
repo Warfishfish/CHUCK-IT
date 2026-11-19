@@ -990,12 +990,9 @@ fn look_marks(settings: Res<Settings>, mut q: Query<(&LookChoice, &mut Backgroun
 
 
 /// Maps and their supported modes share the existing round setup, so every entry point
-/// edits the same saved choice. Heist is solo-only until its online rules are supported.
+/// edits the same saved choice.
 fn map_controls(p: &mut ChildSpawnerCommands) {
-    seg(p, SegId::Map, "Map", &[("Backyard", 0), ("Bush Servo", 3)]);
-    p.spawn((column(0.0), ShowWhen::Offline)).with_children(|h| {
-        seg(h, SegId::Map, "Solo map", &[("Teddy Heist", 2)]);
-    });
+    seg(p, SegId::Map, "Map", &[("Backyard", 0), ("Bush Servo", 3), ("Teddy Heist", 2)]);
     p.spawn((column(6.0), ShowWhen::BackyardMode)).with_children(|m| {
         seg(m, SegId::Mode, "Game mode", &[("Free for all", 0), ("Teams", 1)]);
     });
@@ -1003,7 +1000,6 @@ fn map_controls(p: &mut ChildSpawnerCommands) {
         (ShowWhen::RaceNote, "Game mode: Race"), (ShowWhen::HeistNote, "Game mode: Teddy Heist")] {
         p.spawn((text(label, 13.0, true, INK), condition));
     }
-    p.spawn((text("Teddy Heist is available in solo play only.", 12.0, false, MUTED), ShowWhen::InYard));
 }
 
 fn solo_panel(c: &mut ChildSpawnerCommands) {
@@ -1537,9 +1533,6 @@ fn widget_clicks(
             continue;
         }
         if guest && !matches!(s.id, SegId::Character | SegId::RaceRole | SegId::GraphicsQuality) {
-            continue;
-        }
-        if in_yard && matches!(s.id, SegId::Map | SegId::Mode) && s.value == 2 {
             continue;
         }
         changed = true;
@@ -2262,7 +2255,13 @@ fn run_requests(
     let Some(req) = ui.request.take() else { return };
     match req {
         Request::Follow => {
-            begin(&settings, &mut game, &mut player, &mut yard, &mut cast);
+            if game.mirror && game.heist.is_some() {
+                cast.mine = settings.character;
+                player.fov_base = settings.fov;
+                game.attract = false;
+            } else {
+                begin(&settings, &mut game, &mut player, &mut yard, &mut cast);
+            }
             *screen = Screen::Playing;
         }
         // a guest does not start rounds: the host does
