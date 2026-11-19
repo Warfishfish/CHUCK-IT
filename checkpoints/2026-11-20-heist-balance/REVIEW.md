@@ -19,3 +19,5 @@ The walking route from the hatch to a base doorway measures roughly 100–134 m 
 The Rust workspace passed 751 tests with three ignored. Twenty-participant Rust matches recorded 8, 12 and 16 banks on the two-, three- and four-flag maps. Balance figures are scripted comparisons. Defensive pressure and repeated shortcut use over a full human match still need a playtest.
 
 A controlled two-client legacy-browser test sent a pass from a guest over the public relay. The host caught and banked it, and both clients saw one bank. The fixture positioned the players in a clear lane and assigned them to the same team.
+
+The native release loaded the relocated two-flag vault. Two native clients also started a timed, zero-bot two-flag round over the public relay. The Cloudflare WebAssembly bundle and manifest were compared byte for byte with the local release.
