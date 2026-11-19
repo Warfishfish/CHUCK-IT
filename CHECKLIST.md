@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.44 teaches Teddy Heist bots to clear corners, ease into turns and negotiate crowded halls. Bot bodies and strides follow actual travel on desktop and browser. Seven original wall posters mark different junctions on the three maps. [Movement clips and wall-art review](checkpoints/2026-11-20-heist-movement/REVIEW.md).
+
 - Prototype 0.23.43 adds four recorded Teddy Heist cues to desktop and browser: player chuck, landing, Dazza’s hatch opening and teddy banking. All clips are CC0 and credited in the shipped asset credits.
 
 - Prototype 0.23.42 gives Teddy Heist a host-controlled player chuck, opening pickups in all four outer halls, and marked supply bays. Bots retain their route through corners, give up blocked steering directions and spread raids across comparable objectives.

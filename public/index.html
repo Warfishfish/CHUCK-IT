@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.43</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.44</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -2331,6 +2331,17 @@ function heistSpawnFor(ch){
   return slots[index%slots.length];
 }
 const vaultCells={2:[[4.5,3],[10.5,9]],3:[[8.5,4],[4.5,9]],4:[[5.5,3],[9.5,9]]};
+const heistPosterTextures=[];
+function buildHeistPosters(){
+  for(const [flags,index,x,z,yaw] of heistPosterMounts){
+    if(flags!==heistTeams)continue;
+    const map=heistPosterTextures[index]??=imageTex('/rust/assets/textures/heist_poster_'+index+'.png',1,1);
+    const material=new THREE.MeshBasicMaterial({map,alphaTest:.45});
+    const poster=mesh(new THREE.PlaneGeometry(2.65,1.44),material,x,1.69,z);
+    poster.rotation.y=yaw*Math.PI/2;poster.castShadow=false;poster.receiveShadow=false;
+    heistProps.push(poster);
+  }
+}
 function buildHeistCenterpiece(){
   const cell=HEIST_A/8;
   for(const [n,x,z,ex,ez] of heistWallRuns){
@@ -2393,7 +2404,7 @@ function buildHeistBases(n,variant=heistVariant){clearHeistProps();if(backyardRo
     }
     const marker=mesh(new THREE.PlaneGeometry(1.85,.56),new THREE.MeshBasicMaterial({map:signTex,side:THREE.DoubleSide}),b.x+direction.x*3.25,1.9,b.z+direction.z*3.25);
     marker.rotation.y=b.open==='xPos'?Math.PI/2:b.open==='xNeg'?-Math.PI/2:b.open==='zNeg'?Math.PI:0;marker.castShadow=false;heistProps.push(marker);});
-  buildHeistArena();buildHeistCenterpiece(layout);makeHeistBoard();buildPassage();scene.add(NPC.mesh);NPC.mesh.visible=true;}
+  buildHeistArena();buildHeistCenterpiece(layout);buildHeistPosters();makeHeistBoard();buildPassage();scene.add(NPC.mesh);NPC.mesh.visible=true;}
 // how many teddies sit in each base: 2 to start, plus 1 more for every couple of players sharing that team, capped at 4 so a big lobby never turns into clutter
 function heistTeddyCount(){return clamp(2+Math.floor((chars.size/heistTeams)/2),2,4);}
 const HEIST_TEDDY_OFFSETS=[[-1.3,-1.3],[1.3,-1.3],[-1.3,1.3],[1.3,1.3]];
@@ -3249,12 +3260,24 @@ function syncCharMesh(ch,dt){
   if(ch.naughtyT>0)ch.naughtyT=Math.max(0,ch.naughtyT-dt);
   ch.tiltV+=(-ch.tilt*55-ch.tiltV*7)*dt;ch.tilt=clamp(ch.tilt+ch.tiltV*dt,-1.45,1.45);
   ch.spinV*=Math.exp(-3*dt);ch.spinA+=ch.spinV*dt;
-  const sp=Math.hypot(ch.vel.x,ch.vel.z);if(ch.grounded&&sp>.5)ch.walk+=sp*dt*2.4;
+  const heistBot=gameMode==='heist'&&(ch.kind==='bot'||(ch.kind==='proxy'&&String(ch.id).startsWith('b')));
+  let sp=Math.hypot(ch.vel.x,ch.vel.z),bodyYaw=ch.face;
+  if(heistBot){
+    const old=ch.stepPosition??ch.pos;
+    const dx=ch.pos.x-old.x,dz=ch.pos.z-old.z,distance=Math.hypot(dx,dz);
+    const ordinary=ch.grounded&&ch.stun<=0&&ch.downT<=0&&!isCarried(ch)&&!ch.charging&&!(ch.ai?.sideT>0);
+    sp=distance<.8?Math.min(9,distance/Math.max(dt,.001)):0;
+    if(ordinary&&distance<.8)ch.walk+=distance*2.4;
+    const target=ordinary&&sp>.6?Math.atan2(dx,dz):ch.face;
+    ch.runYaw=angLerp(ch.runYaw??target,target,1-Math.exp(-13*dt));
+    bodyYaw=ch.runYaw;
+    (ch.stepPosition??=new V3()).copy(ch.pos);
+  }else if(ch.grounded&&sp>.5)ch.walk+=sp*dt*2.4;
   ch.sink+=((ch.inPool?POOL_SINK:0)-ch.sink)*(1-Math.exp(-7*dt));
   ch.mesh.position.set(ch.pos.x,ch.pos.y-ch.sink,ch.pos.z);
   // drunk body language, visible to everyone (drunk level comes over the network for other players)
   const da=drunkAmt(ch.drunk||0),t=elapsed,ph=ch.phase,moving=ch.grounded&&sp>.8;
-  let ry=ch.face+ch.spinA;
+  let ry=bodyYaw+ch.spinA;
   if(da>0){ry+=da*(Math.sin(t*.9+ph)*.28+(moving?Math.sin(ch.walk*.5)*.18:0));
     const lurch=moving?Math.sin(ch.walk*.5)*.32*da:Math.sin(t*.7+ph)*.1*da;
     ch.mesh.position.x+=Math.cos(ry)*lurch;ch.mesh.position.z-=Math.sin(ry)*lurch;}
@@ -3262,15 +3285,15 @@ function syncCharMesh(ch,dt){
   la.copy(ch.tiltAxis).applyAxisAngle(UP,-ry);if(la.lengthSq()>1e-6)la.normalize();ch.body.quaternion.setFromAxisAngle(la,ch.tilt);
   // Bots lean into acceleration and bank gently through turns. This is presentation only:
   // steering, speed, hit size and collision continue to use the unchanged physics values.
-  const dYaw=Math.atan2(Math.sin(ch.face-ch.animYaw),Math.cos(ch.face-ch.animYaw));
+  const dYaw=Math.atan2(Math.sin(bodyYaw-ch.animYaw),Math.cos(bodyYaw-ch.animYaw));
   const accel=clamp((sp-ch.animSpeed)/Math.max(dt,.001),-18,18);
   const runPitch=ch.kind==='bot'&&ch.grounded?clamp((moving ? .035+sp*.012 : 0)+accel*.004,-.08,.14):0;
   const bank=ch.kind==='bot'&&moving?clamp(-dYaw/Math.max(dt,.001)*.012,-.12,.12):0;
   ch.body.quaternion.multiply(dq.setFromEuler(de.set(runPitch,0,bank)));
-  ch.animSpeed+=(sp-ch.animSpeed)*(1-Math.exp(-(sp>ch.animSpeed?5.5:9)*dt));ch.animYaw=ch.face;
+  ch.animSpeed+=(sp-ch.animSpeed)*(1-Math.exp(-(sp>ch.animSpeed?5.5:9)*dt));ch.animYaw=bodyYaw;
   if(da>0){const roll=da*(Math.sin(t*1.1+ph)*.23+Math.sin(t*2.7+ph*2)*.06)+(moving?Math.sin(ch.walk)*.2*da:0),pitch=da*Math.sin(t*.8+ph*1.7)*.13;
     ch.body.quaternion.multiply(dq.setFromEuler(de.set(pitch,0,roll)));}
-  ch.body.position.y=ch.grounded?Math.abs(Math.sin(ch.walk))*(.07+.05*da):0;
+  ch.body.position.y=ch.grounded?Math.abs(Math.sin(ch.walk))*(.07+.05*da)*(heistBot?clamp(ch.animSpeed/2.5,0,1):1):0;
   // A small, springy belly wobble makes the blobs feel soft while running and settle when they
   // stop. This is purely a child mesh animation; movement, collision and hit sizes stay fixed.
   if(ch.belly){
@@ -3348,12 +3371,18 @@ function los(a,b){
 // Heist bots follow a smoothed A* waypoint through the same solid maze as players. This avoids
 // long straight-line goals repeatedly pushing into a wall, without changing speed or collision.
 let mazeWalkable=null;
+function clearHeistRun(from,to){
+  const count=Math.max(1,Math.ceil(Math.hypot(to.x-from.x,to.z-from.z)/.28));
+  for(let i=1;i<=count;i++){
+    const t=i/count;
+    if(blocked(from.x+(to.x-from.x)*t,from.z+(to.z-from.z)*t,from.y))return false;
+  }
+  return true;
+}
 function heistWaypoint(from,target,runner){
   const MAX_X=Math.floor(HEIST_A),MIN_X=-MAX_X,MAX_Z=Math.floor(HEIST_B),MIN_Z=-MAX_Z,NX=MAX_X-MIN_X+1,N=NX*(MAX_Z-MIN_Z+1);
   const index=(x,z)=>(z-MIN_Z)*NX+(x-MIN_X),point=i=>({x:MIN_X+i%NX,z:MIN_Z+Math.floor(i/NX)});
-  const direct=Math.ceil(Math.hypot(target.x-from.x,target.z-from.z)/.6);
-  let clear=true;for(let i=1;i<=direct;i++){const t=i/Math.max(1,direct);if(blocked(from.x+(target.x-from.x)*t,from.z+(target.z-from.z)*t,from.y)){clear=false;break;}}
-  if(clear)return {x:target.x,z:target.z};
+  if(clearHeistRun(from,target))return {x:target.x,z:target.z};
   if(!mazeWalkable)mazeWalkable=Uint8Array.from({length:N},(_,i)=>{
     const p=point(i);return blocked(p.x,p.z,0)?0:1;
   });
@@ -3375,9 +3404,9 @@ function heistWaypoint(from,target,runner){
       const ni=index(x,z),next=cost[at]+(dx&&dz?1.41421356:1)+(traffic.get(ni)||0)+((Math.imul(seed^Math.floor(x/6),31)^Math.floor(z/6))&3)*.08;if(next>=cost[ni])continue;cost[ni]=next;parent[ni]=at;push(ni,next+heuristic(x,z));}}
   if(start!==end&&parent[end]<0)return null;
   const path=[end];for(let at=end;at!==start;){at=parent[at];if(at<0)return null;path.push(at);}path.reverse();
-  const visible=p=>{const n=Math.ceil(Math.hypot(p.x-from.x,p.z-from.z)/.4);for(let i=1;i<=n;i++){const t=i/Math.max(1,n);if(blocked(from.x+(p.x-from.x)*t,from.z+(p.z-from.z)*t,from.y))return false;}return true;};
-  for(let i=path.length-1;i>=1;i--){const p=point(path[i]);if(visible(p))return p;}
-  return point(path[Math.min(1,path.length-1)]);
+  for(let i=path.length-1;i>=1;i--){const p=point(path[i]);if(clearHeistRun(from,p))return p;}
+  const candidate=point(start);
+  return clearHeistRun(from,candidate)?candidate:null;
 }
 function ballistic(from,to,speed,g){const dx=to.x-from.x,dz=to.z-from.z,dy=to.y-from.y,h=Math.hypot(dx,dz);if(h<.1)return null;
   const v2=speed*speed,disc=v2*v2-g*(g*h*h+2*dy*v2);if(disc<0)return null;const ang=Math.atan((v2-Math.sqrt(disc))/(g*h));
@@ -3517,7 +3546,7 @@ function aiUpdate(ch,dt){
   if(ai.sideT>0){ai.sideT-=dt;ch.wish.copy(ai.sideDir);}
   if(ai.wander>0&&gameMode!=='heist')ch.wish.copy(ai.wanderDir);
   botSteer(ch,dt,arrive,urgent,goal);
-  if(ai.stuckT<=0){if(gameMode==='heist'&&goal&&arrive>1.5&&ch.pos.distanceTo(ai.lastPos)<.4){ai.navTime=0;ai.avoidSide=-ai.avoidSide;}if(gameMode!=='heist'&&ch.pos.distanceTo(ai.lastPos)<.4&&ch.wish.lengthSq()>.25&&ai.pauseT<=0&&ai.hesT<=0&&ai.windup<=0){ai.wander=.9;const a=rand(0,Math.PI*2);ai.wanderDir.set(Math.cos(a),Math.sin(a));}ai.lastPos.copy(ch.pos);ai.stuckT=1.2;}
+  if(ai.stuckT<=0){if(gameMode==='heist'&&goal&&arrive>1.5&&ai.windup<=0&&ai.pauseT<=0&&ai.hesT<=0&&ch.pos.distanceTo(ai.lastPos)<.4){ai.navTime=0;ai.avoidSide=-ai.avoidSide;ai.mv.set(0,0);}if(gameMode!=='heist'&&ch.pos.distanceTo(ai.lastPos)<.4&&ch.wish.lengthSq()>.25&&ai.pauseT<=0&&ai.hesT<=0&&ai.windup<=0){ai.wander=.9;const a=rand(0,Math.PI*2);ai.wanderDir.set(Math.cos(a),Math.sin(a));}ai.lastPos.copy(ch.pos);ai.stuckT=1.2;}
   if(goal&&ai.windup<=0&&!ai.meleeOnly&&ch.wish.length()>.15)faceTo=new V3(ch.pos.x+ch.wish.x,ch.pos.y,ch.pos.z+ch.wish.y);
   let desired;if(faceTo)desired=Math.atan2(faceTo.x-ch.pos.x,faceTo.z-ch.pos.z);else if(ch.wish.lengthSq()>.01)desired=Math.atan2(ch.wish.x,ch.wish.y);
   if(ai.glanceT>0&&ai.glanceAt&&ai.windup<=0&&!ch.charging)desired=Math.atan2(ai.glanceAt.x-ch.pos.x,ai.glanceAt.z-ch.pos.z);
@@ -3539,21 +3568,25 @@ function botApproachSpeed(distance){const t=clamp((distance-.45)/(3.6-.45),0,1);
    limited turn speed, easing in and out, a personal wobble, drunk sway, slowing near the spot,
    stepping round mates, and sticking to one side when going round obstacles. Dodges stay instant. */
 function botSteer(ch,dt,arrive,urgent,goal){const ai=ch.ai,P=ai.pers;
+  const heist=gameMode==='heist'&&ch.grounded;
   let wx=ch.wish.x,wz=ch.wish.y,m=Math.min(1,Math.hypot(wx,wz));
   ai.navTime=(ai.navTime||0)-dt;
   if(gameMode==='heist'&&!urgent&&goal){const changed=!ai.navGoal||Math.hypot(goal.x-ai.navGoal.x,goal.z-ai.navGoal.z)>2.0;
-    const reached=ai.navPoint&&Math.hypot(ch.pos.x-ai.navPoint.x,ch.pos.z-ai.navPoint.z)<.8&&Math.hypot(goal.x-ai.navPoint.x,goal.z-ai.navPoint.z)>.8;
-    if(changed||reached||ai.navTime<=0){ai.navGoal={x:goal.x,z:goal.z};ai.navPoint=heistWaypoint(ch.pos,goal,ch);ai.navTime=2;}
-    if(ai.navPoint){wx=ai.navPoint.x-ch.pos.x;wz=ai.navPoint.z-ch.pos.z;const l=Math.hypot(wx,wz);if(l>.01){wx/=l;wz/=l;m=Math.hypot(goal.x-ai.navPoint.x,goal.z-ai.navPoint.z)>.75?clamp(l/2,.55,1):1;}}}
+    const reached=ai.navPoint&&Math.hypot(goal.x-ai.navPoint.x,goal.z-ai.navPoint.z)>.75&&(Math.hypot(ch.pos.x-ai.navPoint.x,ch.pos.z-ai.navPoint.z)<.6||(heist&&!clearHeistRun(ch.pos,ai.navPoint)));
+    if(changed||reached||ai.navTime<=0){ai.navGoal={x:goal.x,z:goal.z};ai.navPoint=heistWaypoint(ch.pos,goal,ch);ai.navTime=ai.navPoint?2:.28;}
+    if(ai.navPoint){wx=ai.navPoint.x-ch.pos.x;wz=ai.navPoint.z-ch.pos.z;const l=Math.hypot(wx,wz);if(l>.01){wx/=l;wz/=l;m=Math.hypot(goal.x-ai.navPoint.x,goal.z-ai.navPoint.z)>.75?clamp(l/2.6,.39,1):1;}}}
   else if(gameMode!=='heist'||!goal||urgent){ai.navGoal=null;ai.navPoint=null;ai.navTime=0;}
   if(goal&&!urgent)m*=botApproachSpeed(arrive);
   if(m>.01&&!urgent){
-    // give other people a bit of room (but not whoever we're heading for)
+    const routeX=wx,routeZ=wz;
+    // Give other people a bit of room, with a consistent right-hand pass in Heist.
     for(const o of chars.values()){if(o===ch||o===ai.target||carriedBy.get(o.id)===ch.id||carriedBy.get(ch.id)===o.id||o.smokoSeat>=0)continue;
       if(goal&&Math.hypot(o.pos.x-goal.x,o.pos.z-goal.z)<.8)continue;
-      const dx=ch.pos.x-o.pos.x,dz=ch.pos.z-o.pos.z,d=Math.hypot(dx,dz);if(d<1.5&&d>.01){const k=(1.5-d)/1.5*.7;wx+=dx/d*k;wz+=dz/d*k;}}
+      const dx=ch.pos.x-o.pos.x,dz=ch.pos.z-o.pos.z,d=Math.hypot(dx,dz);if(d<1.5&&d>.01){const k=(1.5-d)/1.5*.7;wx+=dx/d*k;wz+=dz/d*k;
+      if(heist&&dx*routeX+dz*routeZ<-.35){wx+=routeZ*k;wz-=routeX*k;m=Math.min(m,Math.max(.28,d/1.5));}
+    }}
     let a=Math.atan2(wz,wx);const t=elapsed,near=Math.min(1,arrive/2),da=drunkAmt(ch.drunk||0);
-    a+=P.wob*(Math.sin(t*.9+ch.phase)*.6+Math.sin(t*2.3+ch.phase*1.7)*.25)*near;
+    a+=P.wob*(heist?.30:1)*(Math.sin(t*.9+ch.phase)*.6+Math.sin(t*2.3+ch.phase*1.7)*.25)*near;
     if(da>0)a+=da*(Math.sin(t*.5+ch.phase)*.5+Math.sin(t*1.37+1+ch.phase)*.22)*near;
     if(ai.hesT>0)m*=.35;if(ai.pauseT>0)m*=.1;
     wx=Math.cos(a);wz=Math.sin(a);}
@@ -3571,7 +3604,10 @@ function botSteer(ch,dt,arrive,urgent,goal){const ai=ch.ai,P=ai.pers;
     const turn=P.turn*(arrive<2.2?2.4:1)*(cm<.3?3:1);ca+=clamp(d,-turn*dt,turn*dt);}
   const tm=ta===null?0:m*Math.max(.4,.55+.45*Math.cos(Math.min(Math.abs(d),Math.PI))); // ease off through sharp turns
   const nm=cm+(tm-cm)*(1-Math.exp(-(tm>cm?4.5:8)*dt));
-  if(nm>.1&&blocked(ch.pos.x+Math.cos(ca)*.55,ch.pos.z+Math.sin(ca)*.55,ch.pos.y)&&ta!==null)ca=ta;
+  if(nm>.1&&blocked(ch.pos.x+Math.cos(ca)*.55,ch.pos.z+Math.sin(ca)*.55,ch.pos.y)){
+    if(ta!==null)ca=ta;
+    else if(heist){cur.set(0,0);ch.wish.set(0,0);return;}
+  }
   cur.set(Math.cos(ca)*nm,Math.sin(ca)*nm);ch.wish.copy(cur);}
 
 /* ================= NETWORK (room capability) ================= */

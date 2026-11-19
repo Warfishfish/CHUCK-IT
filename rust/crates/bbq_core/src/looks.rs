@@ -111,6 +111,14 @@ pub enum Tex {
     RaceLawn,
     /// Distinct, close-cut field turf used by Teddy Heist.
     HeistTurf,
+    HeistPosterMissing,
+    HeistPosterGumdrop,
+    HeistPosterDazza,
+    HeistPosterCorner,
+    HeistPosterLost,
+    HeistPosterReplay,
+    HeistPosterSmoko,
+
     /// Paling fence.
     Paling,
     /// The house's weatherboards.
@@ -176,6 +184,14 @@ impl Tex {
             Tex::Lawn => "lawn_overhaul.png",
             Tex::RaceLawn => "lawn.png",
             Tex::HeistTurf => "heist_turf.png",
+            Tex::HeistPosterMissing => "heist_poster_0.png",
+            Tex::HeistPosterGumdrop => "heist_poster_1.png",
+            Tex::HeistPosterDazza => "heist_poster_2.png",
+            Tex::HeistPosterCorner => "heist_poster_3.png",
+            Tex::HeistPosterLost => "heist_poster_4.png",
+            Tex::HeistPosterReplay => "heist_poster_5.png",
+            Tex::HeistPosterSmoko => "heist_poster_6.png",
+
             Tex::Paling => "paling.png",
             Tex::Weatherboard => "weatherboard_overhaul.png",
             Tex::Corrugated => "corrugated_overhaul.png",
@@ -208,13 +224,20 @@ impl Tex {
         }
     }
 
-    pub const ALL: [Tex; 37] = [
+    pub const ALL: [Tex; 44] = [
         Tex::ServoDirt, Tex::ServoRoad, Tex::SignServo,
         Tex::VpLabel,
         Tex::Fish,
         Tex::Lawn,
         Tex::RaceLawn,
         Tex::HeistTurf,
+        Tex::HeistPosterMissing,
+        Tex::HeistPosterGumdrop,
+        Tex::HeistPosterDazza,
+        Tex::HeistPosterCorner,
+        Tex::HeistPosterLost,
+        Tex::HeistPosterReplay,
+        Tex::HeistPosterSmoko,
         Tex::Paling,
         Tex::Weatherboard,
         Tex::Corrugated,

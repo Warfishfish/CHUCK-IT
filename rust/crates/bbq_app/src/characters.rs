@@ -1257,6 +1257,7 @@ fn compute_poses(
         args.windows(2).any(|a| a[0] == "--pose" && a[1] == "locomotion")
     });
     let bots_on = game.options.bots_on || scripted;
+    let heist = game.rules.mode == bbq_core::GameMode::Heist;
     let mirror=game.mirror;
     previous.retain(|id,_| game.dummies.iter().any(|d|d.id==*id));
     let weights: Vec<_> = game.dummies.iter().map(|d| d.bot.slots.selected().and_then(|id| game.world.items.get(&id)).map(|it| bbq_core::feel::weight(it.kind))).collect();
@@ -1277,9 +1278,14 @@ fn compute_poses(
         let busy = !ordinary || d.bot.winding || d.anim.swing.is_some();
         let motion = gait.entry(d.id).or_default();
         if !d.anim.feel.frozen() {
-            motion.tick(dt, Vec3::new(d.mover.x,d.mover.y,d.mover.z),
-                Vec3::new(d.mover.vx,d.mover.vy,d.mover.vz), face,
-                crate::legs::legs_shown(d).lift(), ordinary && d.mover.grounded, busy);
+            let position = Vec3::new(d.mover.x, d.mover.y, d.mover.z);
+            let velocity = Vec3::new(d.mover.vx, d.mover.vy, d.mover.vz);
+            let grounded = ordinary && d.mover.grounded;
+            if heist && d.remote.is_none() && !scripted {
+                motion.track_run(dt, position, velocity, face, crate::legs::legs_shown(d).lift(), grounded, busy);
+            } else {
+                motion.tick(dt, position, velocity, face, crate::legs::legs_shown(d).lift(), grounded, busy);
+            }
         }
         let inputs = Inputs {
             t,

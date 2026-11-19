@@ -4088,6 +4088,23 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
                 panel_x + offset.x, 2.35, panel_z + offset.z).turn(0.0, yaw, 0.0));
         }
     }
+    let layout = include_str!("../../../../public/heist-layouts.js");
+    let posters = [Tex::HeistPosterMissing, Tex::HeistPosterGumdrop, Tex::HeistPosterDazza, Tex::HeistPosterCorner, Tex::HeistPosterLost, Tex::HeistPosterReplay, Tex::HeistPosterSmoko];
+    if let Some((_, mounts)) = layout.split_once("const heistPosterMounts = `") {
+        for line in mounts.lines().take_while(|line| !line.starts_with('`')) {
+            let mut fields = line.split_whitespace();
+            if fields.next().and_then(|v| v.parse::<usize>().ok()) != Some(teams) {
+                continue;
+            }
+            let index = fields.next().unwrap().parse::<usize>().unwrap();
+            let mut coordinate = || fields.next().unwrap().parse::<f32>().unwrap();
+            let (x, z, yaw) = (coordinate(), coordinate(), coordinate() * HALF_PI);
+            v.push(Part::new(
+                Shape::Quad { w: 2.65, h: 1.44 },
+                matt(0xffffff).textured(posters[index]).unlit().see_through(0.999).no_shadow(),
+            ).at(x, 1.69, z).turn(0.0, yaw, 0.0));
+        }
+    }
     let hatch=crate::passage::HATCH;
     // The round junction is wider than an arm. Keep the centre open where routes meet.
     v.push(cuboid(10.0,0.14,10.0,matt(0x595747).unlit(),hatch.x,-4.59,hatch.z));

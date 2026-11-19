@@ -28,6 +28,7 @@ pub struct Gait {
     pub speed: f32,
     pub direction: Vec3,
     position: Vec3,
+    travelled_velocity: Vec3,
     ready: bool,
 }
 impl Gait {
@@ -60,6 +61,28 @@ impl Gait {
             let cadence = (speed * PI / (2.0 * stride)).min(MAX_CADENCE);
             self.phase = (self.phase + cadence * dt).rem_euclid(TAU);
         }
+    }
+
+    /// Use displayed displacement for bot strides on both the host and a guest.
+    /// Smooth fixed-tick gaps without letting a spawn or a large correction set the stride.
+    pub fn track_run(&mut self, dt: f32, position: Vec3, velocity: Vec3, aim: f32,
+        leg: f32, walking: bool, busy: bool) {
+        let delta = (position - self.position).with_y(0.0);
+        let measured = if self.ready && delta.length() < 0.8 {
+            (delta / dt.max(0.001)).clamp_length_max(9.0)
+        } else {
+            velocity.with_y(0.0)
+        };
+        self.travelled_velocity = self.travelled_velocity.lerp(measured, 1.0 - (-18.0 * dt).exp());
+        let travel = self.travelled_velocity;
+        let facing = if !busy && walking && travel.length_squared() > 0.36 {
+            travel.x.atan2(travel.z)
+        } else if !busy && walking && angle_delta(self.yaw, aim).abs() < 0.20 {
+            self.yaw
+        } else {
+            aim
+        };
+        self.tick(dt, position, travel, facing, leg, walking, busy);
     }
 
     pub fn foot(&self, right: bool, leg: f32) -> (Vec3, f32) {

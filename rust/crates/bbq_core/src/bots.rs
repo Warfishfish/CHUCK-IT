@@ -146,6 +146,14 @@ pub fn blocked(yard: &Yard, x: f32, z: f32, y: f32) -> bool {
     }
 }
 
+fn clear_run(yard: &Yard, from: V3, to: V3) -> bool {
+    let steps = (from.horiz_dist(to) / 0.28).ceil().max(1.0) as usize;
+    (1..=steps).all(|i| {
+        let t = i as f32 / steps as f32;
+        !blocked(yard, from.x + (to.x - from.x) * t, from.z + (to.z - from.z) * t, from.y)
+    })
+}
+
 /// Shared by runners in the same arena. Sample the actual obstacle footprints once.
 #[derive(Clone, Debug)]
 pub struct NavigationGrid {
@@ -178,8 +186,7 @@ fn route_waypoint(yard: &Yard, from: V3, target: V3, runner: PlayerId, others: &
     let index = |x: i32, z: i32| ((z + grid.half_z) as usize) * grid.width + (x + grid.half_x) as usize;
     let point = |i: usize| V3::new((i % grid.width) as f32 - grid.half_x as f32, 0.0, (i / grid.width) as f32 - grid.half_z as f32);
     let snap = |x: f32, z: f32| -> (i32, i32) { (x.round() as i32, z.round() as i32) };
-    let direct_steps=((target.x-from.x).hypot(target.z-from.z)/0.6).ceil().max(1.0) as usize;
-    if (1..=direct_steps).all(|i| {let t=i as f32/direct_steps as f32;!blocked(yard,from.x+(target.x-from.x)*t,from.z+(target.z-from.z)*t,from.y)}) { return Some(target); }
+    if clear_run(yard, from, target) { return Some(target); }
     let (sx, sz) = snap(from.x, from.z);
     let (gx, gz) = snap(target.x, target.z);
     if !(-grid.half_x..=grid.half_x).contains(&sx) || !(-grid.half_z..=grid.half_z).contains(&sz)
@@ -210,7 +217,8 @@ fn route_waypoint(yard: &Yard, from: V3, target: V3, runner: PlayerId, others: &
     let mut score = vec![i32::MAX; grid.walkable.len()];
     let mut parent = vec![usize::MAX; grid.walkable.len()];
     let mut open = BinaryHeap::new();
-    let h = |x: i32, z: i32| { let (dx,dz)=((x-gx).abs(),(z-gz).abs()); 10*(dx+dz)-6*dx.min(dz) };
+    let end_point = point(end);
+    let h = |x: i32, z: i32| { let (dx,dz)=((x-end_point.x as i32).abs(),(z-end_point.z as i32).abs()); 10*(dx+dz)-6*dx.min(dz) };
     score[start] = 0;
     open.push(Reverse((h(sx,sz), start)));
     const DIRS: [(i32,i32); 8] = [(-1,0),(1,0),(0,-1),(0,1),(-1,-1),(-1,1),(1,-1),(1,1)];
@@ -230,18 +238,18 @@ fn route_waypoint(yard: &Yard, from: V3, target: V3, runner: PlayerId, others: &
             if next_score < score[next] { score[next]=next_score;parent[next]=at;open.push(Reverse((next_score+h(xx,zz),next))); }
         }
     }
-    if parent[end] == usize::MAX { return None; }
+    if start != end && parent[end] == usize::MAX { return None; }
     let mut path=vec![end];let mut at=end;
     while at != start { at=parent[at];if at==usize::MAX{return None;}path.push(at); }
     path.reverse();
     // Follow the furthest visible point in the whole route. Looking only near the
     // destination falls back to one-cell steps whenever the final corner is hidden.
     for &candidate in path.iter().skip(1).rev() {
-        let p=point(candidate);let steps=((p.x-from.x).hypot(p.z-from.z)/0.4).ceil().max(1.0) as usize;
-        let visible=(1..=steps).all(|i| {let t=i as f32/steps as f32;!blocked(yard,from.x+(p.x-from.x)*t,from.z+(p.z-from.z)*t,from.y)});
-        if visible { return Some(p); }
+        let p = point(candidate);
+        if clear_run(yard, from, p) { return Some(p); }
     }
-    Some(point(path.get(1).copied().unwrap_or(end)))
+    let p = point(start);
+    clear_run(yard, from, p).then_some(p)
 }
 
 /// Clear line between two spots: no box taller than 1.6 m in the way (`los`).
@@ -1100,6 +1108,7 @@ impl BotBrain {
                 if w.mode == GameMode::Heist {
                     self.nav_t = 0.0;
                     self.avoid_side = -self.avoid_side;
+                    self.mv = (0.0, 0.0);
                 } else {
                     self.wander = 0.9;
                     let a = rng.range(0.0, std::f32::consts::TAU);
@@ -1311,17 +1320,19 @@ impl BotBrain {
         goal: Option<V3>,
     ) -> (f32, f32) {
         let p = self.pers;
+        let heist = w.mode == GameMode::Heist && me.grounded;
         let mut route_wish = wish;
         self.nav_t -= dt;
         if w.objective_goal.is_some() && !urgent && let Some(g) = goal {
             let changed = self.nav_goal.is_none_or(|old| (old.x-g.x).hypot(old.z-g.z)>2.0);
             let reached = self.nav_point.is_some_and(|point| {
-                point.horiz_dist(me.pos) < 0.75 && point.horiz_dist(g) > 0.75
+                point.horiz_dist(g) > 0.75 && (point.horiz_dist(me.pos) < 0.6
+                    || (heist && !clear_run(w.yard, me.pos, point)))
             });
             if changed || reached || self.nav_t <= 0.0 {
                 self.nav_goal=Some(g);
                 self.nav_point=route_waypoint(w.yard,me.pos,g,me.id,w.others);
-                self.nav_t = 2.0;
+                self.nav_t = if self.nav_point.is_some() { 2.0 } else { 0.28 };
             }
         } else if w.objective_goal.is_none() || goal.is_none() || urgent {
             self.nav_goal=None;self.nav_point=None;self.nav_t=0.0;
@@ -1331,7 +1342,7 @@ impl BotBrain {
         {
             let dx=next.x-me.pos.x;let dz=next.z-me.pos.z;let len=dx.hypot(dz).max(1e-3);
             let corner = goal.is_some_and(|g| g.horiz_dist(next) > 0.75);
-            let pace = if corner { (len / 2.0).clamp(0.55, 1.0) } else { 1.0 };
+            let pace = if corner { (len / 2.6).clamp(0.39, 1.0) } else { 1.0 };
             route_wish = (dx / len * pace, dz / len * pace);
         }
         let (mut wx, mut wz) = route_wish;
@@ -1356,13 +1367,20 @@ impl BotBrain {
                     let k = (1.5 - d) / 1.5 * 0.7;
                     wx += dx / d * k;
                     wz += dz / d * k;
+                    if heist && (dx * route_wish.0 + dz * route_wish.1) < -0.35 {
+                        // Both oncoming runners pass on their own right. The nearer runner
+                        // brakes while the side step develops instead of shoving through.
+                        wx += route_wish.1 * k;
+                        wz -= route_wish.0 * k;
+                        m = m.min((d / 1.5).max(0.28));
+                    }
                 }
             }
             let mut a = wz.atan2(wx);
             let t = w.time;
             let near = (arrive / 2.0).min(1.0);
             let da = drunk_amt(me.drunk);
-            a += p.wob
+            a += p.wob * if heist { 0.30 } else { 1.0 }
                 * ((t * 0.9 + self.phase).sin() * 0.6 + (t * 2.3 + self.phase * 1.7).sin() * 0.25)
                 * near;
             if da > 0.0 {
@@ -1461,6 +1479,9 @@ impl BotBrain {
         {
             if let Some(clear_angle) = ta {
                 ca = clear_angle;
+            } else if heist {
+                self.mv = (0.0, 0.0);
+                return self.mv;
             }
         }
         self.mv = (ca.cos() * nm, ca.sin() * nm);
