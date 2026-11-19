@@ -400,12 +400,11 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
     // things to throw
     let players = g.dummies.len() + 1;
     let y = yard.0.clone();
-    g.world
-        .initial_fill(players, &|x, z| y.heist_clear(x, z, 1.2), &mut g.rng);
-
     if setup.mode == GameMode::Heist {
+        g.world.initial_fill_heist(players, &y, &mut g.rng);
         crate::heist_app::start(g, &y);
     } else {
+        g.world.initial_fill(players, &|x, z| y.heist_clear(x, z, 1.2), &mut g.rng);
         g.heist = None;
     }
 

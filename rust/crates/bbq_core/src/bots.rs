@@ -1094,11 +1094,17 @@ impl BotBrain {
         cmd.wish = steered;
         // stuck check
         if self.stuck_t <= 0.0 {
-            if me.pos.len_between(self.last_pos) < 0.4 && steered.0.hypot(steered.1) > 0.5
+            if me.pos.len_between(self.last_pos) < 0.4
+                && (steered.0.hypot(steered.1) > 0.5 || w.mode == GameMode::Heist && goal.is_some() && arrive > 1.5)
                 && self.pause_t <= 0.0 && self.hes_t <= 0.0 && self.windup <= 0.0 {
-                self.wander = 0.9;
-                let a = rng.range(0.0, std::f32::consts::TAU);
-                self.wander_dir = (a.cos(), a.sin());
+                if w.mode == GameMode::Heist {
+                    self.nav_t = 0.0;
+                    self.avoid_side = -self.avoid_side;
+                } else {
+                    self.wander = 0.9;
+                    let a = rng.range(0.0, std::f32::consts::TAU);
+                    self.wander_dir = (a.cos(), a.sin());
+                }
             }
             self.last_pos = me.pos;
             self.stuck_t = 1.2;
@@ -1310,12 +1316,12 @@ impl BotBrain {
         if w.objective_goal.is_some() && !urgent && let Some(g) = goal {
             let changed = self.nav_goal.is_none_or(|old| (old.x-g.x).hypot(old.z-g.z)>2.0);
             let reached = self.nav_point.is_some_and(|point| {
-                (point.x - me.pos.x).hypot(point.z - me.pos.z) < 0.8
+                point.horiz_dist(me.pos) < 0.75 && point.horiz_dist(g) > 0.75
             });
             if changed || reached || self.nav_t <= 0.0 {
                 self.nav_goal=Some(g);
                 self.nav_point=route_waypoint(w.yard,me.pos,g,me.id,w.others);
-                self.nav_t=1.2;
+                self.nav_t = 2.0;
             }
         } else if w.objective_goal.is_none() || goal.is_none() || urgent {
             self.nav_goal=None;self.nav_point=None;self.nav_t=0.0;
@@ -1324,7 +1330,9 @@ impl BotBrain {
             && let Some(next) = self.nav_point
         {
             let dx=next.x-me.pos.x;let dz=next.z-me.pos.z;let len=dx.hypot(dz).max(1e-3);
-            route_wish=(dx/len,dz/len);
+            let corner = goal.is_some_and(|g| g.horiz_dist(next) > 0.75);
+            let pace = if corner { (len / 2.0).clamp(0.55, 1.0) } else { 1.0 };
+            route_wish = (dx / len * pace, dz / len * pace);
         }
         let (mut wx, mut wz) = route_wish;
         let mut m = wx.hypot(wz).min(1.0);
@@ -1413,7 +1421,7 @@ impl BotBrain {
                     break;
                 }
             }
-            if ta.is_none() {
+            if ta.is_none() && w.mode != GameMode::Heist {
                 ta = Some(base);
             }
         }

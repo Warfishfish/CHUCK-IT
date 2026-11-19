@@ -334,7 +334,7 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &Yard) {
                 objective_goal=Some(hatch);
             } else if id%2==0 {
                 for (x,z) in bbq_core::heist::vault_sites(teams) {
-                    if (pos.x-x).abs()<1.1 && (z-1.0..z+5.5).contains(&pos.z) && goal.z<z-2.0 {
+                    if (pos.x-x).abs()<1.1 && (z+0.20..z+5.5).contains(&pos.z) && goal.z<z-2.0 {
                         let target=if pos.y<0.95 {z+3.5}else if pos.y<2.05 {z+1.35}else{z-1.25};
                         traversal=Some((V3::new(x,0.0,target),runner.grounded));break;
                     }

@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.41</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.42</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -1946,7 +1946,7 @@ function authGrab(gid,vid){const g=chars.get(gid),t=chars.get(vid);if(!canGrab(g
   fx('grab',gid,vid);}
 function authRelease(gid,mode,dx,dz){const c=carryOf.get(gid);if(!c)return;const vid=c.vid;grabImmune.set(vid,elapsed+CARRY.immune);
   if(mode===4){let l=Math.hypot(dx||0,dz||0);const g=chars.get(gid);if(l<1e-3){const f=g?fwd(g):new V3(0,0,1);dx=f.x;dz=f.z;l=1;}
-    fx('gfree',gid,vid,4,r2(dx/l*CARRY.hv),CARRY.vy,r2(dz/l*CARRY.hv));}
+    fx('gfree',gid,vid,4,r2(dx/l*(gameMode==='heist'?13:CARRY.hv)),CARRY.vy,r2(dz/l*(gameMode==='heist'?13:CARRY.hv)));}
   else{fx('gfree',gid,vid,mode,0,0,0);const g=chars.get(gid);if(mode===0&&g&&naughtyOn()&&inSmokoAt(g.pos.x,g.pos.z,g.pos.y))authNaughty(gid,vid);}}
 function authWriggle(vid){const gid=carriedBy.get(vid),c=gid&&carryOf.get(gid);if(!c||elapsed-(c.lastW||-9)<.08)return;c.lastW=elapsed;c.wr=(c.wr||0)+1;c.t+=CARRY.wig;}
 function carryHostTick(dt){for(const [gid,c] of [...carryOf]){const g=chars.get(gid),v=chars.get(c.vid);
@@ -1981,10 +1981,16 @@ function vDown(){if(!me||!canAct()||isCarried(me))return;
   if(t){if(isAuth)authGrab(myId,t.id);else sendEv('gr',t.id);}
   else ;}
 function fPress(){if(!me||isCarried(me))return;if(isCarrying(me)||grabTarget()){vDown();return;}startCharge();} // F picks up a mate who's down, puts down (tap) / chucks (hold) when carrying, otherwise winds up a throw
-function vUp(){if(!vArmed)return;vArmed=false;if(me&&isCarrying(me)&&elapsed-vHeld<CARRY.hold){if(isAuth)authRelease(myId,0);else sendEv('gd');}}
-function carryTick(dt){if(!me)return;
-  if(vArmed&&isCarrying(me)&&keys.KeyF&&elapsed-vHeld>=CARRY.hold){vArmed=false;const f=fwd(me);if(isAuth)authRelease(myId,4,f.x,f.z);else sendEv('gt',r2(f.x),r2(f.z));}
-  if(!isCarrying(me))vArmed=false;}
+function vUp(){
+  if(!vArmed)return;
+  vArmed=false;
+  if(!me||!isCarrying(me))return;
+  if(elapsed-vHeld>=CARRY.hold){
+    const direction=fwd(me);
+    if(isAuth)authRelease(myId,4,direction.x,direction.z);else sendEv('gt',r2(direction.x),r2(direction.z));
+  }else if(isAuth)authRelease(myId,0);else sendEv('gd');
+}
+function carryTick(){if(!me||!isCarrying(me))vArmed=false;}
 function wriggle(){if(!me||elapsed-(wriggle.t||-9)<.06)return;wriggle.t=elapsed;me.wrigT=.22;SFX.pickup();if(isAuth)authWriggle(myId);else sendEv('gw');}
 function canHelp(h,t){return !!h&&!!t&&h!==t&&t.fallT>0&&(!teamsOn()||sameTeam(h.id,t.id));}
 function helpTarget(){if(!me||!canAct()||me.stun>0||me.smokoSeat>=0)return null;let best=null,bd=1.9;
@@ -2265,7 +2271,8 @@ function heistBotGoalRaw(ch){const myT=teamOf.get(ch.id),home=myT&&heistBases[my
   let best=null,bd=1e9,hands=heldOf(ch.id).length<2;                                               // otherwise raid: nearest enemy teddy
   if(!hands)return null;
   for(const it of items.values()){if(it.heistTeam==null||it.heistTeam===myT||it.state!=='ground')continue;
-    const d=Math.hypot(it.pos.x-ch.pos.x,it.pos.z-ch.pos.z);if(d<bd){bd=d;best=it;}}
+    const sector=HEIST_TEAM_KEYS.indexOf(it.heistTeam),id=parseInt(ch.id.slice(1),10)||0;
+    const d=Math.hypot(it.pos.x-ch.pos.x,it.pos.z-ch.pos.z)+((id+sector)%heistTeams===0?0:9);if(d<bd){bd=d;best=it;}}
   if(!best)return null;const eb=heistBases[best.heistTeam];
   const inBase=eb&&Math.abs(best.pos.x-eb.x)<HEIST_HALF&&Math.abs(best.pos.z-eb.z)<HEIST_HALF;
   return inBase?heistVia(ch,eb,best.pos):best.pos;}
@@ -2302,6 +2309,30 @@ function buildHeistCenterpiece(){
     if(n===heistTeams)buildHeistWall(((x+ex)/2-8)*cell,((z+ez)/2-8)*cell,
       Math.max(.32,(ex-x)*cell),Math.max(.32,(ez-z)*cell),x===ex?0x648986:0x456974,3.2);
   }
+  const hallTints=[0xc88f55,0x659d99,0xbfaa65,0x9385ad];
+  heistOuterSupplies().forEach(([x,z],index)=>{
+    const side=index%4,yaw=side*Math.PI/2,colour=hallTints[side];
+    const px=side===1?HEIST_A-.18:side===3?-HEIST_A+.18:x;
+    const pz=side===0?-HEIST_B+.18:side===2?HEIST_B-.18:z;
+    const make=(w,h,d,c,xx,yy,zz)=>{
+      const obj=mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshBasicMaterial({color:c}),xx,yy,zz);
+      obj.rotation.y=yaw;obj.castShadow=false;heistProps.push(obj);
+    };
+    for(const edge of [-.88,.88])make(.13,.022,1.55,colour,x+edge*Math.cos(yaw),.023,z-edge*Math.sin(yaw));
+    make(2,.74,.09,0x253638,px,2.35,pz);
+    const onPanel=(w,h,d,c,offset,height,depth)=>{
+      make(w,h,d,c,px+offset*Math.cos(yaw)-depth*Math.sin(yaw),height,pz-offset*Math.sin(yaw)+depth*Math.cos(yaw));
+    };
+    onPanel(3.1,.92,.12,side%2===0?0x52615d:0x465a61,0,.86,0);
+    for(const offset of [-1.39,0,1.39])onPanel(.07,.83,.07,0x778682,offset,.86,.075);
+    onPanel(3.22,.09,.11,0x283a3a,0,.34,.075);
+    onPanel(3.22,.09,.11,colour,0,1.37,.075);
+    if(Math.floor(index/4)%2===0)onPanel(3.4,.14,.12,0x27383a,0,2.88,.09);
+    for(let bar=0;bar<=side;bar++){
+      const offset=(bar-side*.5)*.29;
+      make(.17,.48,.045,colour,px+offset*Math.cos(yaw)-.06*Math.sin(yaw),2.35,pz-offset*Math.sin(yaw)+.06*Math.cos(yaw));
+    }
+  });
   for(const [gx,gz] of vaultCells[heistTeams]){
     for(const [dz,h] of [[3.5,1.05],[1.35,2.15]]){
       buildHeistWall((gx-8)*cell,(gz-8)*cell+dz,2.4,2.1,0x96693f,h);
@@ -3030,11 +3061,18 @@ function syncItemMeshes(){
 }
 const NOODLES=2;let noodleT=0;
 function spawnNoodle(){const it=spawnItem('noodle',rand(POOL.x0+1.2,POOL.x1-1.2),rand(POOL.z0+.9,POOL.z1-.9),false);it.pos.y=.6;return it;}
+function heistOuterSupplies(){
+  const edge=HEIST_A*15/16,cell=HEIST_A/8;
+  return [-4.5,-2.5,-.5,1.5,3.5].flatMap(offset=>{
+    const along=offset*cell;
+    return [[along,-edge],[edge,along],[along,edge],[-edge,along]];
+  });
+}
 function spawner(dt){
-  noodleT-=dt;if(noodleT<=0){noodleT=4;let n=0;for(const it of items.values())if(it.type==='noodle')n++;if(n<NOODLES)spawnNoodle();}
+  noodleT-=dt;if(gameMode!=='heist'&&noodleT<=0){noodleT=4;let n=0;for(const it of items.values())if(it.type==='noodle')n++;if(n<NOODLES)spawnNoodle();}
   if(chestStock<CHEST.max){chestT-=dt;if(chestT<=0){chestStock++;chestT=CHEST.refill;}}
-  spawnT-=dt;const target=Math.min(22,6+chars.size*1.6);
-  if(spawnT<=0){spawnT=1.3;if(items.size<target){const free=SPAWNS.filter(s=>(gameMode!=='heist'||heistClear(s[0],s[1],1.2))&&![...items.values()].some(it=>it.state!=='held'&&Math.hypot(it.pos.x-s[0],it.pos.z-s[1])<2.2));
+  spawnT-=dt;const target=Math.min(22,6+chars.size*1.6)+(gameMode==='heist'?25:0);
+  if(spawnT<=0){spawnT=1.3;if(items.size<target){const free=(gameMode==='heist'?[...heistOuterSupplies(),...SPAWNS]:SPAWNS).filter(s=>(gameMode!=='heist'||heistClear(s[0],s[1],1.2))&&![...items.values()].some(it=>it.state!=='held'&&Math.hypot(it.pos.x-s[0],it.pos.z-s[1])<2.2));
     if(free.length){const s=pick(free);spawnItem(randomType(),s[0]+rand(-.4,.4),s[1]+rand(-.4,.4),true);}}}
 }
 
@@ -3439,7 +3477,7 @@ function aiUpdate(ch,dt){
   if(ai.sideT>0){ai.sideT-=dt;ch.wish.copy(ai.sideDir);}
   if(ai.wander>0&&gameMode!=='heist')ch.wish.copy(ai.wanderDir);
   botSteer(ch,dt,arrive,urgent,goal);
-  if(ai.stuckT<=0){if(gameMode!=='heist'&&ch.pos.distanceTo(ai.lastPos)<.4&&ch.wish.lengthSq()>.25&&ai.pauseT<=0&&ai.hesT<=0&&ai.windup<=0){ai.wander=.9;const a=rand(0,Math.PI*2);ai.wanderDir.set(Math.cos(a),Math.sin(a));}ai.lastPos.copy(ch.pos);ai.stuckT=1.2;}
+  if(ai.stuckT<=0){if(gameMode==='heist'&&goal&&arrive>1.5&&ch.pos.distanceTo(ai.lastPos)<.4){ai.navTime=0;ai.avoidSide=-ai.avoidSide;}if(gameMode!=='heist'&&ch.pos.distanceTo(ai.lastPos)<.4&&ch.wish.lengthSq()>.25&&ai.pauseT<=0&&ai.hesT<=0&&ai.windup<=0){ai.wander=.9;const a=rand(0,Math.PI*2);ai.wanderDir.set(Math.cos(a),Math.sin(a));}ai.lastPos.copy(ch.pos);ai.stuckT=1.2;}
   if(goal&&ai.windup<=0&&!ai.meleeOnly&&ch.wish.length()>.15)faceTo=new V3(ch.pos.x+ch.wish.x,ch.pos.y,ch.pos.z+ch.wish.y);
   let desired;if(faceTo)desired=Math.atan2(faceTo.x-ch.pos.x,faceTo.z-ch.pos.z);else if(ch.wish.lengthSq()>.01)desired=Math.atan2(ch.wish.x,ch.wish.y);
   if(ai.glanceT>0&&ai.glanceAt&&ai.windup<=0&&!ch.charging)desired=Math.atan2(ai.glanceAt.x-ch.pos.x,ai.glanceAt.z-ch.pos.z);
@@ -3465,8 +3503,8 @@ function botSteer(ch,dt,arrive,urgent,goal){const ai=ch.ai,P=ai.pers;
   ai.navTime=(ai.navTime||0)-dt;
   if(gameMode==='heist'&&!urgent&&goal){const changed=!ai.navGoal||Math.hypot(goal.x-ai.navGoal.x,goal.z-ai.navGoal.z)>2.0;
     const reached=ai.navPoint&&Math.hypot(ch.pos.x-ai.navPoint.x,ch.pos.z-ai.navPoint.z)<.8&&Math.hypot(goal.x-ai.navPoint.x,goal.z-ai.navPoint.z)>.8;
-    if(changed||reached||ai.navTime<=0){ai.navGoal={x:goal.x,z:goal.z};ai.navPoint=heistWaypoint(ch.pos,goal,ch);ai.navTime=1.2;}
-    if(ai.navPoint){wx=ai.navPoint.x-ch.pos.x;wz=ai.navPoint.z-ch.pos.z;const l=Math.hypot(wx,wz);if(l>.01){wx/=l;wz/=l;m=1;}}}
+    if(changed||reached||ai.navTime<=0){ai.navGoal={x:goal.x,z:goal.z};ai.navPoint=heistWaypoint(ch.pos,goal,ch);ai.navTime=2;}
+    if(ai.navPoint){wx=ai.navPoint.x-ch.pos.x;wz=ai.navPoint.z-ch.pos.z;const l=Math.hypot(wx,wz);if(l>.01){wx/=l;wz/=l;m=Math.hypot(goal.x-ai.navPoint.x,goal.z-ai.navPoint.z)>.75?clamp(l/2,.55,1):1;}}}
   else if(gameMode!=='heist'||!goal||urgent){ai.navGoal=null;ai.navPoint=null;ai.navTime=0;}
   if(goal&&!urgent)m*=botApproachSpeed(arrive);
   if(m>.01&&!urgent){
@@ -3485,7 +3523,7 @@ function botSteer(ch,dt,arrive,urgent,goal){const ai=ch.ai,P=ai.pers;
   if(m>.01){const base=Math.atan2(wz,wx),sd=ai.avoidSide;
     for(const off of [0,.45*sd,.9*sd,1.35*sd,1.8*sd,-.45*sd,-.9*sd,-1.35*sd,-1.8*sd,2.5*sd,-2.5*sd]){const b=base+off;
       if(!blocked(ch.pos.x+Math.cos(b)*1.1,ch.pos.z+Math.sin(b)*1.1,ch.pos.y)&&!blocked(ch.pos.x+Math.cos(b)*.55,ch.pos.z+Math.sin(b)*.55,ch.pos.y)){ta=b;if(off*sd<0)ai.avoidSide=-sd;break;}}
-    if(ta===null)ta=base;}
+    if(ta===null&&gameMode!=='heist')ta=base;}
   const cur=ai.mv,tx=ta===null?0:Math.cos(ta)*m,tz=ta===null?0:Math.sin(ta)*m;
   if(urgent){cur.set(tx,tz);ch.wish.copy(cur);return;}
   const cm=cur.length();let ca=cm>.02?Math.atan2(cur.y,cur.x):(ta===null?0:ta),d=0;
@@ -4044,8 +4082,13 @@ function authStartRound(){
   sp.sort(()=>Math.random()-.5);const assign=[];let i=0;
   for(const ch of chars.values()){const s=heistSpawnFor(ch)||sp[i++%sp.length];if(ch.kind==='proxy')assign.push([ch.id,s[0],s[1]]);else teleport(ch,s[0],s[1]);}
   if(assign.length)fx('rs',assign);
-  const ss=SPAWNS.filter(q=>gameMode!=='heist'||heistClear(q[0],q[1],1.2)).sort(()=>Math.random()-.5);for(let k=0;k<Math.min(ss.length,8+Math.floor(chars.size*1.5));k++)spawnItem(k<3?TYPES[k]:randomType(),ss[k][0],ss[k][1],true);
-  for(let k=0;k<NOODLES;k++)spawnNoodle();noodleT=4;
+  const centre=SPAWNS.filter(q=>gameMode!=='heist'||heistClear(q[0],q[1],1.2)).sort(()=>Math.random()-.5);
+  const outer=gameMode==='heist'?heistOuterSupplies().filter(([x,z],i)=>(Math.floor(i/4)+i%4)%2===0&&heistClear(x,z,1.2)):[];
+  const slots=outer.concat(centre);
+  const count=Math.max(gameMode==='heist'?16:0,8+Math.floor(chars.size*1.5));
+  for(const [i,spot] of slots.slice(0,count).entries())spawnItem(i<3&&gameMode!=='heist'?TYPES[i]:randomType(),spot[0],spot[1],gameMode!=='heist');
+  if(gameMode!=='heist')for(let k=0;k<NOODLES;k++)spawnNoodle();
+  noodleT=4;
   carryReset();for(const c of chars.values())c.naughtyT=0;
   roundLeft=roundLen;countdown=3.2;lastBeep=4;state='countdown';resultsRows=null;resultsOpen=false;scoreDirty=true;leaderId=null;
   refreshOverlays();renderYardPanel();

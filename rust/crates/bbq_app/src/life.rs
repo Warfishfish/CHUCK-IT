@@ -1073,7 +1073,7 @@ pub fn step(g: &mut Game, p: &mut Player, wanted: &mut Wanted, yard: &yard::Yard
     wanted.jump_pressed = false;
 
     soak_step(g, p);
-    if g.rules.mode != bbq_core::GameMode::Smoko {
+    if !matches!(g.rules.mode, bbq_core::GameMode::Smoko | bbq_core::GameMode::Heist) {
         carry_step(g, p, wanted);
         thrown_step(g);
     }

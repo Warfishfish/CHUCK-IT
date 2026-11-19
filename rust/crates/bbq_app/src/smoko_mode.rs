@@ -30,7 +30,7 @@ const REACH: f32 = 2.2;
 pub const RACE_MAX_CARRY: f32 = 3.0;
 pub const RACE_RELEASE_PROTECTION: f32 = 5.0;
 pub const RACE_FLIGHT_TIME: f32 = 1.2;
-fn enabled(g: &Game)->bool {matches!(g.rules.mode,GameMode::Smoko|GameMode::Race)}
+fn enabled(g: &Game)->bool {matches!(g.rules.mode,GameMode::Smoko|GameMode::Race|GameMode::Heist)}
 const SPAWNS: [(f32, f32); 4] = [(-20.0, -10.0), (20.0, -10.0), (-20.0, 18.0), (20.0, 18.0)];
 
 #[derive(Clone, Copy)]
@@ -196,14 +196,36 @@ pub(crate) fn release(g: &mut Game, p: &mut Player, id: PlayerId, throw: bool, c
         return;
     };
     g.smoko.presses.remove(&id);
-    if let Some(at) = pos(g, p, c.victim) {
+    if let Some(mut at) = pos(g, p, c.victim) {
         let f = face(g, p, id);
+        let heist = g.rules.mode == GameMode::Heist;
+        let speed = if heist { bbq_core::carry::HEIST_THROW_HV } else { bbq_core::carry::THROW_HV };
         let vel = if throw {
-            V3::new(f.0 * bbq_core::carry::THROW_HV, bbq_core::carry::THROW_VY, f.1 * bbq_core::carry::THROW_HV)
+            if heist && let Some(origin) = pos(g, p, id) {
+                at = origin + V3::new(0.0, bbq_core::carry::HEIST_THROW_HEIGHT, 0.0);
+            }
+            V3::new(f.0 * speed, bbq_core::carry::THROW_VY, f.1 * speed)
         } else {
             V3::ZERO
         };
         set_pose(g, p, c.victim, at, vel, false);
+        if heist {
+            let duration = if throw { bbq_core::carry::THROWN_STUN } else { 0.5 };
+            let body = if c.victim == PLAYER_ID { &mut g.me.body }
+                else { &mut g.dummies.iter_mut().find(|d| d.id == c.victim).unwrap().body };
+            body.down_t = duration;
+            body.stun = duration;
+            g.smoko.immune.insert(c.victim, g.now + bbq_core::carry::IMMUNE);
+            if throw {
+                g.smoko.flights.insert(c.victim, (id, g.now + duration));
+                if let Some(dummy) = g.dummies.iter_mut().find(|d| d.id == c.victim) {
+                    dummy.anim.start_slap(SlapKind::SentFlying, duration);
+                }
+            }
+            sync_person(g, p, id, false);
+            sync_person(g, p, c.victim, throw);
+            return;
+        }
         if g.rules.mode==GameMode::Race {
             g.smoko.immune.insert(c.victim,g.now+RACE_RELEASE_PROTECTION);
             g.smoko.flights.insert(c.victim,(id,g.now+RACE_FLIGHT_TIME));
@@ -241,7 +263,7 @@ pub fn input(g: &mut Game, p: &mut Player, id: PlayerId, pressed: bool) {
             grab(g, p, id);
         }
     } else if let Some(since) = g.smoko.presses.remove(&id) {
-        release(g, p, id, g.now - since >= 0.25, true);
+        release(g, p, id, g.now - since >= if g.rules.mode == GameMode::Heist { bbq_core::carry::HOLD } else { 0.25 }, true);
     }
 }
 fn in_pad(v: V3) -> bool {
@@ -297,6 +319,7 @@ pub fn bot_goal(g: &Game, p: &Player, id: PlayerId) -> Option<V3> {
 pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted) {
     if !enabled(g) { return; }
     let race=g.rules.mode==GameMode::Race;
+    let delivery=g.rules.mode==GameMode::Smoko;
     if !g.rules.in_play() {
         let ids: Vec<_> = g.smoko.carries.keys().copied().collect();
         for id in ids {
@@ -319,7 +342,7 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted) {
         .filter(|d| d.remote.is_none())
         .map(|d| d.id)
         .collect();
-    if g.options.bots_on && !race {
+    if g.options.bots_on && delivery {
         for id in bots {
             grab(g, p, id);
         }
@@ -347,7 +370,7 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted) {
                 dragger.face = f.0.atan2(f.1);
             }
         }
-        if !race && in_pad(held) {
+        if delivery && in_pad(held) {
             deliver(g, p, owner, c.victim);
         }
     }
@@ -362,7 +385,7 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted) {
             sync_person(g, p, victim, false);
             continue;
         }
-        if !race && in_pad(at) {
+        if delivery && in_pad(at) {
             deliver(g, p, owner, victim);
         }
     }
@@ -370,7 +393,7 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted) {
     g.smoko.immune.retain(|_, t| *t > g.now);
     let victims: Vec<_> = g.smoko.flights.keys().copied().collect();
     for v in victims {
-        if !race && pos(g, p, v).is_some_and(|a| a.y < -4.0 || a.x.abs() > 34.0 || a.z.abs() > 25.0) {
+        if delivery && pos(g, p, v).is_some_and(|a| a.y < -4.0 || a.x.abs() > 34.0 || a.z.abs() > 25.0) {
             g.smoko.flights.remove(&v);
             set_pose(g, p, v, V3::new(20.0, 0.0, -10.0), V3::ZERO, false);
             g.smoko.immune.insert(v, g.now + PROTECTION);
@@ -392,6 +415,14 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted) {
         }
     }
     if race {return;}
+    if !delivery {
+        if player_locked(g) || g.smoko.carries.contains_key(&PLAYER_ID) {
+            g.prompt = carry_prompt(g);
+        } else if let Some(victim) = pickup_target(g, p, PLAYER_ID) {
+            g.prompt = format!("F: pick up {}", crate::round::name_of(g, victim));
+        }
+        return;
+    }
     g.prompt = if player_locked(g) {
         "Being carried! A mate can interrupt the carrier; you escape after 8 seconds.".into()
     } else if g.smoko.carries.contains_key(&PLAYER_ID) {
@@ -399,6 +430,16 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted) {
     } else {
         "SMOKO: Knock someone down → F to pick up → deliver to the marked pad (+100)".into()
     };
+}
+
+pub fn carry_prompt(g: &Game) -> String {
+    if player_locked(g) {
+        "Being carried or thrown".into()
+    } else if g.smoko.carries.contains_key(&PLAYER_ID) || g.smoko.guest_carrying {
+        "Tap F: put down • Hold F, then release: chuck".into()
+    } else {
+        String::new()
+    }
 }
 
 /// Presentation only. Guests use replicated carry state; never predict points or recovery timers.

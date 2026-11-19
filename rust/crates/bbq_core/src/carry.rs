@@ -26,6 +26,9 @@ pub const DRAG_DISTANCE: f32 = 1.15;
 /// Throw velocity (horizontal, up).
 pub const THROW_HV: f32 = 10.5;
 pub const THROW_VY: f32 = 8.5;
+/// Heist tosses start above the carrier and carry across a corridor.
+pub const HEIST_THROW_HV: f32 = 13.0;
+pub const HEIST_THROW_HEIGHT: f32 = 0.9;
 /// A thrown person is stunned this long.
 pub const THROWN_STUN: f32 = 1.2;
 /// A thrown person who hits someone knocks them flat for this long.

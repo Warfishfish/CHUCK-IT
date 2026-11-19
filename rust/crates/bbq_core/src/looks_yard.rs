@@ -4040,6 +4040,54 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
             per_m: 1.0 / 16.0,
         }, material).at(0.0, height, 0.0));
     }
+    // Reclaimed loading lanes around the square. Supply paint stays flush
+    // with the ground and the panels sit on the perimeter walls.
+    let hall_colours = [0xc88f55, 0x659d99, 0xbfaa65, 0x9385ad];
+    for (index, (x, z)) in heist::outer_supply_spots().enumerate() {
+        let side = index % 4;
+        let tint = hall_colours[side];
+        let trim = matt(tint).unlit().no_shadow();
+        let yaw = side as f32 * HALF_PI;
+        for edge in [-1.0, 1.0] {
+            let offset = V3::new(edge * 0.88 * yaw.cos(), 0.0, edge * 0.88 * yaw.sin());
+            v.push(cuboid(0.13, 0.022, 1.55, trim, x + offset.x, 0.023, z + offset.z)
+                .turn(0.0, yaw, 0.0));
+        }
+        let (panel_x, panel_z) = match side {
+            0 => (x, -heist::ARENA_B + 0.18),
+            1 => (heist::ARENA_A - 0.18, z),
+            2 => (x, heist::ARENA_B - 0.18),
+            _ => (-heist::ARENA_A + 0.18, z),
+        };
+        v.push(cuboid(2.0, 0.74, 0.09, matt(0x253638), panel_x, 2.35, panel_z)
+            .turn(0.0, yaw, 0.0));
+        let inward = V3::new(-yaw.sin(), 0.0, yaw.cos());
+        let tangential = V3::new(yaw.cos(), 0.0, -yaw.sin());
+        // Raised service panels with a recessed kick plate and three pressed ribs.
+        let backing = matt(if side % 2 == 0 { 0x52615d } else { 0x465a61 });
+        v.push(cuboid(3.1, 0.92, 0.12, backing, panel_x, 0.86, panel_z)
+            .turn(0.0, yaw, 0.0));
+        for offset in [-1.39, 0.0, 1.39] {
+            let at = tangential * offset + inward * 0.075;
+            v.push(cuboid(0.07, 0.83, 0.07, matt(0x778682),
+                panel_x + at.x, 0.86, panel_z + at.z).turn(0.0, yaw, 0.0));
+        }
+        for (height, colour) in [(0.34, 0x283a3a), (1.37, tint)] {
+            let at = inward * 0.075;
+            v.push(cuboid(3.22, 0.09, 0.11, matt(colour),
+                panel_x + at.x, height, panel_z + at.z).turn(0.0, yaw, 0.0));
+        }
+        if index / 4 % 2 == 0 {
+            let at = inward * 0.09;
+            v.push(cuboid(3.4, 0.14, 0.12, matt(0x27383a),
+                panel_x + at.x, 2.88, panel_z + at.z).turn(0.0, yaw, 0.0));
+        }
+        for bar in 0..=side {
+            let offset = tangential * ((bar as f32 - side as f32 * 0.5) * 0.29) + inward * 0.06;
+            v.push(cuboid(0.17, 0.48, 0.045, trim,
+                panel_x + offset.x, 2.35, panel_z + offset.z).turn(0.0, yaw, 0.0));
+        }
+    }
     let hatch=crate::passage::HATCH;
     // The round junction is wider than an arm. Keep the centre open where routes meet.
     v.push(cuboid(10.0,0.14,10.0,matt(0x595747).unlit(),hatch.x,-4.59,hatch.z));

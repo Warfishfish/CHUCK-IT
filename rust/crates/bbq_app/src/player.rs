@@ -273,7 +273,15 @@ pub(crate) fn step_player(
     if let Some(s)=settings {p.mover.eye_lift=s.look.legs.lift();p.mover.height=crate::style::head_height(s.character,s.look)+p.mover.eye_lift;}
     let g = &mut *game;
     p.prev = Vec3::new(p.mover.x, p.mover.y, p.mover.z);
-    if crate::smoko_mode::player_locked(g) { return; }
+    if crate::smoko_mode::player_locked(g) {
+        if !g.mirror && g.rules.mode == bbq_core::GameMode::Heist
+            && crate::smoko_mode::flight_owner(g, PLAYER_ID).is_some()
+        {
+            p.mover.step(movement::step_dt(), MoveInput::default(),
+                &Modifiers { stunned: true, ..Default::default() }, &yard.0);
+        }
+        return;
+    }
     if g.rules.mode == bbq_core::GameMode::Race && (g.rules.phase == bbq_core::scoring::Phase::Results || g.race.racers.get(&PLAYER_ID).is_some_and(|r|r.finish.is_some())) {return;}
     // drunk: the walk drifts off line, and in Drunk mode the speed lurches
     let da = g.me.drunk.da();

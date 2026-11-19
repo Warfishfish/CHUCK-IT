@@ -946,6 +946,31 @@ mod tests {
     }
 
     #[test]
+    fn heist_guest_can_chuck_the_host_on_release() {
+        let mut host = host_with_a_guest();
+        {
+            let mut game = host.world_mut().resource_mut::<Game>();
+            game.rules.mode = GameMode::Heist;
+            game.me.body.stun = 3.0;
+            game.me.body.down_t = 3.0;
+        }
+        {
+            let mut player = host.world_mut().resource_mut::<Player>();
+            player.mover.x = 8.0;
+            player.mover.z = 1.0;
+        }
+        act(&mut host, GuestAct::Carry { pressed: true });
+        act(&mut host, GuestAct::Carry { pressed: false });
+        act(&mut host, GuestAct::Carry { pressed: true });
+        host.world_mut().resource_mut::<Game>().now += 0.5;
+        act(&mut host, GuestAct::Carry { pressed: false });
+        let game = host.world().resource::<Game>();
+        let player = host.world().resource::<Player>();
+        assert!(crate::smoko_mode::flight_owner(game, PLAYER_ID).is_some());
+        assert!(player.mover.vz < -12.0 && player.mover.vy > 8.0);
+    }
+
+    #[test]
     fn guest_drink_is_host_validated_and_consumed_once() {
         let mut host = host_with_a_guest();
         let mut yard = bbq_core::yard::Yard::heist(Default::default(), 0, 2);
@@ -1483,13 +1508,14 @@ mod tests {
 /// yard, but what you do is sent to the host (`Game::net_acts`) instead of done here. The host's
 /// next picture then shows the result (your item in the air, the other person knocked over).
 pub fn guest_hands(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
-    if g.rules.mode == GameMode::Smoko {
+    if matches!(g.rules.mode, GameMode::Smoko | GameMode::Heist) {
         if std::mem::take(&mut wanted.grab_pressed) { g.net_acts.push(GuestAct::Carry {pressed:true}); }
         if std::mem::take(&mut wanted.grab_released) { g.net_acts.push(GuestAct::Carry {pressed:false}); }
         g.prompt = if g.now < g.smoko.guest_until {"Being carried or thrown — the host controls your landing"} else if g.smoko.guest_carrying {"Deliver to SMOKO • Tap F: drop • Hold F, release: throw"} else {"SMOKO: Knock someone down → F to pick up → deliver (+100)"}.into();
     }
     if g.rules.mode == GameMode::Heist {
-        g.prompt = crate::heist_quest::prompt(g, p).unwrap_or_default();
+        g.prompt = crate::smoko_mode::carry_prompt(g);
+        if g.prompt.is_empty() { g.prompt = crate::heist_quest::prompt(g, p).unwrap_or_default(); }
         if std::mem::take(&mut wanted.interact_pressed) && let Some(item) = g.slots.selected() {
             g.net_acts.push(GuestAct::HeistDrink { item });
         }
@@ -1608,13 +1634,13 @@ pub fn apply_hit(g: &mut Game, p: &mut Player, hit: &HitMsg) {
     g.wind.cancel();
     match hit {
         HitMsg::Smoko { pos, vel, locked, carrying } => {
-            if !matches!(g.rules.mode,GameMode::Smoko|GameMode::Race) { return; }
+            if !matches!(g.rules.mode,GameMode::Smoko|GameMode::Race|GameMode::Heist) { return; }
             p.mover.x=pos.0; p.mover.y=pos.1; p.mover.z=pos.2;
             p.mover.vx=vel.0; p.mover.vy=vel.1; p.mover.vz=vel.2;
             p.mover.grounded=pos.1<=0.01;
             g.smoko.guest_until=if *locked {g.now+0.3} else {0.0};
             g.smoko.guest_carrying=*carrying;
-            if *locked { g.me.body.down_t=0.3; } else if g.rules.mode==GameMode::Smoko {g.me.body=Default::default();} else {g.me.body.down_t=0.0;g.me.body.stun=0.0;}
+            if *locked { g.me.body.down_t=0.3; } else if matches!(g.rules.mode, GameMode::Smoko | GameMode::Heist) {g.me.body=Default::default();} else {g.me.body.down_t=0.0;g.me.body.stun=0.0;}
         }
         HitMsg::Item { kind, dir, flatten } => {
             let spirit = *kind >= 100;

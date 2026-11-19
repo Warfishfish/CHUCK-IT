@@ -13,7 +13,7 @@
 
 /// Bump this whenever a message changes, so old and new copies of the game refuse each other
 /// politely instead of misreading each other.
-pub const PROTOCOL: u16 = 31; // Authoritative personal match totals for the podium.
+pub const PROTOCOL: u16 = 32; // Host-authoritative player throws in Teddy Heist.
 /// One signed byte, neutral exactly zero. Cosmetic only; never used to validate a throw.
 pub fn pack_pitch(pitch: f32) -> i8 {
     if !pitch.is_finite() { return 0; }

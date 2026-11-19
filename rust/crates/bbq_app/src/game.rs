@@ -1820,11 +1820,13 @@ mod tests {
                 fell(&mut app);
                 app.world_mut().resource_mut::<Wanted>().grab_pressed = true;
                 ticks(&mut app, 2);
-                assert!(app.world().resource::<Game>().life.carry.is_some());
+                let carrying = |g: &Game| g.life.carry.is_some()
+                    || g.smoko.carries.contains_key(&PLAYER_ID);
+                assert!(carrying(app.world().resource::<Game>()));
                 put_player(&mut app, x + 1.5, z);
                 ticks(&mut app, 4);
                 let g = app.world().resource::<Game>();
-                assert!(g.life.carry.is_some(), "no auto-delivery in {mode:?}");
+                assert!(carrying(g), "no auto-delivery in {mode:?}");
                 assert!(g.dummies[0].seat.is_none());
                 assert_eq!(g.dummies[0].naughty_t, 0.0);
                 assert_eq!(g.board.score(PLAYER_ID), 0);
@@ -2805,6 +2807,44 @@ mod tests {
             assert_eq!(teddies_of(&app, t).len(), 3, "{t:?}");
         }
         assert!(app.world().resource::<YardRes>().0.heist.is_some());
+    }
+
+    #[test]
+    fn heist_stock_and_carried_throw_reach_the_outer_halls() {
+        for flags in 2..=4 {
+            let mut app = heist_app(flags, 1);
+            let yard = &app.world().resource::<YardRes>().0;
+            let (x, z) = (-48..38).flat_map(|x| (-49..49).map(move |z| (x as f32, z as f32)))
+                .find(|&(x,z)| (0..=15).all(|i| yard.heist_clear(x+i as f32*0.5,z,0.75)))
+                .expect("an open hall for the throw");
+            let game = app.world().resource::<Game>();
+            for side in 0..4 {
+                assert!(game.world.items.values().any(|it| it.team.is_none() && match side {
+                    0 => it.pos.x > 50.0, 1 => it.pos.x < -50.0,
+                    2 => it.pos.z > 50.0, _ => it.pos.z < -50.0,
+                }), "outer hall {side} should start stocked on {flags} flags");
+            }
+            put_player(&mut app, x, z);
+            app.world_mut().resource_mut::<Player>().yaw = -std::f32::consts::FRAC_PI_2;
+            {
+                let mut game = app.world_mut().resource_mut::<Game>();
+                let target = &mut game.dummies[0];
+                target.mover = Mover::new(x + 1.2, z);
+                target.body.down_t = 3.0;
+                target.body.stun = 3.0;
+            }
+            app.world_mut().resource_mut::<Wanted>().grab_pressed = true;
+            ticks(&mut app, 2);
+            assert!(app.world().resource::<Game>().smoko.carries.contains_key(&PLAYER_ID));
+            app.world_mut().resource_mut::<Wanted>().grab_pressed = true;
+            ticks(&mut app, 28);
+            app.world_mut().resource_mut::<Wanted>().grab_released = true;
+            ticks(&mut app, 52);
+            let victim = &app.world().resource::<Game>().dummies[0];
+            let travelled = victim.mover.x - x;
+            eprintln!("{flags} flags: player chuck travelled {travelled:.2} m");
+            assert!((3.0..8.0).contains(&travelled), "throw landed {travelled:.2} m away");
+        }
     }
 
     #[test]

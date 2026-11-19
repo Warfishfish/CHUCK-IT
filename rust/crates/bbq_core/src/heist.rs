@@ -299,6 +299,16 @@ pub fn base_of_variant(teams: usize, variant: usize, team: Team) -> Option<BaseD
 }
 
 /// Where the `n`th person of `team` starts (inside their own base).
+/// Pull-off points in the four perimeter corridors, clear of the corner bases.
+pub fn outer_supply_spots() -> impl Iterator<Item = (f32, f32)> {
+    let edge = ARENA_A * 15.0 / 16.0;
+    let cell = ARENA_A / 8.0;
+    [-4.5, -2.5, -0.5, 1.5, 3.5].into_iter().flat_map(move |offset| {
+        let along = offset * cell;
+        [(along, -edge), (edge, along), (along, edge), (-edge, along)]
+    })
+}
+
 /// Start slots in the base and along its immediately reachable approach lanes.
 pub fn spawn_slots(yard: &crate::yard::Yard, team: Team) -> Vec<(f32, f32)> {
     let Some(teams) = yard.heist else { return Vec::new(); };
@@ -495,7 +505,9 @@ pub fn bot_goal_variant(
             if t.team == me.team || !t.on_ground {
                 continue;
             }
-            let d = t.pos.horiz_dist(me.pos);
+            let sector = team_keys(teams).iter().position(|team| *team == t.team).unwrap_or(0);
+            let preferred = (me.id as usize + sector) % teams == 0;
+            let d = t.pos.horiz_dist(me.pos) + if preferred { 0.0 } else { 9.0 };
             if best.is_none_or(|(_, bd)| d < bd) {
                 best = Some((t, d));
             }

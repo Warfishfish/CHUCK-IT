@@ -185,6 +185,22 @@ impl ItemWorld {
         }
     }
 
+    /// Stock the outer corridors even in a small match. The centre gets the remaining supply.
+    pub fn initial_fill_heist(&mut self, players: usize, yard: &Yard, rng: &mut Rng) {
+        self.clear();
+        let available = |&(x,z): &(f32,f32)| yard.heist_clear(x, z, 1.2);
+        let mut centre: Vec<_> = ITEM_SPAWNS.into_iter().filter(available).collect();
+        rng.shuffle(&mut centre);
+        // Every other station gets an opening pickup, staggered around the four sides.
+        let outer = crate::heist::outer_supply_spots().enumerate()
+            .filter_map(|(index, spot)| (((index / 4 + index % 4) % 2 == 0) && available(&spot)).then_some(spot));
+        let count = crate::items::initial_items(players).max(16);
+        for (x,z) in outer.chain(centre).take(count) {
+            let kind = random_type_with(rng.f32(), self.drinks());
+            self.spawn(kind, x, z, false, rng);
+        }
+    }
+
     fn spawn_noodle(&mut self, rng: &mut Rng) -> ItemId {
         let x = rng.range(POOL_X0 + 1.2, POOL_X1 - 1.2);
         let z = rng.range(POOL_Z0 + 0.9, POOL_Z1 - 0.9);
@@ -285,7 +301,7 @@ impl ItemWorld {
 
         if spawning {
             self.noodle_t -= dt;
-            if self.noodle_t <= 0.0 {
+            if yard.heist.is_none() && self.noodle_t <= 0.0 {
                 self.noodle_t = NOODLE_EVERY;
                 if self.count(ItemKind::Noodle) < NOODLES {
                     let id = self.spawn_noodle(rng);
@@ -297,10 +313,10 @@ impl ItemWorld {
                 self.spawn_t = SPAWN_EVERY;
                 if (self.items.len() as f32)
                     < spawn_target(players) as f32 + spawn_target_fraction(players)
+                        + if yard.heist.is_some() { 25.0 } else { 0.0 }
                 {
-                    let free: Vec<(f32, f32)> = ITEM_SPAWNS
-                        .iter()
-                        .copied()
+                    let outer = crate::heist::outer_supply_spots().filter(|_| yard.heist.is_some());
+                    let free: Vec<(f32, f32)> = outer.chain(ITEM_SPAWNS)
                         .filter(|s| {
                             heist_clear(s.0, s.1)
                                 && !self.items.values().any(|it| {
