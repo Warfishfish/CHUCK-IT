@@ -1,6 +1,6 @@
 {
-  "source_commit": "c566041db6d52f52061d632f66534593cee9c80c",
+  "source_commit": "e026bb0c68332fcd29bb487e2bf16326077bd19e",
   "protocol": 30,
   "release_date": "2026-11-19",
-  "description": "Teddy Heist victory podium, Dazza shortcuts and bot routing, prototype 0.23.39"
+  "description": "Bot pursuit and Heist guard improvements, named podium winners, prototype 0.23.40"
 }
