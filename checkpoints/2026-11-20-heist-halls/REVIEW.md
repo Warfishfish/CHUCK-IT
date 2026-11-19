@@ -6,4 +6,4 @@ All four perimeter halls have pickup slots. Ten are stocked at the whistle and t
 
 Bots keep waypoints longer, slow down before close turns, replan when progress stalls and prefer different nearby raid targets where several exist. Automated 20-participant runs still recorded steals and banks on each layout. The recorded bank totals were 8, 12 and 16. These checks exercise movement and objectives. A full human match is still needed to judge how the pacing feels.
 
-Online Heist uses protocol 32. Both players need the updated build for host-controlled player throws.
+Two desktop clients entered a four-flag round through the public relay with 18 bots. In a separate legacy browser relay test, a guest received the host's release event and travelled over four metres. That test positioned the players in a clear lane before the grab. Online Heist uses protocol 32. Both players need the updated build for host-controlled player throws.

@@ -1,6 +1,6 @@
 {
-  "source_commit": "7ef1e9f3aeed0691de585384414c4b04129d1e9b",
-  "protocol": 31,
-  "release_date": "2026-11-19",
-  "description": "Online Teddy Heist, expanded spawns and clearer arena approach lanes, prototype 0.23.41"
+  "source_commit": "3a7f31072e82cd4e99dcde7e2f809f422e1892e0",
+  "protocol": 32,
+  "release_date": "2026-11-20",
+  "description": "Player throws, stock and wayfinding in outer Heist halls, smoother bot routes, prototype 0.23.42"
 }
