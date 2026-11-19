@@ -185,6 +185,13 @@ impl Bank {
 // ------------------------------------------------------------------ the arena
 
 use crate::vec::V3;
+
+/// Keep objective passes catchable across a corridor without lobbing them over the maze.
+pub fn pass_velocity(velocity: V3) -> V3 {
+    let scale = (12.0 / velocity.horiz_len().max(0.001)).min(1.0);
+    V3::new(velocity.x * scale, velocity.y.clamp(-8.0, 3.0), velocity.z * scale)
+}
+
 use crate::yard::{Collider, Kind};
 
 /// How a piece of the arena is coloured.
@@ -259,9 +266,9 @@ fn reference_walls(teams: usize) -> Vec<Piece> {
 /// Cell centres along two interior wall runs in each reference drawing.
 pub fn vault_sites(teams: usize) -> [(f32, f32);2] {
     let cells = match teams {
-        2 => [(4.5, 3.0), (10.5, 9.0)],
-        3 => [(8.5, 4.0), (4.5, 9.0)],
-        _ => [(5.5, 3.0), (9.5, 9.0)],
+        2 => [(6.5, 3.0), (9.5, 9.0)],
+        3 => [(9.5, 3.0), (4.5, 8.0)],
+        _ => [(5.5, 4.0), (9.5, 9.0)],
     };
     cells.map(|(x,z)| ((x-8.0)*ARENA_A/8.0,(z-8.0)*ARENA_B/8.0))
 }

@@ -206,6 +206,17 @@ pub fn team_teddies(g: &Game) -> Vec<(ItemId, u8)> {
         .collect()
 }
 
+/// Objective carriers trade speed for a protected route underground.
+pub fn tunnel_pace(underground: bool, slots: &bbq_core::hands::Slots, world: &bbq_core::itemworld::ItemWorld) -> f32 {
+    if underground && slots.ids().iter()
+        .any(|id| world.items.get(id).is_some_and(|item| item.team.is_some()))
+    {
+        bbq_core::passage::TEDDY_SPEED
+    } else {
+        1.0
+    }
+}
+
 /// Bank stolen teddies, and drop them when knocked about. Every fixed step.
 pub fn step(g: &mut Game, p: &Player) {
     if !g.rules.in_play() {return;}

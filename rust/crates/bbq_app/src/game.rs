@@ -648,7 +648,9 @@ pub fn step_game(
         if d.seat.is_some() || d.dragged.is_some() {
             continue; // sitting in a smoko chair, or being dragged: placed by hand
         }
+        let tunnel_speed = crate::heist_app::tunnel_pace(d.mover.underground, &d.bot.slots, &g.world);
         let mods = Modifiers {
+            gait: tunnel_speed,
             wet: d.body.wet_t > 0.0,
             stunned: d.body.stun > 0.0,
             charging: d.bot.winding,
@@ -850,7 +852,9 @@ pub fn step_game(
                 } else { continue };
                 if accept_caught_item(g, by, item, at) {
                     g.board.catch(&g.rules, by, thrower);
-                    if by == PLAYER_ID { g.say("CAUGHT! +50"); }
+                    if by == PLAYER_ID {
+                        g.say(if g.rules.mode == GameMode::Heist { "CAUGHT!" } else { "CAUGHT! +50" });
+                    }
                     else {
                         let who=crate::bots_app::name_of(g,by);
                         g.say(format!("{who} caught it!"));

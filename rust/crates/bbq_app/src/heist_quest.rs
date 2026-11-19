@@ -16,7 +16,7 @@ use bbq_core::{
 
 const WARMUP: f32 = 30.0;
 const TIMEOUT: f32 = 30.0;
-const OPEN_TIME: f32 = 12.0;
+const OPEN_TIME: f32 = 8.0;
 const COOLDOWN: f32 = 45.0;
 const REACH: f32 = 2.8;
 const PATROL: [V3; 4] = [
@@ -218,7 +218,7 @@ pub fn tick(g: &mut Game, p: &Player, yard: &mut Yard, dt: f32) {
             q.until = q.age + OPEN_TIME;
             q.ready = q.age + COOLDOWN;
             yard.hatch_open = true;
-            say = Some("Hatch is up! Pick your colour down there.");
+            say = Some("Hatch open for 8 seconds! It’s a slow squeeze with a teddy.");
         }
         q.patrol += 1;
         q.replan = 0.0;

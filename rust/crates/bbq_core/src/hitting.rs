@@ -82,19 +82,20 @@ pub fn contact(item: &Item, t: &Target, ctx: &Context) -> Contact {
     if t.at_smoko {
         return Contact::PassThrough;
     }
-    if let Some(th) = item.thrower
-        && !ctx.friendly_fire
-        && ctx.teams.same_team(th, t.id)
-    {
+    let friendly = !ctx.friendly_fire
+        && item.thrower.is_some_and(|th| ctx.teams.same_team(th, t.id));
+    if friendly && item.team.is_none() {
         return Contact::PassThrough;
     }
-    // a catch is checked before the hit
+    // Objective teddies may be deliberately caught by a teammate. A missed
+    // catch still passes through a teammate without dealing a hit.
     if t.catching && !t.stunned {
         let to = V3::new(item.pos.x - t.pos.x, 0.0, item.pos.z - t.pos.z).normalised();
         if t.facing.dot(to) > CATCH_FACING {
             return Contact::Catch;
         }
     }
+    if friendly { return Contact::PassThrough; }
     let mut dir = V3::new(item.vel.x, 0.0, item.vel.z);
     if dir.len_sq() < 1e-4 {
         dir = V3::new(0.0, 0.0, 1.0);
@@ -331,6 +332,24 @@ mod tests {
             contact(&it, &seated, &ctx(&teams, false)),
             Contact::PassThrough
         );
+    }
+
+    #[test]
+    fn a_teammate_can_catch_a_stolen_teddy_but_cannot_be_hit_by_it() {
+        let mut teams = Teams::default();
+        teams.set(1, Team::Red);
+        teams.set(2, Team::Red);
+        let context = ctx(&teams, false);
+        let mut item = flying(ItemKind::Teddy, V3::new(0.5, 1.0, 0.0),
+            V3::new(-12.0, 0.0, 0.0), Some(1));
+        item.team = Some(1);
+        let mut receiver = target(2, 0.0);
+        receiver.facing = V3::new(1.0, 0.0, 0.0);
+        assert_eq!(contact(&item, &receiver, &context), Contact::PassThrough);
+        receiver.catching = true;
+        assert_eq!(contact(&item, &receiver, &context), Contact::Catch);
+        item.team = None;
+        assert_eq!(contact(&item, &receiver, &context), Contact::PassThrough);
     }
 
     #[test]

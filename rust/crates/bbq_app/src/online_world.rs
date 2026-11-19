@@ -946,6 +946,30 @@ mod tests {
     }
 
     #[test]
+    fn heist_objective_pass_uses_the_same_limits_on_the_host() {
+        let mut host = host_with_a_guest();
+        let guest = REMOTE_ID_BASE + 2;
+        let item = give_guest(&mut host, ItemKind::Teddy, None);
+        let at = {
+            let mut game = host.world_mut().resource_mut::<Game>();
+            game.rules.mode = GameMode::Heist;
+            game.world.items.get_mut(&item).unwrap().team = Some(1);
+            let started = game.now - 1.0;
+            game.charge.starts.insert(guest, (item, started));
+            let d = game.dummies.iter().find(|d| d.id == guest).unwrap();
+            (d.mover.x, d.mover.y + 1.4, d.mover.z)
+        };
+        act(&mut host, GuestAct::Throw {
+            item, from: at, vel: (18.0, 13.0, 18.0), charge: 1.0,
+        });
+        let game = host.world().resource::<Game>();
+        let item = &game.world.items[&item];
+        assert!(item.live && item.holder.is_none());
+        assert!((item.vel.horiz_len() - 12.0).abs() < 0.001);
+        assert_eq!(item.vel.y, 3.0);
+    }
+
+    #[test]
     fn heist_guest_can_chuck_the_host_on_release() {
         let mut host = host_with_a_guest();
         {
@@ -1582,6 +1606,11 @@ pub fn guest_hands(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
                         charge,
                         V3::new(p.mover.vx, 0.0, p.mover.vz),
                     );
+                    let vel = if g.world.items.get(&id).is_some_and(|item| item.team.is_some()) {
+                        bbq_core::heist::pass_velocity(vel)
+                    } else {
+                        vel
+                    };
                     let start = crate::game::hand_pos(p);
                     g.net_acts.push(GuestAct::Throw {
                         item: id,

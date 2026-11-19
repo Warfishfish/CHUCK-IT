@@ -3,6 +3,8 @@ use crate::{heist, vec::V3};
 
 pub const HATCH: V3 = V3::new(3.65, 0.0, 3.65);
 pub const DEPTH: f32 = 4.5;
+/// Burdened runners can use the tunnel, but the cramped route costs some pace.
+pub const TEDDY_SPEED: f32 = 0.78;
 pub const WIDTH: f32 = 3.0;
 pub const RAMP: f32 = 9.0;
 

@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.44</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.45</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -2137,7 +2137,7 @@ function balanceTeams(reshuffle,assignOnly){
 const HEIST_TEAM_KEYS=['r','b','g','y'];
 const HATCH_POINT=new V3(3.65,0,3.65);
 const DAZZA_LANES=[new V3(-3.65,0,3.65),new V3(10.95,0,-3.65),new V3(-10.95,0,-3.65),HATCH_POINT];
-const QUEST_TIME={warmup:30,expiry:30,open:12,rest:45};
+const QUEST_TIME={warmup:30,expiry:30,open:8,rest:45};
 let hatchMesh=null;
 function newQuest(){return {age:0,until:0,ready:QUEST_TIME.warmup,used:[],owner:null,team:null,escort:false,expiry:0,best:Infinity,tipsy:0,patrol:0,plan:0,next:null,chatter:0,line:0};}
 let quest=newQuest();
@@ -2170,7 +2170,7 @@ function updateQuest(dt){
   const distance=NPC.pos.distanceTo(target),near=owner && owner.pos.distanceTo(NPC.pos)<9;
   if(q.escort && near && distance+.5<q.best){q.best=distance;q.expiry=q.age+QUEST_TIME.expiry;}
   if(distance<.75){
-    if(q.escort && near){q.used.push(q.team);q.owner=null;q.escort=false;q.until=q.age+QUEST_TIME.open;q.ready=q.age+QUEST_TIME.rest;questLine('Hatch is up! Pick your colour.');fx('heisthatch');}
+    if(q.escort && near){q.used.push(q.team);q.owner=null;q.escort=false;q.until=q.age+QUEST_TIME.open;q.ready=q.age+QUEST_TIME.rest;questLine('Hatch open for 8 seconds! It’s a slow squeeze with a teddy.');fx('heisthatch');}
     q.patrol++;q.plan=0;
   }else if(q.escort?near:(!owner||!closeToCook(owner))){
     q.plan-=dt;
@@ -2330,7 +2330,7 @@ function heistSpawnFor(ch){
   const index=heistSpawnN[team]||0;heistSpawnN[team]=index+1;
   return slots[index%slots.length];
 }
-const vaultCells={2:[[4.5,3],[10.5,9]],3:[[8.5,4],[4.5,9]],4:[[5.5,3],[9.5,9]]};
+const vaultCells={2:[[6.5,3],[9.5,9]],3:[[9.5,3],[4.5,8]],4:[[5.5,4],[9.5,9]]};
 const heistPosterTextures=[];
 function buildHeistPosters(){
   for(const [flags,index,x,z,yaw] of heistPosterMounts){
@@ -2705,7 +2705,7 @@ function heistReturnTeddy(it){const base=heistBases[it.heistTeam];if(!base)retur
   it.holder=null;it.state='flying';it.live=false;it.thrower=null;it.flyT=0;
   it.pos.set(base.x+rand(-1.2,1.2),2.2,base.z+rand(-1.2,1.2));it.vel.set(rand(-1,1),2.5,rand(-1,1));
   fx('heistreturn',it.heistTeam);}
-function authHeistBank(id,it){const ch=chars.get(id);if(state!=='play'||!ch||ch.pos.y<-.1||!it||it.holder!==id||it.heistTeam==null)return;
+function authHeistBank(id,it){const ch=chars.get(id);if(state!=='play'||!ch||ch.pos.y<-.1||ch.stun>0||ch.downT>0||!it||it.holder!==id||it.heistTeam==null)return;
   const myT=teamOf.get(id);if(!myT||it.heistTeam===myT)return;
   const base=heistBases[myT];if(!base||Math.hypot(ch.pos.x-base.x,ch.pos.z-base.z)>=HEIST_BASE_R)return;
   removeItem(it);heistBanked[myT]=(heistBanked[myT]||0)+1;
@@ -2713,9 +2713,13 @@ function authHeistBank(id,it){const ch=chars.get(id);if(state!=='play'||!ch||ch.
   scoreDirty=true;fx('heistbank',id,myT,heistBanked[myT],pts);}
 function authDrop(id,it){const ch=chars.get(id);const p=ch?ch.pos:it.pos;it.state='flying';it.holder=null;it.thrower=null;it.live=false;it.flyT=0;
   it.pos.set(p.x+rand(-.5,.5),(ch?ch.pos.y:0)+.8,p.z+rand(-.5,.5));it.vel.set(rand(-1,1),2,rand(-1,1));}
+function heistPassVelocity(vel){
+  const scale=Math.min(1,12/Math.max(.001,Math.hypot(vel.x,vel.z)));
+  return new V3(vel.x*scale,clamp(vel.y,-8,3),vel.z*scale);
+}
 function authThrow(id,it,pos,vel,chg){
   if(!it||it.holder!==id||it.state!=='held')return;
-  it.state='flying';it.holder=null;it.thrower=id;it.live=true;it.flyT=0;it.ignore.clear();it.pos.copy(pos);it.vel.copy(vel);
+  it.state='flying';it.holder=null;it.thrower=id;it.live=true;it.flyT=0;it.ignore.clear();it.pos.copy(pos);it.vel.copy(it.heistTeam!=null?heistPassVelocity(vel):vel);
   it.spinAxis.set(rand(-1,1),rand(-.3,.3),rand(-1,1)).normalize();
   const c=chg!=null&&isFinite(chg)?clamp(chg,0,1):clamp((vel.length()/it.def.speed-.42)/.58,0,1);
   const f={id:nextFlight++,itemId:it.id,thrower:id,type:it.type,scored:false,active:true,endT:0,c,sx:pos.x,sz:pos.z};flights.set(f.id,f);it.flight=f;
@@ -2976,10 +2980,12 @@ function checkHits(it){for(const ch of chars.values()){
   const y=it.pos.y-ch.pos.y+(ch.sink||0);if(y<-it.def.r||y>1.85+it.def.r)continue;onLocalHit(ch,it);return;}}
 function onLocalHit(ch,it){
   if(ch.smokoSeat>=0){it.ignore.add(ch.id);if(ch.kind==='me')it.ignoreMe=true;return;} // smoko: untouchable
-  if(it.thrower&&!friendlyFire&&sameTeam(it.thrower,ch.id)){it.ignore.add(ch.id);if(ch.kind==='me')it.ignoreMe=true;return;} // teammates' throws pass straight through
+  const friendly=it.thrower&&!friendlyFire&&sameTeam(it.thrower,ch.id);
+  if(friendly&&it.heistTeam==null){it.ignore.add(ch.id);if(ch.kind==='me')it.ignoreMe=true;return;}
   if(ch.dodgeT>0){it.ignore.add(ch.id);if(ch.kind==='me'){it.ignoreMe=true;SFX.whiff(ch.pos);floater('Dodged!',ch.pos.clone().setY(ch.pos.y+2),'small');}else if(isAuth)fx('whiff',r2(ch.pos.x),r2(ch.pos.y+1),r2(ch.pos.z));return;}
   if(ch.catchT>0&&ch.stun<=0){const to=new V3(it.pos.x-ch.pos.x,0,it.pos.z-ch.pos.z).normalize();if(fwd(ch).dot(to)>.1){
     if(isAuth)authCatch(ch.id,it);else{it.ignoreMe=true;sendEv('cat',it.id,it.flightId||0);}return;}}
+  if(friendly){it.ignore.add(ch.id);if(ch.kind==='me')it.ignoreMe=true;return;}
   const kdir=new V3(it.vel.x,0,it.vel.z);if(kdir.lengthSq()<1e-4)kdir.set(0,0,1);kdir.normalize();
   if(it.power&&!(ch.stunGrace>0)&&!(ch.downT>0)&&!(ch.fallT>0)){applyKnock(ch,Object.assign({},it.def,{knockdown:true}),kdir,0,POWER_DOWN);it.power=false;
     if(ch.kind==='me'&&me)floater('KNOCKED OVER!',camera.position.clone().add(fwd(me).multiplyScalar(2.2)).setY(camera.position.y+.4),'big');}
@@ -3175,7 +3181,8 @@ function updateChar(ch,dt){
   else ch.boostCd=Math.max(0,ch.boostCd-dt);
   ch.sprinting=ch.boostT>0&&!ch.inPool&&ch.stun<=0&&!frozen&&!carryOf.has(ch.id);
   if(ch.kind!=='proxy'){smokoTick(ch,dt);updateDrink(ch,dt);fallCheck(ch,dt);}
-  const maxSp=6.2*(ch.wetT>0?.8:1)*(ch.inPool?.5:1)*(ch.charging?.72:1)*(ch.sprinting?BOOST_MULT:1)*(ch.drinkT>0?.55:1)*(ch.snagBuffT>0?1.35:1)*(ch.snagStumbleT>0?.62:1)*(carryOf.has(ch.id)?CARRY.slow:1)*(ch.kind!=='proxy'?drunkGait(ch,dt):1);
+  const tunnelSpeed=ch.underground&&gameMode==='heist'&&heldOf(ch.id).some(it=>it.heistTeam!=null)?.78:1;
+  const maxSp=6.2*tunnelSpeed*(ch.wetT>0?.8:1)*(ch.inPool?.5:1)*(ch.charging?.72:1)*(ch.sprinting?BOOST_MULT:1)*(ch.drinkT>0?.55:1)*(ch.snagBuffT>0?1.35:1)*(ch.snagStumbleT>0?.62:1)*(carryOf.has(ch.id)?CARRY.slow:1)*(ch.kind!=='proxy'?drunkGait(ch,dt):1);
   let tx=ch.wish.x*maxSp,tz=ch.wish.y*maxSp;if(ch.stun>0||frozen){tx=0;tz=0;}
   if(ch.dodgeT>0){ch.vel.x=ch.dodgeDir.x*14.5;ch.vel.z=ch.dodgeDir.z*14.5;}
   else{const grip=!ch.grounded?(ch.stun>0?2.2:6):ch.stun>0?3.2:ch.slideT>0?.3:ch.slip?1.1:ch.snagStumbleT>0?2.4:12;const k=1-Math.exp(-grip*dt);ch.vel.x+=(tx-ch.vel.x)*k;ch.vel.z+=(tz-ch.vel.z)*k;}
@@ -3238,7 +3245,7 @@ function overholdDrop(){const it=selItem(me);me.charging=false;me.charge=0;me.ov
   it.blockId=myId;it.blockT=elapsed+2.5;if(isAuth)authDrop(myId,it);else{sendEv('dp',it.id);}showHint('<b>Held it too long!</b> You dropped it.',2);}
 function updateProxy(ch,dt){
   const age=Math.min(.25,(performance.now()-ch.netT)/1000);
-  tmpV.copy(ch.netP).addScaledVector(ch.netV,age);if(tmpV.y<0)tmpV.y=0;
+  tmpV.copy(ch.netP).addScaledVector(ch.netV,age);tmpV.y=Math.max(gameMode==='heist'&&ch.netP.y<0?-4.5:0,tmpV.y);
   ch.pos.lerp(tmpV,1-Math.exp(-16*dt));ch.vel.copy(ch.netV);
   ch.grounded=Math.abs(ch.netV.y)<.6;
   if(gameMode==='heist'&&ch.chuckBy&&elapsed-ch.chuckT>.35&&ch.grounded&&ch.pos.y<=floorAt(ch)+.25){
@@ -3660,9 +3667,10 @@ function updateRemotePlayer(id,pr){
   else if(ch.color!==color){removeChar(ch);ch=createChar(id,name,color,'proxy',[num(pr.p[0],0),num(pr.p[2],0)]);if(isAuth)ensureStats(ch);}
   else{setCharName(ch,name);if(isAuth&&stats[id]&&stats[id].name!==name){stats[id].name=name;scoreDirty=true;}}
   if(color===myColor&&id<myId){const nc=PALETTE.find(c=>c!==color&&![...chars.values()].some(o=>o.color===c));if(nc!==undefined){myColor=nc;if(me)me.color=nc;if(isAuth&&stats[myId]){stats[myId].color=nc;scoreDirty=true;}}}
-  const netX=clamp(num(pr.p[0],0),-W,W),netY=clamp(num(pr.p[1],0),0,20),rawNetZ=num(pr.p[2],0);
-  const netRoof=netY>HOUSE.h+.15&&Math.abs(netX)<=ROOF.width/2+.45&&rawNetZ>=ROOF.backEdgeZ-.45&&rawNetZ<=ROOF.edgeZ+.45;
-  ch.netP.set(netX,netY,clamp(rawNetZ,netRoof?Math.min(-D,ROOF.backEdgeZ): -D,D));
+  const heist=gameMode==='heist',halfX=heist?HEIST_A:W,halfZ=heist?HEIST_B:D;
+  const netX=clamp(num(pr.p[0],0),-halfX,halfX),netY=clamp(num(pr.p[1],0),heist?-4.5:0,20),rawNetZ=num(pr.p[2],0);
+  const netRoof=!heist&&netY>HOUSE.h+.15&&Math.abs(netX)<=ROOF.width/2+.45&&rawNetZ>=ROOF.backEdgeZ-.45&&rawNetZ<=ROOF.edgeZ+.45;
+  ch.netP.set(netX,netY,clamp(rawNetZ,netRoof?Math.min(-D,ROOF.backEdgeZ):-halfZ,halfZ));
   if(Array.isArray(pr.v))ch.netV.set(clamp(num(pr.v[0],0),-20,20),clamp(num(pr.v[1],0),-30,30),clamp(num(pr.v[2],0),-20,20));
   ch.netT=performance.now();ch.netFace=num(pr.f,0);ch.stun=pr.s?Math.max(ch.stun,.3):0;ch.charging=num(pr.ch,0)>0;ch.charge=clamp(num(pr.ch,0),0,1);ch.selId=pr.sel||null;ch.drunk=clamp(num(pr.dk,0),0,100);ch.wetT=clamp(num(pr.wt,0),0,4);ch.smokoSeat=typeof pr.sm==='number'?clamp(pr.sm|0,0,15):-1;ch.downT=clamp(num(pr.dn,0),0,6);{const nf=clamp(num(pr.fl,0),0,60);if(nf>0&&!(ch.fallT>0)){ch.fallAge=0;floater('STACKED IT!',ch.pos.clone().setY(ch.pos.y+2.4),'big');SFX.thud(ch.pos);ch.fallT=nf;fallAlert(ch);}ch.fallT=nf;}
 }
@@ -3671,7 +3679,7 @@ function handleEvent(fromId,e){
   const k=e[0];
   if(net.isHost){
     const ch=chars.get(fromId);if(!ch)return;const it=items.get(e[1]);
-    if(k==='pk'){if(it&&it.state==='ground'&&it.restT>.15&&!(it.blockId===fromId&&elapsed<it.blockT)&&heldOf(fromId).length<2&&Math.hypot(it.pos.x-ch.pos.x,it.pos.z-ch.pos.z)<3)authPickup(ch,it);}
+    if(k==='pk'){if(it&&it.state==='ground'&&it.restT>.15&&!(it.blockId===fromId&&elapsed<it.blockT)&&heldOf(fromId).length<2&&Math.hypot(it.pos.x-ch.pos.x,it.pos.z-ch.pos.z)<3&&(gameMode!=='heist'||Math.abs(it.pos.y-(ch.pos.y+.4))<1.4))authPickup(ch,it);}
     else if(k==='bk'){authHeistBank(fromId,it);}
     else if(k==='th'){if(!it||it.holder!==fromId)return;
       let p=new V3(num(e[2],ch.pos.x),num(e[3],ch.pos.y+1.4),num(e[4],ch.pos.z));if(p.distanceTo(ch.pos)>5)p=ch.pos.clone().setY(ch.pos.y+1.4);
@@ -3859,7 +3867,8 @@ function playerThrowVel(it){const dir=new V3();camera.getWorldDirection(dir);dir
   return dir.multiplyScalar(it.def.speed*(.42+.58*me.charge)).add(new V3(me.vel.x*.3,0,me.vel.z*.3));}
 function releaseCharge(){if(!me||!me.charging)return;const it=selItem(me);if(!canAct()||!it){me.charging=false;return;}
   if(it.def.throwable&&elapsed-(me.chargeAt||0)<.2){me.charging=false;me.charge=0;trySlap();return;}
-  const chg=me.charge,vel=playerThrowVel(it),start=vmStart();me.charging=false;me.charge=0;me.overT=0;SFX.throw(me.pos);
+  const raw=playerThrowVel(it),vel=it.heistTeam!=null?heistPassVelocity(raw):raw;
+  const chg=me.charge,start=vmStart();me.charging=false;me.charge=0;me.overT=0;SFX.throw(me.pos);
   if(isAuth)authThrow(me.id,it,start,vel,chg);
   else{it.pendingThrow=true;it.pendT=elapsed;spawnGhost(it,start,vel);sendEv('th',it.id,r2(start.x),r2(start.y),r2(start.z),r2(vel.x),r2(vel.y),r2(vel.z),r2(chg));}
   if(hintStage===1){hintStage=2;}}

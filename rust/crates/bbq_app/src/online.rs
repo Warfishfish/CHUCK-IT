@@ -1145,7 +1145,10 @@ fn online_puppets(mut online: ResMut<Online>, mut game: ResMut<Game>, yard: Res<
     let race=game.rules.mode==bbq_core::GameMode::Race;
     let playing=game.rules.in_play();
     let controlled: Vec<_> = game.dummies.iter().filter(|d| crate::smoko_mode::controlled(&game,d.id)).map(|d|d.id).collect();
-    let speeds: std::collections::BTreeMap<_,_> = game.dummies.iter().map(|d|(d.id,crate::race::speed(&game,d.id,(d.mover.x,d.mover.z)))).collect();
+    let speeds: std::collections::BTreeMap<_, _> = game.dummies.iter().map(|d| {
+        let pace = crate::heist_app::tunnel_pace(d.mover.underground, &d.bot.slots, &game.world);
+        (d.id, pace * crate::race::speed(&game, d.id, (d.mover.x, d.mover.z)))
+    }).collect();
     let carriers: Vec<_> = game.smoko.carries.keys().copied().collect();
     for d in game.dummies.iter_mut() {
         // Acknowledge only in the fixed simulation, after the host has advanced this body.

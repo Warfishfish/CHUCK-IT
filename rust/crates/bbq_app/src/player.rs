@@ -295,6 +295,7 @@ pub(crate) fn step_player(
     let gait =
         g.me.drunk
             .gait(movement::step_dt(), g.now, &env, &mut g.rng);
+    let tunnel_speed = crate::heist_app::tunnel_pace(p.mover.underground, &g.slots, &g.world);
     let mods = Modifiers {
         charging: g.wind.charging,
         wet: g.me.body.wet_t > 0.0,
@@ -303,7 +304,7 @@ pub(crate) fn step_player(
         at_smoko: g.life.seated.is_some(),
         carrying: g.life.carry.is_some() || g.smoko.carries.contains_key(&PLAYER_ID) || g.smoko.guest_carrying,
         frozen: g.rules.phase == bbq_core::scoring::Phase::Countdown,
-        gait: gait * crate::race::speed(g,PLAYER_ID,(p.mover.x,p.mover.z)),
+        gait: gait * tunnel_speed * crate::race::speed(g,PLAYER_ID,(p.mover.x,p.mover.z)),
         dive: wanted.dive,
         ..Default::default()
     };

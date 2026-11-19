@@ -2,6 +2,10 @@
 
 Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it with a friend. The focus now is graphics, gameplay, UI and character customization. One item at a time; screenshots and a yes before anything is committed.
 
+## Teddy Heist route balance · 20 November 2026
+
+Prototype 0.23.45 makes objective passes catchable and shorter, moves five vaults onto modest detours and slows carriers in Dazza’s tunnel. The next playtest compares the standard route, a timed pass, the new vaults and a tunnel exit against real defenders. [Balance review](checkpoints/2026-11-20-heist-balance/REVIEW.md)
+
 ## Teddy Heist online and spawn pass · 19 November 2026
 
 Rust Heist is available in With mates for 2–4 flags. Enter the lobby before the host starts. Prototype 0.23.41 spreads team spawns into the approach lanes and adds brighter turf and doorway markings. The next review is a full round with friends, including whether throwing a teddy to a teammate or taking a vault or tunnel saves too much time.

@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.45 keeps Heist teddy passes short and lets teammates catch them. Vaults now skip shorter detours, and a stolen teddy slows its carrier underground. Dazza opens the hatch for eight seconds. [Route measurements and test notes](checkpoints/2026-11-20-heist-balance/REVIEW.md).
+
 - Prototype 0.23.44 teaches Teddy Heist bots to clear corners, ease into turns and negotiate crowded halls. Bot bodies and strides follow actual travel on desktop and browser. Seven original wall posters mark different junctions on the three maps. [Movement clips and wall-art review](checkpoints/2026-11-20-heist-movement/REVIEW.md).
 
 - Prototype 0.23.43 adds four recorded Teddy Heist cues to desktop and browser: player chuck, landing, Dazza’s hatch opening and teddy banking. All clips are CC0 and credited in the shipped asset credits.
