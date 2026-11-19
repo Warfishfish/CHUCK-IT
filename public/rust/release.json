@@ -1,6 +1,6 @@
 {
-  "source_commit": "e026bb0c68332fcd29bb487e2bf16326077bd19e",
-  "protocol": 30,
+  "source_commit": "7ef1e9f3aeed0691de585384414c4b04129d1e9b",
+  "protocol": 31,
   "release_date": "2026-11-19",
-  "description": "Bot pursuit and Heist guard improvements, named podium winners, prototype 0.23.40"
+  "description": "Online Teddy Heist, expanded spawns and clearer arena approach lanes, prototype 0.23.41"
 }
