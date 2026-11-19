@@ -32,11 +32,15 @@ pub enum FxKind {
     Fizz,
     /// Broad radial water burst plus a short translucent mist.
     BalloonBurst,
+    HeistThrow,
+    HeistLanding,
+    HeistHatch,
+    HeistBank,
 }
 
 impl FxKind {
     // (new kinds go on the end: the position is the number sent online)
-    pub const ALL: [FxKind; 9] = [
+    pub const ALL: [FxKind; 13] = [
         FxKind::Hit,
         FxKind::Smash,
         FxKind::Whack,
@@ -46,6 +50,10 @@ impl FxKind {
         FxKind::ShatterSpirit,
         FxKind::Fizz,
         FxKind::BalloonBurst,
+        FxKind::HeistThrow,
+        FxKind::HeistLanding,
+        FxKind::HeistHatch,
+        FxKind::HeistBank,
     ];
 
     /// What a bottle (or the VP can) does when it breaks.
@@ -82,18 +90,67 @@ pub struct FxPlugin;
 
 impl Plugin for FxPlugin {
     fn build(&self, app: &mut App) {
+        app.add_systems(Startup, load_heist_audio)
+            .add_systems(PostUpdate, play_heist_audio);
         if !crate::lighting::effects_enabled(&std::env::args().collect::<Vec<_>>()) {
             // Decals read the local event queue during Update. Hosts send a separate FX queue.
-            app.add_systems(PostUpdate, |mut game: ResMut<Game>| game.fx.clear());
+            app.add_systems(PostUpdate, (|mut game: ResMut<Game>| game.fx.clear()).after(play_heist_audio));
             return;
         }
         app.add_plugins(HanabiPlugin)
             .add_systems(Startup, make_effects)
             .add_systems(Update, (expire_effects, animate_pool_ripples, bbq_smoke, pool_steam, sprint_dust, bot_fall_spray))
             .add_systems(PostUpdate, spawn_events
+                .after(play_heist_audio)
                 .before(bevy::transform::TransformSystems::Propagate)
                 .before(bevy_hanabi::EffectSystems::CompileEffects)
                 .before(bevy_hanabi::EffectSystems::TickSpawners));
+    }
+}
+
+#[derive(Resource)]
+struct HeistAudio {
+    throw: Handle<AudioSource>,
+    landing: Handle<AudioSource>,
+    hatch: Handle<AudioSource>,
+    bank: Handle<AudioSource>,
+}
+
+fn load_heist_audio(mut commands: Commands, assets: Res<AssetServer>) {
+    commands.insert_resource(HeistAudio {
+        throw: assets.load("audio/heist/throw.wav"),
+        landing: assets.load("audio/heist/landing.wav"),
+        hatch: assets.load("audio/heist/hatch.wav"),
+        bank: assets.load("audio/heist/bank.wav"),
+    });
+}
+
+fn play_heist_audio(
+    mut commands: Commands,
+    game: Res<Game>,
+    player: Res<crate::player::Player>,
+    settings: Res<crate::menu::Settings>,
+    sounds: Res<HeistAudio>,
+) {
+    if !settings.sound || game.rules.mode != bbq_core::GameMode::Heist {
+        return;
+    }
+    let listener = V3::new(player.mover.x, player.mover.y, player.mover.z);
+    for cue in &game.fx {
+        let (sound, range, minimum, gain) = match cue.kind {
+            FxKind::HeistThrow => (&sounds.throw, 27.0, 0.0, 0.52),
+            FxKind::HeistLanding => (&sounds.landing, 30.0, 0.0, 0.58),
+            FxKind::HeistHatch => (&sounds.hatch, 34.0, 0.0, 0.57),
+            FxKind::HeistBank => (&sounds.bank, 36.0, 0.25, 0.44),
+            _ => continue,
+        };
+        let near = (1.0 - (cue.at - listener).len() / range).max(minimum);
+        if near > 0.0 {
+            commands.spawn((
+                AudioPlayer::new(sound.clone()),
+                PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(gain * near)),
+            ));
+        }
     }
 }
 
@@ -529,7 +586,9 @@ fn spawn_events(
         }
     }
     let events: Vec<FxEvent> = std::mem::take(&mut game.fx);
-    for e in events.into_iter().take(12) {
+    for e in events.into_iter().filter(|e| !matches!(e.kind,
+        FxKind::HeistThrow | FxKind::HeistLanding | FxKind::HeistHatch | FxKind::HeistBank
+    )).take(12) {
         if e.kind == FxKind::Splash {
             // Three offset rings leave a readable pool ripple after the entry splash droplets.
             for delay in [0.0f32, 0.13, 0.27] {
@@ -560,6 +619,7 @@ fn spawn_events(
             FxKind::Shatter => (vec![&fx.shards, &fx.foam, &fx.puff], 1.4),
             FxKind::ShatterSpirit => (vec![&fx.clear_shards, &fx.rum, &fx.puff], 1.4),
             FxKind::Fizz => (vec![&fx.fizz, &fx.puff], 1.4),
+            _ => continue,
         };
         for h in list {
             commands.spawn((

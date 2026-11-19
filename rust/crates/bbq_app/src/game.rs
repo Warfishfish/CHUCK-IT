@@ -392,7 +392,11 @@ pub fn step_game(
     crate::charge::tick(g,p);
     if g.rules.mode == GameMode::Race { crate::race::step(g,p,&mut wanted,&yard); return; }
     crate::heist_app::step(g, p);
+    let hatch_was_open = yard.0.hatch_open;
     crate::heist_quest::tick(g,p,&mut yard.0,dt);
+    if !hatch_was_open && yard.0.hatch_open {
+        g.fx(crate::fx::FxKind::HeistHatch, bbq_core::passage::HATCH);
+    }
 
     // ---- the player's body: drinking, falling over, helping mates up ----
     g.options.smoko_on = yard.0.features.smoko;
@@ -2840,7 +2844,11 @@ mod tests {
             ticks(&mut app, 28);
             app.world_mut().resource_mut::<Wanted>().grab_released = true;
             ticks(&mut app, 52);
-            let victim = &app.world().resource::<Game>().dummies[0];
+            let game = app.world().resource::<Game>();
+            for kind in [crate::fx::FxKind::HeistThrow, crate::fx::FxKind::HeistLanding] {
+                assert_eq!(game.fx.iter().filter(|cue| cue.kind == kind).count(), 1, "{flags} flags: {kind:?}");
+            }
+            let victim = &game.dummies[0];
             let travelled = victim.mover.x - x;
             eprintln!("{flags} flags: player chuck travelled {travelled:.2} m");
             assert!((3.0..8.0).contains(&travelled), "throw landed {travelled:.2} m away");
@@ -2951,6 +2959,7 @@ mod tests {
         let g = app.world().resource::<Game>();
         assert_eq!(g.heist.as_ref().unwrap().bank.get(me), 1);
         assert_eq!(g.board.score(PLAYER_ID), 150, "only banking scores");
+        assert_eq!(g.fx.iter().filter(|cue| cue.kind == crate::fx::FxKind::HeistBank).count(), 1);
         assert_eq!(g.board.get(PLAYER_ID).unwrap().banked, 1);
         assert!(!g.world.items.contains_key(&t), "the banked teddy is gone");
         assert!(g.slots.is_empty());

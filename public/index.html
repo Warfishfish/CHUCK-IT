@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.42</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.43</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -1587,8 +1587,36 @@ const SPAWNS=[[-9,4.5],[6,9],[12,-3],[-15,-6],[19.5,19.5],[-19.5,20.25],[0,-10.5
 
 /* ================= AUDIO ================= */
 let AC=null,master=null,noiseBuf=null,soundOn=true;
+const heistAudio={
+  throw:{gain:.52,range:27},landing:{gain:.58,range:30},
+  hatch:{gain:.57,range:34},bank:{gain:.44,range:36,min:.25},
+};
+function loadHeistAudio(){
+  for(const [name,cue] of Object.entries(heistAudio)){
+    fetch(`/rust/assets/audio/heist/${name}.wav`)
+      .then(response=>{if(!response.ok)throw Error(response.status);return response.arrayBuffer();})
+      .then(bytes=>AC.decodeAudioData(bytes))
+      .then(buffer=>{cue.buffer=buffer;})
+      .catch(error=>console.warn('Heist sound unavailable:',name,error));
+  }
+}
+function playHeistSound(name,at){
+  if(!AC||!soundOn)return;
+  const cue=heistAudio[name];
+  if(!cue.buffer){
+    if(name==='throw') SFX.throw(at);
+    if(name==='landing'||name==='hatch') SFX.thud(at);
+    if(name==='bank') SFX.pickup();
+    return;
+  }
+  const level=at?Math.max(cue.min||0,1-camera.position.distanceTo(at)/cue.range):1;
+  if(level<=0)return;
+  const source=AC.createBufferSource(),gain=AC.createGain();
+  source.buffer=cue.buffer;gain.gain.value=cue.gain*level;
+  source.connect(gain);gain.connect(master);source.start();
+}
 function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=.6;master.connect(AC.destination);
-  noiseBuf=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;}catch(e){AC=null;}}
+  noiseBuf=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;loadHeistAudio();}catch(e){AC=null;}}
   if(AC&&AC.state==='suspended')AC.resume();return AC;}
 function vol(at){if(!at)return 1;return clamp(1.25-camera.position.distanceTo(at)/28,.1,1)*(mode==='menu'?.45:1);}
 function tone(o,at){if(!AC||!soundOn)return;const t0=AC.currentTime+(o.delay||0);const osc=AC.createOscillator(),g=AC.createGain();osc.type=o.type||'sine';
@@ -2142,7 +2170,7 @@ function updateQuest(dt){
   const distance=NPC.pos.distanceTo(target),near=owner && owner.pos.distanceTo(NPC.pos)<9;
   if(q.escort && near && distance+.5<q.best){q.best=distance;q.expiry=q.age+QUEST_TIME.expiry;}
   if(distance<.75){
-    if(q.escort && near){q.used.push(q.team);q.owner=null;q.escort=false;q.until=q.age+QUEST_TIME.open;q.ready=q.age+QUEST_TIME.rest;questLine('Hatch is up! Pick your colour.');}
+    if(q.escort && near){q.used.push(q.team);q.owner=null;q.escort=false;q.until=q.age+QUEST_TIME.open;q.ready=q.age+QUEST_TIME.rest;questLine('Hatch is up! Pick your colour.');fx('heisthatch');}
     q.patrol++;q.plan=0;
   }else if(q.escort?near:(!owner||!closeToCook(owner))){
     q.plan-=dt;
@@ -2794,7 +2822,8 @@ function playFx(a){
       if(mode===4){const vx=num(a[4],0),vy=num(a[5],8),vz=num(a[6],0);v.lastHitBy=gid;v.lastHitT=elapsed;v.chuckBy=gid;v.chuckT=elapsed;
         if(v.kind!=='proxy'){const g=chars.get(gid),l=Math.hypot(vx,vz)||1;if(g)v.pos.set(g.pos.x+vx/l*.8,g.pos.y+1,g.pos.z+vz/l*.8);else v.pos.y+=1;v.vel.set(vx,vy,vz);v.grounded=false;v.stun=Math.max(v.stun,1.2);}v.chuckHit=false;
         const d=new V3(vx,0,vz);if(d.lengthSq()>1e-4)applyTumble(v,d.normalize(),9);
-        SFX.throw(v.pos);burst(v.pos.clone().setY(v.pos.y+1.2),[0xffffff,0xffd23f],10,4,.07);}
+        if(gameMode==='heist')playHeistSound('throw',chars.get(gid)?.pos||v.pos);else SFX.throw(v.pos);
+        burst(v.pos.clone().setY(v.pos.y+1.2),[0xffffff,0xffd23f],10,4,.07);}
       else if(v.kind!=='proxy'){v.vel.multiplyScalar(.3);v.stun=Math.max(v.stun,mode===0?.5:.3);}
       if(mode!==4&&mode!==0)floater(mode===1?'WRIGGLED FREE!':'DROPPED!',v.pos.clone().setY(v.pos.y+2.3),'small');
       if(v.kind==='me'&&me&&mode!==4)SFX.thud(v.pos);}
@@ -2897,9 +2926,10 @@ function playFx(a){
     feed(`${nm(id)} scoffed a dodgy snag\u2026`);}
   }else if(k==='bumout'){const p=new V3(num(a[1],0),.3,num(a[2],0));SFX.boing(p);SFX.pickup(p);burst(p,[0xff5fa8,0xffd23f,0xffffff],28,6,.09);
     floater('\ud83c\udf51 Dazza dropped something shiny\u2026',p.clone().setY(1.6),'big');feed('A glowing gnome rolled out from behind the BBQ\u2026');
+  }else if(k==='heisthatch'){if(gameMode==='heist')playHeistSound('hatch',HATCH_POINT);
   }else if(k==='heistbank'){const id=a[1],key=a[2],count=a[3]|0,pts=a[4]|0;heistBanked[key]=count;scoreDirty=true;
     const ch=chars.get(id);const p=ch?ch.pos.clone().setY(ch.pos.y+2.6):new V3();const tcol=(TEAMS[key]||TEAMS.r).color;
-    SFX.pickup();burst(p,[tcol,0xffffff,0xffd23f],22,5,.08);
+    playHeistSound('bank',ch?.pos);burst(p,[tcol,0xffffff,0xffd23f],22,5,.08);
     floater('🧸 BANKED!'+(pts?'  +'+pts:''),p,'big');
     feed(`${nm(id)} banked a ${(TEAMS[key]||{name:''}).name} teddy! (${count})`);
   }else if(k==='heistreturn'){const key=a[1];feed(`A stray ${(TEAMS[key]||{name:''}).name} teddy scurried back to base`);
@@ -3174,7 +3204,12 @@ function updateChar(ch,dt){
     const n=ch.trampChain?Math.min(TRAMP_MAX,(ch.trampN||0)+1):0;ch.trampN=n;ch.trampChain=true;
     ch.pos.y=TRAMP.h;ch.vel.y=11.5*(1+.2*n);ch.grounded=false;SFX.boing(ch.pos);envCheck(ch,'tramp');
     if(ch.kind==='me'){shake=Math.max(shake,.03+.015*n);if(n===TRAMP_MAX&&!ch.maxShown){ch.maxShown=true;floater('MAX HEIGHT!',camera.position.clone().add(fwd(me).multiplyScalar(2.2)).setY(camera.position.y+.3),'big');}}}
-  else if(ch.pos.y<=floor){ch.trampChain=false;ch.trampN=0;ch.maxShown=false;if(ch.kind==='me'){if(ch.vel.y<-10)shake=Math.max(shake,.05);if(!ch.grounded&&fallV<-4)SFX.land(ch.pos);}ch.pos.y=floor;ch.vel.y=0;ch.grounded=true;}
+  else if(ch.pos.y<=floor){ch.trampChain=false;ch.trampN=0;ch.maxShown=false;if(ch.kind==='me'&&ch.vel.y<-10)shake=Math.max(shake,.05);
+    if(!ch.grounded&&fallV<-4){
+      if(gameMode==='heist'&&ch.chuckBy&&elapsed-ch.chuckT<3)playHeistSound('landing',ch.pos);
+      else if(ch.kind==='me') SFX.land(ch.pos);
+    }
+    ch.pos.y=floor;ch.vel.y=0;ch.grounded=true;}
   else ch.grounded=false;
   // pickups
   if(ch.stun<=0&&state!=='countdown'){let n=heldOf(ch.id).length;if(n<2)for(const it of items.values()){if(it.state!=='ground'||it.restT<.2)continue;if(ch.kind==='bot'&&it.def.melee)continue;if(it.blockId===ch.id&&elapsed<it.blockT)continue;
@@ -3194,7 +3229,12 @@ function updateProxy(ch,dt){
   const age=Math.min(.25,(performance.now()-ch.netT)/1000);
   tmpV.copy(ch.netP).addScaledVector(ch.netV,age);if(tmpV.y<0)tmpV.y=0;
   ch.pos.lerp(tmpV,1-Math.exp(-16*dt));ch.vel.copy(ch.netV);
-  ch.grounded=Math.abs(ch.netV.y)<.6;ch.inPool=inActivePool(ch.pos)&&ch.pos.y<.1;
+  ch.grounded=Math.abs(ch.netV.y)<.6;
+  if(gameMode==='heist'&&ch.chuckBy&&elapsed-ch.chuckT>.35&&ch.grounded&&ch.pos.y<=floorAt(ch)+.25){
+    if(elapsed-ch.chuckT<3)playHeistSound('landing',ch.pos);
+    ch.chuckBy=null;
+  }
+  ch.inPool=inActivePool(ch.pos)&&ch.pos.y<.1;
   ch.face=angLerp(ch.face,ch.netFace,1-Math.exp(-14*dt));
   ch.stun=Math.max(0,ch.stun-dt);ch.downT=Math.max(0,ch.downT-dt);ch.fallT=Math.max(0,ch.fallT-dt);
   ch.slip=ch.pos.y<.1&&[...puddles.values()].some(p=>Math.hypot(ch.pos.x-p.x,ch.pos.z-p.z)<p.r*p.grow);slideCheck(ch,dt);

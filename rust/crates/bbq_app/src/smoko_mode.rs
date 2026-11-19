@@ -41,7 +41,7 @@ pub struct Carry {
 #[derive(Default)]
 pub struct State {
     pub carries: BTreeMap<PlayerId, Carry>,
-    flights: BTreeMap<PlayerId, (PlayerId, f32)>,
+    flights: BTreeMap<PlayerId, (PlayerId, f32, bool)>,
     immune: BTreeMap<PlayerId, f32>,
     presses: BTreeMap<PlayerId, f32>,
     // Short host pose override for guest victims, refreshed at 15 Hz.
@@ -87,7 +87,7 @@ pub fn player_locked(g: &Game) -> bool {
     enabled(g)
         && (carried(g, PLAYER_ID) || g.smoko.flights.contains_key(&PLAYER_ID) || (g.mirror && g.now < g.smoko.guest_until))
 }
-pub fn flight_owner(g: &Game, id: PlayerId) -> Option<PlayerId> { g.smoko.flights.get(&id).map(|(owner, _)| *owner) }
+pub fn flight_owner(g: &Game, id: PlayerId) -> Option<PlayerId> { g.smoko.flights.get(&id).map(|(owner, _, _)| *owner) }
 fn eligible(g: &Game, p: &Player, carrier: PlayerId, victim: PlayerId) -> bool {
     carrier != victim
         && (if g.rules.mode==GameMode::Race {
@@ -217,7 +217,8 @@ pub(crate) fn release(g: &mut Game, p: &mut Player, id: PlayerId, throw: bool, c
             body.stun = duration;
             g.smoko.immune.insert(c.victim, g.now + bbq_core::carry::IMMUNE);
             if throw {
-                g.smoko.flights.insert(c.victim, (id, g.now + duration));
+                g.smoko.flights.insert(c.victim, (id, g.now + duration, false));
+                g.fx(crate::fx::FxKind::HeistThrow, at);
                 if let Some(dummy) = g.dummies.iter_mut().find(|d| d.id == c.victim) {
                     dummy.anim.start_slap(SlapKind::SentFlying, duration);
                 }
@@ -228,13 +229,13 @@ pub(crate) fn release(g: &mut Game, p: &mut Player, id: PlayerId, throw: bool, c
         }
         if g.rules.mode==GameMode::Race {
             g.smoko.immune.insert(c.victim,g.now+RACE_RELEASE_PROTECTION);
-            g.smoko.flights.insert(c.victim,(id,g.now+RACE_FLIGHT_TIME));
+            g.smoko.flights.insert(c.victim,(id,g.now+RACE_FLIGHT_TIME,false));
             let b=if c.victim==PLAYER_ID {&mut g.me.body}else{&mut g.dummies.iter_mut().find(|d|d.id==c.victim).unwrap().body};
             b.down_t=0.55;b.stun=0.55;
         } else if credit {
             g.smoko.flights.insert(
                 c.victim,
-                (id, g.now + if throw { THROW_WINDOW } else { 0.8 }),
+                (id, g.now + if throw { THROW_WINDOW } else { 0.8 }, false),
             );
             if c.victim == PLAYER_ID {
                 g.me.body.down_t = THROW_WINDOW;
@@ -375,7 +376,7 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted) {
         }
     }
     let flights: Vec<_> = g.smoko.flights.iter().map(|(v, o)| (*v, *o)).collect();
-    for (victim, (owner, until)) in flights {
+    for (victim, (owner, until, landed)) in flights {
         let Some(at) = pos(g, p, victim) else {
             g.smoko.flights.remove(&victim);
             continue;
@@ -384,6 +385,17 @@ pub fn step(g: &mut Game, p: &mut Player, w: &mut Wanted) {
             g.smoko.flights.remove(&victim);
             sync_person(g, p, victim, false);
             continue;
+        }
+        if g.rules.mode == GameMode::Heist && !landed {
+            let grounded = if victim == PLAYER_ID {
+                p.mover.grounded
+            } else {
+                g.dummies.iter().find(|d| d.id == victim).is_some_and(|d| d.mover.grounded)
+            };
+            if grounded {
+                g.smoko.flights.insert(victim, (owner, until, true));
+                g.fx(crate::fx::FxKind::HeistLanding, at);
+            }
         }
         if delivery && in_pad(at) {
             deliver(g, p, owner, victim);
@@ -632,7 +644,7 @@ mod tests {
         let (mut a, mut p) = fixture();
         let mut g = a.world_mut().resource_mut::<Game>();
         let until = g.now + 4.0;
-        g.smoko.flights.insert(100, (PLAYER_ID, until));
+        g.smoko.flights.insert(100, (PLAYER_ID, until, false));
         g.dummies[0].body = Body::default();
         g.dummies[0].mover = Mover::new(0.0, 10.0);
         step(&mut g, &mut p, &mut Wanted::default());

@@ -259,7 +259,7 @@ pub fn step(g: &mut Game, p: &Player) {
                 continue;
             };
             if pos.y>=-0.1 && heist::can_bank(mine, theirs, pos.horiz_dist(home), stunned, down) {
-                bank(g, id, item, mine);
+                bank(g, p, id, item, mine);
             }
         }
     }
@@ -283,7 +283,7 @@ fn drop_held(g: &mut Game, who: PlayerId, item: ItemId, pos: V3) {
     }
 }
 
-fn bank(g: &mut Game, who: PlayerId, item: ItemId, mine: Team) {
+fn bank(g: &mut Game, p: &Player, who: PlayerId, item: ItemId, mine: Team) {
     if who == PLAYER_ID {
         g.slots.remove(item);
     } else if let Some(d) = g.dummies.iter_mut().find(|d| d.id == who) {
@@ -295,6 +295,9 @@ fn bank(g: &mut Game, who: PlayerId, item: ItemId, mine: Team) {
         .as_mut()
         .map(|h| h.bank.add(mine))
         .unwrap_or_default();
+    if let Some(at) = crate::smoko_mode::pos(g, p, who) {
+        g.fx(crate::fx::FxKind::HeistBank, at);
+    }
     let pts = g.board.bank(&g.rules, who);
     let name = crate::round::name_of(g, who);
     g.say(format!(

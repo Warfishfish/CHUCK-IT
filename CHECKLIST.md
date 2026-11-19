@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.43 adds four recorded Teddy Heist cues to desktop and browser: player chuck, landing, Dazza’s hatch opening and teddy banking. All clips are CC0 and credited in the shipped asset credits.
+
 - Prototype 0.23.42 gives Teddy Heist a host-controlled player chuck, opening pickups in all four outer halls, and marked supply bays. Bots retain their route through corners, give up blocked steering directions and spread raids across comparable objectives.
 
 - Prototype 0.23.41 opens Teddy Heist in the Rust With mates lobby. The host owns banking, hatch state and drink handovers. Players join before the round starts. Team start slots now spread out into clear approach lanes. Lighter turf, contrasting walls and painted doorway marks improve readability.
