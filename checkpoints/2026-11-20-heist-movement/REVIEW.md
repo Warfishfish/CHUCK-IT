@@ -7,3 +7,9 @@ The navigation pass uses tighter body-clearance samples, rechecks a blocked corn
 [Before clip](before.webm) · [After clip](after.webm) · [In-game screenshots of all seven posters](walls.png)
 
 Each flag count has seven separate wall mounts. The screenshots show the legacy browser's two-flag map at eye height. Art was drawn for Australian BBQ.
+
+[Desktop Dazza poster](desktop-dazza.png) · [Desktop missing teddy](desktop-missing.png)
+
+The Rust workspace passed 749 tests with three ignored. The existing 20-participant Rust match test recorded banks on all three layouts. Seeded legacy browser runs recorded 8, 12 and 16 banks in the 2-, 3- and 4-flag layouts. The longest sampled wall hold was 0.2 seconds across all three layouts in each build. The obstruction check sampled active steering within a half-metre of a wall every 0.2 seconds during the 180-second runs.
+
+Additional clips replay recorded bot positions from the crowded legacy simulation. [Corner](corner.webm) · [Traffic](traffic.webm) · [Banking approach](carrier.webm)
