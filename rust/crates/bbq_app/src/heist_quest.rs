@@ -146,6 +146,8 @@ pub fn interact(g: &mut Game, p: &Player) -> bool {
         q.best = f32::INFINITY;
         q.replan = 0.0;
         "Cold as! Come with me, I know a way underneath."
+    } else if q.escort || q.age < q.chatter {
+        ""
     } else if !alcoholic {
         "Ah. Infrastructure for tomorrow morning."
     } else if q.tipsy > 1.8 {
@@ -156,7 +158,9 @@ pub fn interact(g: &mut Game, p: &Player) -> bool {
     q.chatter = q.age + 9.0;
     g.slots.remove(id);
     g.world.remove(id);
-    g.life.dazza_says(say);
+    if !say.is_empty() {
+        g.life.dazza_says(say);
+    }
     g.popup(format!("Gave Dazza a {name}"), false);
     true
 }
@@ -226,7 +230,7 @@ pub fn tick(g: &mut Game, p: &Player, yard: &mut Yard, dt: f32) {
             }
         }
     }
-    if say.is_none() && q.tipsy > 0.65 && q.age >= q.chatter && pos.horiz_dist(me) < 10.0 {
+    if say.is_none() && !q.escort && q.tipsy > 0.65 && q.age >= q.chatter && pos.horiz_dist(me) < 10.0 {
         let lines = if q.tipsy > 1.8 {
             [
                 "Follow me. If I follow you too, we’ll be here all arvo.",

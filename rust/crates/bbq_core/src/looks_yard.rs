@@ -4046,6 +4046,27 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
     for (x,z,w,d) in [(-3.25,0.0,3.5,10.0),(3.25,0.0,3.5,10.0),(0.0,-3.25,3.0,3.5),(0.0,3.25,3.0,3.5)] {
         v.push(cuboid(w,0.16,d,matt(0x484e48).unlit(),hatch.x+x,-0.36,hatch.z+z));
     }
+    // Close the junction between its tunnel mouths, leaving each walking lane open.
+    let axes: Vec<_> = crate::passage::exits(teams)
+        .map(|end| (end - hatch).normalised())
+        .collect();
+    let rim = |i| {
+        let angle = i as f32 * 2.0 * PI / 48.0;
+        V3::new(angle.sin() * 4.0, 0.0, angle.cos() * 4.0)
+    };
+    for i in 0..48 {
+        let edge = rim(i + 1) - rim(i);
+        let centre = (rim(i) + rim(i + 1)) * 0.5;
+        if axes.iter().any(|axis| {
+            axis.dot(centre) > 0.0 && (axis.x * centre.z - axis.z * centre.x).abs() < 1.72
+        }) {
+            continue;
+        }
+        v.push(cuboid(
+            0.2, 4.25, edge.horiz_len() + 0.045, matt(0x666c60).unlit(),
+            hatch.x + centre.x, -2.375, hatch.z + centre.z,
+        ).turn(0.0, edge.x.atan2(edge.z), 0.0));
+    }
     for (end,team) in crate::passage::exits(teams).zip(heist::team_keys(teams)) {
         let delta=end-hatch;
         let len=delta.horiz_len();

@@ -847,7 +847,7 @@ fn update_round_hud(
     mut status: Single<&mut Text, (With<StatusText>, Without<BannerText>, Without<ResultsText>)>,
     mut banner: Single<&mut Text, (With<BannerText>, Without<StatusText>, Without<ResultsText>)>,
     mut results: Single<
-        (&mut Text, &mut Visibility),
+        (&mut Text, &mut Visibility, &mut TextColor),
         (With<ResultsText>, Without<StatusText>, Without<BannerText>),
     >,
 ) {
@@ -922,9 +922,20 @@ fn update_round_hud(
         .map(|b| b.0.clone())
         .unwrap_or_default();
 
-    // the results card (`menu.rs`) shows the results now
-    let (_, vis) = &mut *results;
+    let (text, vis, color) = &mut *results;
     **vis = Visibility::Hidden;
+    if let Some(result) = &g.round.results
+        && let Some((reveal, _)) = &g.round.banner
+        && g.round.panel_in > 0.0
+        && (!result.match_over || g.round.panel_in >= 7.0)
+    {
+        text.0.clone_from(reveal);
+        color.0 = match result.winner {
+            Some(Key::Team(team)) => crate::characters::team_colour(team),
+            _ => Color::WHITE,
+        };
+        **vis = Visibility::Inherited;
+    }
 }
 
 #[allow(dead_code)]

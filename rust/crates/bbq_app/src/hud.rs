@@ -580,11 +580,11 @@ fn cd_chip(p: &mut ChildSpawnerCommands, key: &'static str, label: &str, fill: O
 
 // ---------------------------------------------------------------- showing and updating
 
-fn show_hud(screen: Res<Screen>, mut q: Query<&mut Visibility, With<HudRoot>>) {
+fn show_hud(screen: Res<Screen>, game: Res<Game>, mut q: Query<&mut Visibility, With<HudRoot>>) {
     // `--nohud` (screenshots of the characters)
     let hide = std::env::args().any(|a| a == "--nohud");
     for mut v in &mut q {
-        *v = if !hide && matches!(*screen, Screen::Playing | Screen::Paused) {
+        *v = if !hide && game.rules.phase != Phase::Results && matches!(*screen, Screen::Playing | Screen::Paused) {
             Visibility::Inherited
         } else {
             Visibility::Hidden
