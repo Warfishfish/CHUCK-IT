@@ -13,3 +13,7 @@ Each flag count has seven separate wall mounts. The screenshots show the legacy 
 The Rust workspace passed 749 tests with three ignored. The existing 20-participant Rust match test recorded banks on all three layouts. Seeded legacy browser runs recorded 8, 12 and 16 banks in the 2-, 3- and 4-flag layouts. The longest sampled wall hold was 0.2 seconds across all three layouts in each build. The obstruction check sampled active steering within a half-metre of a wall every 0.2 seconds during the 180-second runs.
 
 Additional clips replay recorded bot positions from the crowded legacy simulation. [Corner](corner.webm) · [Traffic](traffic.webm) · [Banking approach](carrier.webm)
+
+The same public relay was used for both browser guest recordings with a native host and 17 bots. The guest camera stays near its spawn, offering a short check of how replicated characters render. [Guest before](guest-before.webm) · [Guest after](guest-after.webm)
+
+Cloudflare delivered the generated WASM and all seven matching textures. The desktop host and Chrome guest also entered a timed two-flag 1v1 with zero bots. Browser mouse capture worked on the updated build in both online runs. These were short automated sessions. A longer human playtest can check whether crowded turns and stride timing feel right across a full match.
