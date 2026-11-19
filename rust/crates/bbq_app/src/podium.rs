@@ -71,6 +71,7 @@ fn stage(
                 } else {
                     crate::round::name_of(&g, *id)
                 };
+                let width = (name.chars().count() as f32 * 11.0 + 16.0).clamp(74.0, 192.0);
                 commands.spawn((
                     Stage,
                     Text::new(name),
@@ -80,9 +81,9 @@ fn stage(
                     BackgroundColor(Color::srgba(0.05, 0.11, 0.12, 0.94)),
                     Node {
                         position_type: PositionType::Absolute,
-                        left: px(anchor.x - 70.0),
-                        top: px(anchor.y),
-                        width: px(140.0),
+                        left: px(anchor.x - width * 0.5),
+                        top: px(anchor.y - 43.0),
+                        width: px(width),
                         padding: UiRect::vertical(px(4.0)),
                         border_radius: BorderRadius::all(px(8.0)),
                         ..default()
