@@ -354,6 +354,7 @@ impl Default for Features {
 pub struct Yard {
     /// Separate enlarged race arena; disables legacy pool/trampoline.
     pub race: bool,
+    pub hatch_open: bool,
     pub navigation: std::sync::OnceLock<crate::bots::NavigationGrid>,
     pub colliders: Vec<Collider>,
     pub features: Features,
@@ -522,6 +523,7 @@ impl Yard {
             heist_variant: 0,
             navigation: Default::default(),
             race: false,
+            hatch_open: false,
         }
     }
 

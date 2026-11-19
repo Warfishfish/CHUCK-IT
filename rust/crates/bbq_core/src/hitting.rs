@@ -492,7 +492,7 @@ mod tests {
     }
 
     #[test]
-    fn heist_thrown_hits_score_nothing() {
+    fn heist_thrown_hits_score_ten() {
         let teams = Teams::default();
         let rules = Rules {
             mode: GameMode::Heist,
@@ -511,7 +511,7 @@ mod tests {
             false,
             25,
         );
-        assert_eq!(board.score(1), 0);
+        assert_eq!(board.score(1), 10);
         assert_eq!(board.score(2), 0);
     }
 }

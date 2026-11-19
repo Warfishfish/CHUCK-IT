@@ -32,6 +32,7 @@ pub struct Carry {
 /// Everything about yard life that isn't the player's body or the items.
 pub struct Life {
     pub dazza: Brain,
+    pub quest: crate::heist_quest::Quest,
     /// Dazza's latest line; the picture shows it when `say_seq` changes.
     pub say_text: String,
     pub say_seq: u32,
@@ -65,6 +66,7 @@ impl Life {
         Life {
             soak_at: None,
             dazza: Brain::default(),
+            quest: Default::default(),
             say_text: String::new(),
             say_seq: 0,
             swing_seq: 0,
@@ -589,6 +591,7 @@ fn in_smoko_zone(g: &Game, p: &Player) -> bool {
 
 /// What R would do here, as a line of text (empty if nothing).
 pub fn prompt(g: &Game, p: &Player, f: &yard::Features, chest_spot: usize) -> String {
+    if let Some(line)=crate::heist_quest::prompt(g,p){return line;}
     if g.life.seated.is_some() {
         return if g.options.adult {
             "Smoko! R or Space to get up (the drinks keep coming)".into()
@@ -653,6 +656,7 @@ pub fn interact(g: &mut Game, p: &mut Player, f: &yard::Features, chest_spot: us
     if !g.rules.in_play() || g.me.body.stun > 0.0 || g.me.body.fall_t > 0.0 {
         return false;
     }
+    if crate::heist_quest::interact(g,p){return true;}
     if in_smoko_zone(g, p) {
         if g.options.naughty {
             g.popup("Naughty Corner! No safe break here", false);

@@ -175,6 +175,7 @@ pub struct Mover {
     pub vz: f32,
     pub prev_y: f32,
     pub grounded: bool,
+    pub underground: bool,
     pub coyote: f32,
     pub jump_buf: f32,
     pub boost_t: f32,
@@ -210,6 +211,7 @@ impl Mover {
             vz: 0.0,
             prev_y: 0.0,
             grounded: true,
+            underground: false,
             coyote: 0.0,
             jump_buf: 0.0,
             boost_t: 0.0,
@@ -540,7 +542,23 @@ impl Mover {
         self.y += self.vy * dt;
         self.z += self.vz * dt;
 
-        self.resolve_obstacles(yard);
+        if let Some(teams) = yard.heist {
+            let hatch = crate::passage::HATCH;
+            if yard.hatch_open && self.y <= 0.0 && (self.x-hatch.x).hypot(self.z-hatch.z)<1.0 {
+                self.underground=true;
+            }
+            if self.underground {
+                let (x,z,floor)=crate::passage::track(teams,self.x,self.z);
+                self.x=x;self.z=z;
+                if floor > -0.04 && self.y > -0.25 {
+                    self.underground=false;
+                    self.y=0.0;
+                } else if floor < -2.5 && self.prev_y < -2.5 {
+                    self.y=self.y.min(-2.3);
+                }
+            }
+        }
+        if !self.underground { self.resolve_obstacles(yard); }
 
         // yard edge
         let smoko_ute_gate = yard.features.smoko && (-3.5..=5.0).contains(&self.x);
@@ -578,9 +596,11 @@ impl Mover {
         }
 
         // floor, trampoline and landing
-        let floor = yard.floor_at(self.x, self.z, self.y, self.prev_y);
+        let floor = if self.underground {
+            crate::passage::track(yard.heist.unwrap_or(2),self.x,self.z).2
+        } else {yard.floor_at(self.x, self.z, self.y, self.prev_y)};
         let (tdx, tdz) = (self.x - TRAMP_X, self.z - TRAMP_Z);
-        if !yard.race
+        if !yard.race && yard.heist.is_none()
             && !yard.features.smoko
             && tdx * tdx + tdz * tdz < TRAMP_R * TRAMP_R
             && self.y <= TRAMP_H + 0.02

@@ -103,6 +103,8 @@ pub struct BoardRow {
     pub throws: u16,
     pub streak: u8,
     pub banked: u16,
+    pub match_points:i32,
+    pub match_hits:u32,
 }
 
 pub const FEAT_BAR: u8 = 1;
@@ -264,6 +266,7 @@ impl WorldSnap {
             w.u16(row.throws);
             w.u8(row.streak);
             w.u16(row.banked);
+            w.i32(row.match_points);w.u32(row.match_hits);
         }
         w.u8(self.teams.len().min(MAX_BOARD) as u8);
         for (id, t) in self.teams.iter().take(MAX_BOARD) {
@@ -373,7 +376,7 @@ impl WorldSnap {
                 catches: r.u16()?,
                 throws: r.u16()?,
                 streak: r.u8()?,
-                banked: r.u16()?,
+                banked: r.u16()?,match_points:r.i32()?,match_hits:r.u32()?,
             });
         }
         let n = count(r, MAX_BOARD)?;
@@ -452,8 +455,8 @@ mod tests {
             }],
             dazza: DazzaSnap { x: -6.0, z: -19.3, face: 0.5, state: 2, say_seq: 7, swing_seq: 3, flip_seq: 9, say: "Oi! Get off me snags!".into() },
             board: vec![
-                BoardRow { id: 1, score: 350, hits: 3, taken: 1, catches: 2, throws: 9, streak: 2, banked: 0 },
-                BoardRow { id: 100, score: -50, hits: 0, taken: 1, catches: 0, throws: 4, streak: 0, banked: 0 },
+                BoardRow { id: 1, score: 350, hits: 3, taken: 1, catches: 2, throws: 9, streak: 2, banked: 0,match_points:350,match_hits:4 },
+                BoardRow { id: 100, score: -50, hits: 0, taken: 1, catches: 0, throws: 4, streak: 0, banked: 0,match_points:350,match_hits:4 },
             ],
             teams: vec![(1, 0), (100, 1)],
             feed: vec!["Marcus hit Kev (+100)".into(), "Dazza: bugger off".into()],

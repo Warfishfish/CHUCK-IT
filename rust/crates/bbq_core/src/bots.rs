@@ -170,7 +170,10 @@ impl NavigationGrid {
 
 /// Pick a walkable waypoint around solid Heist walls. The normal steering system handles
 /// local avoidance; this A* route keeps long objectives from circling a maze panel forever.
-fn navigation_waypoint(yard: &Yard, from: V3, target: V3) -> Option<V3> {
+pub fn navigation_waypoint(yard: &Yard, from: V3, target: V3) -> Option<V3> {
+    route_waypoint(yard,from,target,0,&[])
+}
+fn route_waypoint(yard: &Yard, from: V3, target: V3, runner: PlayerId, others: &[OtherView]) -> Option<V3> {
     let grid = yard.navigation.get_or_init(|| NavigationGrid::observe(yard));
     let index = |x: i32, z: i32| ((z + grid.half_z) as usize) * grid.width + (x + grid.half_x) as usize;
     let point = |i: usize| V3::new((i % grid.width) as f32 - grid.half_x as f32, 0.0, (i / grid.width) as f32 - grid.half_z as f32);
@@ -184,7 +187,26 @@ fn navigation_waypoint(yard: &Yard, from: V3, target: V3) -> Option<V3> {
     let start = index(sx, sz);
     let end = index(gx, gz);
     let clear = |i: usize| { grid.walkable[i] };
-    if !clear(start) || !clear(end) { return None; }
+    let nearest = |i: usize| {
+        let p = point(i);
+        (-2..=2).flat_map(|dx| (-2..=2).map(move |dz| (dx,dz)))
+            .filter_map(|(dx,dz)| {
+                let x=p.x as i32+dx; let z=p.z as i32+dz;
+                if x.abs()>grid.half_x || z.abs()>grid.half_z {return None;}
+                let j=index(x,z); clear(j).then_some((dx*dx+dz*dz,j))
+            }).min().map(|(_,j)|j)
+    };
+    let start=if clear(start){start}else{nearest(start)?};
+    let end=if clear(end){end}else{nearest(end)?};
+    let mut traffic = vec![0u8;grid.walkable.len()];
+    for mate in others.iter().filter(|o| o.teammate && o.id!=runner && o.pos.horiz_dist(from)<16.0) {
+        let (x,z)=snap(mate.pos.x,mate.pos.z);
+        for dx in -2..=2 { for dz in -2..=2 {
+            if (x+dx).abs()<=grid.half_x && (z+dz).abs()<=grid.half_z {
+                traffic[index(x+dx,z+dz)] = 5;
+            }
+        }}
+    }
     let mut score = vec![i32::MAX; grid.walkable.len()];
     let mut parent = vec![usize::MAX; grid.walkable.len()];
     let mut open = BinaryHeap::new();
@@ -201,7 +223,10 @@ fn navigation_waypoint(yard: &Yard, from: V3, target: V3) -> Option<V3> {
             let next=index(xx,zz);
             if !clear(next) { continue; }
             if dx != 0 && dz != 0 && (!clear(index(x+dx,z)) || !clear(index(x,z+dz))) { continue; }
-            let next_score=score[at]+if dx != 0 && dz != 0 {14}else{10};
+            let sector = (xx.div_euclid(6)*31 + zz.div_euclid(6)*17) as u32;
+            let preference = (sector ^ runner.wrapping_mul(2654435761)).count_ones() % 4;
+            let next_score=score[at]+if dx != 0 && dz != 0 {14}else{10}
+                + i32::from(traffic[next]) + preference as i32;
             if next_score < score[next] { score[next]=next_score;parent[next]=at;open.push(Reverse((next_score+h(xx,zz),next))); }
         }
     }
@@ -221,6 +246,7 @@ fn navigation_waypoint(yard: &Yard, from: V3, target: V3) -> Option<V3> {
 
 /// Clear line between two spots: no box taller than 1.6 m in the way (`los`).
 pub fn line_of_sight(yard: &Yard, a: V3, b: V3) -> bool {
+    if yard.heist.is_none() {
     for i in 1..8 {
         let t = i as f32 / 8.0;
         let (x, z) = (a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t);
@@ -230,7 +256,21 @@ pub fn line_of_sight(yard: &Yard, a: V3, b: V3) -> bool {
             }
         }
     }
-    true
+    return true;
+    }
+    !yard.colliders.iter().any(|c| {
+        if c.h <= 1.6 {return false;}
+        let (mut lo,mut hi)=(0.0_f32,1.0_f32);
+        for (start,delta,min,max) in [(a.x,b.x-a.x,c.x0,c.x1),(a.z,b.z-a.z,c.z0,c.z1)] {
+            if delta.abs()<0.00001 {
+                if start<min || start>max {return false;}
+            } else {
+                let p=(min-start)/delta;let q=(max-start)/delta;
+                lo=lo.max(p.min(q));hi=hi.min(p.max(q));
+            }
+        }
+        lo<=hi
+    })
 }
 
 /// A throw that gets from `from` to `to` at `speed` under gravity `g`: the velocity and the time
@@ -1295,7 +1335,7 @@ impl BotBrain {
             });
             if changed || reached || self.nav_t <= 0.0 {
                 self.nav_goal=Some(g);
-                self.nav_point=navigation_waypoint(w.yard,me.pos,g);
+                self.nav_point=route_waypoint(w.yard,me.pos,g,me.id,w.others);
                 self.nav_t=1.2;
             }
         } else if w.objective_goal.is_none() || goal.is_none() || urgent {

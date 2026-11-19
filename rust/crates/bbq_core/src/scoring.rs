@@ -1,7 +1,7 @@
 //! Scores, streaks and who is winning (spec sections 3 and 9).
 //!
-//! **Heist rule (decided by Marcus, 4 Oct 2026):** in Heist only banking a teddy scores.
-//! Thrown hits, slaps, catches and every bonus pay nothing and cost nothing.
+//! **Heist rule (decided by Marcus, 4 Oct 2026):** in Heist only banking a teddy decides the winning team.
+//! Qualifying enemy throws earn ten personal points. Banks alone decide the team result.
 
 use std::collections::BTreeMap;
 
@@ -63,6 +63,7 @@ pub const CANNONBALL: i32 = 100;
 pub const POOL_OR_TRAMP: i32 = 50;
 pub const NAUGHTY_CORNER: i32 = 100;
 pub const HELP_UP: i32 = 25;
+pub const HEIST_THROW_HIT: i32 = 10;
 pub const HEIST_BANK: i32 = 150;
 pub const DAZZA_STUN: i32 = 20;
 /// KO, berserk, flip the barbie.
@@ -190,6 +191,16 @@ impl Scoreboard {
         hit: &HitInput,
     ) -> HitOutcome {
         let mut out = HitOutcome::default();
+        if rules.mode == GameMode::Heist && rules.in_play() {
+            if let Some(id) = thrower && id != victim && !hit.same_team
+                && let Some(stats) = self.stats.get_mut(&id) {
+                out.gain = HEIST_THROW_HIT;
+                stats.score += out.gain;
+                stats.hits += 1;
+                if let Some(stats) = self.stats.get_mut(&victim) { stats.taken += 1; }
+            }
+            return out;
+        }
         if !rules.scoring() {
             return out;
         }
@@ -585,15 +596,15 @@ mod tests {
     }
 
     #[test]
-    fn heist_only_banking_scores() {
+    fn heist_hits_pay_personal_points_and_banks_pay_more() {
         let mut b = board();
         let r = rules(GameMode::Heist);
-        // thrown hit: nothing for the thrower, nothing off the victim
+        // Only the thrower earns personal points.
         let o = b.thrown_hit(&r, Some(1), 2, &HitInput::default());
-        assert_eq!(o, HitOutcome::default());
-        assert_eq!(b.score(1), 0);
+        assert_eq!(o.gain, HEIST_THROW_HIT);
+        assert_eq!(b.score(1), 10);
         assert_eq!(b.score(2), 0);
-        assert_eq!(b.get(2).unwrap().taken, 0);
+        assert_eq!(b.get(2).unwrap().taken, 1);
         // catch, slaps, cannonball, bonuses: all nothing
         b.catch(&r, 3, Some(1));
         assert_eq!(b.stun_slap(&r, 1, 2, 50, 25, false), 0);
@@ -609,15 +620,15 @@ mod tests {
         assert_eq!(b.cannonball(&r, 1, 2, false), 0);
         assert_eq!(b.award(&r, 1, 50), 0);
         assert_eq!(b.award(&r, 1, 20), 0);
-        for id in 1..=4 {
+        for id in 2..=4 {
             assert_eq!(b.score(id), 0, "player {id} should still be on 0");
         }
-        // banking is the only thing that scores
+        // Banks count separately.
         assert_eq!(b.bank(&r, 1), 150);
-        assert_eq!(b.score(1), 150);
+        assert_eq!(b.score(1), 160);
         assert_eq!(b.get(1).unwrap().banked, 1);
         b.bank(&r, 1);
-        assert_eq!(b.score(1), 300);
+        assert_eq!(b.score(1), 310);
         assert_eq!(b.get(1).unwrap().banked, 2);
     }
 

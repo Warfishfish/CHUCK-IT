@@ -141,9 +141,12 @@
 - ✅ Each base holds a bundle of that team's teddies — 2 each in a small lobby, rising to a max of 4 per team as more players share each team (formula: 2 + one extra per 2 players per team, capped at 4)
 - ✅ Run an enemy teddy back to your own base to bank it for points; stealing it back before it's banked just returns it. Getting slapped or knocked down while carrying drops the teddy on the spot — no auto-return, so there's a scramble
 - ✅ Walking up to your own team's teddy auto-returns it home instead of letting you "steal" your own
-- ✅ Heist scoring is all about teddies: banking is the only thing that scores (150 pts each). Hits, throws, streaks, catches and the pool/tramp bonuses pay nothing in this mode, so there's nothing to farm off teammates
+- Teddy Heist awards 10 personal points per qualifying opponent throw and 150 per bank. Team victory is decided by banks.
+- The final whistle reveals the team result. At match end the roster celebrates around a three-place podium ranked by points, then hits.
+- Each reference maze has two crate vaults and underground branches to all active base gates. Dazza patrols the middle corridors and escorts a cold-drink donor to the hatch.
+- Dazza accepts quests after 30 seconds. The hatch opens for 12 seconds once per team, followed by a 45-second rest. Extra drinks change his wobble and written chatter.
+- Heist bots account for nearby teammates when planning routes and need a sightline to pursue an enemy carrier.
 - ✅ Big four-sided scoreboard floating over the middle of the yard shows each team's teddies banked and points, with a crown on the leader — readable from anywhere. The sidebar team headings show teddies too
-- ✅ Thrown-item hits no longer score or cost points in Heist (they used to pay 100+ and take 50 off the victim). Only banking scores now
 - ✅ Each player's own banked-teddy count is tracked: shown as 🧸 next to their score on the live scoreboard, as a 🧸 Banked column in the results, and the results line names the top banker in each team
 - ✅ Win: whoever's banked the most teddies when the clock runs out
 - ✅ (14 Nov 2026) Three hand-authored Heist base layouts for each team count (2, 3 and 4), selected once per round without immediate repeats and synchronized from the host to guests and late joiners. Bases, doors, spawns, teddies, banking zones, emblems and bot goals share that layout

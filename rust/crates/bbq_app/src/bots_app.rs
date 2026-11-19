@@ -311,13 +311,36 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &Yard) {
             held,
             selected: sel,
         };
-        let (objective_goal, carrying_stolen_teddy) = if mode == GameMode::Heist {
-            crate::heist_app::goal_for_bot(g, p, i)
+        let (mut objective_goal, carrying_stolen_teddy) = if mode == GameMode::Heist {
+            crate::heist_app::goal_for_bot(g, p, i, yard)
         } else if mode == GameMode::Smoko {
             (crate::smoko_mode::bot_goal(g,p,id),false)
         } else {
             (None, false)
         };
+        let runner=&g.dummies[i].mover;
+        let pos=V3::new(runner.x,runner.y,runner.z);
+        let mut traversal=None;
+        if let (Some(teams),Some(goal))=(yard.heist,objective_goal) {
+            let hatch=bbq_core::passage::HATCH;
+            if runner.underground {
+                let exit=bbq_core::passage::exits(teams).min_by(|a,b|a.horiz_dist(goal).total_cmp(&b.horiz_dist(goal))).unwrap();
+                // Return to the junction before changing arms.
+                let (x,z,_)=bbq_core::passage::track(teams,pos.x,pos.z);
+                let axis=(exit-hatch).normalised();
+                let offset=((x-hatch.x)*axis.z-(z-hatch.z)*axis.x).abs();
+                traversal=Some((if offset>1.2 {hatch}else{exit},false));
+            } else if yard.hatch_open && id%3!=0 && pos.horiz_dist(hatch)<12.0 && pos.horiz_dist(goal)>18.0 {
+                objective_goal=Some(hatch);
+            } else if id%2==0 {
+                for (x,z) in bbq_core::heist::vault_sites(teams) {
+                    if (pos.x-x).abs()<1.1 && (z-1.0..z+5.5).contains(&pos.z) && goal.z<z-2.0 {
+                        let target=if pos.y<0.95 {z+3.5}else if pos.y<2.05 {z+1.35}else{z-1.25};
+                        traversal=Some((V3::new(x,0.0,target),runner.grounded));break;
+                    }
+                }
+            }
+        }
         let d = &g.dummies[i];
         let _ = d;
         let w = WorldView {
@@ -347,6 +370,7 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &Yard) {
             None => bots::BotBrain::new(&mut g.rng),
         };
         let mut cmd = brain.think(&me, &w, &mut g.rng);
+        if let Some((target,jump))=traversal {let delta=V3::new(target.x-pos.x,0.0,target.z-pos.z).normalised();cmd.wish=(delta.x,delta.z);cmd.face=delta.x.atan2(delta.z);cmd.jump=jump;}
         if mode == GameMode::Smoko && g.smoko.carries.contains_key(&id) {
             cmd.throw=None;cmd.swing=None;cmd.act=None;cmd.winding=false;
             cmd.wish.0*=0.75;cmd.wish.1*=0.75;

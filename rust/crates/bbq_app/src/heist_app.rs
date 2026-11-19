@@ -49,6 +49,7 @@ pub fn start(g: &mut Game, yard: &Yard) {
         variant: yard.heist_variant,
         bank: Bank::new(keys),
     });
+    crate::heist_quest::start(g);
     let n = heist::teddy_count(g.dummies.len() + 1, teams);
     let layout = heist::layout_for(teams, yard.heist_variant);
     for (def, team) in layout.into_iter().zip(keys) {
@@ -207,6 +208,7 @@ pub fn team_teddies(g: &Game) -> Vec<(ItemId, u8)> {
 
 /// Bank stolen teddies, and drop them when knocked about. Every fixed step.
 pub fn step(g: &mut Game, p: &Player) {
+    if !g.rules.in_play() {return;}
     let Some((teams, variant)) = g.heist.as_ref().map(|h| (h.teams, h.variant)) else {
         return;
     };
@@ -256,7 +258,7 @@ pub fn step(g: &mut Game, p: &Player) {
             let Some(home) = base_centre(teams, variant, mine) else {
                 continue;
             };
-            if heist::can_bank(mine, theirs, pos.horiz_dist(home), stunned, down) {
+            if pos.y>=-0.1 && heist::can_bank(mine, theirs, pos.horiz_dist(home), stunned, down) {
                 bank(g, id, item, mine);
             }
         }
@@ -323,7 +325,7 @@ pub fn tally_text(h: &HeistState) -> String {
 // ------------------------------------------------------------------ the bots' objective
 
 /// The goal for the bot in dummy slot `i`, and whether it is carrying a stolen teddy.
-pub fn goal_for_bot(g: &mut Game, p: &Player, i: usize) -> (Option<V3>, bool) {
+pub fn goal_for_bot(g: &mut Game, p: &Player, i: usize, yard: &bbq_core::yard::Yard) -> (Option<V3>, bool) {
     let Some((teams, variant)) = g.heist.as_ref().map(|h| (h.teams, h.variant)) else {
         return (None, false);
     };
@@ -374,6 +376,7 @@ pub fn goal_for_bot(g: &mut Game, p: &Player, i: usize) -> (Option<V3>, bool) {
         })
         .collect();
     let me = people[i + 1].clone();
+    people.retain(|who| who.team==me.team || (who.pos.horiz_dist(me.pos)<24.0 && bbq_core::bots::line_of_sight(yard,me.pos,who.pos)));
     let carrying_stolen = me.carrying.iter().any(|t| *t != my_team);
     let hands_free = g.dummies[i].bot.slots.len() < 2;
     let mut patrol = g
@@ -394,13 +397,20 @@ pub struct HeistViewPlugin;
 
 impl Plugin for HeistViewPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (sync_heist_props, update_board));
+        app.add_systems(Update, (sync_heist_props, update_board, animate_hatch,crate::heist_quest::draw_bubble));
     }
 }
 
 #[derive(Component)]
 struct HeistProp;
 
+#[derive(Component)]
+struct Hatch;
+fn animate_hatch(yard:Res<YardRes>,mut lids:Query<&mut Transform,With<Hatch>>){
+    for mut lid in &mut lids {
+        lid.translation.x=bbq_core::passage::HATCH.x+if yard.0.hatch_open {3.1}else{0.0};
+    }
+}
 fn sync_heist_props(
     mut commands: Commands,
     yard: Res<YardRes>,
@@ -423,6 +433,10 @@ fn sync_heist_props(
     let Some(teams) = want else {
         return;
     };
+    let at=bbq_core::passage::HATCH;
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(3.0,0.10,3.0))),MeshMaterial3d(mats.add(StandardMaterial{
+        base_color:hex(0xb89142),perceptual_roughness:0.8,..default()
+    })),Transform::from_xyz(at.x,0.07,at.z),HeistProp,Hatch));
     let parts = bbq_core::looks_yard::heist_look_variant(teams, variant);
     let root = cache.spawn_parts(
         &mut commands,

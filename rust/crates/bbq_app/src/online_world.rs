@@ -233,6 +233,8 @@ pub fn build_world(g: &Game, yard: &Yard, seq: u32, feed_after: f32, fx: &[FxEve
             throws: s.throws.min(65535) as u16,
             streak: s.streak.min(255) as u8,
             banked: s.banked.min(65535) as u16,
+            match_points:g.round.totals.get(&id).map_or(0,|t|t.0),
+            match_hits:g.round.totals.get(&id).map_or(0,|t|t.1),
         })
         .collect();
     let teams = g.teams.iter().take(MAX_BOARD).map(|(id, t)| (net(id), team_code(t))).collect();
@@ -504,6 +506,10 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
     }
     if !was_over && g.rules.phase == Phase::Results && g.round.timed {
         crate::round::end_round(g);
+        g.round.totals=snap.board.iter().map(|r|(local(r.id),(r.match_points,r.match_hits))).collect();
+        g.round.totals.entry(PLAYER_ID).or_default();
+        g.round.podium.sort_by_key(|id|(std::cmp::Reverse(g.round.totals[id]),net_of_local(*id,my_net)));
+
     }
     if g.rules.phase != Phase::Results {
         g.round.results = None;

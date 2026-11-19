@@ -2245,7 +2245,7 @@ fn run_requests(
         let args: Vec<String> = std::env::args().collect();
         match args.iter().position(|a| a == "--screen").and_then(|i| args.get(i + 1)).map(String::as_str) {
             Some("pause") => *screen = Screen::Paused,
-            Some("results") => {
+            Some(view @ ("results"|"podium")) => {
                 let rules = bbq_core::scoring::Rules { phase: bbq_core::scoring::Phase::Play, ..game.rules };
                 for (k, id) in crate::round::everyone(&game).into_iter().enumerate() {
                     game.board.award(&rules, id, 400 - 90 * k as i32);
@@ -2253,7 +2253,8 @@ fn run_requests(
                     game.board.count_throw(id);
                 }
                 crate::round::end_round(&mut game);
-                game.round.panel_in = 0.0;
+                game.round.panel_in = if view == "podium" { 6.8 } else { 0.0 };
+                *screen = Screen::Playing;
             }
             _ => {}
         }
@@ -2430,7 +2431,7 @@ fn open_results(
     commands
         .spawn((overlay(true), ResultsRoot))
         .with_children(|o| {
-            o.spawn(card(560.0)).with_children(|c| {
+            o.spawn(fixed_card(560.0)).with_children(|c| {
                 c.spawn((Text::new(t.title.clone()), display_font(32.0), TextColor(INK)));
                 c.spawn(text(t.line.clone(), 14.0, false, MUTED));
                 if let Some(m) = &t.match_line {
@@ -2447,7 +2448,11 @@ fn open_results(
                         children![text(m.clone(), 14.0, true, INK)],
                     ));
                 }
-                crate::results::table(c, &t);
+                c.spawn((
+                    Node { min_height: px(0.0), overflow: Overflow::scroll_y(), ..column(0.0) },
+                    RelativeCursorPosition::default(),
+                    ScrollPosition::default(),
+                )).with_children(|body| crate::results::table(body, &t));
                 match online_role {
                     Some(crate::online::Role::Guest) => {
                         c.spawn(text("Waiting for the host to play again or go back to the lobby...", 14.0, true, INK));

@@ -29,7 +29,7 @@ Marcus's backyard party game (it used to be called Chuck It / Backyard Brawl). C
 - Keep the original blob character design in the JavaScript game. The Rust version has four selectable characters (Marcus, 4 Oct 2026): Classic (the original capsule), Pear, Egg and Gumdrop (the default). They differ in looks only, with the same speed and hit sizes for everyone. Models are made by `rust/tools/make_blob.py`; the list is in `rust/crates/bbq_core/src/character.rs`. Dodge is removed.
 - Controls: Q swaps items, right-click catches, F grabs/drags/throws someone who's down (otherwise it winds up a throw), R interacts.
 - 1v1 with no bots must always work.
-- Heist scores only from banking teddies. Stuns don't stack, and there's a 1 s grace after a stun ends.
+- Heist team wins come from banks. An enemy thrown-item hit awards 10 personal points and a bank awards 150. Stuns don't stack, and there's a 1 s grace after a stun ends.
 - Sounds or assets must be Steam-safe (CC0, CC-BY, Pixabay, ZapSplat; no NC/ND), with a licence list.
 
 ## Rust rewrite

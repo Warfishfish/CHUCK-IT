@@ -121,7 +121,7 @@ pub fn build(g: &Game, _settings: &Settings) -> ResultsText {
             }
         })
         .collect();
-    rows.sort_by_key(|r| std::cmp::Reverse(r.score));
+    rows.sort_by_key(|r| std::cmp::Reverse((r.score, r.hits)));
     for (i, r) in rows.iter_mut().enumerate() {
         r.place = i + 1;
     }

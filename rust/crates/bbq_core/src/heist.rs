@@ -252,6 +252,16 @@ fn reference_walls(teams: usize) -> Vec<Piece> {
     }).collect()
 }
 
+/// Cell centres along two interior wall runs in each reference drawing.
+pub fn vault_sites(teams: usize) -> [(f32, f32);2] {
+    let cells = match teams {
+        2 => [(4.5, 3.0), (10.5, 9.0)],
+        3 => [(8.5, 4.0), (4.5, 9.0)],
+        _ => [(5.5, 3.0), (9.5, 9.0)],
+    };
+    cells.map(|(x,z)| ((x-8.0)*ARENA_A/8.0,(z-8.0)*ARENA_B/8.0))
+}
+
 /// Everything solid that Heist adds to the yard, for `teams` teams.
 pub fn arena(teams: usize) -> Vec<Piece> {
     arena_for(teams, 0)
@@ -265,6 +275,12 @@ pub fn arena_for(teams: usize, variant: usize) -> Vec<Piece> {
         v.extend(base_walls(def, *team));
     }
     v.extend(reference_walls(teams.clamp(2,4)));
+    for (x,z) in vault_sites(teams) {
+        for (depth,height) in [(3.5,1.05),(1.35,2.15)] {
+            v.push(Piece {collider: Collider::centred(x,z+depth,2.4,2.1,height).of(Kind::HeistCrate),
+                tint: Tint::Crate(height < 2.0)});
+        }
+    }
     v
 }
 

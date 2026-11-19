@@ -8,7 +8,7 @@ impl Plugin for CarriedAvatarPlugin {
     fn build(&self,app:&mut App) {app.add_systems(Update,(sync_model,pose_avatar).chain());}
 }
 #[derive(Component)]
-struct CarriedAvatar;
+pub(crate) struct CarriedAvatar;
 #[derive(Component)]
 struct CarriedBelly;
 fn sync_model(

@@ -38,13 +38,13 @@ pub fn team_colour(t: Team) -> Color {
 #[derive(Component, Clone, Copy)]
 pub struct Blob(pub usize);
 #[derive(Component)]
-struct BlobRoot;
+pub(crate) struct BlobRoot;
 #[derive(Component)]
 struct BlobBody;
 #[derive(Component)]
-struct HandR;
+pub(crate) struct HandR;
 #[derive(Component)]
-struct HandL;
+pub(crate) struct HandL;
 /// An eyeball: it bobs and pops a little as the blob walks, each eye in its own way.
 #[derive(Component)]
 struct EyePart {
@@ -1581,6 +1581,8 @@ fn apply_clouds(
 fn animate_dazza(
     time: Res<Time>,
     game: Res<Game>,
+    player: Res<crate::player::Player>,
+    yard: Res<crate::yard_scene::YardRes>,
     mut dz: ResMut<Dazza>,
     mut root: Query<&mut Transform, (With<DazzaRoot>, Without<DazzaBody>, Without<DazzaArm>)>,
     mut body: Query<&mut Transform, (With<DazzaBody>, Without<DazzaArm>, Without<DazzaRoot>)>,
@@ -1639,7 +1641,7 @@ fn animate_dazza(
         tf.rotation = Quat::from_rotation_y(brain.face);
     }
     if let Ok(mut tf) = body.single_mut() {
-        tf.rotation = Quat::from_euler(EulerRot::XYZ, pose.body_rx, 0.0, pose.body_rz);
+        tf.rotation = Quat::from_euler(EulerRot::XYZ, pose.body_rx, 0.0, pose.body_rz + if game.heist.is_some(){game.life.quest.tipsy*0.035*(game.now*2.1).sin()}else{0.0});
         tf.translation = Vec3::new(0.0, pose.body_y, 0.0);
         tf.scale = Vec3::splat(pose.body_scale);
     }
@@ -1647,7 +1649,7 @@ fn animate_dazza(
         tf.rotation = Quat::from_euler(EulerRot::XYZ, pose.arm.0, pose.arm.1, pose.arm.2);
     }
     if let Ok(mut v) = bubble.single_mut() {
-        *v = if dz.anim.bubble_visible() {
+        *v = if dz.anim.bubble_visible() && (game.heist.is_none() || (!player.mover.underground && {let eye=bbq_core::vec::V3::new(player.mover.x,0.0,player.mover.z);eye.horiz_dist(brain.pos)<12.0 && bbq_core::bots::line_of_sight(&yard.0,eye,brain.pos)})) {
             Visibility::Inherited
         } else {
             Visibility::Hidden

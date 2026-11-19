@@ -106,6 +106,8 @@ pub struct RoundCtl {
     pub results: Option<Results>,
     /// The results panel opens this long after the whistle.
     pub panel_in: f32,
+    pub totals: std::collections::BTreeMap<PlayerId,(i32,u32)>,
+    pub podium: Vec<PlayerId>,
     pub last_beep: i32,
     pub rng: Rng,
 }
@@ -119,7 +121,7 @@ impl RoundCtl {
             time_left: 0.0,
             banner: None,
             results: None,
-            panel_in: 0.0,
+            panel_in: 0.0, totals: Default::default(), podium: Vec::new(),
             last_beep: 0,
             rng: Rng::new(0x20_0D),
         }
@@ -275,6 +277,7 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
     // the round's first items already know whether VP cans are glass bottles (Cheeky mode)
     g.world.cheeky = g.options.adult;
     if g.round.mtch.over || g.round.mtch.no == 0 {
+        g.round.totals.clear();
         g.round.mtch = Match::new(if setup.mode == GameMode::Heist {
             1
         } else {
@@ -473,6 +476,14 @@ pub fn end_round(g: &mut Game) {
             .as_ref()
             .and_then(|h| matchflow::round_winner_heist(&h.bank)),
     };
+    if g.round.results.is_some() {return;}
+    for (id,stats) in g.board.iter() {
+        let total=g.round.totals.entry(id).or_default();
+        total.0+=stats.score;
+        total.1+=stats.hits;
+    }
+    g.round.podium=g.board.iter().map(|(id,_)|id).collect();
+    g.round.podium.sort_by_key(|id|(std::cmp::Reverse(g.round.totals[id]),crate::online_world::net_of_local(*id,1)));
     g.round.mtch.end_round(winner);
     let mut lines = Vec::new();
     lines.push(match winner {
@@ -559,8 +570,9 @@ pub fn end_round(g: &mut Game) {
         winner,
         match_over,
     });
-    g.round.say_banner("TIME!", 1.4);
-    g.round.panel_in = PANEL_DELAY;
+    let reveal=g.round.results.as_ref().unwrap().lines.iter().take(if matches!(g.rules.mode,GameMode::Teams|GameMode::Heist){2}else{1}).cloned().collect::<Vec<_>>().join("\n");
+    g.round.say_banner(reveal, 2.5);
+    g.round.panel_in = if match_over {9.5}else{PANEL_DELAY.max(2.5)};
 }
 
 /// The round clock. Runs every fixed step, before everything else.
@@ -773,6 +785,7 @@ fn round_keys(
 ) {
     let g = &mut *game;
     let busy = g.round.timed && matches!(g.rules.phase, Phase::Countdown | Phase::Play);
+    if g.round.results.is_some() && g.round.panel_in>0.0 && (keys.just_pressed(KeyCode::Space)||keys.just_pressed(KeyCode::Enter)) {g.round.panel_in=0.0;return;}
     if keys.just_pressed(KeyCode::Enter) {
         // Enter starts a round from the practice yard or from the results, never mid-round
         if !g.round.timed || g.rules.phase == Phase::Results {

@@ -31,6 +31,8 @@ mod magpie;
 mod gamepad;
 mod grass;
 mod heist_app;
+mod heist_quest;
+mod podium;
 mod hero_model;
 mod hud;
 mod hud_fx;
@@ -140,7 +142,7 @@ fn main() {
     );
     app.add_plugins((wet::WetPlugin, servo_finish::ServoFinishPlugin, arena_depth::ArenaDepthPlugin));
     app.add_plugins(graphics_quality::GraphicsQualityPlugin);
-    app.add_plugins(carried_avatar::CarriedAvatarPlugin);
+    app.add_plugins((carried_avatar::CarriedAvatarPlugin,podium::PodiumPlugin));
     app.add_plugins(beta_nature::BetaNaturePlugin);
     app.add_plugins((fx::FxPlugin, preview::PreviewPlugin, decals::DecalPlugin, online::OnlinePlugin, face::FacePlugin, lobby::LobbyPlugin, legs::LegsPlugin, shirt::ShirtPlugin));
     #[cfg(target_arch = "wasm32")]

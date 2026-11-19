@@ -392,6 +392,7 @@ pub fn step_game(
     crate::charge::tick(g,p);
     if g.rules.mode == GameMode::Race { crate::race::step(g,p,&mut wanted,&yard); return; }
     crate::heist_app::step(g, p);
+    crate::heist_quest::tick(g,p,&mut yard.0,dt);
 
     // ---- the player's body: drinking, falling over, helping mates up ----
     g.options.smoko_on = yard.0.features.smoko;
@@ -2982,7 +2983,7 @@ mod tests {
     }
 
     #[test]
-    fn thrown_hits_pay_nothing_in_heist_but_still_knock_people_over() {
+    fn thrown_hits_pay_ten_in_heist_but_still_knock_people_over() {
         let mut app = heist_app(2, 3);
         // Aim down a clear six-metre lane in the selected maze.
         let yard = &app.world().resource::<YardRes>().0;
@@ -3019,7 +3020,7 @@ mod tests {
         let g = app.world().resource::<Game>();
         let d = &g.dummies[0];
         assert!(hit, "it should have hit");
-        assert_eq!(g.board.score(PLAYER_ID), 0, "no points for a hit in Heist");
+        assert_eq!(g.board.score(PLAYER_ID), 10, "personal points for a hit in Heist");
         assert_eq!(g.board.score(d.id), 0, "and nothing lost");
     }
 
@@ -3040,6 +3041,30 @@ mod tests {
             g.round.results.as_ref().unwrap().winner,
             Some(bbq_core::matchflow::Key::Team(Team::Blue))
         );
+    }
+
+    #[test]
+    fn delivering_a_drink_opens_then_closes_one_hatch_per_team() {
+        for n in 2..=4 {
+            let mut app=heist_app(n,1);
+            ticks(&mut app,60*31);
+            let cook=app.world().resource::<Game>().life.dazza.pos;
+            put_player(&mut app,cook.x,cook.z);
+            ticks(&mut app,2);
+            give_kind(&mut app,ItemKind::Stubby);
+            press_r(&mut app);
+            ticks(&mut app,1);
+            assert!(app.world().resource::<Game>().life.say_text.contains("Come with me"));
+            for _ in 0..900 {
+                let cook=app.world().resource::<Game>().life.dazza.pos;
+                put_player(&mut app,cook.x,cook.z);
+                ticks(&mut app,4);
+                if app.world().resource::<YardRes>().0.hatch_open {break;}
+            }
+            assert!(app.world().resource::<YardRes>().0.hatch_open,"escort failed in {n}-flag maze");
+            ticks(&mut app,60*13);
+            assert!(!app.world().resource::<YardRes>().0.hatch_open);
+        }
     }
 
     #[test]

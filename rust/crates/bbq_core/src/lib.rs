@@ -18,6 +18,7 @@ pub mod emotes;
 pub mod flight;
 pub mod hands;
 pub mod heist;
+pub mod passage;
 pub mod hitting;
 pub mod items;
 pub mod itemworld;

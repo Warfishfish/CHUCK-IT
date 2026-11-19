@@ -4027,7 +4027,7 @@ pub fn heist_look(teams: usize) -> Vec<Part> {
 pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
     use crate::heist::{self, Tint};
     let mut v = Vec::new();
-    // A zero-area hole gives both square surfaces uninterrupted world-space turf UVs.
+    // The turf and soil share one opening and uninterrupted world-space turf UVs.
     for (margin, height, material) in [
         (7.0, 0.005, matt(0x765b43).no_shadow().ground()),
         (0.0, 0.015, matt(0xffffff).textured(Tex::HeistTurf).no_shadow().ground()),
@@ -4036,10 +4036,37 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
         let z = heist::ARENA_B + margin;
         v.push(Part::new(Shape::Ground {
             x0: -x, x1: x, z0: -z, z1: z,
-            hole: (0.0, 0.0, 0.0, 0.0),
+            hole: (2.15, 5.15, 2.15, 5.15),
             per_m: 1.0 / 16.0,
         }, material).at(0.0, height, 0.0));
     }
+    let hatch=crate::passage::HATCH;
+    // The round junction is wider than an arm. Keep the centre open where routes meet.
+    v.push(cuboid(10.0,0.14,10.0,matt(0x595747).unlit(),hatch.x,-4.59,hatch.z));
+    for (x,z,w,d) in [(-3.25,0.0,3.5,10.0),(3.25,0.0,3.5,10.0),(0.0,-3.25,3.0,3.5),(0.0,3.25,3.0,3.5)] {
+        v.push(cuboid(w,0.16,d,matt(0x484e48).unlit(),hatch.x+x,-0.36,hatch.z+z));
+    }
+    for (end,team) in crate::passage::exits(teams).zip(heist::team_keys(teams)) {
+        let delta=end-hatch;
+        let len=delta.horiz_len();
+        let yaw=delta.x.atan2(delta.z);
+        let axis=delta*(1.0/len);
+        let dep=crate::passage::DEPTH;
+        let ramp=crate::passage::RAMP;
+        let mid=hatch+axis*((len-ramp)*0.5);
+        let ceiling=hatch+axis*((len-ramp+3.0)*0.5);
+        v.push(cuboid(3.0,0.10,len-ramp-3.0,matt(0x6a6155).unlit(),ceiling.x,-0.27,ceiling.z).turn(0.0,yaw,0.0));
+        let paint=matt(team_colour(*team)).unlit();
+        v.push(cuboid(3.0,0.12,len-ramp,matt(0x656051).unlit(),mid.x,-dep-0.06,mid.z).turn(0.0,yaw,0.0));
+        for side in [-1.0,1.0] {
+            v.push(cuboid(0.15,dep-0.35,len-3.0,matt(0x6e746c).unlit(),hatch.x+axis.x*(len+3.0)*0.5+side*axis.z*1.5,-(dep+0.35)*0.5,hatch.z+axis.z*(len+3.0)*0.5-side*axis.x*1.5).turn(0.0,yaw,0.0));
+        }
+        let mid=end-axis*(ramp*0.5);
+        v.push(cuboid(3.0,0.12,ramp.hypot(dep),paint,mid.x,-dep*0.5-0.06,mid.z).turn(-dep.atan2(ramp),yaw,0.0));
+        let marker=hatch+axis*4.0;
+        v.push(cuboid(1.5,0.03,1.2,paint,marker.x,-dep+0.02,marker.z).turn(0.0,yaw,0.0));
+    }
+    v.push(cuboid(3.0,0.12,3.0,matt(0x797a72).unlit(),hatch.x,-crate::passage::DEPTH-0.06,hatch.z));
     for piece in heist::arena_for(teams, variant) {
         let c = piece.collider;
         let colour = match piece.tint {
@@ -5690,7 +5717,7 @@ mod tests {
                 let walls = v
                     .iter()
                     .filter(|p| {
-                        p.surface.color == team_colour(*t)
+                        p.pos.y > 0.0 && p.surface.color == team_colour(*t)
                             && matches!(p.shape, Shape::Cuboid { .. })
                     })
                     .count();
