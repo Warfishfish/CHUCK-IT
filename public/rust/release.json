@@ -1,6 +1,6 @@
 {
-  "source_commit": "127b1a5e140646627838b790d5e4a27886484407",
-  "protocol": 29,
+  "source_commit": "c566041db6d52f52061d632f66534593cee9c80c",
+  "protocol": 30,
   "release_date": "2026-11-19",
-  "description": "Raised Teddy Heist team flags, prototype 0.23.38"
+  "description": "Teddy Heist victory podium, Dazza shortcuts and bot routing, prototype 0.23.39"
 }
