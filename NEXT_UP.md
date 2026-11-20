@@ -2,6 +2,10 @@
 
 Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it with a friend. The focus now is graphics, gameplay, UI and character customization. One item at a time; screenshots and a yes before anything is committed.
 
+## Teddy Heist recovery and footstep check · 20 November 2026
+
+Prototype 0.23.46 addresses bots backpedalling or following after a teddy hit, and adds local grass footsteps. In solo, check a bot recovers into a route or guard post after a hit and listen for the grass steps. A full match with friends remains the balance check for passes, vaults and the tunnel. [Recovery and audio review](checkpoints/2026-11-20-heist-recovery/REVIEW.md)
+
 ## Teddy Heist route balance · 20 November 2026
 
 Prototype 0.23.45 makes objective passes catchable and shorter, moves five vaults onto modest detours and slows carriers in Dazza’s tunnel. The next playtest compares the standard route, a timed pass, the new vaults and a tunnel exit against real defenders. [Balance review](checkpoints/2026-11-20-heist-balance/REVIEW.md)

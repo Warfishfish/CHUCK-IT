@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.45</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.46</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -1590,6 +1590,7 @@ let AC=null,master=null,noiseBuf=null,soundOn=true;
 const heistAudio={
   throw:{gain:.52,range:27},landing:{gain:.58,range:30},
   hatch:{gain:.57,range:34},bank:{gain:.44,range:36,min:.25},
+  'grass-1':{gain:.62,range:12},'grass-2':{gain:.62,range:12},'grass-3':{gain:.62,range:12},
 };
 function loadHeistAudio(){
   for(const [name,cue] of Object.entries(heistAudio)){
@@ -1614,6 +1615,21 @@ function playHeistSound(name,at){
   const source=AC.createBufferSource(),gain=AC.createGain();
   source.buffer=cue.buffer;gain.gain.value=cue.gain*level;
   source.connect(gain);gain.connect(master);source.start();
+}
+let grassStepPosition=null,grassStepDistance=.85,grassStepClip=1;
+function playHeistGrassSteps(){
+  const ground=me&&soundOn&&gameMode==='heist'&&state==='play'&&me.grounded&&!me.underground
+    &&Math.abs(me.pos.y)<=.08&&me.stun<=0&&me.downT<=0&&!isCarried(me);
+  if(!ground){grassStepPosition=null;grassStepDistance=.85;return;}
+  const delta=grassStepPosition?Math.hypot(me.pos.x-grassStepPosition.x,me.pos.z-grassStepPosition.z):0;
+  (grassStepPosition??=new V3()).copy(me.pos);
+  if(delta>.9){grassStepDistance=.85;return;}
+  grassStepDistance+=delta;
+  if(grassStepDistance>=1.45){
+    grassStepDistance-=1.45;
+    playHeistSound('grass-'+grassStepClip);
+    grassStepClip=grassStepClip%3+1;
+  }
 }
 function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=.6;master.connect(AC.destination);
   noiseBuf=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;loadHeistAudio();}catch(e){AC=null;}}
@@ -2290,18 +2306,17 @@ function heistBotGoalRaw(ch){const myT=teamOf.get(ch.id),home=myT&&heistBases[my
   for(const it of items.values()){if(it.heistTeam!==myT||it.state!=='ground')continue;
     if(Math.hypot(it.pos.x-home.x,it.pos.z-home.z)<2.8)continue;const d=Math.hypot(it.pos.x-ch.pos.x,it.pos.z-ch.pos.z);if(d<ld){ld=d;loose=it;}}
   if(loose)return loose.pos;
+  const approach=heistGate(home).sub(new V3(home.x,0,home.z)).normalize();
+  const guard=()=>heistVia(ch,home,new V3(
+    home.x+approach.x*1.7-approach.z*1.65,0,home.z+approach.z*1.7+approach.x*1.65));
   const mates=[...chars.values()].filter(c=>teamOf.get(c.id)===myT);
-  if(mates.length>=2&&mates.find(c=>c.kind==='bot')===ch){
-    const approach=heistGate(home).sub(new V3(home.x,0,home.z)).normalize();
-    const post=new V3(home.x+approach.x*1.7-approach.z*1.65,0,home.z+approach.z*1.7+approach.x*1.65);
-    return heistVia(ch,home,post);
-  }
+  if(mates.length>=2&&mates.find(c=>c.kind==='bot')===ch)return guard();
   let best=null,bd=1e9,hands=heldOf(ch.id).length<2;                                               // otherwise raid: nearest enemy teddy
-  if(!hands)return null;
+  if(!hands)return guard();
   for(const it of items.values()){if(it.heistTeam==null||it.heistTeam===myT||it.state!=='ground')continue;
     const sector=HEIST_TEAM_KEYS.indexOf(it.heistTeam),id=parseInt(ch.id.slice(1),10)||0;
     const d=Math.hypot(it.pos.x-ch.pos.x,it.pos.z-ch.pos.z)+((id+sector)%heistTeams===0?0:9);if(d<bd){bd=d;best=it;}}
-  if(!best)return null;const eb=heistBases[best.heistTeam];
+  if(!best)return guard();const eb=heistBases[best.heistTeam];
   const inBase=eb&&Math.abs(best.pos.x-eb.x)<HEIST_HALF&&Math.abs(best.pos.z-eb.z)<HEIST_HALF;
   return inBase?heistVia(ch,eb,best.pos):best.pos;}
 // Spread the opening rush between each base and its clear approach lanes.
@@ -3275,7 +3290,7 @@ function syncCharMesh(ch,dt){
     const ordinary=ch.grounded&&ch.stun<=0&&ch.downT<=0&&!isCarried(ch)&&!ch.charging&&!(ch.ai?.sideT>0);
     sp=distance<.8?Math.min(9,distance/Math.max(dt,.001)):0;
     if(ordinary&&distance<.8)ch.walk+=distance*2.4;
-    const target=ordinary&&sp>.6?Math.atan2(dx,dz):ch.face;
+    const target=ordinary?(sp>.6?Math.atan2(dx,dz):(ch.runYaw??ch.face)):ch.face;
     ch.runYaw=angLerp(ch.runYaw??target,target,1-Math.exp(-13*dt));
     bodyYaw=ch.runYaw;
     (ch.stepPosition??=new V3()).copy(ch.pos);
@@ -3477,6 +3492,14 @@ function botErrand(ch,dt){const e=ch.ai.errand;e.t-=dt;
   const ms=meatSpot(ch);if(!ms)return goal;authMeatGrab(ch.id,ms);return null;}
 function aiUpdate(ch,dt){
   const ai=ch.ai,df=DIFF[difficulty];ch.wish.set(0,0);
+  if(!ai.mv){ai.mv=new THREE.Vector2();ai.pers={react:.22,wob:.18,pause:.035,turn:6.5,look:8};ai.avoidSide=1;ai.hesT=ai.pauseT=ai.glanceT=ai.idleT=0;}
+  if(state==='countdown'){if(ch.smokoSeat>=0)ch.smokoSeat=-1;ai.errand=null;ai.mv.set(0,0);return;}
+  if(ch.stun>0){ai.windup=0;ch.charging=false;ai.wasStun=true;ai.mv.multiplyScalar(.5);return;}
+  if(ai.wasStun){
+    ai.wasStun=false;
+    if(gameMode==='heist'){breakContact(ch);ai.sideT=0;ai.glanceT=0;ai.navTime=0;ai.mv.set(0,0);}
+    ai.hesT=ai.pers.react+rand(.05,.2);
+  }
   const hg=gameMode==='heist'&&state==='play'&&ch.stun<=0?heistBotGoal(ch):null;
   if(hg){
     const goal=hg,seed=parseInt(String(ch.id).replace(/[^0-9]/g,''),10)||0;
@@ -3498,10 +3521,6 @@ function aiUpdate(ch,dt){
       if(target){ch.wish.set(target.x-ch.pos.x,target.z-ch.pos.z).normalize();ch.face=Math.atan2(ch.wish.x,ch.wish.y);if(jump)botHop(ch);return;}
     }
   }
-  if(!ai.mv){ai.mv=new THREE.Vector2();ai.pers={react:.22,wob:.18,pause:.035,turn:6.5,look:8};ai.avoidSide=1;ai.hesT=ai.pauseT=ai.glanceT=ai.idleT=0;}
-  if(state==='countdown'){if(ch.smokoSeat>=0)ch.smokoSeat=-1;ai.errand=null;ai.mv.set(0,0);return;}
-  if(ch.stun>0){ai.windup=0;ch.charging=false;ai.wasStun=true;ai.mv.multiplyScalar(.5);return;}
-  if(ai.wasStun){ai.wasStun=false;ai.hesT=ai.pers.react+rand(.05,.2);} // shake it off for a moment after being hit
   if(botHelp(ch,dt)){ai.mv.copy(ch.wish);return;}
   ai.retarget-=dt;ai.throwCd-=dt;ai.disengage=Math.max(0,(ai.disengage||0)-dt);ai.stuckT-=dt;ai.wander-=dt;ai.hesT-=dt;ai.pauseT-=dt;ai.glanceT-=dt;ai.idleT-=dt;
   for(const it of items.values()){if(it.state!=='flying'||!it.live||it.thrower===ch.id||ai.seen.has(it))continue;
@@ -3526,7 +3545,7 @@ function aiUpdate(ch,dt){
   if(goal||carryingTeddy){}
   else if(ai.meleeOnly){
     const t=ai.target;if(t){faceTo=t.pos;const d=Math.hypot(t.pos.x-ch.pos.x,t.pos.z-ch.pos.z)||1;
-      if(!hg&&d>1.6)goal=t.pos;
+      if(gameMode!=='heist'&&!hg&&d>1.6)goal=t.pos;
       if(d<2.1&&elapsed-ch.lastSwing>.9){ch.lastSwing=elapsed;ch.face=Math.atan2(t.pos.x-ch.pos.x,t.pos.z-ch.pos.z);
         if(t.smokoSeat>=0||t.downT>.3&&mel.def.melee==='down')fx('sw',ch.id);else authSlap(ch.id,t.id,mel);breakContact(ch);}}
     else goal=botIdleGoal(ch);}
@@ -3535,7 +3554,7 @@ function aiUpdate(ch,dt){
     const t=ai.target;
     if(t){const tx=t.pos.x-ch.pos.x,tz=t.pos.z-ch.pos.z,dist=Math.hypot(tx,tz)||1;faceTo=t.pos;
       if(nHeld<2&&near&&Math.hypot(near.pos.x-ch.pos.x,near.pos.z-ch.pos.z)<4.5&&ai.windup<=0){goal=near.pos;near.claimedBy=ch;ai.claim=near;}
-      else if(ai.windup<=0&&dist>ai.range+2.5)ch.wish.set(tx/dist,tz/dist);
+      else if(gameMode!=='heist'&&ai.windup<=0&&dist>ai.range+2.5)ch.wish.set(tx/dist,tz/dist);
       if(ai.windup>0){ai.windup-=dt;ch.charging=true;if(ai.windup<=0){botThrow(ch,t);breakContact(ch);}}
       else if(ai.throwCd<=0&&dist<21&&los(ch.pos,t.pos)&&selItem(ch)){ai.windup=selItem(ch).def.charge*rand(.55,1);ch.charge=0;}
     }
@@ -3548,7 +3567,10 @@ function aiUpdate(ch,dt){
     (ai.lastGoal=ai.lastGoal||new V3()).set(goal.x,0,goal.z);}
   // now and then stop for a second to have a look around
   if(ai.pauseT<=0&&ai.windup<=0&&!carryingTeddy&&!ai.errand&&!hg&&Math.random()<ai.pers.pause*dt){ai.pauseT=rand(.3,.75);ai.lookYaw=rand(-1.1,1.1);}
-  if(ai.windup>0)ch.wish.multiplyScalar(.5);
+  if(ai.windup>0){
+    if(gameMode==='heist'){ch.wish.set(0,0);ai.mv.set(0,0);goal=null;}
+    else ch.wish.multiplyScalar(.5);
+  }
   const urgent=ai.sideT>0;
   if(ai.sideT>0){ai.sideT-=dt;ch.wish.copy(ai.sideDir);}
   if(ai.wander>0&&gameMode!=='heist')ch.wish.copy(ai.wanderDir);
@@ -4298,6 +4320,7 @@ function frame(now){
   if(me)carryTick(dt);if(isAuth){carryHostTick(dt);chuckHitTick();}
   if(isAuth)for(const ch of chars.values())if(ch.ai&&!carriedBy.has(ch.id)&&!(ch.naughtyT>0))aiUpdate(ch,dt);
   for(const ch of chars.values()){if(ch.kind==='proxy')updateProxy(ch,dt);else updateChar(ch,dt);}
+  playHeistGrassSteps();
   updateGardenMagpies();updateYardEffects(dt);
   separate();
   if(isAuth&&mode!=='menu')computeLeader();

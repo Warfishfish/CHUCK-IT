@@ -321,7 +321,9 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &Yard) {
         let runner=&g.dummies[i].mover;
         let pos=V3::new(runner.x,runner.y,runner.z);
         let mut traversal=None;
-        if let (Some(teams),Some(goal))=(yard.heist,objective_goal) {
+        if me.stun <= 0.0 && me.down_t <= 0.0 && me.fall_t <= 0.0 && !me.carried
+            && let (Some(teams), Some(goal)) = (yard.heist, objective_goal)
+        {
             let hatch=bbq_core::passage::HATCH;
             if runner.underground {
                 let exit=bbq_core::passage::exits(teams).min_by(|a,b|a.horiz_dist(goal).total_cmp(&b.horiz_dist(goal))).unwrap();

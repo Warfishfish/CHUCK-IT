@@ -907,6 +907,13 @@ impl BotBrain {
         }
         if self.was_stun {
             self.was_stun = false;
+            if w.mode == GameMode::Heist {
+                self.break_contact(rng);
+                self.side_t = 0.0;
+                self.glance_t = 0.0;
+                self.nav_t = 0.0;
+                self.mv = (0.0, 0.0);
+            }
             // shake it off for a moment after being hit
             self.hes_t = self.pers.react + rng.range(0.05, 0.2);
         }
@@ -983,7 +990,7 @@ impl BotBrain {
             if let Some(t) = self.target.and_then(|id| self.other(w, id)) {
                 face_to = Some(t.pos);
                 let d = (t.pos.x - me.pos.x).hypot(t.pos.z - me.pos.z).max(1e-3);
-                if hg.is_none() && d > 1.6 {
+                if w.mode != GameMode::Heist && hg.is_none() && d > 1.6 {
                     goal = Some(t.pos);
                 }
                 if d < SWING_RANGE && w.time - self.last_swing > SWING_GAP {
@@ -1022,7 +1029,7 @@ impl BotBrain {
                 } else {
                     let (nx, nz) = (tx / dist, tz / dist);
                     let (mut mx, mut mz) = (0.0, 0.0);
-                    if self.windup <= 0.0 && dist > self.range + 2.5 {
+                    if w.mode != GameMode::Heist && self.windup <= 0.0 && dist > self.range + 2.5 {
                         mx = nx;
                         mz = nz;
                     }
@@ -1088,7 +1095,14 @@ impl BotBrain {
             self.look_yaw = rng.range(-1.1, 1.1);
         }
         if self.windup > 0.0 {
-            wish = (wish.0 * 0.5, wish.1 * 0.5);
+            if w.mode == GameMode::Heist {
+                // Plant before aiming, then return to the objective when the throw is done.
+                wish = (0.0, 0.0);
+                self.mv = (0.0, 0.0);
+                goal = None;
+            } else {
+                wish = (wish.0 * 0.5, wish.1 * 0.5);
+            }
         }
         let urgent = self.side_t > 0.0;
         if self.side_t > 0.0 {
@@ -1748,6 +1762,33 @@ mod tests {
         brain.think(&me, &s.view(1.0), &mut rng);
         // it is still hesitating, so it only creeps for a moment (35% speed at most)
         assert!(brain.hes_t > 0.0);
+    }
+
+    #[test]
+    fn heist_hit_recovery_clears_the_old_dodge_and_combat_target() {
+        let mut rng = Rng::new(42);
+        let mut brain = BotBrain::new(&mut rng);
+        brain.target = Some(1);
+        brain.retarget = 5.0;
+        brain.glance_t = 0.35;
+        brain.side_t = 0.45;
+        brain.side_dir = (-1.0, 0.0);
+        brain.mv = (-1.0, 0.0);
+        let mut scene = Scene::new();
+        scene.others.push(other(1, -8.0, 0.0));
+        let mut world = scene.view(1.0);
+        world.mode = GameMode::Heist;
+        world.objective_goal = Some(V3::new(5.0, 0.0, 0.0));
+        let mut me = me_at(0.0, 0.0);
+        me.held = vec![teddy(5)];
+        me.selected = Some(0);
+        me.stun = 0.5;
+        assert!(brain.think(&me, &world, &mut rng).busy);
+        me.stun = 0.0;
+        let recovery = brain.think(&me, &world, &mut rng);
+        assert!(brain.disengage > 0.0 && brain.target.is_none());
+        assert!(brain.side_t <= 0.0 && brain.glance_t <= 0.0);
+        assert!(recovery.wish.0 >= 0.0);
     }
 
     #[test]

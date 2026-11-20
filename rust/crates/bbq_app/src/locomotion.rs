@@ -73,7 +73,12 @@ impl Gait {
         } else {
             velocity.with_y(0.0)
         };
-        self.travelled_velocity = self.travelled_velocity.lerp(measured, 1.0 - (-18.0 * dt).exp());
+        // Knockback is a hit pose. It must not seed the next walking direction.
+        self.travelled_velocity = if walking {
+            self.travelled_velocity.lerp(measured, 1.0 - (-18.0 * dt).exp())
+        } else {
+            Vec3::ZERO
+        };
         let travel = self.travelled_velocity;
         let facing = if !busy && walking && travel.length_squared() > 0.36 {
             travel.x.atan2(travel.z)

@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.46 clears stale Heist bot targeting and dodges after hits and adds three recorded first-person grass footsteps. [Recovery and audio review](checkpoints/2026-11-20-heist-recovery/REVIEW.md).
+
 - Prototype 0.23.45 keeps Heist teddy passes short and lets teammates catch them. Vaults now skip shorter detours, and a stolen teddy slows its carrier underground. Dazza opens the hatch for eight seconds. [Route measurements and test notes](checkpoints/2026-11-20-heist-balance/REVIEW.md).
 
 - Prototype 0.23.44 teaches Teddy Heist bots to clear corners, ease into turns and negotiate crowded halls. Bot bodies and strides follow actual travel on desktop and browser. Seven original wall posters mark different junctions on the three maps. [Movement clips and wall-art review](checkpoints/2026-11-20-heist-movement/REVIEW.md).

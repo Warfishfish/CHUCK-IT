@@ -504,8 +504,9 @@ pub fn bot_goal_variant(
             return Some(via(me.pos, home, guard_post(home)));
         }
         // otherwise raid: the nearest enemy teddy
+        let guard = || via(me.pos, home, guard_post(home));
         if !hands_free {
-            return None;
+            return Some(guard());
         }
         let mut best: Option<(&Stray, f32)> = None;
         for t in teddies {
@@ -519,7 +520,7 @@ pub fn bot_goal_variant(
                 best = Some((t, d));
             }
         }
-        let (t, _) = best?;
+        let Some((t, _)) = best else { return Some(guard()); };
         let eb = base_of_team(t.team)?;
         if inside_base(eb, t.pos.x, t.pos.z) {
             Some(via(me.pos, eb, t.pos))
@@ -951,7 +952,7 @@ mod tests {
     }
 
     #[test]
-    fn a_lone_bot_raids_and_full_hands_means_nothing_to_do() {
+    fn a_lone_bot_raids_or_heads_home_to_guard_when_its_hands_are_full() {
         let me = who(1, 0.0, 0.0, Team::Red, true);
         let strays = [
             Stray {
@@ -975,7 +976,7 @@ mod tests {
         assert_eq!(g, V3::new(8.0, 0.2, 0.0));
         assert_eq!(
             bot_goal(&me, false, 2, std::slice::from_ref(&me), &strays),
-            None
+            Some(via(me.pos, base_of(2, Team::Red).unwrap(), guard_post(base_of(2, Team::Red).unwrap())))
         );
         // someone with no base (not a team in this game) has no goal
         let alien = who(9, 0.0, 0.0, Team::Green, true);

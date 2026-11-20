@@ -91,7 +91,7 @@ pub struct FxPlugin;
 impl Plugin for FxPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, load_heist_audio)
-            .add_systems(PostUpdate, play_heist_audio);
+            .add_systems(PostUpdate, (play_heist_audio, play_grass_steps));
         if !crate::lighting::effects_enabled(&std::env::args().collect::<Vec<_>>()) {
             // Decals read the local event queue during Update. Hosts send a separate FX queue.
             app.add_systems(PostUpdate, (|mut game: ResMut<Game>| game.fx.clear()).after(play_heist_audio));
@@ -114,6 +114,7 @@ struct HeistAudio {
     landing: Handle<AudioSource>,
     hatch: Handle<AudioSource>,
     bank: Handle<AudioSource>,
+    grass: [Handle<AudioSource>; 3],
 }
 
 fn load_heist_audio(mut commands: Commands, assets: Res<AssetServer>) {
@@ -122,6 +123,11 @@ fn load_heist_audio(mut commands: Commands, assets: Res<AssetServer>) {
         landing: assets.load("audio/heist/landing.wav"),
         hatch: assets.load("audio/heist/hatch.wav"),
         bank: assets.load("audio/heist/bank.wav"),
+        grass: [
+            assets.load("audio/heist/grass-1.wav"),
+            assets.load("audio/heist/grass-2.wav"),
+            assets.load("audio/heist/grass-3.wav"),
+        ],
     });
 }
 
@@ -151,6 +157,74 @@ fn play_heist_audio(
                 PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(gain * near)),
             ));
         }
+    }
+}
+
+#[derive(Default)]
+struct GrassSteps {
+    previous: Option<Vec2>,
+    distance: f32,
+    clip: usize,
+}
+
+impl GrassSteps {
+    fn advance(&mut self, ground: Option<Vec2>) -> bool {
+        let previous = std::mem::replace(&mut self.previous, ground);
+        let Some(delta) = ground.zip(previous).map(|(at, from)| at.distance(from)) else {
+            self.distance = 0.85;
+            return false;
+        };
+        if delta > 0.9 {
+            self.distance = 0.85;
+            return false;
+        }
+        self.distance += delta;
+        if self.distance >= 1.45 {
+            self.distance -= 1.45;
+            return true;
+        }
+        false
+    }
+}
+
+#[cfg(test)]
+mod grass_step_tests {
+    use super::*;
+
+    #[test]
+    fn grass_steps_require_distance_on_foot_and_ignore_teleports() {
+        let mut steps = GrassSteps::default();
+        assert!(!steps.advance(Some(Vec2::ZERO)));
+        assert!(!steps.advance(Some(Vec2::new(0.4, 0.0))));
+        assert!(steps.advance(Some(Vec2::new(0.7, 0.0))));
+        assert!(!steps.advance(Some(Vec2::new(0.7, 0.0))));
+        assert!(!steps.advance(Some(Vec2::new(45.0, 0.0))));
+        assert!(!steps.advance(None));
+        assert!(!steps.advance(Some(Vec2::new(46.0, 0.0))));
+    }
+}
+
+fn play_grass_steps(
+    mut commands: Commands,
+    game: Res<Game>,
+    player: Res<crate::player::Player>,
+    settings: Res<crate::menu::Settings>,
+    screen: Res<crate::menu::Screen>,
+    sounds: Res<HeistAudio>,
+    mut steps: Local<GrassSteps>,
+) {
+    let mover = &player.mover;
+    let ground = (*screen == crate::menu::Screen::Playing
+        && settings.sound && game.rules.in_play() && game.rules.mode == bbq_core::GameMode::Heist
+        && mover.grounded && !mover.underground && (-0.08..=0.08).contains(&mover.y)
+        && game.me.body.stun <= 0.0 && !game.me.body.is_down()
+        && !crate::smoko_mode::player_locked(&game))
+        .then_some(Vec2::new(mover.x, mover.z));
+    if steps.advance(ground) {
+        let sound = sounds.grass[steps.clip].clone();
+        steps.clip = (steps.clip + 1) % sounds.grass.len();
+        commands.spawn((AudioPlayer::new(sound),
+            PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(0.62))));
     }
 }
 

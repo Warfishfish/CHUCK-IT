@@ -34,3 +34,8 @@ metdoorcreakopen.wav — Mihacappy, https://freesound.org/people/Mihacappy/sound
 bell ding 1.wav — 5ro4 (Alva Majo), https://freesound.org/people/5ro4/sounds/611113/
 All four: CC0 1.0 Universal, https://creativecommons.org/publicdomain/zero/1.0/
 Trimmed, converted to mono WAV, gain adjusted and faded for in-game use.
+
+Heist grass footsteps — “Hiking Boot Footsteps on Grass” by Fission9
+https://freesound.org/people/Fission9/sounds/521587/
+CC0 1.0 Universal, https://creativecommons.org/publicdomain/zero/1.0/
+Three steps isolated from the public preview, converted to mono WAV, levelled and faded.
