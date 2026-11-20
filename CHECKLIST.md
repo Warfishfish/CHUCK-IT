@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.47 fades fine Backyard grass blades smoothly with distance. The close grass remains visible and the lawn keeps its painted colour and wear. Tested walking and turning on desktop and WebGPU at Low and High. [Matched captures](checkpoints/2026-11-21-backyard-grass/REVIEW.md).
+
 - Prototype 0.23.46 clears stale Heist bot targeting and dodges after hits and adds three recorded first-person grass footsteps. [Recovery and audio review](checkpoints/2026-11-20-heist-recovery/REVIEW.md).
 
 - Prototype 0.23.45 keeps Heist teddy passes short and lets teammates catch them. Vaults now skip shorter detours, and a stolen teddy slows its carrier underground. Dazza opens the hatch for eight seconds. [Route measurements and test notes](checkpoints/2026-11-20-heist-balance/REVIEW.md).

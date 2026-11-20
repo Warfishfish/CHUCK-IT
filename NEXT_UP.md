@@ -2,6 +2,10 @@
 
 Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it with a friend. The focus now is graphics, gameplay, UI and character customization. One item at a time; screenshots and a yes before anything is committed.
 
+## Backyard grass · 21 November 2026
+
+Prototype 0.23.47 calms mid-distance grass speckles while keeping the nearby blades. Desktop and full WebGPU walks on Low and High are in the [grass review](checkpoints/2026-11-21-backyard-grass/REVIEW.md). The remaining map graphics items from the three-map check are fine gum leaves and their shadows in Bush Servo, and the dark turf midtones in shaded Heist corridors.
+
 ## Teddy Heist recovery and footstep check · 20 November 2026
 
 Prototype 0.23.46 addresses bots backpedalling or following after a teddy hit, and adds local grass footsteps. In solo, check a bot recovers into a route or guard post after a hit and listen for the grass steps. A full match with friends remains the balance check for passes, vaults and the tunnel. [Recovery and audio review](checkpoints/2026-11-20-heist-recovery/REVIEW.md)

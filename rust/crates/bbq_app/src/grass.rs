@@ -1,11 +1,14 @@
-//! Short, opaque lawn blades batched into spatial tiles. Visual only: no colliders,
-//! per-blade entities, alpha overdraw, animation or shadow-casting grass passes.
+//! Short lawn blades batched into spatial tiles. Visual only: no colliders,
+//! per-blade entities, animation or shadow-casting grass passes.
 use bbq_core::{GameMode, YARD_HALF_X, YARD_HALF_Z};
 use bbq_core::rng::Rng;
 use bbq_core::yard::{Features, Yard, POOL_X0, POOL_X1, POOL_Z0, POOL_Z1};
 use bevy::asset::RenderAssetUsages;
 use bevy::mesh::{Indices, PrimitiveTopology};
+use bevy::pbr::{ExtendedMaterial, MaterialExtension};
 use bevy::prelude::*;
+use bevy::render::render_resource::AsBindGroup;
+use bevy::shader::ShaderRef;
 use crate::{game::Game, lighting::LookMode, yard_scene::YardRes};
 
 // Muted blade colours in linear space, matching the lawn beneath them.
@@ -17,10 +20,23 @@ const TILE: f32 = 5.0;
 const TUFTS_PER_TILE: usize = 180;
 #[derive(Component)]
 pub struct GrassTile;
+
+pub(super) type BackyardGrassMaterial = ExtendedMaterial<StandardMaterial, GrassDistanceFade>;
+
+#[derive(Asset, TypePath, AsBindGroup, Clone, Debug)]
+pub(super) struct GrassDistanceFade {}
+
+impl MaterialExtension for GrassDistanceFade {
+    fn fragment_shader() -> ShaderRef {
+        "shaders/backyard_grass.wgsl".into()
+    }
+}
+
 #[derive(Default)]
 pub struct GrassState {
     signature: Option<(GameMode, Features, usize)>,
-    material: Option<Handle<StandardMaterial>>,
+    backyard_material: Option<Handle<BackyardGrassMaterial>>,
+    race_material: Option<Handle<StandardMaterial>>,
     enabled: Option<bool>,
 }
 
@@ -100,9 +116,10 @@ fn tile_mesh(cx: f32, cz: f32, mode: GameMode, yard: &Yard, tufts: usize) -> Opt
         .with_inserted_indices(Indices::U32(indices)))
 }
 
-pub fn sync(
+pub(super) fn sync(
     mut commands: Commands, g: Res<Game>, screen: Res<crate::menu::Screen>, settings: Res<crate::menu::Settings>, yard: Res<YardRes>, look: Res<LookMode>,
     mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>,
+    mut backyard_materials: ResMut<Assets<BackyardGrassMaterial>>,
     tiles: Query<Entity, With<GrassTile>>, mut state: Local<GrassState>,
 ) {
     let enabled = *state.enabled.get_or_insert_with(|| !std::env::args().any(|a| a == "--grass-off"));
@@ -112,16 +129,31 @@ pub fn sync(
     if state.signature == Some(signature) { return; }
     state.signature = Some(signature);
     for entity in &tiles { commands.entity(entity).despawn(); }
-    let material = state.material.get_or_insert_with(|| materials.add(StandardMaterial {
+    if matches!(mode, GameMode::Heist | GameMode::Smoko) { return; }
+    let blade_material = || StandardMaterial {
         base_color: Color::WHITE, perceptual_roughness: 1.0, reflectance: 0.0,
         cull_mode: None, ..default()
-    })).clone();
+    };
+    let is_race = mode == GameMode::Race;
+    let race_material = is_race.then(|| state.race_material
+        .get_or_insert_with(|| materials.add(blade_material())).clone());
+    let backyard_material = (!is_race).then(|| state.backyard_material
+        .get_or_insert_with(|| backyard_materials.add(ExtendedMaterial {
+            base: StandardMaterial { alpha_mode: AlphaMode::Blend, ..blade_material() },
+            extension: GrassDistanceFade {},
+        })).clone());
     let (nx, nz) = if mode == GameMode::Race { (10, 7) } else { (7, 5) };
     for ix in -nx..=nx { for iz in -nz..=nz {
         let (x, z) = (ix as f32 * TILE, iz as f32 * TILE);
         if let Some(mesh) = tile_mesh(x, z, mode, &yard.0, TUFTS_PER_TILE) {
-            commands.spawn((GrassTile, Mesh3d(meshes.add(mesh)), MeshMaterial3d(material.clone()),
+            let mut tile = commands.spawn((GrassTile, Mesh3d(meshes.add(mesh)),
                 Transform::from_xyz(x, 0.0, z), bevy::light::NotShadowCaster));
+            if let Some(material) = &race_material {
+                tile.insert(MeshMaterial3d(material.clone()));
+            }
+            if let Some(material) = &backyard_material {
+                tile.insert(MeshMaterial3d(material.clone()));
+            }
         }
     }}
 }

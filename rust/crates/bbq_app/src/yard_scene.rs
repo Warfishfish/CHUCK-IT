@@ -164,7 +164,8 @@ pub struct YardScenePlugin;
 
 impl Plugin for YardScenePlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(YardRes(Yard::default()))
+        app.add_plugins(MaterialPlugin::<crate::grass::BackyardGrassMaterial>::default())
+            .insert_resource(YardRes(Yard::default()))
             .init_resource::<Drift>()
             .add_systems(Startup, build_yard)
             .add_systems(
