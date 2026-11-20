@@ -1,6 +1,6 @@
 {
-  "source_commit": "f916afa0405b9033854687f3d875b6033530895b",
+  "source_commit": "293be80571a3662e0568884f62723c96ed0af858",
   "protocol": 33,
-  "release_date": "2026-11-20",
-  "description": "Teddy Heist bot hit recovery and first-person grass footsteps, prototype 0.23.46"
+  "release_date": "2026-11-21",
+  "description": "Softer distant Backyard grass on desktop and WebGPU, prototype 0.23.47"
 }
