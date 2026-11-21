@@ -1,6 +1,6 @@
 {
-  "source_commit": "de0bc532d48e034f0fcb16890738046a1bcc22c5",
+  "source_commit": "fae6c078bd2133e550ff76c223632aa17e0f87f7",
   "protocol": 34,
   "release_date": "2026-11-21",
-  "description": "Soft turf footsteps, prototype 0.23.54"
+  "description": "Walking sounds paused, prototype 0.23.55"
 }
