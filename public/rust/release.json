@@ -1,6 +1,6 @@
 {
-  "source_commit": "fae6c078bd2133e550ff76c223632aa17e0f87f7",
+  "source_commit": "abb3698abec6e3092c2726e4f8a8b2860ab48e52",
   "protocol": 34,
   "release_date": "2026-11-21",
-  "description": "Walking sounds paused, prototype 0.23.55"
+  "description": "Saved master volume, prototype 0.23.56"
 }
