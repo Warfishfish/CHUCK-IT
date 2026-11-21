@@ -35,13 +35,11 @@ bell ding 1.wav — 5ro4 (Alva Majo), https://freesound.org/people/5ro4/sounds/6
 All four: CC0 1.0 Universal, https://creativecommons.org/publicdomain/zero/1.0/
 Trimmed, converted to mono WAV, gain adjusted and faded for in-game use.
 
-Heist grass footsteps — “Footstep_Grass_1.wav”, “Footstep_Grass_2.wav” and
-“Footstep_Grass_3.wav” by GiocoSound
-https://freesound.org/people/GiocoSound/sounds/421131/
-https://freesound.org/people/GiocoSound/sounds/421130/
-https://freesound.org/people/GiocoSound/sounds/421129/
+Heist grass footsteps — “Women walking on grass outside with sneakers” by AnikadeBeer_231312
+https://freesound.org/people/AnikadeBeer_231312/sounds/707915/
 CC0 1.0 Universal, https://creativecommons.org/publicdomain/zero/1.0/
-Individual steps trimmed from the previews, converted to mono PCM, filtered, levelled and faded.
+Three short steps isolated from the public preview. Mono conversion, background noise reduction,
+softened high frequencies, level matching and fades.
 
 BACKYARD BIRD SOUNDS — sourced from Freesound public previews
 Takeoff wingbeats — “Beating wings of a pigeon” by gerardcatala
