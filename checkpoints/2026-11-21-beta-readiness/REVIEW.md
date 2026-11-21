@@ -22,7 +22,7 @@ Chrome loaded all three Heist grass samples on each layout. The Web Audio probe 
 
 ## Mixed-client carry
 
-A controlled native host and WebGPU guest connected through the game relay in 1v1 Heist with zero bots. The guest saw [the first corner](carry-first-corner.png), [the second corner](carry-second-corner.png), [the throw](carry-flight.png) and [the return to first person](carry-first-person.png). A rejoin attempt was refused during play as expected, then [admitted in the lobby](rejoined-lobby.png) after the host ended the round. The production WebGPU build was used as the guest. The desktop host used a local fixture to stage the carry.
+A controlled native host and WebGPU guest connected through the game relay in 1v1 Heist with zero bots. The guest saw [the first corner](carry-first-corner.png), [the second corner](carry-second-corner.png), [the throw](carry-flight.png) and [the return to first person](carry-first-person.png). A rejoin attempt was refused during play as expected, then [admitted in the lobby](rejoined-lobby.png) after the host ended the round. The production WebGPU build was used as the guest. The desktop host used a local fixture to stage the carry. A second run through the public Cloudflare WebSocket relay repeated the carry, throw and return to first person. The guest was refused during play and admitted after the lobby reopened.
 
 The workspace tests also cover host validation of objective passes, normal jumps with a teddy at each crate vault, and exit from every tunnel branch after the hatch closes. Human defenders and human carry-camera comfort are still playtest items.
 
