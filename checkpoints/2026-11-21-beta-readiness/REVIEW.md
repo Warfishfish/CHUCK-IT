@@ -35,3 +35,7 @@ High preset, 1280 × 800, 600 wall-clock frame intervals per map after 300 warmu
 - Four-flag Heist with 19 bots had a 7.7 ms 95th-percentile frame time.
 
 All three runs stayed below 16.7 ms per frame in the sample.
+
+## Desktop beta archives
+
+[Build 44867819649](https://github.com/Warfishfish/CHUCK-IT/actions/runs/44867819649) passed on macOS ARM64, Windows x64 and Ubuntu. The Mac app opened through macOS Launch Services and also loaded gameplay with a held item from outside the repository. The Windows ZIP passed the archive integrity check and contains the Windows executable, runtime assets and credits. The Windows executable was not launched on a Windows PC. These are test builds for sideloading.
