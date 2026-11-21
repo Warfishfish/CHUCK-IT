@@ -3,8 +3,7 @@
 //! crosshair with its charge bar, the three cooldown chips bottom left and the two item slots
 //! bottom right, plus the big banner, the hint line and the "R does this" prompt.
 //!
-//! Simplified: the item icons are coloured discs with the item's name (the browser draws small
-//! pictures), the red hit flash is a plain tint, and there are no touch buttons.
+//! Inventory uses original item pictures, with names and remaining uses below them.
 
 use bbq_core::GameMode;
 use bbq_core::hands::OVERHOLD;
@@ -982,23 +981,28 @@ fn update_cooldowns(
     }
 }
 
-fn item_colour(kind: bbq_core::items::ItemKind) -> Color {
-    use bbq_core::items::ItemKind::*;
-    crate::models::hex(match kind {
-        Teddy => 0xa86b3c,
-        Stubby => 0x1e7d3a,
-        WaterBalloon => 0x25b8ed,
-        Dildo => 0xa44de0,
-        Steak => 0xc4455a,
-        Fish => 0xa9bcc8,
-        Noodle => 0xff5fa8,
-        Snag => 0xc4455a,
-    })
+fn item_icon(item: &bbq_core::flight::Item) -> &'static str {
+    use bbq_core::items::{Bottle, ItemKind::*};
+    match item.kind {
+        Teddy => "ui/items/teddy.png",
+        Stubby => match item.bottle {
+            Some(Bottle::Beer) => "ui/items/beer.png",
+            Some(Bottle::Spirit) => "ui/items/rum.png",
+            _ => "ui/items/can.png",
+        },
+        WaterBalloon => "ui/items/balloon.png",
+        Dildo => "ui/items/silicone.png",
+        Steak => "ui/items/steak.png",
+        Fish => "ui/items/fish.png",
+        Noodle => "ui/items/noodle.png",
+        Snag => "ui/items/snag.png",
+    }
 }
 
 fn update_slots(
     mut commands: Commands,
     game: Res<Game>,
+    assets: Res<AssetServer>,
     slots: Query<(Entity, &Slot, &mut BorderColor)>,
     mut last: Local<String>,
 ) {
@@ -1030,13 +1034,10 @@ fn update_slots(
             ));
             match item {
                 Some(it) => {
-                    p.spawn((Node{width:px(40.0),height:px(38.0),..default()})).with_children(|icon| {
-                        use bbq_core::items::ItemKind::*;
-                        let (w,h,r)=match it.kind {Stubby=>(20.0,30.0,5.0),Noodle=>(9.0,34.0,5.0),Fish=>(30.0,16.0,9.0),Snag=>(30.0,12.0,6.0),Steak=>(29.0,23.0,10.0),_=>(28.0,28.0,18.0)};
-                        icon.spawn((Node{position_type:PositionType::Absolute,left:px((40.0-w)/2.0),top:px((38.0-h)/2.0),width:px(w),height:px(h),border:UiRect::all(px(2.0)),border_radius:BorderRadius::all(px(r)),..default()},BackgroundColor(item_colour(it.kind)),BorderColor::all(INK)));
-                        if it.kind==Teddy {for x in [5.0,26.0]{icon.spawn((Node{position_type:PositionType::Absolute,left:px(x),top:px(1.0),width:px(10.0),height:px(10.0),border:UiRect::all(px(2.0)),border_radius:BorderRadius::MAX,..default()},BackgroundColor(item_colour(it.kind)),BorderColor::all(INK)));}}
-                        if it.kind==WaterBalloon {icon.spawn((Node{position_type:PositionType::Absolute,left:px(17.0),top:px(31.0),width:px(7.0),height:px(5.0),border_radius:BorderRadius::all(px(2.0)),..default()},BackgroundColor(item_colour(it.kind))));}
-                    });
+                    p.spawn((
+                        ImageNode::new(assets.load(item_icon(it))),
+                        Node { width: px(40.0), height: px(40.0), ..default() },
+                    ));
                     let def = it.kind.def();
                     let name = crate::items_view::item_name(it);
                     let label = if it.kind == bbq_core::items::ItemKind::WaterBalloon {

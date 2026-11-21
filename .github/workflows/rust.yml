@@ -26,3 +26,18 @@ jobs:
         with:
           workspaces: rust
       - run: cargo build --release
+      - name: Package desktop beta
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            python tools/package_desktop.py windows target/release/bbq_app.exe target/beta/australian-bbq-windows.zip
+          else
+            python3 tools/package_desktop.py macos target/release/bbq_app target/beta/australian-bbq-mac.zip
+          fi
+      - uses: actions/upload-artifact@v4
+        if: runner.os != 'Linux'
+        with:
+          name: australian-bbq-${{ runner.os }}-${{ runner.arch }}
+          path: rust/target/beta/*.zip
+          if-no-files-found: error

@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.50 adds saved controller button remapping, pause and results controller navigation, and illustrated held-item slots to desktop and full WebGPU. The desktop build also produces self-contained Mac and Windows beta archives with runtime assets and credits. [Beta review](checkpoints/2026-11-21-beta-readiness/REVIEW.md).
+
 - Prototype 0.23.49 calms Bush Servo’s gum foliage and leaf-shadow shimmer. Wider, fewer leaf shapes preserve the crowns, with broad canopy shade around the picnic area and shelter. [Desktop and browser review](checkpoints/2026-11-21-bush-servo-foliage/REVIEW.md).
 
 - Prototype 0.23.48 lifts shaded Heist turf, animates Backyard sprinkler drops and staggered pool ripples, and refines the balloon splash, wet drips, landing stance and carried-player camera. [Review and captures](checkpoints/2026-11-21-turf-water-and-camera/REVIEW.md).

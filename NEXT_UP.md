@@ -2,6 +2,14 @@
 
 Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it with a friend. The focus now is graphics, gameplay, UI and character customization. One item at a time; screenshots and a yes before anything is committed.
 
+## Beta readiness · 21 November 2026
+
+Prototype 0.23.50 adds saved controller remapping, pause and results navigation, illustrated item slots, and portable desktop beta archives. [Verification and captures](checkpoints/2026-11-21-beta-readiness/REVIEW.md).
+
+- Run a full match with friends to compare Heist passes, crate vaults and Dazza’s tunnel with regular routes against human defenders.
+- Play with a physical controller through remapping, pause, the scoreboard and another round. Run the Windows ZIP on a Windows PC.
+- Compare the carry camera with two people on their usual hardware and rate comfort during turns, release and the return to first person.
+
 ## Bush Servo gum foliage · 21 November 2026
 
 Prototype 0.23.49 calms the fine leaf shapes and shadows while retaining broad picnic and shelter shade. [Walking comparisons](checkpoints/2026-11-21-bush-servo-foliage/REVIEW.md). The next checks are Backyard water effects in full WebGPU and longer two-player carried-camera comfort. The Heist shortcut balance playtest remains queued for a match with friends.

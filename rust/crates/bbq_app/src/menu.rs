@@ -70,6 +70,7 @@ pub struct Settings {
     pub room: String,
     /// Local rendering budget; does not change gameplay or network state.
     pub quality: crate::graphics_quality::GraphicsQuality,
+    pub pad_bindings: crate::gamepad::PadBindings,
 }
 
 impl Default for Settings {
@@ -99,6 +100,7 @@ impl Default for Settings {
             look: bbq_core::appearance::Appearance::default(),
             room: String::new(),
             quality: if cfg!(target_arch = "wasm32") { crate::graphics_quality::GraphicsQuality::Low } else { crate::graphics_quality::GraphicsQuality::High },
+            pad_bindings: Default::default(),
         }
     }
 }
@@ -229,7 +231,7 @@ impl Settings {
             self.falls, self.drunk_all, self.character.name(), self.belly, self.sound,
             self.server, self.room, self.quality.setting_name()
         ) + &format!("race_role={}\n",if self.race_role==crate::race::Role::Thrower{"thrower"}else{"racer"}) + &self.look.to_lines();
-        write_settings(&s);
+        write_settings(&(s + &format!("pad_bindings={}\n", self.pad_bindings.encode())));
     }
 
     /// In the browser the relay is always the server the page came from, with the page's own
@@ -299,6 +301,7 @@ impl Settings {
                 "server" => s.server = v.chars().take(80).collect(),
                 "room" => s.room = crate::online::clean_room(v),
                 "graphics" => s.quality = crate::graphics_quality::GraphicsQuality::from_setting(v),
+                "pad_bindings" => s.pad_bindings = crate::gamepad::PadBindings::decode(v),
                 k => {
                     s.look.read_line(k, v);
                 }
@@ -327,6 +330,7 @@ pub struct MenuUi {
     pub net_request: Option<crate::online::NetRequest>,
     /// Lobby: the Ready button was pressed (`online.rs` toggles it).
     pub toggle_ready: bool,
+    pad_rebind: Option<crate::gamepad::PadAction>,
 }
 
 impl MenuUi {
@@ -337,6 +341,7 @@ impl MenuUi {
         }
         self.name_focus = false;
         self.net_focus = None;
+        self.pad_rebind = None;
     }
 
     pub(crate) fn reset_page(&mut self, tab: Tab) {
@@ -348,6 +353,7 @@ impl MenuUi {
         self.tab = tab;
         self.name_focus = false;
         self.net_focus = None;
+        self.pad_rebind = None;
     }
 
     fn back(&mut self) {
@@ -362,6 +368,7 @@ impl MenuUi {
             self.tab = self.history.pop().unwrap_or(Tab::Main);
             self.name_focus = false;
             self.net_focus = None;
+            self.pad_rebind = None;
         }
     }
 }
@@ -496,6 +503,7 @@ impl Plugin for MenuPlugin {
                     Some("look") => Tab::Look,
                     Some("mates") => Tab::Mates,
                     Some("settings") => Tab::Settings,
+                    Some("controller") => Tab::Controller,
                     Some("how") => Tab::How,
                     Some("solo") => Tab::Solo,
                     _ => Tab::Main,
@@ -507,6 +515,7 @@ impl Plugin for MenuPlugin {
                 net_focus: None,
                 net_request: None,
                 toggle_ready: false,
+                pad_rebind: None,
             })
             .insert_resource(if direct && !menu_shot { Screen::Playing } else { Screen::Menu })
             .add_systems(Startup, (spawn_menu, spawn_pause, apply_loaded_settings).chain())
@@ -1082,6 +1091,14 @@ struct PlayLabelMarker;
 /// The Settings tab (Marcus, 11 Oct 2026): the game's settings (the host's, online) and your own.
 /// Changes to the round take effect from the next round.
 fn settings_panel(c: &mut ChildSpawnerCommands) {
+    c.spawn((column(10.0), ShowWhen::Panel(Tab::Controller))).with_children(|p| {
+        p.spawn(text("Select an action, then press a controller button. If it is already assigned, the two actions swap.", 13.0, false, MUTED));
+        p.spawn(text("Start or Esc cancels. Menu buttons keep their usual behaviour.", 13.0, false, MUTED));
+        for action in crate::gamepad::PadAction::ALL {
+            button(p, Action::BindPad(action), action.label(), None);
+        }
+        button(p, Action::ResetPad, "Restore default buttons", None);
+    });
     c.spawn((column(14.0), ShowWhen::Panel(Tab::Settings))).with_children(|p| {
         // Keep the local render preset at the top of this long settings panel so it is easy
         // to find before scrolling through host-controlled map and round options.
@@ -1089,6 +1106,7 @@ fn settings_panel(c: &mut ChildSpawnerCommands) {
             y.spawn(legend("Your graphics on this device"));
             seg(y, SegId::GraphicsQuality, "Graphics quality", &[("Low", 0), ("High", 1)]);
             y.spawn(text("Low reduces shadows and screen effects for smoother play. High enables full effects.", 12.5, false, MUTED));
+            button(y, Action::Tab(Tab::Controller), "Controller buttons", None);
         });
         // the game: the host's to change when playing online
         p.spawn((column(12.0), ShowWhen::NotGuest)).with_children(|g| {
@@ -1308,6 +1326,7 @@ fn spawn_pause(mut commands: Commands) {
                             button(w, Action::Leave, "Leave the yard", None);
                         });
                 });
+                c.spawn(text("Esc or Start resumes. Use the D-pad or arrows to move between controls.", 12.0, false, MUTED));
             });
         });
 }
@@ -1433,19 +1452,41 @@ fn test_looks(mut game: ResMut<Game>) {
 // ---------------------------------------------------------------- clicks
 
 #[derive(Default)]
-struct PadMenuState { focus: Option<Entity>, tab: Option<Tab>, repeat: f32, active: bool }
+struct PadMenuState { focus: Option<Entity>, page: Option<(Screen, Tab)>, repeat: f32, active: bool }
 
 /// D-pad/stick focus uses the same widgets as the mouse, including sliders and swatches.
 fn controller_menu(
     mut commands: Commands, time: Res<Time>, screen: Res<Screen>,
     pads: Query<&bevy::input::gamepad::Gamepad>, keys: Res<ButtonInput<KeyCode>>,
-    mut ui: ResMut<MenuUi>, settings: Res<Settings>, mut state: Local<PadMenuState>,
+    mut ui: ResMut<MenuUi>, mut settings: ResMut<Settings>, mut state: Local<PadMenuState>,
     mut widgets: Query<(Entity,&ComputedNode,&UiGlobalTransform,&InheritedVisibility,
-        &mut Interaction,Option<&Slider>,Option<&mut RelativeCursorPosition>),With<Button>>,
+        &mut Interaction,Option<&Slider>,Option<&mut RelativeCursorPosition>,Option<&Action>),With<Button>>,
     mut scroll: Query<(&ComputedNode,&UiGlobalTransform,&mut ScrollPosition),With<MenuContent>>,
 ) {
     use bevy::input::gamepad::GamepadButton as B;
-    if *screen!=Screen::Menu {return;}
+    if state.page != Some((*screen, ui.tab)) {
+        if let Some(entity) = state.focus.take() {
+            commands.entity(entity).try_remove::<Outline>();
+        }
+        state.page = Some((*screen, ui.tab));
+        state.active = false;
+        state.repeat = 0.0;
+    }
+    if *screen == Screen::Playing { return; }
+    if let Some(action) = ui.pad_rebind {
+        for pad in &pads {
+            if pad.just_pressed(B::Start) {
+                ui.pad_rebind = None;
+                return;
+            }
+            if pad.get_just_pressed().any(|&button| settings.pad_bindings.reassign(action, button)) {
+                settings.save();
+                ui.pad_rebind = None;
+                return;
+            }
+        }
+        return;
+    }
     let mut direction=Vec2::ZERO;
     let mut accept=keys.just_pressed(KeyCode::Enter);
     let mut back=false;
@@ -1461,29 +1502,36 @@ fn controller_menu(
         (KeyCode::ArrowLeft,Vec2::NEG_X),(KeyCode::ArrowRight,Vec2::X)] {
         if keys.pressed(key) {direction=dir;}
     }
-    if back {ui.back();state.focus=None;return;}
-    if ui.name_focus || ui.net_focus.is_some() {return;}
+    if *screen == Screen::Menu && back { ui.back(); return; }
+    if *screen == Screen::Menu && (ui.name_focus || ui.net_focus.is_some()) {return;}
     state.repeat-=time.delta_secs();
     let navigate=direction.length_squared()>0.1 && state.repeat<=0.0;
     if direction==Vec2::ZERO {state.repeat=0.0;}
     if navigate {state.repeat=0.20;state.active=true;}
     if accept {state.active=true;}
     if !state.active {return;}
-    let mut items:Vec<_>=widgets.iter().filter(|(_,n,_,v,_,_,_)|v.get()&&n.size().x>1.0&&n.size().y>1.0)
-        .map(|(e,_,t,_,_,s,_)|(e,t.translation,s.is_some())).collect();
+    let mut items:Vec<_>=widgets.iter().filter(|(_,n,_,v,_,_,_,_)|v.get()&&n.size().x>1.0&&n.size().y>1.0)
+        .map(|(e,_,t,_,_,s,_,a)|(e,t.translation,s.is_some(),a.copied())).collect();
     items.sort_by(|a,b|a.1.y.total_cmp(&b.1.y).then(a.1.x.total_cmp(&b.1.x)));
-    if state.tab!=Some(ui.tab) {state.tab=Some(ui.tab);state.focus=None;}
     let old=state.focus;
-    if !items.iter().any(|i|Some(i.0)==state.focus) {state.focus=items.first().map(|i|i.0);}
+    if !items.iter().any(|i|Some(i.0)==state.focus) {
+        let preferred = match *screen {
+            Screen::Paused => Some(Action::Resume),
+            Screen::Results => Some(Action::Again),
+            _ => None,
+        };
+        state.focus = preferred.and_then(|action| items.iter().find(|i| i.3 == Some(action)))
+            .or_else(|| items.first()).map(|i| i.0);
+    }
     let current=items.iter().find(|i|Some(i.0)==state.focus).copied();
-    if let Some((entity,position,is_slider))=current {
+    if let Some((entity,position,is_slider,_))=current {
         if navigate && old==state.focus && !(is_slider && direction.x.abs()>0.5) {
             if let Some(next)=items.iter().filter(|i|i.0!=entity).filter_map(|i| {
                 let d=i.1-position;let along=d.dot(direction.normalize());
                 (along>4.0).then_some((i.0,along+(d-direction.normalize()*along).length()*2.0))
             }).min_by(|a,b|a.1.total_cmp(&b.1)) {state.focus=Some(next.0);}
         }
-        if let Ok((_,_,_,_,mut interaction,slider,rel))=widgets.get_mut(entity) {
+        if let Ok((_,_,_,_,mut interaction,slider,rel,_))=widgets.get_mut(entity) {
             if let Some(s)=slider {
                 if navigate && direction.x.abs()>0.5 {
                     let value=match s.id {
@@ -1501,7 +1549,7 @@ fn controller_menu(
         }
     }
     if old!=state.focus {
-        if let Some(old)=old {commands.entity(old).remove::<Outline>();}
+        if let Some(old)=old {commands.entity(old).try_remove::<Outline>();}
         if let Some(focus)=state.focus {commands.entity(focus).insert(Outline::new(px(3.),px(3.),ESKY));}
         if let Some(item)=items.iter().find(|i|Some(i.0)==state.focus) {
             for (node,tf,mut pos) in &mut scroll {
@@ -1597,6 +1645,12 @@ fn widget_clicks(
             continue;
         }
         match a {
+            Action::BindPad(action) => ui.pad_rebind = Some(*action),
+            Action::ResetPad => {
+                settings.pad_bindings = Default::default();
+                ui.pad_rebind = None;
+                changed = true;
+            }
             Action::Tab(t) => {
                 ui.open(*t);
                 for mut scroll in &mut content_scroll { scroll.y = 0.0; }
@@ -1855,8 +1909,10 @@ fn net_typing(
 /// The server and room boxes, and the line saying how it is going.
 fn paint_navigation(
     ui: Res<MenuUi>,
+    settings: Res<Settings>,
     mut heading: Query<&mut Text, With<PageHeading>>,
     buttons: Query<&Children, With<BackLabel>>,
+    controls: Query<(&Action, &Children)>,
     mut labels: Query<&mut Text, Without<PageHeading>>,
     mut scroll: Query<&mut ScrollPosition, With<MenuContent>>,
     mut previous: Local<Option<Tab>>,
@@ -1864,8 +1920,22 @@ fn paint_navigation(
     let title = |page| match page {
         Tab::Main => "Main menu", Tab::Solo => "Solo game", Tab::Mates => "With mates",
         Tab::Lobby => "Yard lobby", Tab::Look => "Customise",
-        Tab::Settings => "Game settings", Tab::How => "How to play",
+        Tab::Settings => "Game settings", Tab::Controller => "Controller buttons", Tab::How => "How to play",
     };
+    if ui.tab == Tab::Controller && (ui.is_changed() || settings.is_changed()) {
+        for (action, children) in &controls {
+            let Action::BindPad(action) = *action else { continue };
+            for child in children.iter() {
+                if let Ok(mut label) = labels.get_mut(child) {
+                    label.0 = if ui.pad_rebind == Some(action) {
+                        format!("{}  ·  Press a button", action.label())
+                    } else {
+                        format!("{}  ·  {}", action.label(), settings.pad_bindings.label(action))
+                    };
+                }
+            }
+        }
+    }
     for mut text in &mut heading {
         if text.0 != title(ui.tab) { text.0 = title(ui.tab).into(); }
     }
@@ -2310,6 +2380,7 @@ fn flow_keys(
                 game.wind.cancel();
             }
             Screen::Paused => *screen = Screen::Playing,
+            Screen::Menu if ui.pad_rebind.is_some() => ui.pad_rebind = None,
             Screen::Menu if ui.name_focus => ui.name_focus = false,
             Screen::Menu if ui.net_focus.is_some() => ui.net_focus = None,
             Screen::Menu if ui.tab != Tab::Main => ui.back(),
@@ -2448,7 +2519,13 @@ fn open_results(
                     ));
                 }
                 c.spawn((
-                    Node { min_height: px(0.0), overflow: Overflow::scroll_y(), ..column(0.0) },
+                    Node {
+                        min_height: px(0.0), overflow: Overflow::scroll_y(),
+                        padding: UiRect::all(px(9.0)), border: UiRect::all(px(2.0)),
+                        border_radius: BorderRadius::all(px(12.0)), ..column(0.0)
+                    },
+                    BackgroundColor(WHITE),
+                    BorderColor::all(INK),
                     RelativeCursorPosition::default(),
                     ScrollPosition::default(),
                 )).with_children(|body| crate::results::table(body, &t));
@@ -2584,7 +2661,7 @@ mod menu_tests {
         let mut app = App::new();
         app.insert_resource(Settings::default())
             .insert_resource(MenuUi { tab: Tab::Main, history: vec![], more_open: false, name_focus: false,
-                request: None, net_focus: None, net_request: None, toggle_ready: false })
+                request: None, net_focus: None, net_request: None, toggle_ready: false, pad_rebind: None })
             .insert_resource(lobby)
             .init_resource::<Cast>()
             .insert_resource(crate::preview::PreviewImage(Handle::default()))

@@ -195,6 +195,8 @@ fn title_text(s: &str, size: f32, c: Color, dx: f32, dy: f32) -> impl Bundle {
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Action {
     Tab(Tab),
+    BindPad(crate::gamepad::PadAction),
+    ResetPad,
     Back,
     Play,
     More,
@@ -254,6 +256,7 @@ pub enum Tab {
     Mates,
     /// Game settings (round, yard) and your own (field of view, sound). Marcus, 11 Oct 2026.
     Settings,
+    Controller,
     How,
 }
 
