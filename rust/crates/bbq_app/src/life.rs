@@ -400,9 +400,9 @@ fn soak_step(g: &mut Game, p: &mut Player) {
     }
 }
 
-/// Bare-handed slap (Cheeky mode, nothing in your hands).
+/// Bare-handed slap with deliberately selected hands, or with empty inventory in Cheeky mode.
 pub fn bare_slap(g: &mut Game, p: &mut Player) {
-    if !g.options.adult || !g.slots.is_empty() || !can_swing(g, false)
+    if !(g.slots.hands_selected() || g.options.adult && g.slots.is_empty()) || !can_swing(g, false)
         || crate::smoko_mode::controlled(g, PLAYER_ID) || g.smoko.carries.contains_key(&PLAYER_ID) {
         return;
     }
@@ -420,7 +420,7 @@ pub fn bare_slap(g: &mut Game, p: &mut Player) {
 /// Guest input contains no victim or effect values; the host resolves everything here.
 pub fn guest_bare_slap(g: &mut Game, p: &mut Player, i: usize) {
     let d = &g.dummies[i];
-    if !g.options.adult || !g.rules.in_play() || !d.bot.slots.is_empty()
+    if !(d.bot.slots.hands_selected() || g.options.adult && d.bot.slots.is_empty()) || !g.rules.in_play()
         || d.body.is_down() || d.body.stun > 0.0 || d.seat.is_some()
         || d.dragged.is_some() || d.bot.drunk.is_drinking()
         || crate::smoko_mode::controlled(g, d.id) || g.smoko.carries.contains_key(&d.id)
@@ -459,7 +459,7 @@ fn apply_bare_hit(g: &mut Game, p: &mut Player, att: &Attacker, victim: PlayerId
         crate::online_world::note_slap(g,i,dir,&fx);
     }
     let gain=g.board.silly_slap(&g.rules,att.id,victim,att.drunk_bonus,false);
-    let name=melee::SILLY_NAMES[g.rng.index(melee::SILLY_NAMES.len())];
+    let name=if g.options.adult {melee::SILLY_NAMES[g.rng.index(melee::SILLY_NAMES.len())]} else {"SLAP!"};
     if att.is_player {g.popup(format!("{name} +{gain}"),false);}
     g.say(format!("{} gave {} a {}",att.name,crate::bots_app::name_of(g,victim),name.trim_end_matches('!')));
 }

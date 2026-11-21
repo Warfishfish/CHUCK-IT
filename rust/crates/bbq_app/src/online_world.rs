@@ -449,7 +449,9 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
             slots.add(*id);
         }
     }
-    if let Some(n) = old_selected.and_then(|sel| slots.ids().iter().position(|x| *x == sel))
+    if g.slots.hands_selected() && g.slots.ids() == slots.ids() {
+        slots.select_hands();
+    } else if let Some(n) = old_selected.and_then(|sel| slots.ids().iter().position(|x| *x == sel))
     {
         slots.select_slot(n);
     }
@@ -1258,6 +1260,23 @@ mod tests {
     }
 
     #[test]
+    fn family_guest_can_slap_after_stowing_one_item_and_keeps_it() {
+        let mut host = host_with_a_guest();
+        let item = give_guest(&mut host, ItemKind::Teddy, None);
+        host.world_mut().resource_mut::<Player>().mover = bbq_core::movement::Mover::new(8.0, -1.5);
+        host.world_mut().resource_mut::<Game>().options.adult = false;
+        act(&mut host, GuestAct::BareSlap);
+        assert_eq!(host.world().resource::<Game>().me.body.stun, 0.0);
+
+        act(&mut host, GuestAct::Select { item: 0 });
+        act(&mut host, GuestAct::BareSlap);
+        let g = host.world().resource::<Game>();
+        assert_eq!(g.me.body.stun, melee::SILLY_STUN);
+        assert_eq!(g.world.items[&item].holder, Some(REMOTE_ID_BASE + 2));
+        assert!(g.dummies.iter().find(|d| d.id == REMOTE_ID_BASE + 2).unwrap().bot.slots.hands_selected());
+    }
+
+    #[test]
     fn empty_guest_click_sends_only_host_resolved_bare_action() {
         let mut a=app();let mut p=a.world_mut().remove_resource::<Player>().unwrap();
         let mut g=a.world_mut().resource_mut::<Game>();g.options.adult=true;g.slots.clear();g.rules.phase=Phase::Play;
@@ -1548,7 +1567,7 @@ pub fn guest_hands(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
     g.catcher.tick(dt);
     let before = g.slots.selected();
     if wanted.swap != 0 {
-        if g.slots.swap(wanted.swap) {
+        if g.slots.cycle_player(wanted.swap) {
             g.wind.cancel();
         }
         wanted.swap = 0;
@@ -1558,10 +1577,8 @@ pub fn guest_hands(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
     {
         g.wind.cancel();
     }
-    if g.slots.selected() != before
-        && let Some(id) = g.slots.selected()
-    {
-        g.net_acts.push(GuestAct::Select { item: id });
+    if g.slots.selected() != before {
+        g.net_acts.push(GuestAct::Select { item: g.slots.selected().unwrap_or(0) });
     }
     let in_play = g.rules.in_play();
     // G: throw it away
@@ -1586,7 +1603,7 @@ pub fn guest_hands(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
         match g.wind.press(now, selected_kind, &situation) {
             Press::SlapNow => guest_slap(g),
             Press::Refused(hands::Refuse::NothingHeld) => {
-                if g.options.adult && g.slots.is_empty() && g.life.slap.ready(now,false) {
+                if (g.slots.hands_selected() || g.options.adult && g.slots.is_empty()) && g.life.slap.ready(now,false) {
                     g.life.slap.mark(now);g.life.me_swing=melee::SWING_TIME;
                     g.net_acts.push(GuestAct::BareSlap);
                 }
@@ -1792,7 +1809,9 @@ pub fn apply_guest_act(g: &mut Game, p: &mut Player, net_id: u32, act: &GuestAct
         GuestAct::Carry { pressed } => crate::smoko_mode::input(g,p,id,*pressed),
         GuestAct::Select { item } => {
             let slots = &mut g.dummies[i].bot.slots;
-            if let Some(n) = slots.ids().iter().position(|x| x == item) {
+            if *item == 0 {
+                slots.select_hands();
+            } else if let Some(n) = slots.ids().iter().position(|x| x == item) {
                 slots.select_slot(n);
             }
         }

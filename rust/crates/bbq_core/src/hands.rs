@@ -164,6 +164,7 @@ impl Wind {
 pub struct Slots {
     held: Vec<ItemId>,
     sel: usize,
+    hands: bool,
 }
 
 impl Slots {
@@ -180,7 +181,19 @@ impl Slots {
     }
 
     pub fn selected(&self) -> Option<ItemId> {
-        self.held.get(self.sel).copied()
+        if self.hands { None } else { self.held.get(self.sel).copied() }
+    }
+
+    pub fn hands_selected(&self) -> bool {
+        self.hands
+    }
+
+    pub fn select_hands(&mut self) -> bool {
+        if self.held.len() != 1 || self.hands {
+            return false;
+        }
+        self.hands = true;
+        true
     }
 
     pub fn is_full(&self) -> bool {
@@ -193,19 +206,23 @@ impl Slots {
             return false;
         }
         self.held.push(id);
+        if self.held.len() == MAX_HELD {
+            self.hands = false;
+        }
         true
     }
 
     pub fn remove(&mut self, id: ItemId) {
         if let Some(i) = self.held.iter().position(|x| *x == id) {
             self.held.remove(i);
+            self.hands = false;
             if self.sel >= self.held.len() {
                 self.sel = self.held.len().saturating_sub(1);
             }
         }
     }
 
-    /// Q / E / mouse wheel. Returns true if the selection changed (cancel any wind-up).
+    /// Switch between two held items. A mode that needs bare hands uses cycle_player.
     pub fn swap(&mut self, dir: i32) -> bool {
         if self.held.len() < 2 {
             return false;
@@ -215,10 +232,20 @@ impl Slots {
         true
     }
 
+    /// With one stowed item, cycle between that item and bare hands.
+    pub fn cycle_player(&mut self, dir: i32) -> bool {
+        if self.held.len() == 1 && dir != 0 {
+            self.hands = !self.hands;
+            return true;
+        }
+        self.swap(dir)
+    }
+
     /// Keys 1 and 2.
     pub fn select_slot(&mut self, slot: usize) -> bool {
-        if slot < self.held.len() && slot != self.sel {
+        if slot < self.held.len() && (slot != self.sel || self.hands) {
             self.sel = slot;
+            self.hands = false;
             true
         } else {
             false
@@ -228,6 +255,7 @@ impl Slots {
     pub fn clear(&mut self) {
         self.held.clear();
         self.sel = 0;
+        self.hands = false;
     }
 }
 
@@ -422,6 +450,25 @@ mod tests {
     fn power_throw_needs_90_percent() {
         assert!(is_power(0.9) && is_power(1.0));
         assert!(!is_power(0.89));
+    }
+
+    #[test]
+    fn stowing_an_item_leaves_it_in_its_slot_and_pickup_equips_again() {
+        let mut slots = Slots::default();
+        assert!(!slots.cycle_player(1));
+        assert!(slots.add(7));
+        assert!(slots.cycle_player(1));
+        assert_eq!(slots.selected(), None);
+        assert_eq!(slots.ids(), &[7]);
+        assert!(slots.select_slot(0));
+        assert_eq!(slots.selected(), Some(7));
+        assert!(slots.select_hands());
+        assert!(slots.add(8));
+        assert!(!slots.hands_selected());
+        assert!(!slots.select_hands());
+        assert_eq!(slots.selected(), Some(7));
+        assert!(slots.cycle_player(1));
+        assert_eq!(slots.selected(), Some(8));
     }
 
     #[test]

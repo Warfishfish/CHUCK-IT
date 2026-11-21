@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.52</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.53</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -1811,7 +1811,7 @@ function syncChest(dt){if(!chestLid)return;const open=chestStock>0?-1.15:-.08;ch
 const SLAP_NAMES=['SENT FLYING!','CARTWHEEL!','TIMBER!'],SLAP_USES=3,MEAT_STUN=2,MEAT_PTS=50;
 // attacker's client: find someone close in front and ask the host to resolve it
 function trySlap(){if(isCarrying(me))return;const it=selItem(me),unarmed=!it||!it.def.melee;
-  if(unarmed&&(!FEAT.adult||isDown(me)))return; // lying down you can still slap with something in your hand, not bare-handed
+  if(unarmed&&(!(FEAT.adult||handsSelected(me))||isDown(me)))return; // lying down you can still slap with something in your hand, not bare-handed
   if(!canAct()||(me.stun>0&&!isDown(me))||me.drinkT>0||elapsed-me.lastSwing<(unarmed?.9:.55))return;
   me.lastSwing=elapsed;me.swingT=.28;SFX.whoosh(me.pos);
   const f=new V3();camera.getWorldDirection(f);f.y=0;if(f.lengthSq()<1e-4)f.copy(fwd(me));f.normalize();
@@ -1823,13 +1823,13 @@ function trySlap(){if(isCarrying(me))return;const it=selItem(me),unarmed=!it||!i
     else{if(isAuth)authSlap(myId,best.id,it);else sendEv('sl',best.id,it.id);}}
   else{if(isAuth)fx('sw',myId);else sendEv('sw');}}
 function authSilly(attId,vicId){const a=chars.get(attId),v=chars.get(vicId);if(a&&(a.downT>.2||a.fallT>.2))return;
-  if(!FEAT.adult||!a||!v||a===v||v.smokoSeat>=0||a.smokoSeat>=0)return;
+  if(!a||!v||a===v||!(FEAT.adult||handsSelected(a))||v.smokoSeat>=0||a.smokoSeat>=0)return;
   const tk=sameTeam(attId,vicId);if(tk&&!friendlyFire)return;
   if(v.downT>.3||elapsed-a.lastSlap<.9||a.pos.distanceTo(v.pos)>2.9)return;a.lastSlap=elapsed;
   const scoring=state==='play'&&gameMode!=='heist';let gain=0,db=0;if(scoring&&stats[attId]&&!tk){db=drunkBonus(attId);gain=SILLY_PTS+db;stats[attId].score+=gain;stats[attId].hits++;}
   if(scoring&&stats[vicId])stats[vicId].taken++;scoreDirty=true;
   const kd=v.pos.clone().sub(a.pos).setY(0);if(kd.lengthSq()<1e-4)kd.set(0,0,1);kd.normalize();
-  fx('silly',attId,vicId,Math.floor(Math.random()*SILLY_NAMES.length),r2(kd.x),r2(kd.z),scoring?1:0,gain,tk?1:0,db);}
+  fx('silly',attId,vicId,FEAT.adult?Math.floor(Math.random()*SILLY_NAMES.length):-1,r2(kd.x),r2(kd.z),scoring?1:0,gain,tk?1:0,db);}
 // host: validate, score, pick the outcome so every screen plays the same one
 function authSlap(attId,vicId,it){const a=chars.get(attId),v=chars.get(vicId);
   if(!a||!v||a===v||!it||it.holder!==attId||!it.def.melee||v.smokoSeat>=0||a.smokoSeat>=0)return;
@@ -2519,7 +2519,8 @@ function updateCharFx(ch,dt){
 function removeChar(ch){carryForget(ch.id);dropCharFx(ch);scene.remove(ch.mesh);ch.tag.material.map.dispose();chars.delete(ch.id);if(ch===me)me=null;}
 function fwd(ch){return new V3(Math.sin(ch.face),0,Math.cos(ch.face));}
 function heldOf(id){const a=[];for(const it of items.values())if(it.state==='held'&&it.holder===id&&!it.pendingThrow)a.push(it);return a.sort((x,y)=>x.pickT-y.pickT);}
-function selItem(ch){const h=heldOf(ch.id);if(!h.length)return null;let s=h.find(i=>i.id===ch.selId);if(!s){s=h[h.length-1];ch.selId=s.id;}return s;}
+function handsSelected(ch,held=heldOf(ch.id)){return ch.selId===0&&held.length===1;}
+function selItem(ch){const h=heldOf(ch.id);if(!h.length||handsSelected(ch,h))return null;let s=h.find(i=>i.id===ch.selId);if(!s){s=h[h.length-1];ch.selId=s.id;}return s;}
 function ensureStats(ch){if(mode==='menu')return;if(!stats[ch.id])stats[ch.id]={name:ch.name,color:ch.color,score:0,hits:0,taken:0,catches:0,throws:0,streak:0,banked:0};else{stats[ch.id].name=ch.name;stats[ch.id].color=ch.color;}scoreDirty=true;}
 function streakMult(n){return n>=5?2:n>=3?1.5:1;}
 
@@ -2965,7 +2966,7 @@ function playFx(a){
     const at=chars.get(aid),vc=chars.get(vid);if(at)at.swingT=.28;if(vc){vc.lastHitBy=aid;vc.lastHitT=elapsed;}
     if(vc){const hp=vc.pos.clone().setY(vc.pos.y+1.3);SFX.bonk(hp);burst(hp,[0xffd0c6,0xffffff,0xffb0a0],16,4,.06);
       if(vc.kind==='me'||(isAuth&&vc.kind==='bot')){vc.vel.addScaledVector(kd,8.5);vc.vel.y=Math.max(vc.vel.y,3);vc.grounded=false;vc.stun=Math.max(vc.stun,.6);applyTumble(vc,kd,6);if(vc.kind==='me'){shake=Math.max(shake,.1);SFX.hurt();}}
-      const label=SILLY_NAMES[idx]||'NOOGIE!';
+      const label=idx===-1?'SLAP!':SILLY_NAMES[idx]||'NOOGIE!';
       if(vc.kind==='me'&&me)floater(label,camera.position.clone().add(fwd(me).multiplyScalar(2.2)).setY(camera.position.y+.4),'big');else floater(label,vc.pos.clone().setY(vc.pos.y+2.4),'big');
       if(aid===myId&&scoring){if(tk)floater('Teammate! No points',vc.pos.clone().setY(vc.pos.y+3),'bad');else{hitMarker();floater('+'+gain,vc.pos.clone().setY(vc.pos.y+3),'small');}}
       feed(`${nm(aid)} gave ${nm(vid)} a ${esc(label.replace('!','').toLowerCase())}`);}
@@ -3129,7 +3130,7 @@ function syncItemMeshes(){
           if(me.swingT>0){const p=1-me.swingT/.28,a=Math.sin(Math.PI*p);it.mesh.position.set(.42-.8*p,-.2+.06*a,-.55-.2*a);it.mesh.rotation.set(-.9+.3*a,.2,-1.3+2.2*p);}}}
       else if(h){if(it.mesh.parent!==h.hand){h.hand.add(it.mesh);it.mesh.position.set(0,.14,.06);it.mesh.scale.setScalar(it.type==='dildo'||it.type==='noodle'?1:.85);}
         it.mesh.rotation.set(h.itemPitch||0,0,0);
-        const hs=h.kind==='proxy'?h.selId:(selItem(h)||{}).id;const held=heldOf(h.id);it.mesh.visible=hs===it.id||(held.length&&!held.some(x=>x.id===hs)&&held[held.length-1]===it);}
+        const hs=h.kind==='proxy'?h.selId:(selItem(h)||{}).id;const held=heldOf(h.id);it.mesh.visible=!handsSelected(h,held)&&(hs===it.id||(held.length&&!held.some(x=>x.id===hs)&&held[held.length-1]===it));}
       else it.mesh.visible=false;
     }else{
       if(it.mesh.parent!==scene){scene.add(it.mesh);it.mesh.scale.setScalar(1);if(it.state==='ground')orientRest(it);}
@@ -3671,7 +3672,7 @@ function buildWorld(){
 }
 function buildPresence(){
   const p={id:myId,n:myName,c:myColor,ev:net.out};
-  if(me){p.p=[r2(me.pos.x),r2(me.pos.y),r2(me.pos.z)];p.v=[r2(me.vel.x),r2(me.vel.y),r2(me.vel.z)];p.f=r2(me.face);p.s=me.stun>0?1:0;p.ch=me.charging?r2(me.charge):0;p.sel=(selItem(me)||{}).id||0;p.dk=Math.round(me.drunk);p.wt=r1(me.wetT||0);
+  if(me){p.p=[r2(me.pos.x),r2(me.pos.y),r2(me.pos.z)];p.v=[r2(me.vel.x),r2(me.vel.y),r2(me.vel.z)];p.f=r2(me.face);p.s=me.stun>0?1:0;p.ch=me.charging?r2(me.charge):0;p.sel=(selItem(me)||{}).id||0;p.hn=handsSelected(me);p.dk=Math.round(me.drunk);p.wt=r1(me.wetT||0);
     // presence patches MERGE, so short-lived states must be cleared with null or they'd stick for everyone else
     p.dn=me.downT>0?r1(me.downT):null;p.fl=me.fallT>0?r1(me.fallT):null;p.sm=me.smokoSeat>=0?me.smokoSeat:null;}
   if(net.isHost)p.w=buildWorld();
@@ -3713,7 +3714,7 @@ function updateRemotePlayer(id,pr){
   const netRoof=!heist&&netY>HOUSE.h+.15&&Math.abs(netX)<=ROOF.width/2+.45&&rawNetZ>=ROOF.backEdgeZ-.45&&rawNetZ<=ROOF.edgeZ+.45;
   ch.netP.set(netX,netY,clamp(rawNetZ,netRoof?Math.min(-D,ROOF.backEdgeZ):-halfZ,halfZ));
   if(Array.isArray(pr.v))ch.netV.set(clamp(num(pr.v[0],0),-20,20),clamp(num(pr.v[1],0),-30,30),clamp(num(pr.v[2],0),-20,20));
-  ch.netT=performance.now();ch.netFace=num(pr.f,0);ch.stun=pr.s?Math.max(ch.stun,.3):0;ch.charging=num(pr.ch,0)>0;ch.charge=clamp(num(pr.ch,0),0,1);ch.selId=pr.sel||null;ch.drunk=clamp(num(pr.dk,0),0,100);ch.wetT=clamp(num(pr.wt,0),0,4);ch.smokoSeat=typeof pr.sm==='number'?clamp(pr.sm|0,0,15):-1;ch.downT=clamp(num(pr.dn,0),0,6);{const nf=clamp(num(pr.fl,0),0,60);if(nf>0&&!(ch.fallT>0)){ch.fallAge=0;floater('STACKED IT!',ch.pos.clone().setY(ch.pos.y+2.4),'big');SFX.thud(ch.pos);ch.fallT=nf;fallAlert(ch);}ch.fallT=nf;}
+  ch.netT=performance.now();ch.netFace=num(pr.f,0);ch.stun=pr.s?Math.max(ch.stun,.3):0;ch.charging=num(pr.ch,0)>0;ch.charge=clamp(num(pr.ch,0),0,1);ch.selId=pr.hn===true&&pr.sel===0?0:pr.sel||null;ch.drunk=clamp(num(pr.dk,0),0,100);ch.wetT=clamp(num(pr.wt,0),0,4);ch.smokoSeat=typeof pr.sm==='number'?clamp(pr.sm|0,0,15):-1;ch.downT=clamp(num(pr.dn,0),0,6);{const nf=clamp(num(pr.fl,0),0,60);if(nf>0&&!(ch.fallT>0)){ch.fallAge=0;floater('STACKED IT!',ch.pos.clone().setY(ch.pos.y+2.4),'big');SFX.thud(ch.pos);ch.fallT=nf;fallAlert(ch);}ch.fallT=nf;}
 }
 /* host: a guest's action */
 function handleEvent(fromId,e){
@@ -3900,7 +3901,7 @@ const touchMove=new THREE.Vector2();
 if(touchMode)document.body.classList.add('touch');
 function canAct(){return !!me&&(state==='play'||(mode==='mp'&&(state==='warmup'||state==='results')));}
 function startCharge(){if(isCarrying(me)){showHint('Hands full! Put them down first (<b>F</b>).',1.8);return;}if(!canAct()||(me.stun>0&&!isDown(me))||me.drinkT>0||me.smokoSeat>=0)return;
-  if(!selItem(me)){showHint('Nothing to chuck. Walk over something <b>glowing</b> on the lawn to pick it up.',2.5);return;}
+  if(!selItem(me)){if(handsSelected(me)||FEAT.adult){trySlap();return;}showHint('Nothing to chuck. Walk over something <b>glowing</b> on the lawn to pick it up.',2.5);return;}
   if(selItem(me).def.melee&&!selItem(me).def.throwable){trySlap();return;}
   me.charging=true;me.charge=0;me.chargeAt=elapsed;}
 function vmStart(){return new V3(.28,-.22,-.55).applyMatrix4(camera.matrixWorld);}
@@ -3913,7 +3914,7 @@ function releaseCharge(){if(!me||!me.charging)return;const it=selItem(me);if(!ca
   if(isAuth)authThrow(me.id,it,start,vel,chg);
   else{it.pendingThrow=true;it.pendT=elapsed;spawnGhost(it,start,vel);sendEv('th',it.id,r2(start.x),r2(start.y),r2(start.z),r2(vel.x),r2(vel.y),r2(vel.z),r2(chg));}
   if(hintStage===1){hintStage=2;}}
-function swap(dir){if(!canAct())return;const h=heldOf(myId);if(h.length<2)return;const i=h.findIndex(x=>x.id===me.selId);me.selId=h[(i+(dir||1)+h.length)%h.length].id;me.charging=false;me.charge=0;updateSlots();}
+function swap(dir){if(!canAct())return;const h=heldOf(myId);if(!h.length)return;if(h.length===1)me.selId=handsSelected(me,h)?h[0].id:0;else{const i=h.findIndex(x=>x.id===me.selId);me.selId=h[(i+(dir||1)+h.length)%h.length].id;}me.charging=false;me.charge=0;updateSlots();}
 function typing(e){const t=e.target;return t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA');}
 window.addEventListener('keydown',e=>{if(typing(e))return;keys[e.code]=true;
   if((e.code==='Space'||e.code.startsWith('Arrow'))&&mode!=='menu')e.preventDefault();
@@ -4007,8 +4008,8 @@ let slotSig='';
 function updateSlots(){const h=me?heldOf(myId):[];const sel=me?selItem(me):null;const sig=h.map(i=>i.id+':'+i.type+':'+(i.uses||0)).join(',')+'|'+(sel?sel.id:'');if(sig===slotSig)return;slotSig=sig;
   if(sel&&sel.def.throwable&&!updateSlots.tipN){updateSlots.tipN=true;showHint(touchMode?'Pool noodle! <b>Tap Chuck</b> to slap, <b>hold</b> to throw it.':'Pool noodle! <b>Click</b> to slap, <b>hold</b> to throw it.',3.5);}
   else if(sel&&sel.def.melee&&!sel.def.throwable&&!updateSlots.tip){updateSlots.tip=true;showHint(touchMode?'Get up close and tap <b>Chuck</b> to slap someone with it.':'Get up close and <b>click</b> to slap someone with it. Three slaps each.',3.5);}
-  for(let i=0;i<2;i++){const el=$('#slot'+i),it=h[i];el.className='slot'+(it?'':' empty')+(it&&it===sel?' sel':'');
-    el.innerHTML=(touchMode?'':`<kbd>${i+1}</kbd>`)+(it?ICONS[it.type]+`<span>${it.def.melee?it.def.short+' · '+(it.uses||it.def.uses||SLAP_USES)+' slap'+((it.uses||it.def.uses||SLAP_USES)===1?'':'s'):it.def.name}</span>`:'<span>Empty</span>');}}
+  for(let i=0;i<2;i++){const el=$('#slot'+i),it=h[i],hands=i===1&&h.length===1;el.className='slot'+(it||hands?'':' empty')+(it&&it===sel||hands&&!sel?' sel':'');
+    el.innerHTML=(touchMode?'':`<kbd>${hands?'Q':i+1}</kbd>`)+(it?ICONS[it.type]+`<span>${it.def.melee?it.def.short+' · '+(it.uses||it.def.uses||SLAP_USES)+' slap'+((it.uses||it.def.uses||SLAP_USES)===1?'':'s'):it.def.name}</span>`:(hands?'<span>Hands</span>':'<span>Empty</span>'));}}
 function renderBoard(){const rows=boardRows().slice().sort((a,b)=>b[3]-a[3]);
   const row=r=>`<li class="${r[0]===myId?'me':''}"><span class="dot" style="background:${hex(r[2])}"></span><span>${r[0]===myId?'You':esc(r[1])}${leaderId===r[0]?'<span class="crown">♛</span>':''}</span><span>${gameMode==='heist'?'🧸 '+(r[8]||0)+' · ':''}${r[3]}</span></li>`;
   if(!teamsOn()){boardEl.innerHTML=rows.map(row).join('');return;}

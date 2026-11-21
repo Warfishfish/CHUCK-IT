@@ -1020,7 +1020,9 @@ fn update_slots(
     *last = sig;
     for (e, s, mut border) in slots {
         let item = ids.get(s.0).and_then(|id| g.world.items.get(id));
-        *border = BorderColor::all(if item.is_some() && ids.get(s.0).copied() == sel { SUN } else { Color::NONE });
+        let hands = ids.len() == 1 && s.0 == 1 && g.rules.mode != bbq_core::GameMode::Race;
+        let active = if hands { g.slots.hands_selected() } else { item.is_some() && ids.get(s.0).copied() == sel };
+        *border = BorderColor::all(if active { SUN } else { Color::NONE });
         commands.entity(e).despawn_children();
         commands.entity(e).with_children(|p| {
             p.spawn((
@@ -1030,7 +1032,7 @@ fn update_slots(
                     top: px(4.0),
                     ..default()
                 },
-                children![kbd(&(s.0 + 1).to_string())],
+                children![kbd(&if hands { "Q".into() } else { (s.0 + 1).to_string() })],
             ));
             match item {
                 Some(it) => {
@@ -1050,6 +1052,7 @@ fn update_slots(
                     };
                     p.spawn(text(label, 11.0, false, WHITE));
                 }
+                None if hands => { p.spawn(text("Hands", 11.0, false, WHITE)); }
                 None => {
                     p.spawn(text("Empty", 11.0, false, Color::srgba(1.0, 1.0, 1.0, 0.45)));
                 }

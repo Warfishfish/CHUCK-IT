@@ -520,7 +520,7 @@ pub fn step_game(
     // ---- the player's hands ----
     g.catcher.tick(dt);
     if wanted.swap != 0 {
-        if g.slots.swap(wanted.swap) {
+        if g.slots.cycle_player(wanted.swap) {
             g.wind.cancel();
         }
         wanted.swap = 0;
@@ -567,7 +567,7 @@ pub fn step_game(
             Press::Charging => {}
             Press::SlapNow => crate::life::player_slap(g, p),
             Press::Refused(hands::Refuse::NothingHeld) => {
-                if g.options.adult {
+                if g.options.adult || g.slots.hands_selected() {
                     crate::life::bare_slap(g, p);
                 } else {
                     g.say("Nothing to chuck. Walk over something glowing.");
@@ -1643,6 +1643,25 @@ mod tests {
         click(&mut app);
         click(&mut app); // straight away: too soon
         assert_eq!(app.world().resource::<Game>().board.score(PLAYER_ID), 50);
+    }
+
+    #[test]
+    fn q_stows_one_item_for_a_bare_slap_then_equips_it_again() {
+        let mut app = app();
+        near_dummy0(&mut app);
+        give_kind(&mut app, ItemKind::Steak);
+        let item = app.world().resource::<Game>().slots.selected().unwrap();
+        app.world_mut().resource_mut::<Wanted>().swap = 1;
+        ticks(&mut app, 1);
+        click(&mut app);
+        let g = app.world().resource::<Game>();
+        assert!(g.slots.hands_selected());
+        assert_eq!(g.board.score(PLAYER_ID), 40);
+        assert_eq!(g.world.items[&item].uses, Some(3));
+
+        app.world_mut().resource_mut::<Wanted>().swap = 1;
+        ticks(&mut app, 1);
+        assert_eq!(app.world().resource::<Game>().slots.selected(), Some(item));
     }
 
     #[test]
