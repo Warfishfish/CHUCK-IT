@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.55</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.56</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -453,6 +453,7 @@ body.touch #cds{display:none}
     </section>
 
     <label class="sound"><input type="checkbox" id="sound" checked> 🔊 Sound effects</label>
+    <label class="sound">Master volume <input type="range" min="0" max="100" value="100" data-master-volume><output data-master-value>100%</output></label>
   </div>
 </div>
 
@@ -533,6 +534,7 @@ body.touch #cds{display:none}
   <div class="card">
     <h3 class="display">Smoko</h3>
     <p id="pauseMsg">Round paused.</p>
+    <label class="sound">Master volume <input type="range" min="0" max="100" value="100" data-master-volume><output data-master-value>100%</output></label>
     <label class="field fov" for="fovPause"><span>🎥 Field of view <b class="fovVal">85</b></span><input type="range" class="fovRange" id="fovPause" min="60" max="105" step="1" value="85"></label>
     <div class="btn-row">
       <button class="btn primary" id="resume" type="button">Resume</button>
@@ -1595,6 +1597,19 @@ const SPAWNS=[[-9,4.5],[6,9],[12,-3],[-15,-6],[19.5,19.5],[-19.5,20.25],[0,-10.5
 
 /* ================= AUDIO ================= */
 let AC=null,master=null,noiseBuf=null,soundOn=true;
+const storedMaster=localStorage.getItem('bbq-master-volume');
+let masterVolume=storedMaster===null||!Number.isFinite(Number(storedMaster))?100:clamp(Number(storedMaster),0,100);
+function syncMasterVolume(){
+  if(master)master.gain.value=soundOn?.006*masterVolume:0;
+  document.querySelectorAll('[data-master-volume]').forEach(input=>{input.value=masterVolume;});
+  document.querySelectorAll('[data-master-value]').forEach(value=>{value.textContent=masterVolume+'%';});
+}
+document.querySelectorAll('[data-master-volume]').forEach(input=>input.addEventListener('input',()=>{
+  masterVolume=Number(input.value);
+  localStorage.setItem('bbq-master-volume',String(masterVolume));
+  syncMasterVolume();
+}));
+syncMasterVolume();
 const GRASS_FOOTSTEPS_ENABLED=false;
 const recordedAudio={
   throw:{gain:.52,range:27},landing:{gain:.58,range:30},
@@ -1627,22 +1642,22 @@ function playRecordedSound(name,at){
   source.buffer=cue.buffer;gain.gain.value=cue.gain*level;
   source.connect(gain);gain.connect(master);source.start();
 }
-let grassStepPosition=null,grassStepDistance=.85,grassStepClip=1;
+let grassStepPosition=null,grassStepPhase=0,grassStepClip=1;
+const grassFootPlant=phase=>Math.floor((phase-3*Math.PI/4)/Math.PI);
 function playHeistGrassSteps(){
   const ground=me&&soundOn&&gameMode==='heist'&&state==='play'&&me.grounded&&!me.underground
     &&Math.abs(me.pos.y)<=.08&&me.stun<=0&&me.downT<=0&&!isCarried(me);
-  if(!ground){grassStepPosition=null;grassStepDistance=.85;return;}
+  if(!ground){grassStepPosition=null;return;}
   const delta=grassStepPosition?Math.hypot(me.pos.x-grassStepPosition.x,me.pos.z-grassStepPosition.z):0;
   (grassStepPosition??=new V3()).copy(me.pos);
-  if(delta>.9){grassStepDistance=.85;return;}
-  grassStepDistance+=delta;
-  if(grassStepDistance>=1.45){
-    grassStepDistance-=1.45;
+  const planted=grassFootPlant(me.walk)>grassFootPlant(grassStepPhase);
+  grassStepPhase=me.walk;
+  if(delta>=.002&&delta<=.9&&planted){
     playRecordedSound('grass-'+grassStepClip);
     grassStepClip=grassStepClip%3+1;
   }
 }
-function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=.6;master.connect(AC.destination);
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();syncMasterVolume();master.connect(AC.destination);
   noiseBuf=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;loadRecordedAudio();}catch(e){AC=null;}}
   if(AC&&AC.state==='suspended')AC.resume();return AC;}
 function vol(at){if(!at)return 1;return clamp(1.25-camera.position.distanceTo(at)/28,.1,1)*(mode==='menu'?.45:1);}
@@ -4293,7 +4308,7 @@ $('#leaveYard').addEventListener('click',()=>leaveYard(null));
 $('#copyCode').addEventListener('click',()=>{const code=net.code.toUpperCase();const b=$('#copyCode');
   try{navigator.clipboard.writeText(code).then(()=>{b.textContent='Copied';setTimeout(()=>b.textContent='Copy code',1500);},()=>selectCode());}catch(e){selectCode();}});
 function selectCode(){const r=document.createRange();r.selectNodeContents($('#yardCode'));const s=getSelection();s.removeAllRanges();s.addRange(r);$('#copyCode').textContent='Press Ctrl/⌘+C';}
-$('#sound').addEventListener('change',e=>{soundOn=e.target.checked;if(soundOn)ac();});
+$('#sound').addEventListener('change',e=>{soundOn=e.target.checked;if(soundOn)ac();syncMasterVolume();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&mode==='solo')pause();});
 
 /* ================= DRUNK EFFECTS ================= */

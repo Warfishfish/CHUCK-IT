@@ -62,6 +62,7 @@ pub struct Settings {
     /// How big your beer belly is: 0 none, 1 normal, 2 enormous (looks only).
     pub belly: f32,
     pub sound: bool,
+    pub master_volume: u8,
     /// Online: the relay's address (`npm start` on the host's computer, or a cloudflared link).
     pub server: String,
     /// Your blob's customised look: mouth, brows, hair and colours.
@@ -96,6 +97,7 @@ impl Default for Settings {
             character: Character::default(),
             belly: 1.0,
             sound: true,
+            master_volume: 100,
             server: "localhost:3000".into(),
             look: bbq_core::appearance::Appearance::default(),
             room: String::new(),
@@ -231,7 +233,7 @@ impl Settings {
             self.falls, self.drunk_all, self.character.name(), self.belly, self.sound,
             self.server, self.room, self.quality.setting_name()
         ) + &format!("race_role={}\n",if self.race_role==crate::race::Role::Thrower{"thrower"}else{"racer"}) + &self.look.to_lines();
-        write_settings(&(s + &format!("pad_bindings={}\n", self.pad_bindings.encode())));
+        write_settings(&(s + &format!("pad_bindings={}\nmaster_volume={}\n", self.pad_bindings.encode(), self.master_volume)));
     }
 
     /// In the browser the relay is always the server the page came from, with the page's own
@@ -298,6 +300,7 @@ impl Settings {
                 }
                 "belly" => s.belly = v.parse().unwrap_or(1.0f32).clamp(0.0, 2.0),
                 "sound" => s.sound = b,
+                "master_volume" => s.master_volume = v.parse::<i16>().unwrap_or(100).clamp(0,100) as u8,
                 "server" => s.server = v.chars().take(80).collect(),
                 "room" => s.room = crate::online::clean_room(v),
                 "graphics" => s.quality = crate::graphics_quality::GraphicsQuality::from_setting(v),
@@ -1167,6 +1170,7 @@ fn settings_panel(c: &mut ChildSpawnerCommands) {
         p.spawn(column(10.0)).with_children(|y| {
             y.spawn(legend("You"));
             slider(y, SliderId::Fov, "Field of view", 60.0, 105.0);
+            slider(y, SliderId::Volume, "Master volume", 0.0, 100.0);
             y.spawn(Node { flex_wrap: FlexWrap::Wrap, column_gap: px(6.0), row_gap: px(6.0), ..default() })
                 .with_children(|w| {
                     check(w, CheckId::Sound, "Sound effects");
@@ -1311,6 +1315,7 @@ fn spawn_pause(mut commands: Commands) {
                     children![text("Playing online: the round keeps going for everybody while you're here.", 14.0, false, MUTED)],
                 ));
                 slider(c, SliderId::Fov, "Field of view", 60.0, 105.0);
+                slider(c, SliderId::Volume, "Master volume", 0.0, 100.0);
                 c.spawn(Node { flex_wrap: FlexWrap::Wrap, column_gap: px(6.0), ..default() }).with_children(|w| {
                     check(w, CheckId::Sound, "Sound effects");
                 });
@@ -1535,13 +1540,13 @@ fn controller_menu(
             if let Some(s)=slider {
                 if navigate && direction.x.abs()>0.5 {
                     let value=match s.id {
-                        SliderId::Fov=>settings.fov,SliderId::Belly=>settings.belly,
+                        SliderId::Fov=>settings.fov,SliderId::Volume=>settings.master_volume as f32,SliderId::Belly=>settings.belly,
                         SliderId::Dirt=>settings.look.dirt as f32,SliderId::FaceLength=>settings.look.face_length as f32,
                         SliderId::LegLength=>settings.look.legs.percent() as f32,SliderId::Bots=>settings.bots as f32,
                         SliderId::RedBots=>settings.team_bots[0] as f32,SliderId::BlueBots=>settings.team_bots[1] as f32,
                         SliderId::GreenBots=>settings.team_bots[2] as f32,SliderId::YellowBots=>settings.team_bots[3] as f32,
                     };
-                    let step=match s.id {SliderId::Belly=>0.05,SliderId::Dirt|SliderId::FaceLength|SliderId::LegLength=>5.0,_=>1.0};
+                    let step=match s.id {SliderId::Belly=>0.05,SliderId::Volume|SliderId::Dirt|SliderId::FaceLength|SliderId::LegLength=>5.0,_=>1.0};
                     if let Some(mut rel)=rel {rel.normalized=Some(Vec2::new(((value+direction.x.signum()*step-s.min)/(s.max-s.min)).clamp(0.,1.)-0.5,0.0));}
                     *interaction=Interaction::Pressed;
                 }
@@ -1778,6 +1783,13 @@ fn slider_drag(
             SliderId::LegLength => {
                 let v=bbq_core::appearance::Legs::from_percent((t*100.0).round() as u8);
                 if v!=settings.look.legs {settings.look.legs=v;settings.save();}
+            }
+            SliderId::Volume => {
+                let volume = (t * 100.0).round() as u8;
+                if settings.master_volume != volume {
+                    settings.master_volume = volume;
+                    settings.save();
+                }
             }
             SliderId::Fov => {
                 let v = (s.min + (s.max - s.min) * t).round();
@@ -2139,6 +2151,7 @@ fn paint_widgets(
             SliderId::FaceLength => format!("{}%",settings.look.face_length),
             SliderId::LegLength => format!("{}% · +{:.0} cm", settings.look.legs.percent(),settings.look.legs.lift()*100.0),
             SliderId::Fov => format!("{:.0}", settings.fov),
+            SliderId::Volume => format!("{}%", settings.master_volume),
             SliderId::Belly => belly_word(settings.belly).to_string(),
             SliderId::Dirt => match settings.look.dirt {
                 0..=4 => "Spotless",
@@ -2160,6 +2173,7 @@ fn paint_widgets(
             SliderId::FaceLength => settings.look.face_length as f32 / 100.0,
             SliderId::LegLength => settings.look.legs.percent() as f32 / 100.0,
             SliderId::Fov => (settings.fov - 60.0) / 45.0,
+            SliderId::Volume => settings.master_volume as f32 / 100.0,
             SliderId::Belly => settings.belly / 2.0,
             SliderId::Dirt => settings.look.dirt as f32 / 100.0,
             SliderId::Bots => settings.bots as f32 / crate::characters::MAX_BOTS as f32,

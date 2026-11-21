@@ -53,6 +53,13 @@ struct Pinwheel;
 struct SprinklerRotor;
 #[derive(Component)]
 struct SprinklerDrop(usize);
+
+pub(crate) const SPRINKLER_ORIGIN: Vec3 = Vec3::new(25.5, 0.53, -7.7);
+pub(crate) const SPRINKLER_PERIOD: f32 = 5.4;
+
+pub(crate) fn sprinkler_emitting(time: f32) -> bool {
+    time >= 0.0 && time.rem_euclid(SPRINKLER_PERIOD) < 1.7
+}
 #[derive(Component)]
 struct UmbrellaShade;
 /// A cloud drifting along +x at 1.2 m/s, wrapping round at 110.
@@ -319,12 +326,12 @@ fn build_yard(
             ),
             (
                 &wind.sprinkler_rotor,
-                Transform::from_xyz(25.5, 0.53, -7.7),
+                Transform::from_translation(SPRINKLER_ORIGIN),
                 3,
             ),
             (
                 &wind.sprinkler_trail,
-                Transform::from_xyz(25.5, 0.53, -7.7),
+                Transform::from_translation(SPRINKLER_ORIGIN),
                 4,
             ),
         ] {
@@ -723,7 +730,7 @@ fn animate_yard(
     for (SprinklerDrop(index), mut tf, mut visibility) in &mut spray {
         let age = (t + *index as f32 * 0.618_034).fract();
         let launch = t - age;
-        let emitting = backyard && launch >= 0.0 && launch.rem_euclid(5.4) < 1.7;
+        let emitting = backyard && sprinkler_emitting(launch);
         *visibility = if emitting { Visibility::Inherited } else { Visibility::Hidden };
         if !emitting { continue; }
         let lane = (*index % 6) as f32;
@@ -976,9 +983,10 @@ fn animate_magpies(
 }
 
 fn load_garden_bird_audio(mut commands: Commands, assets: Res<AssetServer>) {
+    let directory = if crate::fx::sound_preview_enabled() { "preview" } else { "yard" };
     commands.insert_resource(GardenBirdAudio {
-        takeoff: assets.load("audio/yard/magpie-takeoff.wav"),
-        call: assets.load("audio/yard/magpie-call.wav"),
+        takeoff: assets.load(format!("audio/{directory}/magpie-takeoff.wav")),
+        call: assets.load(format!("audio/{directory}/magpie-call.wav")),
     });
 }
 

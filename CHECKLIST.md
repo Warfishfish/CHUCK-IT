@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.56 adds a saved Master Volume slider to settings and pause on desktop, WebGPU and legacy browser. A Mac-only audio preview pack adds balloon impacts, pool entry, sprinkler sweeps, grill sizzle, magpie wingbeats and calls, can rattles, and Dazza’s hatch. The public build uses the existing credited sound pack.
+
 - Prototype 0.23.55 turns off Teddy Heist footsteps for now on desktop and both browser builds. The grass recordings are retained for future sound work.
 
 - Prototype 0.23.54 gives Teddy Heist softer grass footsteps. Three real turf steps were isolated and cleaned using the quiet gaps in the source recording, with the sharp upper frequencies reduced. Desktop and both browser builds load the same clips.

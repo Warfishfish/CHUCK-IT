@@ -5,9 +5,12 @@
 //! The game logic only says "this happened here" by pushing an `FxEvent` onto `Game::fx`; this
 //! file turns those into little one-shot effects that remove themselves.
 
+use bbq_core::flight::{ItemId, ItemState};
+use bbq_core::items::{Bottle, ItemKind};
 use bbq_core::vec::V3;
 use bevy::prelude::*;
 use bevy_hanabi::prelude::*;
+use std::collections::HashSet;
 
 use crate::game::Game;
 use crate::yard_scene::YardRes;
@@ -86,30 +89,79 @@ pub struct FxEvent {
     pub at: V3,
 }
 
-const GRASS_FOOTSTEPS_ENABLED: bool = false;
+fn grass_preview_count() -> usize {
+    #[cfg(not(target_arch = "wasm32"))]
+    let count = std::env::var("BBQ_GRASS_PREVIEW_COUNT").ok();
+    #[cfg(target_arch = "wasm32")]
+    let count = browser_audio_preview();
+    count.and_then(|raw| raw.parse::<usize>().ok()).unwrap_or(0)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn browser_audio_preview() -> Option<String> {
+    let location = web_sys::window()?.location();
+    if !matches!(location.hostname().ok()?.as_str(), "127.0.0.1" | "localhost" | "[::1]") {
+        return None;
+    }
+    let search = location.search().ok()?;
+    search.strip_prefix('?')?.split('&').find_map(|param| {
+        let count = param.strip_prefix("audio-preview=")?.parse::<u8>().ok()?;
+        (count <= 62).then(|| count.to_string())
+    })
+}
+
+pub(crate) fn sound_preview_enabled() -> bool {
+    #[cfg(not(target_arch = "wasm32"))]
+    { std::env::var("BBQ_SOUND_PREVIEW").as_deref() == Ok("1") }
+    #[cfg(target_arch = "wasm32")]
+    { browser_audio_preview().is_some() }
+}
 
 pub struct FxPlugin;
 
 impl Plugin for FxPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, load_heist_audio)
-            .add_systems(PostUpdate, play_heist_audio);
-        if GRASS_FOOTSTEPS_ENABLED {
+            .add_systems(Update, sync_master_volume)
+            .add_systems(PostUpdate, play_recorded_audio);
+        if sound_preview_enabled() {
+            app.add_systems(PostUpdate, (play_preview_cans, play_preview_ambience));
+        }
+        if grass_preview_count() != 0 {
             app.add_systems(PostUpdate, play_grass_steps);
         }
         if !crate::lighting::effects_enabled(&std::env::args().collect::<Vec<_>>()) {
             // Decals read the local event queue during Update. Hosts send a separate FX queue.
-            app.add_systems(PostUpdate, (|mut game: ResMut<Game>| game.fx.clear()).after(play_heist_audio));
+            app.add_systems(PostUpdate, (|mut game: ResMut<Game>| game.fx.clear()).after(play_recorded_audio));
             return;
         }
         app.add_plugins(HanabiPlugin)
             .add_systems(Startup, make_effects)
             .add_systems(Update, (expire_effects, animate_pool_ripples, bbq_smoke, pool_steam, sprint_dust, bot_fall_spray))
             .add_systems(PostUpdate, spawn_events
-                .after(play_heist_audio)
+                .after(play_recorded_audio)
                 .before(bevy::transform::TransformSystems::Propagate)
                 .before(bevy_hanabi::EffectSystems::CompileEffects)
                 .before(bevy_hanabi::EffectSystems::TickSpawners));
+    }
+}
+
+fn sync_master_volume(
+    settings: Res<crate::menu::Settings>,
+    mut master: ResMut<GlobalVolume>,
+    mut playing: Query<(&PlaybackSettings, &mut AudioSink)>,
+) {
+    let volume = bevy::audio::Volume::Linear(if settings.sound {
+        f32::from(settings.master_volume) / 100.0
+    } else {
+        0.0
+    });
+    if master.volume == volume {
+        return;
+    }
+    master.volume = volume;
+    for (settings, mut sink) in &mut playing {
+        sink.set_volume(settings.volume * volume);
     }
 }
 
@@ -119,80 +171,177 @@ struct HeistAudio {
     landing: Handle<AudioSource>,
     hatch: Handle<AudioSource>,
     bank: Handle<AudioSource>,
-    grass: [Handle<AudioSource>; 3],
+    grass: Vec<Handle<AudioSource>>,
+}
+
+#[derive(Resource)]
+struct PreviewAudio {
+    balloon: Handle<AudioSource>,
+    pool: Handle<AudioSource>,
+    can: Handle<AudioSource>,
+    sprinkler: Handle<AudioSource>,
+    bbq: Handle<AudioSource>,
 }
 
 fn load_heist_audio(mut commands: Commands, assets: Res<AssetServer>) {
+    let preview = sound_preview_enabled();
+    if preview {
+        commands.insert_resource(PreviewAudio {
+            balloon: assets.load("audio/preview/balloon.wav"),
+            pool: assets.load("audio/preview/pool.wav"),
+            can: assets.load("audio/preview/can.wav"),
+            sprinkler: assets.load("audio/preview/sprinkler.wav"),
+            bbq: assets.load("audio/preview/bbq.wav"),
+        });
+    }
     commands.insert_resource(HeistAudio {
         throw: assets.load("audio/heist/throw.wav"),
         landing: assets.load("audio/heist/landing.wav"),
-        hatch: assets.load("audio/heist/hatch.wav"),
+        hatch: assets.load(if preview { "audio/preview/hatch.wav" } else { "audio/heist/hatch.wav" }),
         bank: assets.load("audio/heist/bank.wav"),
-        grass: if GRASS_FOOTSTEPS_ENABLED {
-            [
-                assets.load("audio/heist/grass-1.wav"),
-                assets.load("audio/heist/grass-2.wav"),
-                assets.load("audio/heist/grass-3.wav"),
-            ]
-        } else {
-            Default::default()
-        },
+        grass: (1..=grass_preview_count())
+            .map(|i| assets.load(format!("audio/grass-preview/step-{i:02}.wav")))
+            .collect(),
     });
 }
 
-fn play_heist_audio(
+fn play_recorded_audio(
     mut commands: Commands,
     game: Res<Game>,
     player: Res<crate::player::Player>,
     settings: Res<crate::menu::Settings>,
     sounds: Res<HeistAudio>,
+    preview: Option<Res<PreviewAudio>>,
 ) {
-    if !settings.sound || game.rules.mode != bbq_core::GameMode::Heist {
+    if !settings.sound {
         return;
     }
+    let heist = game.rules.mode == bbq_core::GameMode::Heist;
     let listener = V3::new(player.mover.x, player.mover.y, player.mover.z);
     for cue in &game.fx {
         let (sound, range, minimum, gain) = match cue.kind {
-            FxKind::HeistThrow => (&sounds.throw, 27.0, 0.0, 0.52),
-            FxKind::HeistLanding => (&sounds.landing, 30.0, 0.0, 0.58),
-            FxKind::HeistHatch => (&sounds.hatch, 34.0, 0.0, 0.57),
-            FxKind::HeistBank => (&sounds.bank, 36.0, 0.25, 0.44),
+            FxKind::HeistThrow if heist => (&sounds.throw, 27.0, 0.0, 0.52),
+            FxKind::HeistLanding if heist => (&sounds.landing, 30.0, 0.0, 0.58),
+            FxKind::HeistHatch if heist => (&sounds.hatch, 34.0, 0.0, 0.57),
+            FxKind::HeistBank if heist => (&sounds.bank, 36.0, 0.25, 0.44),
+            FxKind::BalloonBurst if let Some(sounds) = &preview => (&sounds.balloon, 24.0, 0.0, 0.62),
+            FxKind::Splash if let Some(sounds) = &preview => (&sounds.pool, 20.0, 0.0, 0.58),
+            FxKind::Smash | FxKind::Fizz if let Some(sounds) = &preview => (&sounds.can, 16.0, 0.0, 0.48),
             _ => continue,
         };
         let near = (1.0 - (cue.at - listener).len() / range).max(minimum);
         if near > 0.0 {
-            commands.spawn((
-                AudioPlayer::new(sound.clone()),
-                PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(gain * near)),
-            ));
+            play_one_shot(&mut commands, sound, gain * near);
         }
     }
 }
 
+fn play_one_shot(commands: &mut Commands, clip: &Handle<AudioSource>, gain: f32) {
+    commands.spawn((
+        AudioPlayer::new(clip.clone()),
+        PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(gain)),
+    ));
+}
+
+fn play_preview_cans(
+    mut commands: Commands,
+    game: Res<Game>,
+    player: Res<crate::player::Player>,
+    screen: Res<crate::menu::Screen>,
+    settings: Res<crate::menu::Settings>,
+    sounds: Res<PreviewAudio>,
+    mut aloft: Local<HashSet<(ItemId, u32)>>,
+) {
+    aloft.retain(|&(id, flight)| {
+        let Some(item) = game.world.items.get(&id).filter(|item| item.flight_no == flight) else {
+            return false;
+        };
+        if item.state == ItemState::Ground && settings.sound && *screen == crate::menu::Screen::Playing {
+            let listener = V3::new(player.mover.x, player.mover.y, player.mover.z);
+            let gain = preview_gain((item.pos - listener).len(), 14.0, 0.42);
+            if gain > 0.0 {
+                play_one_shot(&mut commands, &sounds.can, gain);
+            }
+        }
+        item.state == ItemState::Flying
+    });
+    aloft.extend(game.world.items.values().filter(|item| {
+        item.kind == ItemKind::Stubby && item.state == ItemState::Flying
+            && matches!(item.bottle, None | Some(Bottle::Lemonade))
+    }).map(|item| (item.id, item.flight_no)));
+}
+
+#[derive(Component)]
+struct BbqSizzle;
+
+fn play_preview_ambience(
+    mut commands: Commands,
+    time: Res<Time>,
+    game: Res<Game>,
+    yard: Res<YardRes>,
+    player: Res<crate::player::Player>,
+    settings: Res<crate::menu::Settings>,
+    screen: Res<crate::menu::Screen>,
+    look: Res<crate::lighting::LookMode>,
+    sounds: Res<PreviewAudio>,
+    master: Res<GlobalVolume>,
+    mut grills: Query<(Entity, Option<&mut AudioSink>), With<BbqSizzle>>,
+    mut last_sweep: Local<Option<u32>>,
+) {
+    let backyard = *screen == crate::menu::Screen::Playing && settings.sound
+        && matches!(game.rules.mode, bbq_core::GameMode::FreeForAll | bbq_core::GameMode::Teams);
+    let here = Vec3::new(player.mover.x, player.mover.y, player.mover.z);
+    let now = time.elapsed_secs();
+    let sweep = (now / crate::yard_scene::SPRINKLER_PERIOD) as u32;
+    if backyard && *look == crate::lighting::LookMode::Polished
+        && crate::yard_scene::sprinkler_emitting(now) && *last_sweep != Some(sweep)
+    {
+        *last_sweep = Some(sweep);
+        let gain = preview_gain(here.distance(crate::yard_scene::SPRINKLER_ORIGIN), 10.0, 0.51);
+        if gain > 0.0 {
+            play_one_shot(&mut commands, &sounds.sprinkler, gain);
+        }
+    }
+    let gain = if backyard && yard.0.features.bbq {
+        preview_gain(here.distance(BBQ_GRILL), 9.0, 0.38)
+    } else {
+        0.0
+    };
+    if let Ok((entity, sink)) = grills.single_mut() {
+        if gain == 0.0 {
+            commands.entity(entity).despawn();
+        } else if let Some(mut sink) = sink {
+            sink.set_volume(bevy::audio::Volume::Linear(gain) * master.volume);
+        }
+    } else if gain > 0.0 {
+        commands.spawn((
+            BbqSizzle,
+            AudioPlayer::new(sounds.bbq.clone()),
+            PlaybackSettings::LOOP.with_volume(bevy::audio::Volume::Linear(gain)),
+        ));
+    }
+}
+
+fn preview_gain(distance: f32, range: f32, gain: f32) -> f32 {
+    (1.0 - distance / range).max(0.0).powi(2) * gain
+}
+
 #[derive(Default)]
 struct GrassSteps {
-    previous: Option<Vec2>,
-    distance: f32,
+    previous: Option<(Vec2, f32)>,
     clip: usize,
 }
 
 impl GrassSteps {
-    fn advance(&mut self, ground: Option<Vec2>) -> bool {
+    fn advance(&mut self, ground: Option<(Vec2, f32)>) -> bool {
+        use std::f32::consts::{FRAC_PI_4, PI};
         let previous = std::mem::replace(&mut self.previous, ground);
-        let Some(delta) = ground.zip(previous).map(|(at, from)| at.distance(from)) else {
-            self.distance = 0.85;
+        let Some(((at, phase), (from, previous_phase))) = ground.zip(previous) else {
             return false;
         };
-        if delta > 0.9 {
-            self.distance = 0.85;
-            return false;
-        }
-        self.distance += delta;
-        if self.distance >= 1.45 {
-            self.distance -= 1.45;
-            return true;
-        }
-        false
+        // The first-person bob bottoms out at 3π/4 and once per π thereafter.
+        let plant = |phase: f32| ((phase - 3.0 * FRAC_PI_4) / PI).floor();
+        (0.002..=0.9).contains(&at.distance(from)) && plant(phase) > plant(previous_phase)
     }
 }
 
@@ -201,15 +350,18 @@ mod grass_step_tests {
     use super::*;
 
     #[test]
-    fn grass_steps_require_distance_on_foot_and_ignore_teleports() {
+    fn grass_steps_follow_foot_plant_and_ignore_stops_jumps_and_teleports() {
         let mut steps = GrassSteps::default();
-        assert!(!steps.advance(Some(Vec2::ZERO)));
-        assert!(!steps.advance(Some(Vec2::new(0.4, 0.0))));
-        assert!(steps.advance(Some(Vec2::new(0.7, 0.0))));
-        assert!(!steps.advance(Some(Vec2::new(0.7, 0.0))));
-        assert!(!steps.advance(Some(Vec2::new(45.0, 0.0))));
+        let sample = |x, phase| Some((Vec2::new(x, 0.0), phase));
+        assert!(!steps.advance(sample(0.0, 2.0)));
+        assert!(!steps.advance(sample(0.1, 2.24)));
+        assert!(steps.advance(sample(0.2, 2.48)));
+        assert!(!steps.advance(sample(0.2, 2.48)));
+        assert!(!steps.advance(sample(45.0, 5.6)));
         assert!(!steps.advance(None));
-        assert!(!steps.advance(Some(Vec2::new(46.0, 0.0))));
+        assert!(!steps.advance(sample(46.0, 5.8)));
+        assert!(!steps.advance(sample(46.6, 7.24)));
+        assert!(steps.advance(sample(47.2, 8.68)));
     }
 }
 
@@ -228,7 +380,7 @@ fn play_grass_steps(
         && mover.grounded && !mover.underground && (-0.08..=0.08).contains(&mover.y)
         && game.me.body.stun <= 0.0 && !game.me.body.is_down()
         && !crate::smoko_mode::player_locked(&game))
-        .then_some(Vec2::new(mover.x, mover.z));
+        .then_some((Vec2::new(mover.x, mover.z), player.walk));
     if steps.advance(ground) {
         let sound = sounds.grass[steps.clip].clone();
         steps.clip = (steps.clip + 1) % sounds.grass.len();
@@ -754,6 +906,8 @@ fn expire_effects(mut commands: Commands, time: Res<Time>, mut q: Query<(Entity,
 }
 
 /// The smoke rises from the grill while the BBQ is in the yard.
+const BBQ_GRILL: Vec3 = Vec3::new(-6.0, 1.3, -18.3);
+
 fn bbq_smoke(
     mut commands: Commands,
     yard: Res<YardRes>,
@@ -768,7 +922,7 @@ fn bbq_smoke(
         commands.spawn((
             ParticleEffect::new(fx.smoke.clone()),
             EffectMaterial { images: vec![fx.dot.clone()] },
-            Transform::from_xyz(-6.0, 1.3, -18.3),
+            Transform::from_translation(BBQ_GRILL),
             BbqSmoke,
         ));
     } else if !want {

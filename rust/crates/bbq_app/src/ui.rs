@@ -306,6 +306,7 @@ pub enum SliderId {
     LegLength,
     FaceLength,
     Fov,
+    Volume,
     Belly,
     /// How dirty the singlet and shorts are.
     Dirt,
