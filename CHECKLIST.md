@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.55 turns off Teddy Heist footsteps for now on desktop and both browser builds. The grass recordings are retained for future sound work.
+
 - Prototype 0.23.54 gives Teddy Heist softer grass footsteps. Three real turf steps were isolated and cleaned using the quiet gaps in the source recording, with the sharp upper frequencies reduced. Desktop and both browser builds load the same clips.
 
 - Prototype 0.23.53 lets players press Q with one item to stow it and equip Hands for a bare-handed slap. Press Q again or 1 to re-equip the item. Applies in the active game modes in solo and online.

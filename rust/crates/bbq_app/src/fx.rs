@@ -86,12 +86,17 @@ pub struct FxEvent {
     pub at: V3,
 }
 
+const GRASS_FOOTSTEPS_ENABLED: bool = false;
+
 pub struct FxPlugin;
 
 impl Plugin for FxPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, load_heist_audio)
-            .add_systems(PostUpdate, (play_heist_audio, play_grass_steps));
+            .add_systems(PostUpdate, play_heist_audio);
+        if GRASS_FOOTSTEPS_ENABLED {
+            app.add_systems(PostUpdate, play_grass_steps);
+        }
         if !crate::lighting::effects_enabled(&std::env::args().collect::<Vec<_>>()) {
             // Decals read the local event queue during Update. Hosts send a separate FX queue.
             app.add_systems(PostUpdate, (|mut game: ResMut<Game>| game.fx.clear()).after(play_heist_audio));
@@ -123,11 +128,15 @@ fn load_heist_audio(mut commands: Commands, assets: Res<AssetServer>) {
         landing: assets.load("audio/heist/landing.wav"),
         hatch: assets.load("audio/heist/hatch.wav"),
         bank: assets.load("audio/heist/bank.wav"),
-        grass: [
-            assets.load("audio/heist/grass-1.wav"),
-            assets.load("audio/heist/grass-2.wav"),
-            assets.load("audio/heist/grass-3.wav"),
-        ],
+        grass: if GRASS_FOOTSTEPS_ENABLED {
+            [
+                assets.load("audio/heist/grass-1.wav"),
+                assets.load("audio/heist/grass-2.wav"),
+                assets.load("audio/heist/grass-3.wav"),
+            ]
+        } else {
+            Default::default()
+        },
     });
 }
 
