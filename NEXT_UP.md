@@ -2,9 +2,13 @@
 
 Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it with a friend. The focus now is graphics, gameplay, UI and character customization. One item at a time; screenshots and a yes before anything is committed.
 
+## Bush Servo gum foliage · 21 November 2026
+
+Prototype 0.23.49 calms the fine leaf shapes and shadows while retaining broad picnic and shelter shade. [Walking comparisons](checkpoints/2026-11-21-bush-servo-foliage/REVIEW.md). The next checks are Backyard water effects in full WebGPU and longer two-player carried-camera comfort. The Heist shortcut balance playtest remains queued for a match with friends.
+
 ## Turf, water and camera polish · 21 November 2026
 
-Prototype 0.23.48 lifts Heist turf midtones, animates Backyard water and keeps the carried-player camera clear around corners. Work through the remaining Bush Servo gum-leaf and shadow pass next. The Heist shortcut balance playtest still needs a match with friends. [Review and captures](checkpoints/2026-11-21-turf-water-and-camera/REVIEW.md).
+Prototype 0.23.48 lifts Heist turf midtones, animates Backyard water and keeps the carried-player camera clear around corners. The Heist shortcut balance playtest still needs a match with friends. [Review and captures](checkpoints/2026-11-21-turf-water-and-camera/REVIEW.md).
 
 ## Backyard grass · 21 November 2026
 

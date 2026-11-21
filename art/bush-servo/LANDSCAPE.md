@@ -34,3 +34,7 @@ A second 7.7m specimen at (-11.5, 2) balances the original 8.4m tree at (12, 1.5
 
 ## Eastern gum planting slice — 31 October 2026
 Three small saltbush/dry grass/gravel groups wrap the existing eastern gum and adjacent sandstone. ARENA_CLUSTER_CENTRES is the tuning list in build_landscape.py. All new vertices are inside the inner road ellipse, bounded in arena-cluster-bounds.json. Gravel is under 6cm high and non-blocking decoration; no new obstacles or collision tables. Existing scenery is preserved; one extra dry-grass material batch, no new textures.
+
+## Canopy shimmer pass — 21 November 2026
+
+After the picnic shade bake, run `coarsen_gum_leaves.py` with the baked landscape GLB as the source and a separate output GLB. It widens and thins the original canopy quads, with a lighter touch on the two arena trees. The landscape's fine foliage stops casting shadows in the game. The broad arena crowns, tree trunks, shelter and baked picnic shade provide the larger shadow shapes. Mesh data for bark, terrain and cover is preserved.

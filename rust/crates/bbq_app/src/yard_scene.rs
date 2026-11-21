@@ -1159,7 +1159,18 @@ fn sync_smoko_map(
         ),
         Transform::default(),
         ChildOf(e),
-    ));
+    )).observe(|ready: On<bevy::world_serialization::WorldInstanceReady>,
+                children: Query<&Children>,
+                materials: Query<&bevy::gltf::GltfMaterialName>,
+                mut commands: Commands| {
+        // The broader arena canopies and baked picnic shade handle the shade pattern.
+        // Tiny leaf and scrub silhouettes are too small for a stable shadow-map footprint.
+        for entity in children.iter_descendants(ready.entity) {
+            if materials.get(entity).is_ok_and(|name| name.0.starts_with("Gum foliage ")) {
+                commands.entity(entity).insert(bevy::light::NotShadowCaster);
+            }
+        }
+    });
     commands.spawn((
         WorldAssetRoot(
             assets.load(GltfAssetLabel::Scene(0).from_asset("models/smoko_shelter.glb")),
