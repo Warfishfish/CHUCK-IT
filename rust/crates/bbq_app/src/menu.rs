@@ -9,6 +9,7 @@
 //! yet) and touch controls.
 
 use bbq_core::GameMode;
+use bbq_core::appearance::Appearance;
 use bbq_core::bots::Difficulty;
 use bbq_core::character::Character;
 use bbq_core::sim::TICK_DT;
@@ -35,6 +36,16 @@ pub enum Screen {
     Paused,
     Results,
 }
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct SavedCharacter {
+    shape: Character,
+    belly: f32,
+    look: Appearance,
+}
+
+#[derive(Component)]
+struct SavedCharacterStatus;
 
 /// Everything the menus choose. Saved between runs.
 #[derive(Resource, Clone, Debug)]
@@ -66,7 +77,8 @@ pub struct Settings {
     /// Online: the relay's address (`npm start` on the host's computer, or a cloudflared link).
     pub server: String,
     /// Your blob's customised look: mouth, brows, hair and colours.
-    pub look: bbq_core::appearance::Appearance,
+    pub look: Appearance,
+    saved_character: Option<SavedCharacter>,
     /// Online: the room code to host or join (a new one is made when hosting with this empty).
     pub room: String,
     /// Local rendering budget; does not change gameplay or network state.
@@ -99,7 +111,8 @@ impl Default for Settings {
             sound: true,
             master_volume: 100,
             server: "localhost:3000".into(),
-            look: bbq_core::appearance::Appearance::default(),
+            look: Appearance::default(),
+            saved_character: None,
             room: String::new(),
             quality: if cfg!(target_arch = "wasm32") { crate::graphics_quality::GraphicsQuality::Low } else { crate::graphics_quality::GraphicsQuality::High },
             pad_bindings: Default::default(),
@@ -191,6 +204,14 @@ pub fn fresh_seed() -> u64 {
 }
 
 impl Settings {
+    fn current_character(&self) -> SavedCharacter {
+        SavedCharacter {
+            shape: self.character,
+            belly: self.belly,
+            look: self.look,
+        }
+    }
+
     #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     fn path() -> Option<std::path::PathBuf> {
         let base = if let Ok(h) = std::env::var("HOME") {
@@ -213,6 +234,11 @@ impl Settings {
         if NO_SAVE.load(std::sync::atomic::Ordering::Relaxed) {
             return;
         }
+        write_settings(&self.encode());
+    }
+
+    fn encode(&self) -> String {
+        use std::fmt::Write;
         let mode = match self.mode {
             GameMode::FreeForAll => "ffa",
             GameMode::Teams => "teams",
@@ -226,14 +252,21 @@ impl Settings {
             Difficulty::Spicy => "spicy",
         };
         let f = &self.features;
-        let s = format!(
+        let mut s = format!(
             "name={}\nfov={}\nbots={}\nbot_red={}\nbot_blue={}\nbot_green={}\nbot_yellow={}\nmode={mode}\nheist_teams={}\ncheeky={}\nround_len={}\nskill={skill}\nbottles={}\nrounds={}\nfriendly_fire={}\nbar={}\nbbq={}\nchest={}\nsmoko={}\nnaughty={}\nfalls={}\ndrunk_all={}\ncharacter={}\nbelly={}\nsound={}\nserver={}\nroom={}\ngraphics={}\n",
             self.name, self.fov, self.bots, self.team_bots[0], self.team_bots[1], self.team_bots[2], self.team_bots[3], self.heist_teams, self.cheeky, self.round_len,
             self.bottles.name(), self.rounds, self.friendly_fire, f.bar, f.bbq, f.chest, f.smoko, self.naughty,
             self.falls, self.drunk_all, self.character.name(), self.belly, self.sound,
             self.server, self.room, self.quality.setting_name()
         ) + &format!("race_role={}\n",if self.race_role==crate::race::Role::Thrower{"thrower"}else{"racer"}) + &self.look.to_lines();
-        write_settings(&(s + &format!("pad_bindings={}\nmaster_volume={}\n", self.pad_bindings.encode(), self.master_volume)));
+        let _ = writeln!(s, "pad_bindings={}\nmaster_volume={}", self.pad_bindings.encode(), self.master_volume);
+        if let Some(saved) = self.saved_character {
+            let _ = writeln!(s, "saved_character={}\nsaved_belly={}", saved.shape.name(), saved.belly);
+            for line in saved.look.to_lines().lines() {
+                let _ = writeln!(s, "saved_{line}");
+            }
+        }
+        s
     }
 
     /// In the browser the relay is always the server the page came from, with the page's own
@@ -247,11 +280,15 @@ impl Settings {
     }
 
     pub fn load() -> Self {
+        let mut settings = read_settings().as_deref().map(Self::decode).unwrap_or_default();
+        settings.use_page_server();
+        settings
+    }
+
+    fn decode(text: &str) -> Self {
         let mut s = Settings::default();
-        let Some(text) = read_settings() else {
-            s.use_page_server();
-            return s;
-        };
+        let mut saved_shape = None;
+        let mut saved = s.current_character();
         for line in text.lines() {
             let Some((k, v)) = line.split_once('=') else { continue };
             let b = v == "true";
@@ -305,8 +342,18 @@ impl Settings {
                 "room" => s.room = crate::online::clean_room(v),
                 "graphics" => s.quality = crate::graphics_quality::GraphicsQuality::from_setting(v),
                 "pad_bindings" => s.pad_bindings = crate::gamepad::PadBindings::decode(v),
+                "saved_character" => saved_shape = Character::ALL.into_iter().find(|c| c.name() == v),
+                "saved_belly" => {
+                    if let Ok(belly) = v.parse::<f32>() && belly.is_finite() {
+                        saved.belly = belly.clamp(0.0, 2.0);
+                    }
+                }
                 k => {
-                    s.look.read_line(k, v);
+                    if let Some(field) = k.strip_prefix("saved_") {
+                        saved.look.read_line(field, v);
+                    } else {
+                        s.look.read_line(k, v);
+                    }
                 }
             }
         }
@@ -314,7 +361,10 @@ impl Settings {
             let total = s.bots;
             set_bot_total(&mut s, total);
         }
-        s.use_page_server();
+        if let Some(shape) = saved_shape {
+            saved.shape = shape;
+            s.saved_character = Some(saved);
+        }
         s
     }
 }
@@ -408,6 +458,7 @@ pub enum Request {
 #[derive(Component, Clone, Copy)]
 pub enum ShowWhen {
     Panel(Tab),
+    SavedCharacter,
     Subpage,
     NameEntry,
     /// The blob preview card on Main and Customise; setup leaves room for the map.
@@ -537,7 +588,7 @@ impl Plugin for MenuPlugin {
                     scroll_cards,
                     run_requests,
                     sync_cursor,
-                    paint_widgets,
+                    (paint_widgets, paint_saved_character),
                     paint_navigation,
                     show_screens,
                     dev_hud,
@@ -842,6 +893,13 @@ fn paint_lobby(
 fn look_panel(c: &mut ChildSpawnerCommands) {
     use bbq_core::appearance::{Brows, Choice, Hair, Hat, Mouth, Palette, Shorts};
     c.spawn((column(10.0), ShowWhen::Panel(Tab::Look))).with_children(|p| {
+        p.spawn(legend("Saved character"));
+        p.spawn((text("", 14.0, false, MUTED), SavedCharacterStatus));
+        p.spawn(row(8.0)).with_children(|r| {
+            button(r, Action::SaveCharacter, "Save character", Some(SUN));
+            let load = button(r, Action::LoadCharacter, "Load saved", None);
+            r.commands().entity(load).insert(ShowWhen::SavedCharacter);
+        });
         p.spawn(legend("Outfits"));
         p.spawn(row(6.0)).with_children(|r| {
             for (i,name) in ["Bush worker", "Pool party", "Footy arvo"].iter().enumerate() {
@@ -1734,6 +1792,19 @@ fn widget_clicks(
                 settings.look = bbq_core::appearance::Appearance::default();
                 changed = true;
             }
+            Action::SaveCharacter => {
+                settings.saved_character = Some(settings.current_character());
+                changed = true;
+            }
+            Action::LoadCharacter => {
+                if let Some(saved) = settings.saved_character {
+                    settings.character = saved.shape;
+                    settings.belly = saved.belly;
+                    settings.look = saved.look;
+                    cast.mine = saved.shape;
+                    changed = true;
+                }
+            }
             Action::FocusServer => ui.net_focus = Some(NetField::Server),
             Action::FocusRoom => ui.net_focus = Some(NetField::Room),
         }
@@ -2094,6 +2165,7 @@ fn paint_widgets(
     for (w, mut n) in &mut shows {
         let show = match w {
             ShowWhen::Panel(t) => *t == ui.tab,
+            ShowWhen::SavedCharacter => settings.saved_character.is_some(),
             ShowWhen::Subpage => ui.tab != Tab::Main,
             ShowWhen::NameEntry => matches!(ui.tab, Tab::Solo | Tab::Mates | Tab::Look) && !lobby.in_yard,
             ShowWhen::Preview => matches!(ui.tab, Tab::Main | Tab::Look) && !lobby.active,
@@ -2197,6 +2269,20 @@ fn paint_widgets(
                 t.0 = label.to_string();
             }
         }
+    }
+}
+
+fn paint_saved_character(settings: Res<Settings>, mut status: Query<&mut Text, With<SavedCharacterStatus>>) {
+    if !settings.is_changed() {
+        return;
+    }
+    let label = match settings.saved_character {
+        Some(saved) if saved == settings.current_character() => "Saved character equipped".into(),
+        Some(saved) => format!("Saved character: {}", saved.shape.name()),
+        None => "No character saved yet".into(),
+    };
+    for mut text in &mut status {
+        text.0.clone_from(&label);
     }
 }
 
@@ -2706,6 +2792,42 @@ mod menu_tests {
         app.update();
         app.world_mut().entity_mut(entity).insert(Interaction::None);
         app.update();
+    }
+
+    #[test]
+    fn saved_character_survives_restart_and_can_replace_latest_edits() {
+        use bbq_core::appearance::{Hat, Legs};
+
+        let mut app = menu(crate::online::Lobby::default());
+        press(&mut app, Action::Tab(Tab::Look));
+        {
+            let mut settings = app.world_mut().resource_mut::<Settings>();
+            settings.character = Character::Egg;
+            settings.belly = 1.65;
+            settings.look.hat = Hat::Akubra;
+            settings.look.body = 7;
+            settings.look.legs = Legs::from_percent(73);
+            settings.look.face_length = 89;
+        }
+        let favourite = app.world().resource::<Settings>().current_character();
+        press(&mut app, Action::SaveCharacter);
+        press(&mut app, Action::LookSet(LookRow::Shape, 0));
+        press(&mut app, Action::LookReset);
+        let settings = app.world().resource::<Settings>();
+        let latest = settings.current_character();
+        let restored = Settings::decode(&settings.encode());
+        assert_ne!(latest, favourite);
+        assert_eq!(restored.current_character(), latest);
+        assert_eq!(restored.saved_character, Some(favourite));
+        app.insert_resource(restored);
+        press(&mut app, Action::LoadCharacter);
+        assert_eq!(app.world().resource::<Settings>().current_character(), favourite);
+        assert_eq!(app.world().resource::<Cast>().mine, Character::Egg);
+
+        let old = Settings::decode("character=Pear\nleg_length=23\n");
+        assert_eq!(old.character, Character::Pear);
+        assert_eq!(old.look.legs.percent(), 23);
+        assert!(old.saved_character.is_none());
     }
 
     #[test]

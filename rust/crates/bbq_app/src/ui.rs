@@ -216,6 +216,8 @@ pub enum Action {
     LookRandom,
     LookOutfit(u8),
     LookReset,
+    SaveCharacter,
+    LoadCharacter,
     /// Customise: pick this choice (a style or a colour, by its number).
     LookSet(LookRow, u8),
     /// Lobby: press (or un-press) Ready.

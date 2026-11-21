@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.57 adds a favourite character slot to Customise on desktop and WebGPU. It saves the shape, proportions, outfit and colours separately from the last-used look and can be loaded on the next launch.
+
 - Prototype 0.23.56 adds a saved Master Volume slider to settings and pause on desktop, WebGPU and legacy browser. A Mac-only audio preview pack adds balloon impacts, pool entry, sprinkler sweeps, grill sizzle, magpie wingbeats and calls, can rattles, and Dazza’s hatch. The public build uses the existing credited sound pack.
 
 - Prototype 0.23.55 turns off Teddy Heist footsteps for now on desktop and both browser builds. The grass recordings are retained for future sound work.
