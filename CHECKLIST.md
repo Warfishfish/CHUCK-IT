@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.52 replaces the field-recorded Teddy Heist footsteps with three short, isolated grass effects. The steps are trimmed, filtered and faded so outdoor background does not repeat with each footfall. Desktop, WebGPU and legacy share the same credited clips.
+
 - Prototype 0.23.51 trials quieter recorded sneaker footsteps in Teddy Heist and adds local wingbeats and occasional Australian magpie calls to Backyard’s birdbath visitors. Desktop, full WebGPU and legacy use the credited CC0 clips.
 
 - Prototype 0.23.50 adds saved controller button remapping, pause and results controller navigation, and illustrated held-item slots to desktop and full WebGPU. The desktop build also produces self-contained Mac and Windows beta archives with runtime assets and credits. [Beta review](checkpoints/2026-11-21-beta-readiness/REVIEW.md).
