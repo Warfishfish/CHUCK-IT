@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.51 trials quieter recorded sneaker footsteps in Teddy Heist and adds local wingbeats and occasional Australian magpie calls to Backyard’s birdbath visitors. Desktop, full WebGPU and legacy use the credited CC0 clips.
+
 - Prototype 0.23.50 adds saved controller button remapping, pause and results controller navigation, and illustrated held-item slots to desktop and full WebGPU. The desktop build also produces self-contained Mac and Windows beta archives with runtime assets and credits. [Beta review](checkpoints/2026-11-21-beta-readiness/REVIEW.md).
 
 - Prototype 0.23.49 calms Bush Servo’s gum foliage and leaf-shadow shimmer. Wider, fewer leaf shapes preserve the crowns, with broad canopy shade around the picnic area and shelter. [Desktop and browser review](checkpoints/2026-11-21-bush-servo-foliage/REVIEW.md).

@@ -105,6 +105,12 @@ struct GardenVisitorWing {
     side: f32,
     base: Transform,
 }
+
+#[derive(Resource)]
+struct GardenBirdAudio {
+    takeoff: Handle<AudioSource>,
+    call: Handle<AudioSource>,
+}
 /// One of the yard's other eskies and its lid.
 #[derive(Component)]
 struct DecorLid(usize);
@@ -167,7 +173,7 @@ impl Plugin for YardScenePlugin {
         app.add_plugins(MaterialPlugin::<crate::grass::BackyardGrassMaterial>::default())
             .insert_resource(YardRes(Yard::default()))
             .init_resource::<Drift>()
-            .add_systems(Startup, build_yard)
+            .add_systems(Startup, (build_yard, load_garden_bird_audio))
             .add_systems(
                 Update,
                 crate::grass::sync,
@@ -969,21 +975,49 @@ fn animate_magpies(
     }
 }
 
-/// The birdbath visitors react to the local player only. They are decoration, separate from
-/// the authoritative swooping magpie and its multiplayer flock.
+fn load_garden_bird_audio(mut commands: Commands, assets: Res<AssetServer>) {
+    commands.insert_resource(GardenBirdAudio {
+        takeoff: assets.load("audio/yard/magpie-takeoff.wav"),
+        call: assets.load("audio/yard/magpie-call.wav"),
+    });
+}
+
+fn play_garden_bird(commands: &mut Commands, cue: &Handle<AudioSource>, volume: f32) {
+    commands.spawn((
+        AudioPlayer::new(cue.clone()),
+        PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(volume)),
+    ));
+}
+
+/// The birdbath visitors react to the local player only, separately from the gameplay flock.
 fn animate_garden_visitors(
+    mut commands: Commands,
     time: Res<Time>,
+    game: Res<Game>,
     player: Res<crate::player::Player>,
+    settings: Res<crate::menu::Settings>,
+    screen: Res<crate::menu::Screen>,
+    sounds: Res<GardenBirdAudio>,
+    mut next_call: Local<f32>,
     mut visitors: Query<(&mut GardenVisitor, &mut Transform)>,
     mut wings: Query<(&GardenVisitorWing, &mut Transform), Without<GardenVisitor>>,
 ) {
     let now = time.elapsed_secs();
+    let in_yard = *screen == crate::menu::Screen::Playing
+        && matches!(game.rules.mode, bbq_core::GameMode::FreeForAll | bbq_core::GameMode::Teams);
+    if !in_yard {
+        *next_call = now + 6.0;
+    }
+    let sound_on = in_yard && settings.sound;
     let mut airborne = [false; 2];
     for (mut visitor, mut tf) in &mut visitors {
         let (px, pz) = (player.mover.x, player.mover.z);
         let near = ((px - tf.translation.x).powi(2) + (pz - tf.translation.z).powi(2)).sqrt();
         if matches!(visitor.state, GardenVisitorState::Perched) && near < 4.8 {
             visitor.state = GardenVisitorState::FlyingOut(now);
+            if sound_on && visitor.index == 0 {
+                play_garden_bird(&mut commands, &sounds.takeoff, 0.36 * (1.0 - near / 12.0));
+            }
         }
         if let GardenVisitorState::AtFence(since) = visitor.state {
             if now - since > 2.8 && near > 8.0 {
@@ -992,6 +1026,10 @@ fn animate_garden_visitors(
         }
         let (from, to, t, at_fence) = match visitor.state {
             GardenVisitorState::Perched => {
+                if sound_on && visitor.index == 0 && now >= *next_call && near < 22.0 {
+                    play_garden_bird(&mut commands, &sounds.call, 0.31 * (1.0 - near / 22.0));
+                    *next_call = now + 21.0;
+                }
                 tf.translation =
                     visitor.perch + Vec3::Y * (0.025 * (now * 3.0 + visitor.index as f32).sin());
                 airborne[visitor.index] = false;
@@ -1736,5 +1774,44 @@ mod smoko_polish_tests {
                 .uv_transform,
             bevy::math::Affine2::IDENTITY
         );
+    }
+}
+
+#[cfg(test)]
+mod bird_audio_tests {
+    use super::*;
+
+    #[test]
+    fn birdbath_calls_are_spaced_and_takeoff_plays_once() {
+        let mut app = App::new();
+        app.add_plugins((crate::game::GamePlugin, crate::player::PlayerPlugin))
+            .insert_resource(crate::menu::Screen::Playing)
+            .init_resource::<crate::menu::Settings>()
+            .init_resource::<Time>();
+        let sources = Assets::<AudioSource>::default();
+        let takeoff = sources.reserve_handle();
+        let call = sources.reserve_handle();
+        app.insert_resource(GardenBirdAudio { takeoff: takeoff.clone(), call: call.clone() });
+        let world = app.world_mut();
+        world.resource_mut::<Game>().rules.mode = bbq_core::GameMode::FreeForAll;
+        world.resource_mut::<crate::player::Player>().mover = bbq_core::movement::Mover::new(10.0, 0.0);
+        for index in 0..2 {
+            world.spawn((
+                GardenVisitor { index, perch: Vec3::ZERO, escape: Vec3::Z * 5.0, state: GardenVisitorState::Perched },
+                Transform::default(),
+            ));
+        }
+        let mut count = world.query::<&AudioPlayer>();
+        let mut schedule = Schedule::default();
+        schedule.add_systems(animate_garden_visitors);
+        schedule.run(world);
+        schedule.run(world);
+        assert_eq!(count.iter(world).map(|player| player.0.id()).collect::<Vec<_>>(), [call.id()]);
+
+        world.resource_mut::<crate::player::Player>().mover = bbq_core::movement::Mover::new(3.0, 0.0);
+        schedule.run(world);
+        schedule.run(world);
+        assert_eq!(count.iter(world).filter(|player| player.0.id() == takeoff.id()).count(), 1);
+        assert_eq!(count.iter(world).count(), 2);
     }
 }

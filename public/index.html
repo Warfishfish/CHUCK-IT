@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.50</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.51</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -721,14 +721,25 @@ function addGardenMagpie(x,z,index){
   const bill=mesh(new THREE.ConeGeometry(.045,.17,7),beak,0,.34,.27,root);bill.rotation.x=Math.PI/2;
   gardenMagpies.push({root,index,perch:new THREE.Vector3(x,.78,z),escape:new THREE.Vector3(-7.2+index*1.1,1.8,D+.05),state:'perched',started:0});
 }
+let nextGardenBirdCall=0;
 function updateGardenMagpies(){
   if(!me)return;
+  const listen=state==='play'&&gameMode!=='heist'&&soundOn;
+  if(state!=='play'||gameMode==='heist')nextGardenBirdCall=elapsed+6;
   for(const bird of gardenMagpies){
     const dx=me.pos.x-bird.root.position.x,dz=me.pos.z-bird.root.position.z,near=Math.hypot(dx,dz);
-    if(bird.state==='perched'&&near<4.8){bird.state='out';bird.started=elapsed;}
+    if(bird.state==='perched'&&near<4.8){
+      bird.state='out';bird.started=elapsed;
+      if(listen&&bird.index===0)playRecordedSound('magpie-takeoff',bird.perch);
+    }
     if(bird.state==='fence'&&elapsed-bird.started>2.8&&near>8){bird.state='home';bird.started=elapsed;}
     let from,to,t=0,flying=false;
-    if(bird.state==='perched'){bird.root.position.copy(bird.perch);bird.root.position.y+=.018*Math.sin(elapsed*3+bird.index);}
+    if(bird.state==='perched'){
+      bird.root.position.copy(bird.perch);bird.root.position.y+=.018*Math.sin(elapsed*3+bird.index);
+      if(listen&&bird.index===0&&near<22&&elapsed>=nextGardenBirdCall){
+        playRecordedSound('magpie-call',bird.perch);nextGardenBirdCall=elapsed+21;
+      }
+    }
     else if(bird.state==='fence'){bird.root.position.copy(bird.escape);bird.root.position.y+=.025*Math.sin(elapsed*4+bird.index);}
     else{
       flying=true;const out=bird.state==='out';from=out?bird.perch:bird.escape;to=out?bird.escape:bird.perch;
@@ -1584,23 +1595,24 @@ const SPAWNS=[[-9,4.5],[6,9],[12,-3],[-15,-6],[19.5,19.5],[-19.5,20.25],[0,-10.5
 
 /* ================= AUDIO ================= */
 let AC=null,master=null,noiseBuf=null,soundOn=true;
-const heistAudio={
+const recordedAudio={
   throw:{gain:.52,range:27},landing:{gain:.58,range:30},
   hatch:{gain:.57,range:34},bank:{gain:.44,range:36,min:.25},
   'grass-1':{gain:.62,range:12},'grass-2':{gain:.62,range:12},'grass-3':{gain:.62,range:12},
+  'magpie-takeoff':{gain:.36,range:12,folder:'yard'},'magpie-call':{gain:.31,range:22,folder:'yard'},
 };
-function loadHeistAudio(){
-  for(const [name,cue] of Object.entries(heistAudio)){
-    fetch(`/rust/assets/audio/heist/${name}.wav`)
+function loadRecordedAudio(){
+  for(const [name,cue] of Object.entries(recordedAudio)){
+    fetch(`/rust/assets/audio/${cue.folder||'heist'}/${name}.wav`)
       .then(response=>{if(!response.ok)throw Error(response.status);return response.arrayBuffer();})
       .then(bytes=>AC.decodeAudioData(bytes))
       .then(buffer=>{cue.buffer=buffer;})
-      .catch(error=>console.warn('Heist sound unavailable:',name,error));
+      .catch(error=>console.warn('Recorded sound unavailable:',name,error));
   }
 }
-function playHeistSound(name,at){
+function playRecordedSound(name,at){
   if(!AC||!soundOn)return;
-  const cue=heistAudio[name];
+  const cue=recordedAudio[name];
   if(!cue.buffer){
     if(name==='throw') SFX.throw(at);
     if(name==='landing'||name==='hatch') SFX.thud(at);
@@ -1624,12 +1636,12 @@ function playHeistGrassSteps(){
   grassStepDistance+=delta;
   if(grassStepDistance>=1.45){
     grassStepDistance-=1.45;
-    playHeistSound('grass-'+grassStepClip);
+    playRecordedSound('grass-'+grassStepClip);
     grassStepClip=grassStepClip%3+1;
   }
 }
 function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=.6;master.connect(AC.destination);
-  noiseBuf=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;loadHeistAudio();}catch(e){AC=null;}}
+  noiseBuf=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;loadRecordedAudio();}catch(e){AC=null;}}
   if(AC&&AC.state==='suspended')AC.resume();return AC;}
 function vol(at){if(!at)return 1;return clamp(1.25-camera.position.distanceTo(at)/28,.1,1)*(mode==='menu'?.45:1);}
 function tone(o,at){if(!AC||!soundOn)return;const t0=AC.currentTime+(o.delay||0);const osc=AC.createOscillator(),g=AC.createGain();osc.type=o.type||'sine';
@@ -2859,7 +2871,7 @@ function playFx(a){
       if(mode===4){const vx=num(a[4],0),vy=num(a[5],8),vz=num(a[6],0);v.lastHitBy=gid;v.lastHitT=elapsed;v.chuckBy=gid;v.chuckT=elapsed;
         if(v.kind!=='proxy'){const g=chars.get(gid),l=Math.hypot(vx,vz)||1;if(g)v.pos.set(g.pos.x+vx/l*.8,g.pos.y+1,g.pos.z+vz/l*.8);else v.pos.y+=1;v.vel.set(vx,vy,vz);v.grounded=false;v.stun=Math.max(v.stun,1.2);}v.chuckHit=false;
         const d=new V3(vx,0,vz);if(d.lengthSq()>1e-4)applyTumble(v,d.normalize(),9);
-        if(gameMode==='heist')playHeistSound('throw',chars.get(gid)?.pos||v.pos);else SFX.throw(v.pos);
+        if(gameMode==='heist')playRecordedSound('throw',chars.get(gid)?.pos||v.pos);else SFX.throw(v.pos);
         burst(v.pos.clone().setY(v.pos.y+1.2),[0xffffff,0xffd23f],10,4,.07);}
       else if(v.kind!=='proxy'){v.vel.multiplyScalar(.3);v.stun=Math.max(v.stun,mode===0?.5:.3);}
       if(mode!==4&&mode!==0)floater(mode===1?'WRIGGLED FREE!':'DROPPED!',v.pos.clone().setY(v.pos.y+2.3),'small');
@@ -2963,10 +2975,10 @@ function playFx(a){
     feed(`${nm(id)} scoffed a dodgy snag\u2026`);}
   }else if(k==='bumout'){const p=new V3(num(a[1],0),.3,num(a[2],0));SFX.boing(p);SFX.pickup(p);burst(p,[0xff5fa8,0xffd23f,0xffffff],28,6,.09);
     floater('\ud83c\udf51 Dazza dropped something shiny\u2026',p.clone().setY(1.6),'big');feed('A glowing gnome rolled out from behind the BBQ\u2026');
-  }else if(k==='heisthatch'){if(gameMode==='heist')playHeistSound('hatch',HATCH_POINT);
+  }else if(k==='heisthatch'){if(gameMode==='heist')playRecordedSound('hatch',HATCH_POINT);
   }else if(k==='heistbank'){const id=a[1],key=a[2],count=a[3]|0,pts=a[4]|0;heistBanked[key]=count;scoreDirty=true;
     const ch=chars.get(id);const p=ch?ch.pos.clone().setY(ch.pos.y+2.6):new V3();const tcol=(TEAMS[key]||TEAMS.r).color;
-    playHeistSound('bank',ch?.pos);burst(p,[tcol,0xffffff,0xffd23f],22,5,.08);
+    playRecordedSound('bank',ch?.pos);burst(p,[tcol,0xffffff,0xffd23f],22,5,.08);
     floater('🧸 BANKED!'+(pts?'  +'+pts:''),p,'big');
     feed(`${nm(id)} banked a ${(TEAMS[key]||{name:''}).name} teddy! (${count})`);
   }else if(k==='heistreturn'){const key=a[1];feed(`A stray ${(TEAMS[key]||{name:''}).name} teddy scurried back to base`);
@@ -3246,7 +3258,7 @@ function updateChar(ch,dt){
     if(ch.kind==='me'){shake=Math.max(shake,.03+.015*n);if(n===TRAMP_MAX&&!ch.maxShown){ch.maxShown=true;floater('MAX HEIGHT!',camera.position.clone().add(fwd(me).multiplyScalar(2.2)).setY(camera.position.y+.3),'big');}}}
   else if(ch.pos.y<=floor){ch.trampChain=false;ch.trampN=0;ch.maxShown=false;if(ch.kind==='me'&&ch.vel.y<-10)shake=Math.max(shake,.05);
     if(!ch.grounded&&fallV<-4){
-      if(gameMode==='heist'&&ch.chuckBy&&elapsed-ch.chuckT<3)playHeistSound('landing',ch.pos);
+      if(gameMode==='heist'&&ch.chuckBy&&elapsed-ch.chuckT<3)playRecordedSound('landing',ch.pos);
       else if(ch.kind==='me') SFX.land(ch.pos);
     }
     ch.pos.y=floor;ch.vel.y=0;ch.grounded=true;}
@@ -3271,7 +3283,7 @@ function updateProxy(ch,dt){
   ch.pos.lerp(tmpV,1-Math.exp(-16*dt));ch.vel.copy(ch.netV);
   ch.grounded=Math.abs(ch.netV.y)<.6;
   if(gameMode==='heist'&&ch.chuckBy&&elapsed-ch.chuckT>.35&&ch.grounded&&ch.pos.y<=floorAt(ch)+.25){
-    if(elapsed-ch.chuckT<3)playHeistSound('landing',ch.pos);
+    if(elapsed-ch.chuckT<3)playRecordedSound('landing',ch.pos);
     ch.chuckBy=null;
   }
   ch.inPool=inActivePool(ch.pos)&&ch.pos.y<.1;
