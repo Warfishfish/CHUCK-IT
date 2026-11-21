@@ -17,8 +17,8 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials
     }
     shape.compute_smooth_normals();
     let mesh = meshes.add(shape);
-    let shine = materials.add(StandardMaterial {base_color: Color::srgb(0.83,0.97,1.0),unlit:true,..default()});
-    let material = materials.add(StandardMaterial { base_color: Color::srgb(0.12, 0.56, 0.86), emissive: LinearRgba::rgb(0.02, 0.10, 0.15), perceptual_roughness: 0.10, metallic: 0.12, ..default() });
+    let shine = materials.add(StandardMaterial {base_color: Color::srgb(0.82,0.99,1.0),unlit:true,..default()});
+    let material = materials.add(StandardMaterial { base_color: Color::srgb(0.25, 0.70, 0.92), emissive: LinearRgba::rgb(0.025, 0.12, 0.17), perceptual_roughness: 0.16, metallic: 0.08, ..default() });
     for slot in 0..(crate::characters::MAX_BOTS + bbq_core::net::MAX_PLAYERS) {
         for drop in 0..14 {
             for highlight in [false,true] {
@@ -36,13 +36,20 @@ fn update(game: Res<Game>, player: Res<crate::player::Player>, screen: Res<crate
             else { *vis = Visibility::Hidden; continue; };
         *vis = if playing && wet > 0.0 { Visibility::Visible } else { Visibility::Hidden };
         if wet <= 0.0 {continue;}
-        let angle = drop.drop as f32 * std::f32::consts::TAU / 14.0;
-        let phase = (game.now * 0.85 + drop.drop as f32 * 0.173).fract();
-        let radius = 0.46 + 0.12 * phase;
-        tf.translation = Vec3::new(m.x + angle.cos() * radius, m.y + 1.65 - phase * phase * 1.5 - m.sink, m.z + angle.sin() * radius);
+        let angle = drop.drop as f32 * 2.399_963;
+        let phase = (game.now * (1.07 + (drop.drop % 4) as f32 * 0.14) + drop.drop as f32 * 0.173).fract();
+        let radius = 0.44 + 0.18 * phase;
+        let height = m.height * (0.64 + (drop.drop % 3) as f32 * 0.06);
+        let tail = phase * phase * 0.035;
+        tf.translation = Vec3::new(
+            m.x + angle.cos() * radius - m.vx * tail,
+            m.y + height * (1.0 - phase * phase) - m.sink,
+            m.z + angle.sin() * radius - m.vz * tail,
+        );
         let fade=wet.min(1.0);
-        let size=(0.032+(drop.drop%3) as f32*0.008)*fade;
-        tf.scale=Vec3::new(size,size*(1.0+phase*0.65),size);
+        let size = (0.029 + (drop.drop % 3) as f32 * 0.008) * fade
+            * (phase * 8.0).min(1.0) * ((1.0 - phase) * 9.0).min(1.0);
+        tf.scale=Vec3::new(size,size*(1.0+phase*0.85),size);
         if drop.highlight {tf.translation+=Vec3::new(-size*0.3,size*0.4,size*0.6);tf.scale*=0.36;}
     }
     let review = crate::visual_review::is_water_review();

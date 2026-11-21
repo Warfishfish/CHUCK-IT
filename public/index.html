@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.47</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.48</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -1520,16 +1520,13 @@ const vpLabel=new THREE.MeshLambertMaterial({map:textTex(256,64,(x,w,h)=>{x.fill
     mesh(new THREE.BoxGeometry(.10,.07,.07),mat(0xb3a371),-.15,.03,0,sprinklerRotor);
     mesh(new THREE.BoxGeometry(.075,.09,.07),mat(0x9ab3ac),.21,.045,0,sprinklerRotor);
     sprinklerSpray=new THREE.Group();sprinklerSpray.position.copy(sprinklerRotor.position);scene.add(sprinklerSpray);sprinklerSpray.visible=false;
-    const dropM=new THREE.MeshLambertMaterial({color:0x8dd9ec,transparent:true,opacity:.68,emissive:0x17394a,depthWrite:false});
-    // A broad, layered fan of water replaces the handful of isolated dots. Irregular rows and
-    // sizes make the spray read as a stream of droplets rather than a static dotted line.
-    for(let i=0;i<78;i++){const row=i%13,col=Math.floor(i/13),dist=.55+row*.27,angle=-.72+col*.24+Math.sin(i*2.17)*.055;
-      const x=Math.sin(angle)*dist,z=Math.cos(angle)*dist,y=.08+(row*.11)+(col%3)*.10+Math.sin(i*1.37)*.06;
-      const size=.014+(i%5)*.004,drop=mesh(new THREE.SphereGeometry(size,6,5),dropM,x,y,z,sprinklerSpray);
-      drop.scale.set(.8,1.15+(row%3)*.25,.8);drop.castShadow=false;drop.receiveShadow=false;}
-    for(let i=0;i<7;i++){const angle=-.62+i*.20,dist=.8+(i%3)*.4;
-      const streak=mesh(new THREE.SphereGeometry(.018,6,4),dropM,Math.sin(angle)*dist,.13+(i%3)*.16,Math.cos(angle)*dist,sprinklerSpray);
-      streak.scale.set(.65,1.0,5.5);streak.rotation.y=angle;streak.castShadow=false;streak.receiveShadow=false;}
+    const dropM=new THREE.MeshBasicMaterial({color:0x8dd9ec,transparent:true,opacity:.56,depthWrite:false});
+    const glintM=new THREE.MeshBasicMaterial({color:0xe3f9ff,transparent:true,opacity:.76,depthWrite:false});
+    const smallDrop=new THREE.SphereGeometry(.021,6,5),largeDrop=new THREE.SphereGeometry(.030,6,5);
+    for(let i=0;i<54;i++){
+      const drop=new THREE.Mesh(i%3===0?largeDrop:smallDrop,i%4===0?glintM:dropM);
+      sprinklerSpray.add(drop);
+    }
   }
 
   // A purpose-built gum receives the claw-marked possum box and a small scatter of fallen leaves.
@@ -2789,12 +2786,22 @@ const parts=[],partGeo=new THREE.BoxGeometry(1,1,1);
 function burst(pos,colors,n,speed,size,grav){for(let i=0;i<n;i++){const m=new THREE.Mesh(partGeo,mat(pick(colors)));m.scale.setScalar((size||.07)*rand(.6,1.4));m.position.copy(pos);m.rotation.set(rand(0,3),rand(0,3),0);scene.add(m);
   parts.push({m,v:new V3(rand(-1,1),rand(.2,1.3),rand(-1,1)).multiplyScalar(speed),life:rand(.5,1.1),grav:grav==null?1:grav,s:m.scale.x});}
   while(parts.length>420){const p=parts.shift();scene.remove(p.m);}}
-function poolRipples(pos){for(let i=0;i<3;i++){const material=new THREE.MeshBasicMaterial({color:i===0?0xf0fdff:0x9de7f6,transparent:true,opacity:.68,depthWrite:false,side:THREE.DoubleSide});
-    const ring=new THREE.Mesh(new THREE.TorusGeometry(.18+i*.09,.014,6,24),material);ring.rotation.x=-Math.PI/2;ring.position.set(pos.x,WATER_Y+.012+i*.001,pos.z);ring.scale.setScalar(.28);ring.renderOrder=3;scene.add(ring);yardRippleFx.push({mesh:ring,age:i*.11,life:.85});}}
+function poolRipples(pos){
+  [0,.14,.30].forEach((delay,i)=>{
+    const material=new THREE.MeshBasicMaterial({color:0xb8f0ff,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide});
+    const ring=new THREE.Mesh(new THREE.RingGeometry(.96,1,48),material);
+    ring.rotation.x=-Math.PI/2;ring.position.set(pos.x,WATER_Y+.018+i*.003,pos.z);ring.scale.setScalar(.16);
+    ring.renderOrder=3;scene.add(ring);yardRippleFx.push({mesh:ring,age:-delay,life:1.18});
+  });
+}
 function wetFootprints(pos,yaw){for(let i=0;i<4;i++){const side=i%2?1:-1,step=Math.floor(i/2),x=pos.x+Math.cos(yaw)*(-.20-step*.42)+Math.sin(yaw)*side*.13,z=pos.z-Math.sin(yaw)*(-.20-step*.42)+Math.cos(yaw)*side*.13;
     const m=new THREE.Mesh(new THREE.SphereGeometry(.12,8,5),new THREE.MeshBasicMaterial({color:0x537e7b,transparent:true,opacity:.27,depthWrite:false}));m.position.set(x,.014,z);m.scale.set(.44,.04,.84);m.rotation.y=yaw+(side*.10);scene.add(m);wetFootprintFx.push({mesh:m,age:0,life:4.2});}}
 function updateYardEffects(dt){for(const list of [yardRippleFx,wetFootprintFx])for(let i=list.length-1;i>=0;i--){const fx=list[i];fx.age+=dt;const t=fx.age/fx.life;if(t>=1){scene.remove(fx.mesh);fx.mesh.material.dispose();fx.mesh.geometry.dispose();list.splice(i,1);continue;}
-    if(list===yardRippleFx){const s=.28+2.9*t;fx.mesh.scale.set(s,s,s);fx.mesh.material.opacity=.68*(1-t);}else fx.mesh.material.opacity=.27*(1-t);}
+    if(list===yardRippleFx){
+      if(t<0)continue;
+      fx.mesh.scale.setScalar(.16+1.65*t*(1.5-.5*t));
+      fx.mesh.material.opacity=.74*Math.min(1,fx.age/.075)*(1-t);
+    }else fx.mesh.material.opacity=.27*(1-t);}
   if(trampolineMatMesh){let press=0;for(const ch of chars.values()){const d=Math.hypot(ch.pos.x-TRAMP.x,ch.pos.z-TRAMP.z);if(ch.grounded&&d<TRAMP.r*.72&&Math.abs(ch.pos.y-TRAMP.h)<.25)press=Math.max(press,1-d/(TRAMP.r*1.5));}
     trampolineMatMesh.scale.y+=(Math.max(.90,1-press*.10)-trampolineMatMesh.scale.y)*(1-Math.exp(-10*dt));}
   if(gardenAnimator){gardenAnimator.tail.rotation.x=Math.sin(elapsed*7.2)*.18+Math.max(0,Math.sin(elapsed*.7))*-.06;if(gardenAnimator.branch)gardenAnimator.branch.rotation.z=-.22+Math.sin(elapsed*1.55+1.2)*.045;
@@ -4348,8 +4355,21 @@ function frame(now){
   clotheslineLaundry.forEach((g,i)=>{g.rotation.z=Math.sin(elapsed*1.55+i*.9)*.045;});
   if(umbrellaShade){umbrellaShade.position.x=-20+Math.sin(elapsed*.12)*.24;umbrellaShade.position.z=18.2+Math.cos(elapsed*.12)*.18;}
   if(pinwheelRotor)pinwheelRotor.rotation.z=elapsed*5.7;
-  if(sprinklerRotor){const sprayAngle=.95+Math.sin(elapsed*.82)*.82;sprinklerRotor.rotation.y=sprayAngle;
-    if(sprinklerSpray){sprinklerSpray.rotation.y=sprayAngle;sprinklerSpray.visible=(elapsed%5.4)<1.7;}}
+  if(sprinklerRotor){
+    sprinklerRotor.rotation.y=.95+Math.sin(elapsed*.82)*.82;
+    sprinklerSpray.visible=gameMode!=='heist';
+    const tangent=new V3();
+    sprinklerSpray.children.forEach((drop,i)=>{
+      const age=(elapsed+i*.618034)%1,launch=elapsed-age;
+      drop.visible=launch>=0&&launch%5.4<1.7;
+      if(!drop.visible)return;
+      const lane=i%6,angle=.95+Math.sin(launch*.82)*.82+(lane-2.5)*.20;
+      const speed=2.4+lane*.16,x=Math.sin(angle),z=Math.cos(angle);
+      drop.position.set(x*(.19+age*speed),.06+2.08*age-2.64*age*age,z*(.19+age*speed));
+      drop.quaternion.setFromUnitVectors(UP,tangent.set(x*speed,2.08-5.28*age,z*speed).normalize());
+      drop.scale.set(.70,1.3+(1-age)*1.65,.70);
+    });
+  }
   poolTex.offset.x+=dt*.02;poolTex.offset.y+=dt*.013;if(poolTex.userData.caus){const c=poolTex.userData.caus;c.offset.x=Math.sin(elapsed*.35)*.12;c.offset.y+=dt*.018;}
   for(const c of clouds){c.position.x+=dt*1.2;if(c.position.x>110)c.position.x=-110;}
   updateFloaters(dt);

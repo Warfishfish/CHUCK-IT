@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.48 lifts shaded Heist turf, animates Backyard sprinkler drops and staggered pool ripples, and refines the balloon splash, wet drips, landing stance and carried-player camera. [Review and captures](checkpoints/2026-11-21-turf-water-and-camera/REVIEW.md).
+
 - Prototype 0.23.47 fades fine Backyard grass blades smoothly with distance. The close grass remains visible and the lawn keeps its painted colour and wear. Tested walking and turning on desktop and WebGPU at Low and High. [Matched captures](checkpoints/2026-11-21-backyard-grass/REVIEW.md).
 
 - Prototype 0.23.46 clears stale Heist bot targeting and dodges after hits and adds three recorded first-person grass footsteps. [Recovery and audio review](checkpoints/2026-11-20-heist-recovery/REVIEW.md).

@@ -2457,28 +2457,18 @@ pub fn backyard_wind_parts() -> BackyardWindParts {
         cuboid(0.10, 0.07, 0.07, matt(0xb3a371), -0.15, 0.03, 0.0),
         cuboid(0.075, 0.09, 0.07, matt(0x9ab3ac), 0.21, 0.045, 0.0),
     ];
-    let spray = matt(0x8dd9ec).unlit().see_through(0.52).no_shadow();
-    // A layered, directional fan reads as real sprinkler spray at gameplay distance. The
-    // low-cost ellipsoids are static meshes; the scene rotates the whole fan with the rotor.
-    let sprinkler_trail = (0..42)
+    // Reusable drops are animated along the launch arcs by the scene.
+    let sprinkler_trail = (0..54)
         .map(|i| {
-            let row = i % 7;
-            let col = i / 7;
-            let angle = -0.67 + col as f32 * 0.22 + (i as f32 * 2.17).sin() * 0.035;
-            let distance = 0.48 + row as f32 * 0.22;
-            let x = angle.sin() * distance;
-            let z = angle.cos() * distance;
-            let y = 0.12 + row as f32 * 0.10 + (col % 3) as f32 * 0.07;
+            let (colour, opacity) = if i % 4 == 0 { (0xe3f9ff, 0.76) } else { (0x8dd9ec, 0.56) };
             Part::new(
                 Shape::Sphere {
-                    r: if i % 3 == 0 { 0.037 } else { 0.026 },
-                    ws: 8,
+                    r: if i % 3 == 0 { 0.030 } else { 0.021 },
+                    ws: 6,
                     hs: 5,
                 },
-                spray,
+                matt(colour).unlit().see_through(opacity).no_shadow(),
             )
-            .at(x, y, z)
-            .stretch(0.78, 1.45, 0.78)
             .no_shadow_part()
         })
         .collect();

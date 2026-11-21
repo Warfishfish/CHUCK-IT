@@ -39,11 +39,11 @@ def make_heist_turf():
             broad = math.sin((xf * 2.0 + yf * 0.65) * math.tau) * 0.020
             patches = math.sin((xf * 5.0 + yf * 3.0) * math.tau) * 0.016
             fiber = max(0.0, math.sin((x + y * 0.32) * 0.56 + grain * 2.8)) ** 9 * 0.060
-            v = grain * 0.070 + broad + patches + fiber
+            v = grain * 0.048 + broad + patches + fiber * 0.75
             pixels.extend((
-                max(0.0, min(1.0, 0.165 + v * 0.75)),
-                max(0.0, min(1.0, 0.270 + v)),
-                max(0.0, min(1.0, 0.145 + v * 0.60)),
+                max(0.0, min(1.0, 0.392 + v * 0.75)),
+                max(0.0, min(1.0, 0.529 + v)),
+                max(0.0, min(1.0, 0.349 + v * 0.60)),
                 1.0,
             ))
 

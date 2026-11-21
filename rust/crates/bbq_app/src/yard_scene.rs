@@ -52,7 +52,7 @@ struct Pinwheel;
 #[derive(Component)]
 struct SprinklerRotor;
 #[derive(Component)]
-struct SprinklerTrail;
+struct SprinklerDrop(usize);
 #[derive(Component)]
 struct UmbrellaShade;
 /// A cloud drifting along +x at 1.2 m/s, wrapping round at 110.
@@ -322,7 +322,9 @@ fn build_yard(
                 4,
             ),
         ] {
-            let prop = cache.spawn_parts(&mut commands, parts, &mut meshes, &mut mats, transform);
+            let (prop, children) = cache.spawn_parts_with_children(
+                &mut commands, parts, &mut meshes, &mut mats, transform,
+            );
             match marker {
                 0 => {
                     commands.entity(prop).insert(UmbrellaShade);
@@ -337,9 +339,9 @@ fn build_yard(
                     commands.entity(prop).insert(SprinklerRotor);
                 }
                 _ => {
-                    commands
-                        .entity(prop)
-                        .insert((SprinklerTrail, Visibility::Hidden));
+                    for (index, drop) in children.into_iter().enumerate() {
+                        commands.entity(drop).insert((SprinklerDrop(index), Visibility::Hidden));
+                    }
                 }
             }
             commands.entity(yard_root).add_child(prop);
@@ -672,17 +674,16 @@ fn animate_yard(
         Option<&BreezyHangers>,
         Option<&Pinwheel>,
         Option<&SprinklerRotor>,
-        Option<&SprinklerTrail>,
         Option<&UmbrellaShade>,
-    )>,
-    mut trail_visibility: Query<&mut Visibility, With<SprinklerTrail>>,
+    ), Without<SprinklerDrop>>,
+    mut spray: Query<(&SprinklerDrop, &mut Transform, &mut Visibility)>,
     water: Query<&MeshMaterial3d<StandardMaterial>, (With<PoolWater>, Without<PoolShimmer>)>,
     shimmer: Query<&MeshMaterial3d<StandardMaterial>, (With<PoolShimmer>, Without<PoolWater>)>,
     mut mats: ResMut<Assets<StandardMaterial>>,
 ) {
     let dt = time.delta_secs();
     let t = time.elapsed_secs();
-    for (mut tf, head, cloud, hangers, pinwheel, rotor, spray, shade) in &mut scenery {
+    for (mut tf, head, cloud, hangers, pinwheel, rotor, shade) in &mut scenery {
         if head.is_some() && game.rules.mode != bbq_core::GameMode::Smoko {
             tf.rotation = if *mode == crate::lighting::LookMode::Polished {
                 let q = looks_yard::hoist_lean().0;
@@ -707,20 +708,27 @@ fn animate_yard(
         if rotor.is_some() && game.rules.mode != bbq_core::GameMode::Smoko {
             tf.rotation = Quat::from_rotation_y(0.95 + (t * 0.82).sin() * 0.82);
         }
-        if spray.is_some() && game.rules.mode != bbq_core::GameMode::Smoko {
-            tf.rotation = Quat::from_rotation_y(0.95 + (t * 0.82).sin() * 0.82);
-        }
         if shade.is_some() && game.rules.mode != bbq_core::GameMode::Smoko {
             tf.translation.x = -20.0 + (t * 0.12).sin() * 0.24;
             tf.translation.z = 18.2 + (t * 0.12).cos() * 0.18;
         }
     }
-    for mut visibility in &mut trail_visibility {
-        *visibility = if game.rules.mode != bbq_core::GameMode::Smoko && t.rem_euclid(5.4) < 1.7 {
-            Visibility::Inherited
-        } else {
-            Visibility::Hidden
-        };
+    let backyard = matches!(game.rules.mode, bbq_core::GameMode::FreeForAll | bbq_core::GameMode::Teams);
+    for (SprinklerDrop(index), mut tf, mut visibility) in &mut spray {
+        let age = (t + *index as f32 * 0.618_034).fract();
+        let launch = t - age;
+        let emitting = backyard && launch >= 0.0 && launch.rem_euclid(5.4) < 1.7;
+        *visibility = if emitting { Visibility::Inherited } else { Visibility::Hidden };
+        if !emitting { continue; }
+        let lane = (*index % 6) as f32;
+        let angle = 0.95 + (launch * 0.82).sin() * 0.82 + (lane - 2.5) * 0.20;
+        let speed = 2.4 + lane * 0.16;
+        let along = Vec3::new(angle.sin(), 0.0, angle.cos());
+        tf.translation = along * (0.19 + age * speed)
+            + Vec3::Y * (0.06 + 2.08 * age - 2.64 * age * age);
+        let tangent = along * speed + Vec3::Y * (2.08 - 5.28 * age);
+        tf.rotation = Quat::from_rotation_arc(Vec3::Y, tangent.normalize());
+        tf.scale = Vec3::new(0.70, 1.3 + (1.0 - age) * 1.65, 0.70);
     }
     // Smoko hides the Backyard pool: do not invalidate its GPU materials each frame.
     if game.rules.mode == bbq_core::GameMode::Smoko {

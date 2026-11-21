@@ -417,23 +417,23 @@ pub fn update_camera(
         || (game.mirror && game.now < game.smoko.guest_until);
     let blend_target = if carried { 1.0 } else { 0.0 };
     carry_view.blend += (blend_target - carry_view.blend) * (1.0 - (-dt * 5.5).exp());
+    let first_person_eye = tf.translation;
+    let mut carry_focus = None;
     if carried {
-        if let Some((victim, carrier, forward)) = carried_view_target(&game, p) {
-            let _ = forward;
+        if let Some((victim, carrier)) = carried_view_target(&game, p) {
             let desired = carry_camera_pose(victim, carrier, Vec3::NEG_Z);
             let target = (victim + carrier) * 0.5 + Vec3::Y * 0.95;
-            let mut clear = desired;
-            clear.translation = camera_boom(target, desired.translation, &yard.0);
-            clear = clear.looking_at(target, Vec3::Y);
-            carry_view.pose = Some(if let Some(previous) = carry_view.pose {
-                let follow = 1.0 - (-dt * 2.2).exp();
-                Transform::from_translation(previous.translation.lerp(clear.translation, follow))
-                    .with_rotation(previous.rotation.slerp(clear.rotation, follow))
-            } else { clear });
+            carry_focus = Some(target);
+            carry_view.pose = Some(smooth_carry_camera(
+                carry_view.pose, desired, target, 1.0 - (-dt * 2.2).exp(), &yard.0,
+            ));
         }
     }
     if let Some(external) = carry_view.pose {
-        tf.translation = tf.translation.lerp(external.translation, carry_view.blend);
+        let eye = first_person_eye.lerp(external.translation, carry_view.blend);
+        // Interpolation can cut across a wall even when both end poses are clear.
+        let anchor = carry_focus.unwrap_or(first_person_eye);
+        tf.translation = camera_boom(anchor, eye, &yard.0);
         tf.rotation = tf.rotation.slerp(external.rotation, carry_view.blend);
         if !carried && carry_view.blend < 0.001 { carry_view.pose = None; }
     }
@@ -454,15 +454,14 @@ pub fn update_camera(
 pub struct CarryViewState { blend: f32, pose: Option<Transform> }
 impl Default for CarryViewState { fn default() -> Self { Self { blend: 0.0, pose: None } } }
 
-fn carried_view_target(game: &crate::game::Game, player: &Player) -> Option<(Vec3, Vec3, Vec3)> {
+fn carried_view_target(game: &crate::game::Game, player: &Player) -> Option<(Vec3, Vec3)> {
     let victim = Vec3::new(player.mover.x, player.mover.y, player.mover.z);
     let carrier_id = game.smoko.carries.iter()
         .find_map(|(&id, carry)| (carry.victim == PLAYER_ID).then_some(id))
         .or_else(|| crate::smoko_mode::flight_owner(game, PLAYER_ID));
     if let Some(id) = carrier_id {
         let at = crate::smoko_mode::pos(game, player, id)?;
-        let face = crate::smoko_mode::face(game, player, id);
-        return Some((victim, Vec3::new(at.x, at.y, at.z), Vec3::new(face.0, 0.0, face.1).normalize_or_zero()));
+        return Some((victim, Vec3::new(at.x, at.y, at.z)));
     }
     // Some host snapshots expose only the short carried/flight lock. In that case use the
     // nearest visible character as the framing target; the host still controls the lock.
@@ -472,7 +471,7 @@ fn carried_view_target(game: &crate::game::Game, player: &Player) -> Option<(Vec
             .map(|(x,y,z)| Vec3::new(x,y,z))
             .filter(|p| p.distance(victim) < 4.5)
             .min_by(|a,b| a.distance_squared(victim).total_cmp(&b.distance_squared(victim)))?;
-        return Some((victim, nearest, (victim - nearest).normalize_or_zero()));
+        return Some((victim, nearest));
     }
     None
 }
@@ -485,6 +484,22 @@ fn carry_camera_pose(victim: Vec3, carrier: Vec3, forward: Vec3) -> Transform {
     let distance = (5.3 + victim.distance(carrier) * 0.55).min(16.0);
     let eye = center - forward * distance + right * 1.4 + Vec3::Y * 2.5;
     Transform::from_translation(eye).looking_at(target, Vec3::Y)
+}
+
+fn smooth_carry_camera(
+    previous: Option<Transform>, desired: Transform, target: Vec3, follow: f32,
+    yard: &bbq_core::yard::Yard,
+) -> Transform {
+    let clear = camera_boom(target, desired.translation, yard);
+    let eye = previous.map_or(clear, |pose| pose.translation.lerp(clear, follow));
+    let eye = camera_boom(target, eye, yard);
+    let facing = if eye.distance_squared(target) > 0.0001 {
+        Transform::from_translation(eye).looking_at(target, Vec3::Y).rotation
+    } else {
+        desired.rotation
+    };
+    let rotation = previous.map_or(facing, |pose| pose.rotation.slerp(facing, follow));
+    Transform::from_translation(eye).with_rotation(rotation)
 }
 
 /// Pull a spectator boom in before a solid wall, with clearance for the camera near plane.
@@ -534,6 +549,18 @@ mod carry_camera_tests {
         for character in [victim + Vec3::Y, carrier + Vec3::Y] {
             assert!(view.forward().dot((character - view.translation).normalize()) > 0.88);
         }
+    }
+
+    #[test]
+    fn carry_follow_does_not_interpolate_through_a_corner() {
+        let mut yard = bbq_core::yard::Yard::default();
+        yard.colliders.clear();
+        yard.colliders.push(bbq_core::yard::Collider::centred(0.0, 3.0, 0.8, 0.3, 4.0));
+        let focus = Vec3::new(0.0, 1.0, 0.0);
+        let previous = Transform::from_xyz(-3.0, 2.0, 6.0).looking_at(focus, Vec3::Y);
+        let desired = Transform::from_xyz(3.0, 2.0, 6.0).looking_at(focus, Vec3::Y);
+        let followed = smooth_carry_camera(Some(previous), desired, focus, 0.5, &yard);
+        assert!(followed.translation.z > 2.4 && followed.translation.z < 2.67);
     }
 }
 

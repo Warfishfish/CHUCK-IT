@@ -2,6 +2,10 @@
 
 Marcus's call: online play (Phase 9) is parked after 9.6 until he has tried it with a friend. The focus now is graphics, gameplay, UI and character customization. One item at a time; screenshots and a yes before anything is committed.
 
+## Turf, water and camera polish · 21 November 2026
+
+Prototype 0.23.48 lifts Heist turf midtones, animates Backyard water and keeps the carried-player camera clear around corners. Work through the remaining Bush Servo gum-leaf and shadow pass next. The Heist shortcut balance playtest still needs a match with friends. [Review and captures](checkpoints/2026-11-21-turf-water-and-camera/REVIEW.md).
+
 ## Backyard grass · 21 November 2026
 
 Prototype 0.23.47 calms mid-distance grass speckles while keeping the nearby blades. Desktop and full WebGPU walks on Low and High are in the [grass review](checkpoints/2026-11-21-backyard-grass/REVIEW.md). The remaining map graphics items from the three-map check are fine gum leaves and their shadows in Bush Servo, and the dark turf midtones in shaded Heist corridors.

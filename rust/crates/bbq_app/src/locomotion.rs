@@ -4,7 +4,7 @@ use std::f32::consts::{PI, TAU};
 
 pub const TURN_RESPONSE: f32 = 13.0;
 pub const STEP_RESPONSE: f32 = 12.0;
-pub const STANCE_FRACTION: f32 = 0.55;
+pub const STANCE_FRACTION: f32 = 0.58;
 pub const MAX_CADENCE: f32 = 13.0;
 pub const BODY_BOB: f32 = 0.055;
 pub const BODY_SWAY: f32 = 0.035;
@@ -30,6 +30,7 @@ pub struct Gait {
     position: Vec3,
     travelled_velocity: Vec3,
     ready: bool,
+    was_walking: bool,
 }
 impl Gait {
     pub fn tick(&mut self, dt: f32, position: Vec3, velocity: Vec3, facing: f32,
@@ -37,6 +38,13 @@ impl Gait {
         let dt = dt.clamp(0.0, 0.05);
         if !self.ready || self.position.distance(position) > 3.0 {
             *self = Self { yaw: facing, position, ready: true, ..Default::default() };
+        }
+        let first_contact = walking && !self.was_walking;
+        self.was_walking = walking;
+        if first_contact {
+            // Resume inside the short two-foot stance instead of landing on a swing foot.
+            let lead = if self.phase >= PI { PI } else { 0.0 };
+            self.phase = lead + (STANCE_FRACTION - 0.5) * PI;
         }
         self.position = position;
         let previous_yaw = self.yaw;
@@ -49,7 +57,7 @@ impl Gait {
             (angle_delta(previous_yaw, self.yaw).abs() / dt * 0.06).min(0.3)
         } else { 0.0 };
         self.blend = ease(self.blend, (speed / 2.5).clamp(0.0, 1.0).max(pivot), STEP_RESPONSE, dt);
-        if speed <= 0.15 && pivot > 0.01 {
+        if !first_contact && speed <= 0.15 && pivot > 0.01 {
             self.direction = self.direction.lerp(Vec3::Z, 1.0 - (-STEP_RESPONSE * dt).exp());
             self.phase = (self.phase + pivot * 14.0 * dt).rem_euclid(TAU);
         }
@@ -58,8 +66,10 @@ impl Gait {
             self.direction = self.direction.lerp(local, 1.0 - (-STEP_RESPONSE * dt).exp());
             // Roughly match stance travel to world speed. Cap tiny-legged blobs' cadence.
             let stride = 0.16 + leg * 0.6;
-            let cadence = (speed * PI / (2.0 * stride)).min(MAX_CADENCE);
-            self.phase = (self.phase + cadence * dt).rem_euclid(TAU);
+            let cadence = (speed * TAU * STANCE_FRACTION / (2.0 * stride)).min(MAX_CADENCE);
+            if !first_contact {
+                self.phase = (self.phase + cadence * dt).rem_euclid(TAU);
+            }
         }
     }
 
@@ -138,5 +148,19 @@ mod tests {
         assert_eq!(g.yaw,2.0);assert_eq!(g.blend,0.0);
         g.tick(0.016,Vec3::X*20.0,Vec3::ZERO,-2.0,0.6,false,true);
         assert_eq!(g.yaw,-2.0);
+    }
+
+    #[test]
+    fn a_running_landing_plants_both_feet_before_the_next_stride() {
+        let mut gait = Gait { phase: 0.81 * TAU, ready: true, ..Default::default() };
+        let dt = 1.0 / 60.0;
+        gait.tick(dt, Vec3::ZERO, Vec3::Z * 4.0, 0.0, 0.4, false, false);
+        gait.tick(dt, Vec3::ZERO, Vec3::Z * 4.0, 0.0, 0.4, true, false);
+        assert_eq!(gait.foot(false, 0.4).0.y, 0.0);
+        assert_eq!(gait.foot(true, 0.4).0.y, 0.0);
+        for _ in 0..10 {
+            gait.tick(dt, Vec3::ZERO, Vec3::Z * 4.0, 0.0, 0.4, true, false);
+        }
+        assert!(gait.foot(false, 0.4).0.y > 0.0 || gait.foot(true, 0.4).0.y > 0.0);
     }
 }

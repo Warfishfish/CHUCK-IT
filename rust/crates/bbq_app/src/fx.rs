@@ -441,10 +441,10 @@ fn make_effects(mut commands: Commands, mut effects: ResMut<Assets<EffectAsset>>
         colours: [c(0.85, 0.97, 1.0, 0.95), c(0.5, 0.82, 0.98, 0.8), c(0.4, 0.75, 0.95, 0.0)],
     }));
     let balloon = effects.add(burst_asset(&Burst {
-        name: "balloon water crown", count: 140.0, radius: 0.22,
-        speed: (2.8, 6.0), up: 2.0, life: (0.45, 0.95),
-        gravity: -10.0, drag: 1.1, size: (0.25, 0.045),
-        colours: [c(0.8, 0.96, 1.0, 1.0), c(0.2, 0.72, 1.0, 0.85), c(0.15, 0.6, 0.95, 0.0)],
+        name: "balloon water crown", count: 112.0, radius: 0.17,
+        speed: (2.4, 5.8), up: 3.3, life: (0.42, 0.86),
+        gravity: -14.0, drag: 0.85, size: (0.17, 0.035),
+        colours: [c(0.87, 0.97, 1.0, 1.0), c(0.38, 0.74, 0.96, 0.78), c(0.32, 0.66, 0.86, 0.0)],
     }));
     let mist = effects.add(burst_asset(&Burst {
         name: "balloon impact mist", count: 18.0, radius: 0.25,
@@ -645,13 +645,11 @@ fn spawn_events(
     settings: Res<crate::menu::Settings>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut ripple_mesh: Local<Option<Handle<Mesh>>>,
     mut tested: Local<bool>,
 ) {
     let Some(fx) = fx else { return };
-    if settings.quality == crate::graphics_quality::GraphicsQuality::Low {
-        game.fx.clear();
-        return;
-    }
+    let low = settings.quality == crate::graphics_quality::GraphicsQuality::Low;
     // `--fxtest` fires one of every effect in a row, for looking at them
     if !*tested && time.elapsed_secs() > 0.8 && std::env::args().any(|a| a == "--fxtest") {
         *tested = true;
@@ -663,31 +661,38 @@ fn spawn_events(
     for e in events.into_iter().filter(|e| !matches!(e.kind,
         FxKind::HeistThrow | FxKind::HeistLanding | FxKind::HeistHatch | FxKind::HeistBank
     )).take(12) {
-        if e.kind == FxKind::Splash {
-            // Three offset rings leave a readable pool ripple after the entry splash droplets.
-            for delay in [0.0f32, 0.13, 0.27] {
+        use bbq_core::yard::{WATER_Y, in_pool_rect};
+        if e.kind == FxKind::Splash && (e.at.y - WATER_Y).abs() < 0.04
+            && in_pool_rect(e.at.x, e.at.z)
+        {
+            let mesh = ripple_mesh.get_or_insert_with(|| meshes.add(Annulus::new(0.96, 1.0)));
+            for (index, delay) in [0.0f32, 0.14, 0.30].into_iter().enumerate() {
                 let material = materials.add(StandardMaterial {
-                    base_color: Color::srgba(0.60, 0.88, 0.98, 0.56),
+                    base_color: Color::srgba(0.72, 0.94, 1.0, 0.0),
                     alpha_mode: bevy::prelude::AlphaMode::Blend,
                     unlit: true,
                     cull_mode: None,
                     ..default()
                 });
                 commands.spawn((
-                    Mesh3d(meshes.add(Torus::new(0.24, 0.014))),
+                    Mesh3d(mesh.clone()),
                     MeshMaterial3d(material.clone()),
-                    Transform::from_xyz(e.at.x, bbq_core::yard::WATER_Y + 0.035 + delay * 0.002, e.at.z)
+                    Transform::from_xyz(e.at.x, WATER_Y + 0.018 + index as f32 * 0.003, e.at.z)
                         .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
-                        .with_scale(Vec3::splat(0.38)),
-                    PoolRipple { age: delay, material },
+                        .with_scale(Vec3::splat(0.16)),
+                    Visibility::Hidden,
+                    bevy::light::NotShadowCaster,
+                    PoolRipple { age: -delay, material },
                 ));
             }
         }
+        if low && e.kind != FxKind::BalloonBurst { continue; }
         let (list, life): (Vec<&Handle<EffectAsset>>, f32) = match e.kind {
             FxKind::Hit => (vec![&fx.stars, &fx.puff], 1.2),
             FxKind::Whack => (vec![&fx.stars], 1.0),
             FxKind::Smash => (vec![&fx.foam, &fx.puff], 1.4),
             FxKind::Splash => (vec![&fx.splash], 1.8),
+            FxKind::BalloonBurst if low => (vec![&fx.balloon], 1.0),
             FxKind::BalloonBurst => (vec![&fx.balloon, &fx.mist], 1.2),
             FxKind::Dust => (vec![&fx.dust], 1.6),
             FxKind::Shatter => (vec![&fx.shards, &fx.foam, &fx.puff], 1.4),
@@ -710,19 +715,22 @@ fn animate_pool_ripples(
     mut commands: Commands,
     time: Res<Time>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut q: Query<(Entity, &mut Transform, &mut PoolRipple)>,
+    mut q: Query<(Entity, &mut Transform, &mut Visibility, &mut PoolRipple)>,
 ) {
-    for (entity, mut transform, mut ripple) in &mut q {
+    for (entity, mut transform, mut visible, mut ripple) in &mut q {
         ripple.age += time.delta_secs();
-        let t = (ripple.age / 0.92).clamp(0.0, 1.0);
+        if ripple.age < 0.0 { continue; }
+        let t = (ripple.age / 1.18).min(1.0);
         if t >= 1.0 {
             commands.entity(entity).despawn();
             continue;
         }
-        let scale = 0.38 + 2.7 * t;
+        *visible = Visibility::Inherited;
+        let scale = 0.16 + 1.65 * t * (1.5 - 0.5 * t);
         transform.scale = Vec3::new(scale, scale, 1.0);
         if let Some(mut material) = materials.get_mut(&ripple.material) {
-            material.base_color = Color::srgba(0.60, 0.88, 0.98, 0.56 * (1.0 - t));
+            let alpha = 0.74 * (ripple.age / 0.075).min(1.0) * (1.0 - t);
+            material.base_color = Color::srgba(0.72, 0.94, 1.0, alpha);
         }
     }
 }
