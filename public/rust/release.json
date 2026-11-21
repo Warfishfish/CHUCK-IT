@@ -1,6 +1,6 @@
 {
-  "source_commit": "95a7d634a110230bca665b6fd662832859274323",
-  "protocol": 33,
+  "source_commit": "92b84b4e42e0c4edeea271abcfc2ab7514bddaf6",
+  "protocol": 34,
   "release_date": "2026-11-21",
-  "description": "Isolated grass footsteps, prototype 0.23.52"
+  "description": "Q toggles bare hands with one held item, prototype 0.23.53"
 }
