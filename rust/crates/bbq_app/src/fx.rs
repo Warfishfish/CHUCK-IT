@@ -39,11 +39,12 @@ pub enum FxKind {
     HeistLanding,
     HeistHatch,
     HeistBank,
+    PalmSlap,
 }
 
 impl FxKind {
     // (new kinds go on the end: the position is the number sent online)
-    pub const ALL: [FxKind; 13] = [
+    pub const ALL: [FxKind; 14] = [
         FxKind::Hit,
         FxKind::Smash,
         FxKind::Whack,
@@ -57,6 +58,7 @@ impl FxKind {
         FxKind::HeistLanding,
         FxKind::HeistHatch,
         FxKind::HeistBank,
+        FxKind::PalmSlap,
     ];
 
     /// What a bottle (or the VP can) does when it breaks.
@@ -174,6 +176,7 @@ struct HeistAudio {
     bank: Handle<AudioSource>,
     impact: Handle<AudioSource>,
     slap: Handle<AudioSource>,
+    palm_slap: Handle<AudioSource>,
     balloon: Handle<AudioSource>,
     pool: Handle<AudioSource>,
     can: Handle<AudioSource>,
@@ -207,6 +210,7 @@ fn load_heist_audio(mut commands: Commands, assets: Res<AssetServer>) {
         bank: assets.load("audio/heist/bank.wav"),
         impact: assets.load("audio/gameplay/impact.wav"),
         slap: assets.load("audio/gameplay/slap.wav"),
+        palm_slap: assets.load("audio/gameplay/palm-slap.wav"),
         balloon: assets.load("audio/gameplay/balloon.wav"),
         pool: assets.load("audio/gameplay/pool.wav"),
         can: assets.load("audio/gameplay/can.wav"),
@@ -248,6 +252,7 @@ fn play_recorded_audio(
             FxKind::Smash | FxKind::Fizz => (sample(|p| &p.can, &sounds.can), 16.0, 0.0, 0.48),
             FxKind::Shatter | FxKind::ShatterSpirit => (&sounds.can, 18.0, 0.0, 0.50),
             FxKind::Whack => (&sounds.slap, 18.0, 0.0, 0.58),
+            FxKind::PalmSlap => (&sounds.palm_slap, 18.0, 0.0, 0.58),
             FxKind::Hit => (&sounds.impact, 22.0, 0.0, 0.57),
             FxKind::Dust => (&sounds.landing, 16.0, 0.0, 0.25),
             _ => continue,
@@ -880,7 +885,7 @@ fn spawn_events(
         if low && e.kind != FxKind::BalloonBurst { continue; }
         let (list, life): (Vec<&Handle<EffectAsset>>, f32) = match e.kind {
             FxKind::Hit => (vec![&fx.stars, &fx.puff], 1.2),
-            FxKind::Whack => (vec![&fx.stars], 1.0),
+            FxKind::Whack | FxKind::PalmSlap => (vec![&fx.stars], 1.0),
             FxKind::Smash => (vec![&fx.foam, &fx.puff], 1.4),
             FxKind::Splash => (vec![&fx.splash], 1.8),
             FxKind::BalloonBurst if low => (vec![&fx.balloon], 1.0),

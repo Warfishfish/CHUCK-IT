@@ -1664,6 +1664,7 @@ mod tests {
         let g = app.world().resource::<Game>();
         assert!(g.slots.hands_selected());
         assert_eq!(g.board.score(PLAYER_ID), 40);
+        assert!(g.fx.iter().any(|cue| cue.kind == crate::fx::FxKind::PalmSlap));
         assert_eq!(g.world.items[&item].uses, Some(3));
 
         app.world_mut().resource_mut::<Wanted>().swap = 1;
@@ -3336,6 +3337,7 @@ mod tests {
             let d = &g.dummies[0];
             assert!(d.body.stun > 0.0, "the slap should have stunned them");
             assert_eq!(g.board.score(PLAYER_ID), 50, "a noodle slap pays 50");
+            assert!(g.fx.iter().any(|cue| cue.kind == crate::fx::FxKind::Whack));
             assert!(g.life.me_swing > 0.0, "and the swing is drawn");
             // the noodle is still in your hand (it has 6 uses)
             assert_eq!(g.slots.len(), 1);

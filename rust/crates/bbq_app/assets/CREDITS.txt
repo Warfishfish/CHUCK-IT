@@ -50,5 +50,11 @@ Both CC0 1.0 Universal, https://creativecommons.org/publicdomain/zero/1.0/
 Short excerpts converted to mono WAV, faded and levelled.
 
 GAMEPLAY SOUND EFFECTS
-Impact, slap, balloon pop, splash and can rattle are original synthesized sounds
-created for Australian BBQ. No sampled third-party recordings are used.
+Impact, balloon pop, splash and can rattle are original synthesized sounds
+created for Australian BBQ.
+Held-item slap — “Face Slap” by jmmcdona04
+https://freesound.org/people/jmmcdona04/sounds/161042/
+Bare-hand slap — “Slap hit on the face or shoulder” by khenshom
+https://freesound.org/people/khenshom/sounds/539163/
+Both CC0 1.0 Universal, https://creativecommons.org/publicdomain/zero/1.0/
+Single hits trimmed from the public previews, converted to mono WAV and levelled.

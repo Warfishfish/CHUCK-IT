@@ -444,20 +444,25 @@ pub fn guest_bare_slap(g: &mut Game, p: &mut Player, i: usize) {
 
 fn apply_bare_hit(g: &mut Game, p: &mut Player, att: &Attacker, victim: PlayerId) {
     let fx=melee::silly_slap();
-    if victim==PLAYER_ID {
+    let at = if victim==PLAYER_ID {
+        let at = me_pos(p);
         let dir=melee::direction(att.pos,me_pos(p));
         melee::apply(&mut g.me.body,&mut p.mover,dir,&fx);
         g.wind.cancel();g.me.drunk.cancel_drink();p.shake=p.shake.max(0.25);
+        at
     } else {
         let Some(i)=g.dummies.iter().position(|d|d.id==victim) else {return};
         let d=&mut g.dummies[i];
-        let dir=melee::direction(att.pos,V3::new(d.mover.x,d.mover.y,d.mover.z));
+        let at = V3::new(d.mover.x,d.mover.y,d.mover.z);
+        let dir=melee::direction(att.pos,at);
         d.last_hit=Some((att.id,g.now));
         melee::apply(&mut d.body,&mut d.mover,dir,&fx);
         d.anim.tumble(dir,fx.knock,if g.rng.chance(0.5){-1.0}else{1.0});
         d.anim.start_swing();
         crate::online_world::note_slap(g,i,dir,&fx);
-    }
+        at
+    };
+    g.fx(crate::fx::FxKind::PalmSlap, at + V3::new(0.0, 1.2, 0.0));
     let gain=g.board.silly_slap(&g.rules,att.id,victim,att.drunk_bonus,false);
     let name=if g.options.adult {melee::SILLY_NAMES[g.rng.index(melee::SILLY_NAMES.len())]} else {"SLAP!"};
     if att.is_player {g.popup(format!("{name} +{gain}"),false);}
@@ -479,6 +484,7 @@ fn slap_dazza(g: &mut Game, kind: ItemKind) -> bool {
     if res == SlapResult::Ignored {
         return false;
     }
+    g.fx(crate::fx::FxKind::Whack, g.life.dazza.pos + V3::new(0.0, 1.2, 0.0));
     if let Some(l) = line {
         g.life.dazza_says(l);
     }

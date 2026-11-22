@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.59</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.60</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -1616,6 +1616,7 @@ syncMasterVolume();
 const GRASS_FOOTSTEPS_ENABLED=false;
 const recordedAudio={
   throw:{gain:.52,range:27},landing:{gain:.58,range:30},
+  slap:{gain:.58,range:18,folder:'gameplay'},'palm-slap':{gain:.58,range:18,folder:'gameplay'},
   hatch:{gain:.57,range:34},bank:{gain:.44,range:36,min:.25},
   'grass-1':{gain:.62,range:12},'grass-2':{gain:.62,range:12},'grass-3':{gain:.62,range:12},
   'magpie-takeoff':{gain:.36,range:12,folder:'yard'},'magpie-call':{gain:.31,range:22,folder:'yard'},
@@ -1637,6 +1638,7 @@ function playRecordedSound(name,at){
     if(name==='throw') SFX.throw(at);
     if(name==='landing'||name==='hatch') SFX.thud(at);
     if(name==='bank') SFX.pickup();
+    if(name==='slap'||name==='palm-slap') SFX.slapFallback(at);
     return;
   }
   const level=at?Math.max(cue.min||0,1-camera.position.distanceTo(at)/cue.range):1;
@@ -1689,7 +1691,9 @@ const SFX={
   dodge:at=>noise({t:.14,v:.1,f:1600},at),
   jump:at=>{noise({t:.1,v:.07,f:900,type:'lowpass'},at);tone({f:260,f2:420,t:.1,type:'triangle',v:.05},at);},
   land:at=>noise({t:.08,v:.1,f:300,type:'lowpass'},at),
-  slap:at=>{noise({t:.09,v:.5,f:2600,type:'highpass'},at);tone({f:170,f2:70,t:.16,v:.4},at);},
+  slapFallback:at=>{noise({t:.09,v:.5,f:2600,type:'highpass'},at);tone({f:170,f2:70,t:.16,v:.4},at);},
+  slap:at=>playRecordedSound('slap',at),
+  palm:at=>playRecordedSound('palm-slap',at),
   whoosh:at=>noise({t:.18,v:.12,f:700,f2:2400,q:1.4},at),
   fling:at=>{tone({f:520,f2:180,t:.55,type:'sine',v:.12},at);noise({t:.35,v:.18,f:900,f2:300,q:.8},at);tone({f:110,f2:60,t:.25,v:.4,delay:.7},at);},
   heli:at=>{for(let i=0;i<9;i++)tone({f:300+i*60,f2:160,t:.09,type:'square',v:.05,delay:i*.11},at);tone({f:900,f2:220,t:1.1,type:'sine',v:.08,delay:.05},at);},
@@ -2948,7 +2952,7 @@ function playFx(a){
       feed(`${nm(aid)} slapped ${nm(vid)} <em>${label}</em>${bounty?' ♛':''}`);}
   }else if(k==='mslap'){const aid=a[1],vid=a[2],type=(ITEM_DEFS[TYPES[a[3]]]||{}).melee==='stun'?TYPES[a[3]]:'steak',ST=ITEM_DEFS[type].slapStun||MEAT_STUN,kd=new V3(num(a[4],0),0,num(a[5],1)),scoring=!!a[6],gain=num(a[7],0),tk=!!a[8];
     const at=chars.get(aid),vc=chars.get(vid);if(at)at.swingT=.28;if(vc){vc.lastHitBy=aid;vc.lastHitT=elapsed;}
-    if(vc){const hp=vc.pos.clone().setY(vc.pos.y+1.3-(vc.sink||0));if(type==='noodle'){SFX.boing(hp);SFX.bonk(hp);}else SFX.splat(hp);
+    if(vc){const hp=vc.pos.clone().setY(vc.pos.y+1.3-(vc.sink||0));SFX.slap(hp);if(type==='noodle')SFX.boing(hp);
       burst(hp,type==='fish'?[0xc9d6de,0x8aa4b4,0xffffff,0x6fa8c8]:type==='noodle'?[0xff5fa8,0xffd23f,0xffffff,0x9ee3ff]:[0xc4455a,0xf2d2c8,0x8a1f2c],20,4,.06);
       vc.dizzyT=ST;
       {const sm=num(a[10],0)|0;if(type==='fish'&&sm>0){vc.smellT=sm===2?9:5;vc.smellBad=sm===2;vc.smellAcc=0;
@@ -2976,19 +2980,19 @@ function playFx(a){
       feed(`${nm(tid)} sent ${nm(a[2])} ${kind==='pool'?'into the pool':'onto the tramp'} <em>${lbl}</em>`);}
   }else if(k==='emote'){const c=chars.get(a[1]),list=EMOTES[a[2]];if(c&&list&&!(c===me&&me.emote&&me.emote.t<.8))startEmote(c,a[2],num(a[3],0)|0);
   }else if(k==='nslap'){const aid=a[1],o=clamp(a[2]|0,1,3),type=TYPES[a[3]]||'steak',pts=num(a[4],0),at=chars.get(aid);if(at)at.swingT=.28;
-    const hp=NPC.pos.clone().setY(1.6);SFX.splat(hp);burst(hp,type==='fish'?[0xc9d6de,0x8aa4b4,0xffffff]:type==='dildo'?[0xa44de0,0xe2b8ff,0xffffff]:[0xc4455a,0xf2d2c8,0x8a1f2c],24,5,.07);
+    const hp=NPC.pos.clone().setY(1.6);SFX.slap(hp);burst(hp,type==='fish'?[0xc9d6de,0x8aa4b4,0xffffff]:type==='dildo'?[0xa44de0,0xe2b8ff,0xffffff]:[0xc4455a,0xf2d2c8,0x8a1f2c],24,5,.07);
     const lbl=NPC_SLAPS[o-1];floater(lbl,NPC.pos.clone().setY(3.5),'big');if(typeof a[5]==='string')npcBubble(a[5].slice(0,40));SFX.babble(NPC.pos);
     if(o===1){NPC.koAge=0;SFX.thud(NPC.pos);}if(o===3){for(const f of grillFood)f.flip=.4;burst(new V3(-6,1.3,-18),[0x6e2a1a,0x9b4a2a,0x444444],30,6,.08);SFX.clonk(new V3(-6,1,-18));}
     if(aid===myId&&pts)floater('+'+pts+' chef slap',NPC.pos.clone().setY(4.1),'small');
     feed(`${nm(aid)} slapped <b style="color:#ff9f1c">Dazza</b> <em>${lbl}</em>`);
   }else if(k==='nstun'){const aid=a[1],sd=num(a[2],1),pts=num(a[3],0),at=chars.get(aid);
-    const hp=NPC.pos.clone().setY(1.6);SFX.clang(hp);SFX.babble(hp);burst(hp,[0xc4455a,0xf2d2c8,0xffd0c6],20,5,.07);
+    const hp=NPC.pos.clone().setY(1.6);SFX.slap(hp);SFX.babble(hp);burst(hp,[0xc4455a,0xf2d2c8,0xffd0c6],20,5,.07);
     floater('STUNNED! RUN!',NPC.pos.clone().setY(3.2),'big');if(typeof a[4]==='string')npcBubble(a[4].slice(0,40));
     if(aid===myId&&pts)floater('+'+pts+' cheeky escape',NPC.pos.clone().setY(3.9),'small');
     feed(`${nm(aid)} stunned <b style="color:#ff9f1c">Dazza</b> and bolted!`);
   }else if(k==='silly'){const aid=a[1],vid=a[2],idx=a[3]|0,kd=new V3(num(a[4],0),0,num(a[5],1)),scoring=!!a[6],gain=num(a[7],0),tk=!!a[8];
     const at=chars.get(aid),vc=chars.get(vid);if(at)at.swingT=.28;if(vc){vc.lastHitBy=aid;vc.lastHitT=elapsed;}
-    if(vc){const hp=vc.pos.clone().setY(vc.pos.y+1.3);SFX.bonk(hp);burst(hp,[0xffd0c6,0xffffff,0xffb0a0],16,4,.06);
+    if(vc){const hp=vc.pos.clone().setY(vc.pos.y+1.3);SFX.palm(hp);burst(hp,[0xffd0c6,0xffffff,0xffb0a0],16,4,.06);
       if(vc.kind==='me'||(isAuth&&vc.kind==='bot')){vc.vel.addScaledVector(kd,8.5);vc.vel.y=Math.max(vc.vel.y,3);vc.grounded=false;vc.stun=Math.max(vc.stun,.6);applyTumble(vc,kd,6);if(vc.kind==='me'){shake=Math.max(shake,.1);SFX.hurt();}}
       const label=idx===-1?'SLAP!':SILLY_NAMES[idx]||'NOOGIE!';
       if(vc.kind==='me'&&me)floater(label,camera.position.clone().add(fwd(me).multiplyScalar(2.2)).setY(camera.position.y+.4),'big');else floater(label,vc.pos.clone().setY(vc.pos.y+2.4),'big');

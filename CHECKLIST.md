@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.60 uses the Natural Palm recording on bare-hand contact and the Hard Slap recording on held-item contact in desktop, WebGPU and legacy browser. Both clips are credited CC0 recordings.
+
 - Prototype 0.23.59 triggers the held-item whoosh from the local release on desktop and WebGPU, including for online guests. The sample is trimmed to put the audible start closer to release.
 
 - Prototype 0.23.58 adds audible item throws, impacts, slaps, balloon pops, pool splashes and can rattles to the public desktop and WebGPU builds. Settings and Pause include a Test sound button. Grass footsteps remain paused in the public build.

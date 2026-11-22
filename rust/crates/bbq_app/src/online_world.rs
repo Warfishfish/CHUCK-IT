@@ -1272,6 +1272,7 @@ mod tests {
         act(&mut host, GuestAct::BareSlap);
         let g = host.world().resource::<Game>();
         assert_eq!(g.me.body.stun, melee::SILLY_STUN);
+        assert!(g.fx.iter().any(|cue| cue.kind == FxKind::PalmSlap));
         assert_eq!(g.world.items[&item].holder, Some(REMOTE_ID_BASE + 2));
         assert!(g.dummies.iter().find(|d| d.id == REMOTE_ID_BASE + 2).unwrap().bot.slots.hands_selected());
     }
