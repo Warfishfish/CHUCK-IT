@@ -246,7 +246,7 @@ pub fn slap_dummy(
     let dpos = V3::new(g.dummies[i].mover.x, 0.0, g.dummies[i].mover.z);
     let dir = melee::direction(me, dpos);
     let vid = g.dummies[i].id;
-    g.fx(crate::fx::FxKind::Whack, V3::new(dpos.x, 1.2, dpos.z));
+    g.fx(crate::fx::FxKind::held_slap(kind), V3::new(dpos.x, 1.2, dpos.z));
     let name = dummy_name(i);
     let leader = g.board.leader() == Some(vid);
     let drunk = att.drunk_bonus;
@@ -484,7 +484,7 @@ fn slap_dazza(g: &mut Game, kind: ItemKind) -> bool {
     if res == SlapResult::Ignored {
         return false;
     }
-    g.fx(crate::fx::FxKind::Whack, g.life.dazza.pos + V3::new(0.0, 1.2, 0.0));
+    g.fx(crate::fx::FxKind::held_slap(kind), g.life.dazza.pos + V3::new(0.0, 1.2, 0.0));
     if let Some(l) = line {
         g.life.dazza_says(l);
     }

@@ -596,10 +596,10 @@ fn draw_trajectory(
             game.slots
                 .selected()
                 .and_then(|id| game.world.items.get(&id))
-                .map(|i| i.kind)
+                .map(|i| (i.kind, i.team.is_some()))
         })
         .flatten();
-    let Some(kind) = kind else {
+    let Some((kind, objective_teddy)) = kind else {
         for (_, _, mut v) in &mut dots {
             *v = Visibility::Hidden;
         }
@@ -615,6 +615,9 @@ fn draw_trajectory(
         game.wind.charge,
         bbq_core::vec::V3::new(player.mover.vx, 0.0, player.mover.vz),
     );
+    if objective_teddy {
+        vel = bbq_core::heist::pass_velocity(vel, game.wind.charge);
+    }
     let mut pos = hand_pos(&player);
     let mut pts: Vec<Vec3> = Vec::with_capacity(TRAJ_DOTS);
     let mut hit_y = None;
@@ -635,7 +638,12 @@ fn draw_trajectory(
                 break 'dots;
             }
         }
-        if pos.x.abs() > bbq_core::YARD_HALF_X + 1.0 || pos.z.abs() > bbq_core::YARD_HALF_Z + 1.0 {
+        let outside = if yard.0.heist.is_some() {
+            !bbq_core::yard::inside_heist(pos.x, pos.z, 0.0)
+        } else {
+            pos.x.abs() > bbq_core::YARD_HALF_X + 1.0 || pos.z.abs() > bbq_core::YARD_HALF_Z + 1.0
+        };
+        if outside {
             break;
         }
     }

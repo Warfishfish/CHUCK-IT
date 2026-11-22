@@ -407,6 +407,10 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
         g.world.initial_fill(players, &|x, z| y.heist_clear(x, z, 1.2), &mut g.rng);
         g.heist = None;
     }
+    g.opening_drops = g.world.items.values()
+        .filter(|item| item.state == bbq_core::flight::ItemState::Flying && item.pos.y > 2.0)
+        .map(|item| item.id)
+        .collect();
 
     crate::race::start(g,p,yard);
     g.round.time_left = COUNTDOWN;

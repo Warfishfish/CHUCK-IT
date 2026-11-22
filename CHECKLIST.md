@@ -16,6 +16,10 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.62 tightens the attack of the selected throw whoosh and the local recorded pool and balloon splashes. Pool noodle contact keeps its slap and gains a low thump. The opening item wave plays its impact sound on the first landing.
+- The raw steak uses the marbled Blender ribeye with five linked joints that bend in the hand and in the air. Backyard crate trim meets cleanly at the corners. In Bush Servo, two low steps lead onto the ute cab and two more lead from the cab to the shop roof.
+- A charged, upward Teddy Heist throw can lob a teddy across an interior wall. Short, level passes remain catchable and a lob only scores if someone retrieves and banks the teddy.
+
 - Prototype 0.23.61 uses the selected Fuller Whoosh for throws and Cartoon Glugs for the local player’s bar drinks. The recorded BBQ sizzle in the Mac-only audio preview is louder and audible farther from the grill.
 
 - Prototype 0.23.60 uses the Natural Palm recording on bare-hand contact and the Hard Slap recording on held-item contact in desktop, WebGPU and legacy browser. Both clips are credited CC0 recordings.

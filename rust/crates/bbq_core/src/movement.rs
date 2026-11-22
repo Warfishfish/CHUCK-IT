@@ -1387,9 +1387,26 @@ mod tests {
 
 
     #[test]
+    fn servo_ute_can_be_reached_from_the_forecourt() {
+        let yard = Yard::smoko(Features::default(), 0);
+        let mut player = Mover::new(0.83, -18.58);
+        for (z, top) in [(-19.48, 0.68), (-20.28, 1.48), (-21.35, 2.33)] {
+            player.try_jump(false);
+            for _ in 0..70 {
+                player.step(DT, MoveInput {
+                    wish: (0.0, if player.z > z + 0.15 { -1.0 } else { 0.0 }),
+                    ..Default::default()
+                }, &Modifiers::default(), &yard);
+            }
+            assert!(player.grounded && (player.y - top).abs() < 0.02,
+                "expected to reach {top}, landed at y={} z={}", player.y, player.z);
+        }
+    }
+
+    #[test]
     fn servo_route_lands_on_each_visible_step_and_pitched_roof() {
         let yard=Yard::smoko(Features::default(),0);
-        for (x,start,target) in [(0.4,2.33,3.32),(-1.25,3.32,4.35),(-2.25,4.35,4.98)] {
+        for (x,start,target) in [(0.4,2.33,3.22),(-1.15,3.22,4.15),(-2.22,4.15,4.98)] {
             let mut m=Mover::new(x,-21.9);
             m.y=start;m.prev_y=start;m.grounded=true;m.try_jump(false);
             let mut landed=false; let mut peak=start;

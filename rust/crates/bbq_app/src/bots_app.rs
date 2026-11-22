@@ -570,7 +570,7 @@ fn slap_player(
     if same_team {
         return;
     }
-    g.fx(crate::fx::FxKind::Whack, V3::new(p.mover.x, p.mover.y + 1.2, p.mover.z));
+    g.fx(crate::fx::FxKind::held_slap(kind), V3::new(p.mover.x, p.mover.y + 1.2, p.mover.z));
     let leader = g.board.leader() == Some(PLAYER_ID);
     p.shake = p.shake.max(0.25);
     g.me.drunk.cancel_drink();

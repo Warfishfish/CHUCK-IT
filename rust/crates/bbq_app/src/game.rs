@@ -198,6 +198,7 @@ pub struct Game {
     /// Play the held-item throw cue on the same frame the local player releases it.
     pub local_throw_sound: bool,
     pub local_bar_drink: Option<Drink>,
+    pub opening_drops: std::collections::HashSet<bbq_core::flight::ItemId>,
     /// The other people in an online yard (empty when playing alone).
     pub remotes: Vec<RemoteInfo>,
     pub smoko: crate::smoko_mode::State,
@@ -322,6 +323,7 @@ impl Plugin for GamePlugin {
             fx: Vec::new(),
             local_throw_sound: false,
             local_bar_drink: None,
+            opening_drops: Default::default(),
             remotes: Vec::new(),
             smoko: Default::default(),
             magpie:Default::default(),
@@ -876,6 +878,16 @@ pub fn step_game(
             }
             WorldEvent::Flight { ev: bbq_core::flight::FlightEvent::WaterBurst { pos }, .. } => {
                 g.fx(crate::fx::FxKind::BalloonBurst, pos);
+            }
+            WorldEvent::Flight { item, ev: bbq_core::flight::FlightEvent::Thud { pos, surface: true, .. } }
+                if g.opening_drops.remove(&item) =>
+            {
+                g.fx(crate::fx::FxKind::OpeningDrop, pos);
+            }
+            WorldEvent::Flight { item, ev: bbq_core::flight::FlightEvent::Splash { x, z } }
+                if g.opening_drops.remove(&item) =>
+            {
+                g.fx(crate::fx::FxKind::Splash, V3::new(x, bbq_core::yard::WATER_Y, z));
             }
             // a glass bottle that lands hard shatters where it lands (the VP can just goes flat)
             WorldEvent::Flight {
@@ -2548,6 +2560,27 @@ mod tests {
     }
 
     #[test]
+    fn the_opening_wave_plays_a_landing_cue_after_the_drop() {
+        use crate::fx::FxKind::OpeningDrop;
+        let mut app = app();
+        start_with(&mut app, setup(GameMode::FreeForAll, 0));
+        ticks(&mut app, 20);
+        {
+            let game = app.world().resource::<Game>();
+            assert!(!game.fx.iter().any(|cue| cue.kind == OpeningDrop));
+            assert!(!game.opening_drops.is_empty());
+        }
+        let mut heard = false;
+        for _ in 0..130 {
+            app.world_mut().resource_mut::<Game>().fx.clear();
+            ticks(&mut app, 1);
+            let game = app.world().resource::<Game>();
+            heard |= game.fx.iter().any(|cue| cue.kind == OpeningDrop && cue.at.y < 0.1);
+        }
+        assert!(heard, "opening stock should thud on contact with the ground");
+    }
+
+    #[test]
     fn nothing_scores_after_the_whistle() {
         let mut app = app();
         start_with(&mut app, setup(GameMode::FreeForAll, 1));
@@ -3341,7 +3374,7 @@ mod tests {
             let d = &g.dummies[0];
             assert!(d.body.stun > 0.0, "the slap should have stunned them");
             assert_eq!(g.board.score(PLAYER_ID), 50, "a noodle slap pays 50");
-            assert!(g.fx.iter().any(|cue| cue.kind == crate::fx::FxKind::Whack));
+            assert!(g.fx.iter().any(|cue| cue.kind == crate::fx::FxKind::NoodleSlap));
             assert!(g.life.me_swing > 0.0, "and the swing is drawn");
             // the noodle is still in your hand (it has 6 uses)
             assert_eq!(g.slots.len(), 1);

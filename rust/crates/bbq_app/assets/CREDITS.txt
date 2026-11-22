@@ -66,3 +66,7 @@ https://freesound.org/people/boyscontentclub/sounds/521585/
 and “Water_Drink.wav” by Q.K.
 https://freesound.org/people/Q.K./sounds/56270/
 All three CC0 1.0 Universal. Preview converted to mono WAV, levelled and faded.
+
+Pool noodle slap — existing held-item slap layered with “LowHit_01.wav”
+by Faulkin, https://freesound.org/people/Faulkin/sounds/336495/
+CC0 1.0 Universal. The added layer is trimmed, low-passed and levelled.

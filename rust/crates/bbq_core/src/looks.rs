@@ -943,6 +943,7 @@ pub struct Floppy {
 pub fn floppy(kind: crate::items::ItemKind) -> Option<Floppy> {
     use crate::items::ItemKind as K;
     match kind {
+        K::Steak => Some(Floppy { k: 52.0, c: 7.2, limit: 0.46, droop: 0.19, step: 0.55, base: 0.01, per_link: 0.15 }),
         K::Noodle => Some(Floppy { k: 65.0, c: 4.5, limit: 0.75, droop: 0.16, step: 1.0, base: 0.35, per_link: 0.11 }),
         // Heavier rubber springs back more firmly than the long foam noodle.
         K::Dildo => Some(Floppy { k: 110.0, c: 5.5, limit: 0.85, droop: 0.17, step: 1.8, base: 0.35, per_link: 0.11 }),

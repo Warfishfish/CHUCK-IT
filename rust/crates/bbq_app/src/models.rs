@@ -502,6 +502,11 @@ impl ModelCache {
         if let Some(b) = self.built.get(&key) {
             return b.clone();
         }
+        if matches!(key, ModelKey::Item(ItemKind::Steak, ..)) {
+            let built = vec![crate::steak::build(meshes, mats)];
+            self.built.insert(key, built.clone());
+            return built;
+        }
         if let ModelKey::Item(ItemKind::Dildo, variant, id) = key {
             let b = crate::silicone::build(variant.unwrap_or(DildoVariant::Classic), bbq_core::looks::DildoSkin::from_id(id), meshes, mats);
             self.built.insert(key, vec![b.clone()]);
@@ -559,6 +564,10 @@ impl ModelCache {
     ) -> Entity {
         let built = self.built(key, meshes, mats);
         let root = commands.spawn((at, Visibility::default())).id();
+        if matches!(key, ModelKey::Item(ItemKind::Steak, ..)) {
+            crate::steak::spawn(commands, root, &built[0]);
+            return root;
+        }
         if let ModelKey::Item(ItemKind::Dildo, variant, _) = key {
             crate::silicone::spawn(commands, root, &built[0], variant.unwrap_or(DildoVariant::Classic));
             return root;

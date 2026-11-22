@@ -186,10 +186,11 @@ impl Bank {
 
 use crate::vec::V3;
 
-/// Keep objective passes catchable across a corridor without lobbing them over the maze.
-pub fn pass_velocity(velocity: V3) -> V3 {
+/// A deliberate charged lob clears interior walls. Level passes stay short and catchable.
+pub fn pass_velocity(velocity: V3, charge: f32) -> V3 {
     let scale = (12.0 / velocity.horiz_len().max(0.001)).min(1.0);
-    V3::new(velocity.x * scale, velocity.y.clamp(-8.0, 3.0), velocity.z * scale)
+    let lift = if charge >= 0.65 && velocity.y >= 7.0 { 12.0 } else { 3.0 };
+    V3::new(velocity.x * scale, velocity.y.clamp(-8.0, lift), velocity.z * scale)
 }
 
 use crate::yard::{Collider, Kind};

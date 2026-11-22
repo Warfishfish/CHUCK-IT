@@ -261,7 +261,7 @@ impl ItemWorld {
         it.fly_t = 0.0;
         it.ignore.clear();
         it.pos = start;
-        it.vel = if it.team.is_some() { crate::heist::pass_velocity(vel) } else { vel };
+        it.vel = if it.team.is_some() { crate::heist::pass_velocity(vel, charge) } else { vel };
         it.start = start;
         it.charge = charge.clamp(0.0, 1.0);
         it.power = power_ok && crate::hands::is_power(charge);

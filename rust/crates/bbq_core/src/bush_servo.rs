@@ -5,8 +5,12 @@ use crate::yard::{Collider, Kind};
 use std::f32::consts::{TAU, FRAC_PI_2};
 
 pub const ROOF_STEPS: [(f32,f32,f32,f32,f32);2] = [
-    (-1.25,-21.9,0.95,1.3,3.32),
-    (-2.25,-21.9,0.8,1.3,4.35),
+    (-1.15,-21.9,1.0,1.58,3.22),
+    (-2.22,-21.9,0.95,1.58,4.15),
+];
+pub const UTE_ACCESS_STEPS: [(f32, f32, f32, f32, f32); 2] = [
+    (0.83, -19.48, 1.20, 0.68, 0.68),
+    (0.83, -20.28, 1.20, 0.80, 1.48),
 ];
 pub const SERVO_OFFSET: (f32,f32) = (-6.,9.5);
 pub const BBQ_OFFSET_Z: f32 = 6.;
@@ -39,7 +43,7 @@ pub fn servo_colliders() -> Vec<Collider> {
         boxes.push((x,-26.15,0.62,0.55,1.85));
         for dx in [-0.8,0.8] { boxes.push((x+dx,-25.32,0.13,0.13,0.68)); }
     }
-    boxes.into_iter().map(|(x,z,w,d,h)| Collider::centred(x+SERVO_OFFSET.0,z+SERVO_OFFSET.1,w,d,h)).chain(ute_colliders()).chain(ROOF_STEPS.into_iter().map(|(x,z,w,d,h)| Collider::centred(x,z,w,d,h)))
+    boxes.into_iter().map(|(x,z,w,d,h)| Collider::centred(x+SERVO_OFFSET.0,z+SERVO_OFFSET.1,w,d,h)).chain(ute_colliders()).chain(ROOF_STEPS.into_iter().chain(UTE_ACCESS_STEPS).map(|(x,z,w,d,h)| Collider::centred(x,z,w,d,h)))
         .chain((0..80).map(|i| {
             let z=24.95+(33.0-24.95)*(i as f32+0.5)/80.0;
             let h=if z<29.0 {4.63+(z-24.95)*0.54/4.05}else{5.17-(z-29.0)*0.54/4.0};
@@ -158,9 +162,9 @@ pub fn parts()->Vec<Part> { parts_with_shelter(true) }
 /// Imported Blender shelter replaces only the shelter visuals; physics stays shared.
 pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
     let mut p=vec![Part::new(Shape::Quad{w:260.,h:260.},Surface::matt(DIRT).textured(Tex::ServoDirt).repeating(32.,32.).no_shadow()).at(0.,-0.018,0.).turn(-FRAC_PI_2,0.,0.)];
-    for (x,z,w,d,h) in ROOF_STEPS {
-        p.push(block(w,h,d,x,h*0.5,z,0x7b837e));
-        p.push(block(w+0.04,0.045,d+0.04,x,h+0.0225,z,0xd5b76b));
+    for (x,z,w,d,h) in ROOF_STEPS.into_iter().chain(UTE_ACCESS_STEPS) {
+        p.push(block(w,h-0.045,d,x,(h-0.045)*0.5,z,0x7b837e));
+        p.push(block(w,0.045,d,x,h-0.0225,z,0xd5b76b));
     }
     // One opaque irregular annulus: worn asphalt receives normal ground shadows.
     // Purely visual; movement and projectile collision remain the shared flat ground.
@@ -302,7 +306,7 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
  use super::*;
  #[test] fn servo_solids_fit_inside_fence() {
     let solids=servo_colliders();
-    assert_eq!(solids.len(),105);
+    assert_eq!(solids.len(), 105 + UTE_ACCESS_STEPS.len());
     for c in solids {
         assert!(c.x0 > -33. && c.x1 < 33. && c.z0 > -24. && c.z1 < -14.);
     }

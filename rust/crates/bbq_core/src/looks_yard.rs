@@ -3088,33 +3088,38 @@ fn props(polished: bool) -> Vec<Part> {
         if polished {
             let trim = matt(0xe0b67d);
             let seam = matt(0x997044);
+            // The front rails span the corners. The side rails stop where they meet,
+            // so their top faces never occupy the same patch of wood.
+            let rail = 0.045;
+            let inset = size * 0.5 + 0.003;
+            let outside = 2.0 * inset + rail;
             for side in [-1.0, 1.0] {
                 v.push(cuboid(
-                    size,
+                    outside,
                     0.055,
-                    0.045,
+                    rail,
                     trim,
                     x,
-                    y + size * 0.5 - 0.025,
-                    z + side * (size * 0.5 + 0.003),
+                    y + size * 0.5 - 0.0185,
+                    z + side * inset,
                 ));
                 v.push(cuboid(
-                    0.045,
+                    rail,
                     0.055,
-                    size,
+                    outside - 2.0 * rail,
                     trim,
-                    x + side * (size * 0.5 + 0.003),
-                    y + size * 0.5 - 0.025,
+                    x + side * inset,
+                    y + size * 0.5 - 0.0185,
                     z,
                 ));
                 for band in [-0.32, 0.32] {
                     v.push(cuboid(
                         0.045,
-                        size,
+                        size - 0.065,
                         0.018,
                         seam,
                         x + band,
-                        y,
+                        y - 0.0325,
                         z + side * (size * 0.5 + 0.004),
                     ));
                 }
@@ -5831,7 +5836,7 @@ mod tests {
     }
 }
 
-/// Visible faces and collision use the same sizes; lid trim stays inside the bounding box.
+/// The solid faces follow collision. Thin trim sits proud of the wood so it reads at a distance.
 pub fn backyard_cover() -> Vec<Part> {
     let mut parts = Vec::new();
     for (x, z, w, d, h) in crate::yard::BACKYARD_COVER {
@@ -5851,17 +5856,17 @@ pub fn backyard_cover() -> Vec<Part> {
                 0.06,
                 matt(0xe1b981),
                 x,
-                h - 0.0325,
-                z + side * (d / 2.0 - 0.03),
+                h - 0.0235,
+                z + side * (d / 2.0 - 0.019),
             ));
             parts.push(cuboid(
                 0.065,
-                h,
+                h - 0.064,
                 0.065,
                 matt(0x94653e),
-                x + side * (w / 2.0 - 0.0325),
-                h / 2.0,
-                z + d / 2.0 - 0.0325,
+                x + side * (w / 2.0 - 0.0265),
+                (h - 0.064) / 2.0,
+                z + d / 2.0 - 0.018,
             ));
         }
     }

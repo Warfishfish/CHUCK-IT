@@ -110,6 +110,7 @@ pub enum FlightEvent {
     Thud {
         pos: V3,
         gnome: bool,
+        surface: bool,
     },
     Boing {
         pos: V3,
@@ -217,6 +218,7 @@ fn hit_wall(it: &mut Item, axis: Axis, events: &mut Vec<FlightEvent>, dry: bool)
         events.push(FlightEvent::Thud {
             pos: it.pos,
             gnome: false,
+            surface: false,
         });
     }
     Fate::Alive
@@ -280,6 +282,7 @@ fn on_surface(it: &mut Item, h: f32, on: Option<&Collider>, events: &mut Vec<Fli
         events.push(FlightEvent::Thud {
             pos: V3::new(it.pos.x, h + 0.05, it.pos.z),
             gnome: false,
+            surface: true,
         });
     }
     it.live = false;
@@ -639,6 +642,33 @@ mod tests {
             }
         }
         (fate, ev)
+    }
+
+    #[test]
+    fn a_charged_teddy_lob_clears_a_maze_wall_and_a_short_pass_does_not() {
+        let mut yard = Yard::heist(Default::default(), 0, 2);
+        let wall = crate::heist::arena_for(2, 0).into_iter()
+            .find(|piece| {
+                let c = &piece.collider;
+                matches!(piece.tint, crate::heist::Tint::Maze(_))
+                    && [c.x0, c.x1, c.z0, c.z1].iter().all(|edge| edge.abs() < 50.0)
+            })
+            .expect("the maze has interior walls").collider;
+        let across_x = wall.x1 - wall.x0 < wall.z1 - wall.z0;
+        let mid_x = (wall.x1 + wall.x0) * 0.5;
+        let mid_z = (wall.z1 + wall.z0) * 0.5;
+        let direction = if across_x { V3::new(1.0, 0.0, 0.0) } else { V3::new(0.0, 0.0, 1.0) };
+        let middle = V3::new(mid_x, 1.4, mid_z);
+        yard.colliders = vec![wall];
+        for (lift, charge, should_clear) in [(12.0, 1.0, true), (5.0, 0.5, false)] {
+            let velocity = crate::heist::pass_velocity(direction * 12.0 + V3::new(0.0, lift, 0.0), charge);
+            let mut teddy = thrown(ItemKind::Teddy, middle - direction * 4.5, velocity);
+            teddy.team = Some(1);
+            fly(&mut teddy, &yard, 0.48);
+            let coordinate = if across_x { teddy.pos.x } else { teddy.pos.z };
+            let far_side = if across_x { wall.x1 } else { wall.z1 };
+            assert_eq!(coordinate > far_side + teddy.kind.def().radius, should_clear, "{:?}", teddy.pos);
+        }
     }
 
     #[test]
