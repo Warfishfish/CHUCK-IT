@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.58 adds audible item throws, impacts, slaps, balloon pops, pool splashes and can rattles to the public desktop and WebGPU builds. Settings and Pause include a Test sound button. Grass footsteps remain paused in the public build.
+
 - Prototype 0.23.57 adds a favourite character slot to Customise on desktop and WebGPU. It saves the shape, proportions, outfit and colours separately from the last-used look and can be loaded on the next launch.
 
 - Prototype 0.23.56 adds a saved Master Volume slider to settings and pause on desktop, WebGPU and legacy browser. A Mac-only audio preview pack adds balloon impacts, pool entry, sprinkler sweeps, grill sizzle, magpie wingbeats and calls, can rattles, and Dazza’s hatch. The public build uses the existing credited sound pack.

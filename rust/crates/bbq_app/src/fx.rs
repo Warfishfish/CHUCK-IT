@@ -123,9 +123,9 @@ impl Plugin for FxPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, load_heist_audio)
             .add_systems(Update, sync_master_volume)
-            .add_systems(PostUpdate, play_recorded_audio);
+            .add_systems(PostUpdate, (play_recorded_audio, play_flight_audio));
         if sound_preview_enabled() {
-            app.add_systems(PostUpdate, (play_preview_cans, play_preview_ambience));
+            app.add_systems(PostUpdate, play_preview_ambience);
         }
         if grass_preview_count() != 0 {
             app.add_systems(PostUpdate, play_grass_steps);
@@ -171,6 +171,11 @@ struct HeistAudio {
     landing: Handle<AudioSource>,
     hatch: Handle<AudioSource>,
     bank: Handle<AudioSource>,
+    impact: Handle<AudioSource>,
+    slap: Handle<AudioSource>,
+    balloon: Handle<AudioSource>,
+    pool: Handle<AudioSource>,
+    can: Handle<AudioSource>,
     grass: Vec<Handle<AudioSource>>,
 }
 
@@ -199,6 +204,11 @@ fn load_heist_audio(mut commands: Commands, assets: Res<AssetServer>) {
         landing: assets.load("audio/heist/landing.wav"),
         hatch: assets.load(if preview { "audio/preview/hatch.wav" } else { "audio/heist/hatch.wav" }),
         bank: assets.load("audio/heist/bank.wav"),
+        impact: assets.load("audio/gameplay/impact.wav"),
+        slap: assets.load("audio/gameplay/slap.wav"),
+        balloon: assets.load("audio/gameplay/balloon.wav"),
+        pool: assets.load("audio/gameplay/pool.wav"),
+        can: assets.load("audio/gameplay/can.wav"),
         grass: (1..=grass_preview_count())
             .map(|i| assets.load(format!("audio/grass-preview/step-{i:02}.wav")))
             .collect(),
@@ -212,21 +222,29 @@ fn play_recorded_audio(
     settings: Res<crate::menu::Settings>,
     sounds: Res<HeistAudio>,
     preview: Option<Res<PreviewAudio>>,
+    assets: Res<Assets<AudioSource>>,
 ) {
     if !settings.sound {
         return;
     }
     let heist = game.rules.mode == bbq_core::GameMode::Heist;
     let listener = V3::new(player.mover.x, player.mover.y, player.mover.z);
+    let sample = |select: fn(&PreviewAudio) -> &Handle<AudioSource>, fallback| {
+        preview.as_deref().map(select).filter(|clip| assets.contains(clip.id())).unwrap_or(fallback)
+    };
     for cue in &game.fx {
         let (sound, range, minimum, gain) = match cue.kind {
             FxKind::HeistThrow if heist => (&sounds.throw, 27.0, 0.0, 0.52),
             FxKind::HeistLanding if heist => (&sounds.landing, 30.0, 0.0, 0.58),
             FxKind::HeistHatch if heist => (&sounds.hatch, 34.0, 0.0, 0.57),
             FxKind::HeistBank if heist => (&sounds.bank, 36.0, 0.25, 0.44),
-            FxKind::BalloonBurst if let Some(sounds) = &preview => (&sounds.balloon, 24.0, 0.0, 0.62),
-            FxKind::Splash if let Some(sounds) = &preview => (&sounds.pool, 20.0, 0.0, 0.58),
-            FxKind::Smash | FxKind::Fizz if let Some(sounds) = &preview => (&sounds.can, 16.0, 0.0, 0.48),
+            FxKind::BalloonBurst => (sample(|p| &p.balloon, &sounds.balloon), 24.0, 0.0, 0.62),
+            FxKind::Splash => (sample(|p| &p.pool, &sounds.pool), 20.0, 0.0, 0.58),
+            FxKind::Smash | FxKind::Fizz => (sample(|p| &p.can, &sounds.can), 16.0, 0.0, 0.48),
+            FxKind::Shatter | FxKind::ShatterSpirit => (&sounds.can, 18.0, 0.0, 0.50),
+            FxKind::Whack => (&sounds.slap, 18.0, 0.0, 0.58),
+            FxKind::Hit => (&sounds.impact, 22.0, 0.0, 0.57),
+            FxKind::Dust => (&sounds.landing, 16.0, 0.0, 0.25),
             _ => continue,
         };
         let near = (1.0 - (cue.at - listener).len() / range).max(minimum);
@@ -236,39 +254,49 @@ fn play_recorded_audio(
     }
 }
 
-fn play_one_shot(commands: &mut Commands, clip: &Handle<AudioSource>, gain: f32) {
+pub(crate) fn play_one_shot(commands: &mut Commands, clip: &Handle<AudioSource>, gain: f32) {
     commands.spawn((
         AudioPlayer::new(clip.clone()),
         PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(gain)),
     ));
 }
 
-fn play_preview_cans(
+fn play_flight_audio(
     mut commands: Commands,
     game: Res<Game>,
     player: Res<crate::player::Player>,
     screen: Res<crate::menu::Screen>,
     settings: Res<crate::menu::Settings>,
-    sounds: Res<PreviewAudio>,
+    sounds: Res<HeistAudio>,
+    preview: Option<Res<PreviewAudio>>,
+    assets: Res<Assets<AudioSource>>,
     mut aloft: Local<HashSet<(ItemId, u32)>>,
 ) {
+    let playing = settings.sound && *screen == crate::menu::Screen::Playing;
+    let listener = V3::new(player.mover.x, player.mover.y, player.mover.z);
+    let can = preview.as_deref().map(|preview| &preview.can)
+        .filter(|clip| assets.contains(clip.id())).unwrap_or(&sounds.can);
     aloft.retain(|&(id, flight)| {
         let Some(item) = game.world.items.get(&id).filter(|item| item.flight_no == flight) else {
             return false;
         };
-        if item.state == ItemState::Ground && settings.sound && *screen == crate::menu::Screen::Playing {
-            let listener = V3::new(player.mover.x, player.mover.y, player.mover.z);
+        if playing && item.state == ItemState::Ground && item.kind == ItemKind::Stubby
+            && matches!(item.bottle, None | Some(Bottle::Lemonade))
+        {
             let gain = preview_gain((item.pos - listener).len(), 14.0, 0.42);
             if gain > 0.0 {
-                play_one_shot(&mut commands, &sounds.can, gain);
+                play_one_shot(&mut commands, can, gain);
             }
         }
         item.state == ItemState::Flying
     });
-    aloft.extend(game.world.items.values().filter(|item| {
-        item.kind == ItemKind::Stubby && item.state == ItemState::Flying
-            && matches!(item.bottle, None | Some(Bottle::Lemonade))
-    }).map(|item| (item.id, item.flight_no)));
+    for item in game.world.items.values().filter(|item| item.state == ItemState::Flying) {
+        if aloft.insert((item.id, item.flight_no)) && playing && item.live
+            && item.thrower == Some(crate::player::PLAYER_ID)
+        {
+            play_one_shot(&mut commands, &sounds.throw, 0.46);
+        }
+    }
 }
 
 #[derive(Component)]

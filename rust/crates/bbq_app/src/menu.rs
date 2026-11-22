@@ -1232,6 +1232,7 @@ fn settings_panel(c: &mut ChildSpawnerCommands) {
             y.spawn(Node { flex_wrap: FlexWrap::Wrap, column_gap: px(6.0), row_gap: px(6.0), ..default() })
                 .with_children(|w| {
                     check(w, CheckId::Sound, "Sound effects");
+                    button(w, Action::TestSound, "Test sound", None);
                 });
         });
     });
@@ -1376,6 +1377,7 @@ fn spawn_pause(mut commands: Commands) {
                 slider(c, SliderId::Volume, "Master volume", 0.0, 100.0);
                 c.spawn(Node { flex_wrap: FlexWrap::Wrap, column_gap: px(6.0), ..default() }).with_children(|w| {
                     check(w, CheckId::Sound, "Sound effects");
+                    button(w, Action::TestSound, "Test sound", None);
                 });
                 c.spawn(row(10.0)).with_children(|r| {
                     button(r, Action::Resume, "Resume", Some(SUN));
@@ -1625,6 +1627,8 @@ fn controller_menu(
 }
 
 fn widget_clicks(
+    mut commands: Commands,
+    assets: Option<Res<AssetServer>>,
     mut settings: ResMut<Settings>,
     mut game: Option<ResMut<Game>>,
     mut ui: ResMut<MenuUi>,
@@ -1708,6 +1712,11 @@ fn widget_clicks(
             continue;
         }
         match a {
+            Action::TestSound => {
+                if settings.sound && settings.master_volume > 0 && let Some(assets) = &assets {
+                    crate::fx::play_one_shot(&mut commands, &assets.load("audio/heist/bank.wav"), 0.72);
+                }
+            }
             Action::BindPad(action) => ui.pad_rebind = Some(*action),
             Action::ResetPad => {
                 settings.pad_bindings = Default::default();

@@ -48,3 +48,7 @@ Perched call — “Magpie (Western)” by dbache
 https://freesound.org/people/dbache/sounds/536627/
 Both CC0 1.0 Universal, https://creativecommons.org/publicdomain/zero/1.0/
 Short excerpts converted to mono WAV, faded and levelled.
+
+GAMEPLAY SOUND EFFECTS
+Impact, slap, balloon pop, splash and can rattle are original synthesized sounds
+created for Australian BBQ. No sampled third-party recordings are used.

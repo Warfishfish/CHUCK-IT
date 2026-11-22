@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.57</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.58</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -454,6 +454,7 @@ body.touch #cds{display:none}
 
     <label class="sound"><input type="checkbox" id="sound" checked> 🔊 Sound effects</label>
     <label class="sound">Master volume <input type="range" min="0" max="100" value="100" data-master-volume><output data-master-value>100%</output></label>
+    <button class="btn" type="button" data-test-sound>Test sound</button>
   </div>
 </div>
 
@@ -535,6 +536,7 @@ body.touch #cds{display:none}
     <h3 class="display">Smoko</h3>
     <p id="pauseMsg">Round paused.</p>
     <label class="sound">Master volume <input type="range" min="0" max="100" value="100" data-master-volume><output data-master-value>100%</output></label>
+    <button class="btn" type="button" data-test-sound>Test sound</button>
     <label class="field fov" for="fovPause"><span>🎥 Field of view <b class="fovVal">85</b></span><input type="range" class="fovRange" id="fovPause" min="60" max="105" step="1" value="85"></label>
     <div class="btn-row">
       <button class="btn primary" id="resume" type="button">Resume</button>
@@ -1597,7 +1599,8 @@ const SPAWNS=[[-9,4.5],[6,9],[12,-3],[-15,-6],[19.5,19.5],[-19.5,20.25],[0,-10.5
 
 /* ================= AUDIO ================= */
 let AC=null,master=null,noiseBuf=null,soundOn=true;
-const storedMaster=localStorage.getItem('bbq-master-volume');
+let storedMaster=null;
+try{storedMaster=localStorage.getItem('bbq-master-volume');}catch(e){}
 let masterVolume=storedMaster===null||!Number.isFinite(Number(storedMaster))?100:clamp(Number(storedMaster),0,100);
 function syncMasterVolume(){
   if(master)master.gain.value=soundOn?.006*masterVolume:0;
@@ -1606,7 +1609,7 @@ function syncMasterVolume(){
 }
 document.querySelectorAll('[data-master-volume]').forEach(input=>input.addEventListener('input',()=>{
   masterVolume=Number(input.value);
-  localStorage.setItem('bbq-master-volume',String(masterVolume));
+  try{localStorage.setItem('bbq-master-volume',String(masterVolume));}catch(e){}
   syncMasterVolume();
 }));
 syncMasterVolume();
@@ -1705,6 +1708,10 @@ const SFX={
   ahh:()=>{}, /* voice-like sound removed; add real recordings here later */
   whiff:at=>noise({t:.12,v:.08,f:3000},at)
 };
+document.querySelectorAll('[data-test-sound]').forEach(button=>button.addEventListener('click',()=>{
+  const audio=ac();
+  if(audio&&soundOn&&masterVolume>0)audio.resume().then(()=>SFX.catch()).catch(()=>{});
+}));
 
 /* ================= ITEM MESHES ================= */
 /* Dildo variants: same physics, different look, size, stun length and points. The chest rolls one at random each grab;
