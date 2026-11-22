@@ -1,6 +1,6 @@
 {
-  "source_commit": "a080504726498f1578732500ec3cf53b7526a83d",
+  "source_commit": "324a063221ee3675fda51328e30edaae8dddd7cc",
   "protocol": 34,
   "release_date": "2026-11-22",
-  "description": "Throw whoosh on release, prototype 0.23.59"
+  "description": "Contact-specific slap recordings, prototype 0.23.60"
 }
