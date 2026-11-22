@@ -1391,12 +1391,14 @@ mod tests {
             guest.world_mut().run_schedule(FixedUpdate);
         }
         assert!(guest.world().resource::<Game>().wind.charging, "winding up");
+        assert!(!guest.world().resource::<Game>().local_throw_sound);
         guest.world_mut().resource_mut::<Wanted>().throw_up = true;
         guest.world_mut().run_schedule(FixedUpdate);
         let g = guest.world().resource::<Game>();
         let sent: Vec<&GuestAct> = g.net_acts.iter().collect();
         assert!(matches!(sent.as_slice(), [GuestAct::Charge { item: start, pressed:true }, GuestAct::Throw { item, charge, .. }] if *start==id && *item == id && *charge > 0.2), "{sent:?}");
         assert!(g.slots.is_empty(), "the hand is empty at once");
+        assert!(g.local_throw_sound, "the cue is ready before a host snapshot arrives");
         // the host's next picture still says we hold it: it must not jump back into the hand
         let snap = {
             let host = busy_host();
@@ -1635,6 +1637,7 @@ pub fn guest_hands(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
                         vel: (vel.x, vel.y, vel.z),
                         charge,
                     });
+                    g.local_throw_sound = true;
                     gone(g, id);
                 }
             }

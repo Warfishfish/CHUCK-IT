@@ -123,7 +123,8 @@ impl Plugin for FxPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, load_heist_audio)
             .add_systems(Update, sync_master_volume)
-            .add_systems(PostUpdate, (play_recorded_audio, play_flight_audio));
+            .add_systems(PostUpdate, (play_recorded_audio, play_flight_audio)
+                .before(bevy::transform::TransformSystems::Propagate));
         if sound_preview_enabled() {
             app.add_systems(PostUpdate, play_preview_ambience);
         }
@@ -217,15 +218,19 @@ fn load_heist_audio(mut commands: Commands, assets: Res<AssetServer>) {
 
 fn play_recorded_audio(
     mut commands: Commands,
-    game: Res<Game>,
+    mut game: ResMut<Game>,
     player: Res<crate::player::Player>,
     settings: Res<crate::menu::Settings>,
     sounds: Res<HeistAudio>,
     preview: Option<Res<PreviewAudio>>,
     assets: Res<Assets<AudioSource>>,
 ) {
-    if !settings.sound {
+    let released = std::mem::take(&mut game.local_throw_sound);
+    if !settings.sound || settings.master_volume == 0 {
         return;
+    }
+    if released {
+        play_one_shot(&mut commands, &sounds.throw, 0.46);
     }
     let heist = game.rules.mode == bbq_core::GameMode::Heist;
     let listener = V3::new(player.mover.x, player.mover.y, player.mover.z);
@@ -290,13 +295,10 @@ fn play_flight_audio(
         }
         item.state == ItemState::Flying
     });
-    for item in game.world.items.values().filter(|item| item.state == ItemState::Flying) {
-        if aloft.insert((item.id, item.flight_no)) && playing && item.live
-            && item.thrower == Some(crate::player::PLAYER_ID)
-        {
-            play_one_shot(&mut commands, &sounds.throw, 0.46);
-        }
-    }
+    aloft.extend(game.world.items.values().filter(|item| {
+        item.kind == ItemKind::Stubby && item.state == ItemState::Flying
+            && matches!(item.bottle, None | Some(Bottle::Lemonade))
+    }).map(|item| (item.id, item.flight_no)));
 }
 
 #[derive(Component)]

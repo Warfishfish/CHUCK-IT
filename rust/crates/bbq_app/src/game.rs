@@ -195,6 +195,8 @@ pub struct Game {
     pub attract: bool,
     /// Things that just happened, for the particle effects to show (see `fx.rs`).
     pub fx: Vec<crate::fx::FxEvent>,
+    /// Play the held-item throw cue on the same frame the local player releases it.
+    pub local_throw_sound: bool,
     /// The other people in an online yard (empty when playing alone).
     pub remotes: Vec<RemoteInfo>,
     pub smoko: crate::smoko_mode::State,
@@ -317,6 +319,7 @@ impl Plugin for GamePlugin {
             heist: None,
             attract: false,
             fx: Vec::new(),
+            local_throw_sound: false,
             remotes: Vec::new(),
             smoko: Default::default(),
             magpie:Default::default(),
@@ -598,6 +601,7 @@ pub fn step_game(
                     );
                     let start = hand_pos(p);
                     if g.world.throw(id, PLAYER_ID, start, vel, charge, true) {
+                        g.local_throw_sound = true;
                         g.slots.remove(id);
                         g.board.count_throw(PLAYER_ID);
                     }
@@ -1146,8 +1150,11 @@ mod tests {
         app.world_mut().resource_mut::<Wanted>().throw_down = true;
         ticks(&mut app, 1);
         ticks(&mut app, 40); // wind up past full charge but under the 1.5 s over-hold
+        assert!(!app.world().resource::<Game>().local_throw_sound);
         app.world_mut().resource_mut::<Wanted>().throw_up = true;
-        ticks(&mut app, 90);
+        ticks(&mut app, 1);
+        assert!(app.world().resource::<Game>().local_throw_sound);
+        ticks(&mut app, 89);
         let g = app.world().resource::<Game>();
         let me = g.board.get(PLAYER_ID).unwrap();
         assert!(me.score >= 100, "score {} feed {:?}", me.score, g.feed);
