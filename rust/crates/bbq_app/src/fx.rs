@@ -177,6 +177,7 @@ struct HeistAudio {
     impact: Handle<AudioSource>,
     slap: Handle<AudioSource>,
     palm_slap: Handle<AudioSource>,
+    bar_drink: Handle<AudioSource>,
     balloon: Handle<AudioSource>,
     pool: Handle<AudioSource>,
     can: Handle<AudioSource>,
@@ -211,6 +212,7 @@ fn load_heist_audio(mut commands: Commands, assets: Res<AssetServer>) {
         impact: assets.load("audio/gameplay/impact.wav"),
         slap: assets.load("audio/gameplay/slap.wav"),
         palm_slap: assets.load("audio/gameplay/palm-slap.wav"),
+        bar_drink: assets.load("audio/gameplay/bar-drink.wav"),
         balloon: assets.load("audio/gameplay/balloon.wav"),
         pool: assets.load("audio/gameplay/pool.wav"),
         can: assets.load("audio/gameplay/can.wav"),
@@ -230,11 +232,21 @@ fn play_recorded_audio(
     assets: Res<Assets<AudioSource>>,
 ) {
     let released = std::mem::take(&mut game.local_throw_sound);
+    let bar_drink = game.local_bar_drink.take();
     if !settings.sound || settings.master_volume == 0 {
         return;
     }
     if released {
         play_one_shot(&mut commands, &sounds.throw, 0.46);
+    }
+    if let Some(drink) = bar_drink {
+        const BAR_CLIP_SECONDS: f32 = 1.326;
+        commands.spawn((
+            AudioPlayer::new(sounds.bar_drink.clone()),
+            PlaybackSettings::DESPAWN
+                .with_volume(bevy::audio::Volume::Linear(0.53))
+                .with_speed((BAR_CLIP_SECONDS / drink.time()).max(1.0)),
+        ));
     }
     let heist = game.rules.mode == bbq_core::GameMode::Heist;
     let listener = V3::new(player.mover.x, player.mover.y, player.mover.z);
@@ -338,7 +350,7 @@ fn play_preview_ambience(
         }
     }
     let gain = if backyard && yard.0.features.bbq {
-        preview_gain(here.distance(BBQ_GRILL), 9.0, 0.38)
+        preview_gain(here.distance(BBQ_GRILL), 12.0, 0.68)
     } else {
         0.0
     };

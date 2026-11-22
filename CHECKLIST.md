@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.61 uses the selected Fuller Whoosh for throws and Cartoon Glugs for the local player’s bar drinks. The recorded BBQ sizzle in the Mac-only audio preview is louder and audible farther from the grill.
+
 - Prototype 0.23.60 uses the Natural Palm recording on bare-hand contact and the Hard Slap recording on held-item contact in desktop, WebGPU and legacy browser. Both clips are credited CC0 recordings.
 
 - Prototype 0.23.59 triggers the held-item whoosh from the local release on desktop and WebGPU, including for online guests. The sample is trimmed to put the audible start closer to release.

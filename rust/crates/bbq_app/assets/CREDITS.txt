@@ -28,7 +28,7 @@ Imported through Blender MCP at 1K; runtime colour/normal maps reduced to
 baked down to 20%. Roughness/displacement maps omitted from runtime.
 
 TEDDY HEIST SOUND EFFECTS — sourced from Freesound public previews
-Whoosh — qubodup, https://freesound.org/people/qubodup/sounds/60013/
+Whoosh #1 — Kinoton, https://freesound.org/people/Kinoton/sounds/427823/
 BODY FALL - V HVY - DIRT — leonelmail, https://freesound.org/people/leonelmail/sounds/504626/
 metdoorcreakopen.wav — Mihacappy, https://freesound.org/people/Mihacappy/sounds/828132/
 bell ding 1.wav — 5ro4 (Alva Majo), https://freesound.org/people/5ro4/sounds/611113/
@@ -58,3 +58,11 @@ Bare-hand slap — “Slap hit on the face or shoulder” by khenshom
 https://freesound.org/people/khenshom/sounds/539163/
 Both CC0 1.0 Universal, https://creativecommons.org/publicdomain/zero/1.0/
 Single hits trimmed from the public previews, converted to mono WAV and levelled.
+
+Bar drinking — “glug glug glug” by iwanPlays
+https://freesound.org/people/iwanPlays/sounds/532749/
+Remixes “Drinking Liquid Sound.wav” by boyscontentclub
+https://freesound.org/people/boyscontentclub/sounds/521585/
+and “Water_Drink.wav” by Q.K.
+https://freesound.org/people/Q.K./sounds/56270/
+All three CC0 1.0 Universal. Preview converted to mono WAV, levelled and faded.

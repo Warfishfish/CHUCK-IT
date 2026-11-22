@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.60</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.61</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -1617,6 +1617,7 @@ const GRASS_FOOTSTEPS_ENABLED=false;
 const recordedAudio={
   throw:{gain:.52,range:27},landing:{gain:.58,range:30},
   slap:{gain:.58,range:18,folder:'gameplay'},'palm-slap':{gain:.58,range:18,folder:'gameplay'},
+  'bar-drink':{gain:.53,folder:'gameplay'},
   hatch:{gain:.57,range:34},bank:{gain:.44,range:36,min:.25},
   'grass-1':{gain:.62,range:12},'grass-2':{gain:.62,range:12},'grass-3':{gain:.62,range:12},
   'magpie-takeoff':{gain:.36,range:12,folder:'yard'},'magpie-call':{gain:.31,range:22,folder:'yard'},
@@ -1631,20 +1632,22 @@ function loadRecordedAudio(){
       .catch(error=>console.warn('Recorded sound unavailable:',name,error));
   }
 }
-function playRecordedSound(name,at){
+function playRecordedSound(name,at,maxSeconds=Infinity){
   if(!AC||!soundOn)return;
   const cue=recordedAudio[name];
   if(!cue.buffer){
-    if(name==='throw') SFX.throw(at);
+    if(name==='throw') SFX.throwFallback(at);
     if(name==='landing'||name==='hatch') SFX.thud(at);
     if(name==='bank') SFX.pickup();
     if(name==='slap'||name==='palm-slap') SFX.slapFallback(at);
+    if(name==='bar-drink') SFX.glug(at);
     return;
   }
   const level=at?Math.max(cue.min||0,1-camera.position.distanceTo(at)/cue.range):1;
   if(level<=0)return;
   const source=AC.createBufferSource(),gain=AC.createGain();
   source.buffer=cue.buffer;gain.gain.value=cue.gain*level;
+  source.playbackRate.value=Math.max(1,cue.buffer.duration/maxSeconds);
   source.connect(gain);gain.connect(master);source.start();
 }
 let grassStepPosition=null,grassStepPhase=0,grassStepClip=1;
@@ -1674,7 +1677,8 @@ function noise(o,at){if(!AC||!soundOn)return;const t0=AC.currentTime+(o.delay||0
   f.frequency.setValueAtTime(o.f||1000,t0);if(o.f2)f.frequency.exponentialRampToValueAtTime(o.f2,t0+o.t);f.Q.value=o.q||1;const g=AC.createGain();const v=(o.v||.2)*vol(at);
   g.gain.setValueAtTime(v,t0);g.gain.exponentialRampToValueAtTime(.0001,t0+o.t);s.connect(f);f.connect(g);g.connect(master);s.start(t0,Math.random()*.5);s.stop(t0+o.t+.05);}
 const SFX={
-  throw:at=>noise({t:.2,v:.14,f:700,f2:2600,q:1.2},at),
+  throwFallback:at=>noise({t:.2,v:.14,f:700,f2:2600,q:1.2},at),
+  throw:at=>playRecordedSound('throw',at),
   squeak:at=>{tone({f:700,f2:1400,t:.12,type:'triangle',v:.16},at);tone({f:1300,f2:650,t:.12,type:'triangle',v:.13,delay:.1},at);},
   bonk:at=>tone({f:210,f2:60,t:.2,v:.45},at),
   smash:at=>{noise({t:.45,v:.3,f:4200,type:'highpass'},at);tone({f:420,f2:180,t:.12,type:'square',v:.08},at);noise({t:.2,v:.12,f:900,type:'lowpass',delay:.05},at);},
@@ -3196,7 +3200,8 @@ function drunkTier(d){return d<15?'Sober':d<40?'Tipsy':d<70?'Drunk':d<90?'Maggot
 function barSpot(ch){if(!FEAT.bar||!ch||ch.pos.y>.4)return null;const dx=ch.pos.x-BAR.x,dz=ch.pos.z-BAR.z;
   if(Math.abs(dx)>BAR.w/2+.8||dz<0||dz>BAR.d/2+1.6)return null;return dx<-.6?'beer':dx>.6?'rum':'wine';}
 function startDrink(ch){if(!ch||ch.drinkT>0||ch.stun>0||ch.smokoSeat>=0||!canAct())return;const t=barSpot(ch);if(!t)return;
-  ch.charging=false;ch.charge=0;ch.drinkType=t;ch.drinkDur=DRINKS[t].t;ch.drinkT=ch.drinkDur;if(ch.kind==='me')SFX.glug(ch.pos);}
+  ch.charging=false;ch.charge=0;ch.drinkType=t;ch.drinkDur=DRINKS[t].t;ch.drinkT=ch.drinkDur;
+  if(ch.kind==='me')playRecordedSound('bar-drink',null,ch.drinkDur);}
 function updateDrink(ch,dt){
   if(ch.drinkT>0){if(ch.stun>0){ch.drinkT=0;ch.drinkType=null;return;}
     ch.drinkT-=dt;if(ch.drinkT<=0){const d=DRINKS[ch.drinkType],before=drunkTier(ch.drunk);ch.drunk=Math.min(100,ch.drunk+d.amt);ch.drinkT=0;ch.drinkType=null;

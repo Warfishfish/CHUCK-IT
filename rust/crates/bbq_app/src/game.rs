@@ -197,6 +197,7 @@ pub struct Game {
     pub fx: Vec<crate::fx::FxEvent>,
     /// Play the held-item throw cue on the same frame the local player releases it.
     pub local_throw_sound: bool,
+    pub local_bar_drink: Option<Drink>,
     /// The other people in an online yard (empty when playing alone).
     pub remotes: Vec<RemoteInfo>,
     pub smoko: crate::smoko_mode::State,
@@ -320,6 +321,7 @@ impl Plugin for GamePlugin {
             attract: false,
             fx: Vec::new(),
             local_throw_sound: false,
+            local_bar_drink: None,
             remotes: Vec::new(),
             smoko: Default::default(),
             magpie:Default::default(),
@@ -489,6 +491,7 @@ pub fn step_game(
         if !crate::life::interact(g, p, &features, yard.0.chest_spot)
             && g.me.drunk.start_drink(spot, &g.me.body, &env)
         {
+            g.local_bar_drink = spot;
             g.wind.cancel();
         }
     }
@@ -1243,6 +1246,7 @@ mod tests {
         press_r(&mut app);
         ticks(&mut app, 1);
         assert!(app.world().resource::<Game>().me.drunk.is_drinking());
+        assert_eq!(app.world().resource::<Game>().local_bar_drink, Some(Drink::Beer));
         ticks(&mut app, 60 * 2);
         let g = app.world().resource::<Game>();
         assert!(!g.me.drunk.is_drinking());
