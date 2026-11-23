@@ -1,6 +1,6 @@
 {
-  "source_commit": "22bcc30d5ba8cdc7bb913a012192d0f5b532d13f",
+  "source_commit": "1077e5bb6d20a50070b479f130be60916f6963f4",
   "protocol": 34,
   "release_date": "2026-11-23",
-  "description": "Dazza’s tunnel lighting, wayfinding and water effects, prototype 0.23.63"
+  "description": "Beta map guide and Heist kickoff hint, prototype 0.23.64"
 }
