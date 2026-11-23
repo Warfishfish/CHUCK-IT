@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.64 explains what wins each beta map in How to play and covers Hands, direct item selection and controller defaults on desktop and WebGPU. The Heist kickoff names your team and explains banking. The legacy guide covers its Backyard and Heist rules and Hands.
+
 - Prototype 0.23.63 gives Dazza’s tunnel warm work lights, a hatch ladder, overhead service pipes, coloured floor arrows and labelled team exits. Water drips from a pipe joint in each branch and makes a small ripple. The detail is present in the desktop, WebGPU and legacy browser builds.
 
 - Prototype 0.23.62 tightens the attack of the selected throw whoosh and the local recorded pool and balloon splashes. Pool noodle contact keeps its slap and gains a low thump. The opening item wave plays its impact sound on the first landing.

@@ -1284,19 +1284,17 @@ fn mates_panel(c: &mut ChildSpawnerCommands) {
 
 fn how_panel(c: &mut ChildSpawnerCommands) {
     c.spawn((column(14.0), ShowWhen::Panel(Tab::How))).with_children(|p| {
-        // (some lines are for Cheeky mode only: family mode has no alcohol and no chest)
-        for (line, only) in [
-            ("Grab stuff off the lawn and chuck it at your mates. +100 a hit, -50 if you cop one.", None),
-            ("R does everything else: drink at the bar, raid the BBQ, help a mate up, raid the chest.", Some(ShowWhen::Cheeky)),
-            ("R does everything else: grab a cold drink, raid the BBQ.", Some(ShowWhen::Family)),
-            ("Drunk = wobbly, but hits score extra. Don't stack it.", Some(ShowWhen::Cheeky)),
-            ("Steaks and fish are for slapping, and so is anything from the chest. Get up close and click.", Some(ShowWhen::Cheeky)),
-            ("Steaks and fish are for slapping. Get up close and click.", Some(ShowWhen::Family)),
+        use bbq_core::scoring::{HEIST_BANK, HEIST_THROW_HIT, HIT, VICTIM_PENALTY};
+        p.spawn(legend("How to win"));
+        for (mode, goal) in [
+            ("Backyard", format!("Chuck items for points. A standard hit earns +{HIT} and costs the player hit {VICTIM_PENALTY}. The highest player or team score wins.")),
+            ("Bush Servo", "Knock someone down, press F to pick them up and bring them to the marked shelter pad. Each delivery earns +100. The player with the most deliveries wins.".into()),
+            ("Teddy Heist", format!("Follow the flags above the maze walls. Steal an enemy teddy and carry it into your own base circle to bank it. The team with the most banks wins. Each bank earns +{HEIST_BANK} personal points and an enemy throw hit earns +{HEIST_THROW_HIT}.")),
         ] {
-            let mut e = p.spawn(text(format!("•  {line}"), 14.0, false, INK));
-            if let Some(w) = only {
-                e.insert(w);
-            }
+            p.spawn(column(3.0)).with_children(|entry| {
+                entry.spawn(text(mode, 14.0, true, INK));
+                entry.spawn(text(goal, 13.5, false, INK));
+            });
         }
         p.spawn(legend("Controls"));
         p.spawn(Node {
@@ -1311,28 +1309,31 @@ fn how_panel(c: &mut ChildSpawnerCommands) {
         .with_children(|g| {
             for (k, d) in [
                 ("WASD", "Move, mouse to aim"),
-                ("Hold click", "Wind up, let go to chuck (let go near the end of the bar and a hit knocks them over)"),
+                ("Left click", "Tap to slap. Hold and release to throw. A well-timed throw can knock someone down."),
                 ("Space", "Jump"),
                 ("Shift", "Speed boost (dive, in the pool)"),
-                ("Right click", "Catch"),
-                ("R", "Drink, grab, help up (hold)"),
-                ("F", "Grab someone who's down and drag them, tap again to let go, hold to throw them"),
-                ("Q", "Change weapon"),
+                ("Right click", "Catch just before an item hits you."),
+                ("R", "Interact with nearby objects or hold to help a mate up."),
+                ("F", "Grab someone who's down. Tap again to let go or hold and release to chuck them."),
+                ("Q", "Swap items. With one item, switch between it and Hands for a bare-handed slap."),
+                ("1 / 2", "Select a held item directly."),
                 ("T H B", "Taunt, dance, laugh"),
-                ("G", "Throw away what you are holding"),
+                ("G", "Drop the equipped item."),
                 ("Esc", "Pause"),
-                ("Gamepad", "Sticks walk and look, A jumps, right trigger throws, left trigger catches, bumpers swap, X is R, Y is F, B drops, Start pauses"),
             ] {
                 g.spawn(kbd(k));
                 g.spawn(text(d, 13.5, false, INK));
             }
         });
-        p.spawn(legend("Points"));
+        p.spawn(legend("Controller"));
+        p.spawn(text(
+            "By default, use the sticks to move and look, the bottom face button to jump, the right trigger to throw or slap and the left trigger to catch. Bumpers swap items and Start pauses. Change bindings in Settings.",
+            13.5, false, INK,
+        ));
+        p.spawn(legend("Backyard bonuses"));
         p.spawn(Node { flex_wrap: FlexWrap::Wrap, column_gap: px(6.0), row_gap: px(6.0), ..default() })
             .with_children(|w| {
                 for (s, c) in [
-                    ("+100 hit", GOOD),
-                    ("-50 get hit", BAD),
                     ("+50 catch", GOOD),
                     ("+50 hit the leader", SUN),
                     ("streaks x1.5 / x2", SUN),

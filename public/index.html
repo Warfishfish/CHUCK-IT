@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.63</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.64</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -417,7 +417,8 @@ body.touch #cds{display:none}
 
     <section class="panel" data-panel="how">
       <ul class="howto">
-        <li>Grab stuff off the lawn and chuck it at your mates. <b>+100</b> a hit, <b>−50</b> if you cop one.</li>
+        <li>In <b>Backyard</b>, chuck items for points. A standard hit earns <b>+100</b> and costs the player hit <b>50</b>. The highest player or team score wins.</li>
+        <li>In <b>Teddy Heist</b>, follow the flags above the walls, steal an enemy teddy and carry it into your own base circle to bank it. The team with the most banks wins. A bank earns <b>+150</b> personal points.</li>
         <li><kbd>R</kbd> does everything else: drink at the bar, raid the BBQ, sit on smoko, help a mate up<span class="adultonly">, raid the chest</span>.</li>
         <li>Drunk = wobbly, but hits score extra. Don't stack it.</li>
         <li>Steaks and fish are for slapping<span class="adultonly">, and so is anything from the chest</span>. Get up close and click.</li>
@@ -427,19 +428,19 @@ body.touch #cds{display:none}
         <summary>Controls, points &amp; items</summary>
         <div class="keys" id="keys">
           <span><kbd>WASD</kbd></span><span>Move, mouse to aim</span>
-          <span><kbd>Hold click</kbd></span><span>Wind up, let go to chuck (let go near the end of the bar and a hit knocks them over)</span>
+          <span><kbd>Left click</kbd></span><span>Tap to slap. Hold and release to chuck.</span>
           <span><kbd>Space</kbd></span><span>Jump</span>
           <span><kbd>Shift</kbd></span><span>Speed boost</span>
-          <span><kbd>Right click</kbd></span><span>Catch</span>
+          <span><kbd>Right click</kbd></span><span>Catch just before an item hits you.</span>
           <span><kbd>R</kbd></span><span>Drink, grab, smoko, help up (hold)</span>
           <span><kbd>F</kbd></span><span>Grab someone who's down and drag them, tap again to let go, hold to throw them (even at the other team). Dump them in the smoko area when it's the Naughty Corner</span>
-          <span><kbd>Q</kbd></span><span>Swap item</span>
+          <span><kbd>Q</kbd></span><span>Swap items. With one item, switch between it and Hands to slap bare-handed.</span>
+          <span><kbd>1</kbd> <kbd>2</kbd></span><span>Select a held item directly.</span>
           <span><kbd>T</kbd> <kbd>G</kbd> <kbd>B</kbd></span><span>Taunt, dance, laugh</span>
           <span><kbd>Esc</kbd></span><span>Menu</span>
         </div>
+        <p class="note">Backyard bonuses</p>
         <div class="rules">
-          <span class="chip good">+100 hit</span>
-          <span class="chip bad">−50 get hit</span>
           <span class="chip good">+50 catch</span>
           <span class="chip gold">+50 hit the leader</span>
           <span class="chip gold">🔥 streaks ×1.5 / ×2</span>

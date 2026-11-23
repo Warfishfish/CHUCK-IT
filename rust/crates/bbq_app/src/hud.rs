@@ -1152,7 +1152,9 @@ fn update_hint(
     let prev = hints.last_phase.replace(phase);
     if g.round.timed && prev == Some(Phase::Countdown) && phase == Phase::Play {
         if let Some(t) = g.teams.get(PLAYER_ID).filter(|_| matches!(g.rules.mode, GameMode::Teams | GameMode::Heist)) {
-            let line = if t == Team::Wildcard {
+            let line = if g.rules.mode == GameMode::Heist {
+                format!("You're on <b>{}</b>. Steal an enemy teddy and bring it to your <b>base circle</b> to bank it.", t.name())
+            } else if t == Team::Wildcard {
                 "You're the <b>Wildcard</b>. Everyone is fair game, and everyone is after you.".to_string()
             } else {
                 format!(
