@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.63 gives Dazza’s tunnel warm work lights, a hatch ladder, overhead service pipes, coloured floor arrows and labelled team exits. Water drips from a pipe joint in each branch and makes a small ripple. The detail is present in the desktop, WebGPU and legacy browser builds.
+
 - Prototype 0.23.62 tightens the attack of the selected throw whoosh and the local recorded pool and balloon splashes. Pool noodle contact keeps its slap and gains a low thump. The opening item wave plays its impact sound on the first landing.
 - The raw steak uses the marbled Blender ribeye with five linked joints that bend in the hand and in the air. Backyard crate trim meets cleanly at the corners. In Bush Servo, two low steps lead onto the ute cab and two more lead from the cab to the shop roof.
 - A charged, upward Teddy Heist throw can lob a teddy across an interior wall. Short, level passes remain catchable and a lob only scores if someone retrieves and banks the teddy.

@@ -417,7 +417,7 @@ pub struct HeistViewPlugin;
 
 impl Plugin for HeistViewPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (sync_heist_props, update_board, animate_hatch,crate::heist_quest::draw_bubble));
+        app.add_systems(Update, (sync_heist_props, update_board, animate_hatch, animate_tunnel_seeps, crate::heist_quest::draw_bubble));
     }
 }
 
@@ -431,6 +431,34 @@ fn animate_hatch(yard:Res<YardRes>,mut lids:Query<&mut Transform,With<Hatch>>){
         lid.translation.x=bbq_core::passage::HATCH.x+if yard.0.hatch_open {3.1}else{0.0};
     }
 }
+#[derive(Component)]
+struct TunnelSeep {
+    floor: Vec3,
+    offset: f32,
+    ripple: bool,
+}
+
+fn animate_tunnel_seeps(
+    time: Res<Time>,
+    player: Res<Player>,
+    mut seeps: Query<(&TunnelSeep, &mut Transform, &mut Visibility)>,
+) {
+    let here = Vec3::new(player.mover.x, player.mover.y, player.mover.z);
+    for (seep, mut transform, mut visible) in &mut seeps {
+        let age = (time.elapsed_secs() + seep.offset) % 3.8;
+        let close = here.y < -0.65 && (here - seep.floor).length_squared() < 30.0 * 30.0;
+        let shown = if seep.ripple {
+            let spread = ((age - 0.78) / 0.49).clamp(0.0, 1.0);
+            transform.scale = Vec3::splat(0.14 + 0.86 * spread);
+            (0.78..1.27).contains(&age)
+        } else {
+            transform.translation.y = seep.floor.y + 0.035 + 3.43 * (1.0 - (age / 0.78).powi(2));
+            age < 0.78
+        };
+        *visible = if close && shown { Visibility::Inherited } else { Visibility::Hidden };
+    }
+}
+
 fn sync_heist_props(
     mut commands: Commands,
     yard: Res<YardRes>,
@@ -466,6 +494,34 @@ fn sync_heist_props(
         Transform::default(),
     );
     commands.entity(root).insert(HeistProp);
+    let drip = meshes.add(Sphere::new(0.041));
+    let ripple = meshes.add(Annulus::new(0.269, 0.28));
+    let water = mats.add(StandardMaterial {
+        base_color: hex(0x89b5b2).with_alpha(0.53),
+        alpha_mode: AlphaMode::Blend,
+        unlit: true,
+        ..default()
+    });
+    for (i, at) in bbq_core::looks_yard::tunnel_seeps(teams).enumerate() {
+        let floor = Vec3::new(at.x, at.y, at.z);
+        for (ring, mesh) in [(false, &drip), (true, &ripple)] {
+            let transform = if ring {
+                Transform::from_translation(floor + Vec3::Y * 0.032)
+                    .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
+            } else {
+                Transform::from_translation(floor).with_scale(Vec3::new(0.62, 1.7, 0.62))
+            };
+            commands.entity(root).with_child((
+                Mesh3d(mesh.clone()),
+                MeshMaterial3d(water.clone()),
+                bevy::light::NotShadowCaster,
+                transform,
+                Visibility::Hidden,
+                TunnelSeep { floor, offset: i as f32 * 1.09, ripple: ring },
+            ));
+        }
+    }
+
     // A simple emblem above each bank makes its home readable over the maze walls.
     // These are visual-only markers and sit above the playable base interior.
     for (base, team) in bbq_core::heist::layout_for(teams, variant)

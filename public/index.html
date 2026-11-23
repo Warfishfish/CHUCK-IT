@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.62</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.63</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -2277,28 +2277,128 @@ function passageTrack(pos){
   }
   return track;
 }
+const tunnelMaps=new Map();
+let tunnelDetails=null,tunnelSeeps=[];
+function tunnelMap(name){
+  if(!tunnelMaps.has(name)){
+    const texture=new THREE.TextureLoader().load('/rust/assets/textures/'+name+'.png');
+    texture.encoding=THREE.sRGBEncoding;
+    tunnelMaps.set(name,texture);
+  }
+  return tunnelMaps.get(name);
+}
+function buildTunnelDetails(arms){
+  tunnelDetails=new THREE.Group();scene.add(tunnelDetails);
+  const material=(color,options={})=>new THREE.MeshBasicMaterial({color,...options});
+  const metal=material(0x354344),rust=material(0x8b5b43),bracket=material(0xa48b6d),amber=material(0xffcc83);
+  const water=material(0x89b5b2,{transparent:true,opacity:.53,depthWrite:false});
+  const pool=material(0xffffff,{map:tunnelMap('tunnel_lamp_pool'),transparent:true,depthWrite:false});
+  const add=(geometry,mat,at)=>{
+    const object=new THREE.Mesh(geometry,mat);object.position.copy(at);tunnelDetails.add(object);return object;
+  };
+  const box=(w,h,d,mat,at,yaw=0)=>{
+    const object=add(new THREE.BoxGeometry(w,h,d),mat,at);object.rotation.y=yaw;return object;
+  };
+  const plaque=(name,w,h,at,yaw)=>{
+    const face=material(0xffffff,{map:tunnelMap('tunnel_'+name)});
+    add(new THREE.PlaneGeometry(w,h),face,at).rotation.y=yaw;
+  };
+  const hatch=(x,y,z)=>HATCH_POINT.clone().add(new V3(x,y,z));
+  for(const x of [-.48,.48]) box(.085,2.05,.095,rust,hatch(x,-1.37,1.44));
+  for(let rung=0;rung<6;rung++) box(.92,.055,.062,bracket,hatch(0,-.47-rung*.35,1.44));
+  const frontier=[new V3(0,0,1),new V3(1,0,0),new V3(0,0,-1),new V3(-1,0,0)];
+  const nearest=side=>Math.max(...arms.map(({axis})=>side.dot(axis)));
+  const toward=frontier.reduce((best,side)=>nearest(side)<nearest(best)?side:best);
+  plaque('dazza',1.91,.537,hatch(toward.x*3.71,-1.96,toward.z*3.71),Math.atan2(toward.x,toward.z)+Math.PI);
+  for(const [i,{axis,len,key}] of arms.entries()){
+    const flat=len-9,yaw=Math.atan2(axis.x,axis.z),across=new V3(axis.z,0,-axis.x);
+    const point=(x,y,z)=>HATCH_POINT.clone().addScaledVector(across,x).addScaledVector(axis,z).setY(y);
+    const paint=material([0xf47862,0x78b9ef,0x84cc9a,0xffd571][i]);
+    const beam=(w,h,d,mat,x,y,z)=>box(w,h,d,mat,point(x,y,z),yaw);
+    for(const [x,y,radius,mat] of [[1.18,-.91,.085,rust],[-1.27,-.74,.0275,bracket]]){
+      const length=flat-4.85;
+      const pipe=add(new THREE.CylinderGeometry(radius,radius,length,6),mat,point(x,y,(flat+4.25)/2));
+      pipe.quaternion.setFromUnitVectors(new V3(0,1,0),axis);
+    }
+    for(const side of [-1,1]) beam(.055,.13,flat-4.05,paint,side*1.414,-4.28,(flat+4.05)/2);
+    for(const along of [4.48,flat-.96]){
+      beam(2.30,.66,.08,metal,0,-1.38,along);
+      plaque(TEAMS[key].name.toLowerCase(),2.25,.633,point(0,-1.38,along-.051),yaw+Math.PI);
+    }
+    for(let along=5.2;along<flat-1.7;along+=9){
+      beam(3,.18,.29,metal,0,-.39,along);
+      for(const side of [-1,1]) beam(.18,4.12,.28,metal,side*1.49,-2.38,along);
+      beam(.90,.10,.39,metal,0,-.51,along);
+      beam(.64,.048,.23,amber,0,-.573,along);
+      for(const guard of [-.24,0,.24]) beam(.035,.034,.27,metal,guard,-.601,along);
+      add(new THREE.PlaneGeometry(2.83,4.15),pool,point(0,-4.482,along)).rotation.set(-Math.PI/2,yaw,0,'YXZ');
+      for(const side of [-1,1]){
+        const chevron=beam(.12,.012,.63,paint,side*.178,-4.475,along+1.34);
+        chevron.rotation.y=yaw-side*.63;
+      }
+    }
+    const floor=point(1.18,-4.5,9+i*2.1);
+    add(new THREE.CylinderGeometry(.34,.34,.012,16),material(0x3b4d4b),floor.clone().add(new V3(0,.021,0)));
+    const drop=add(new THREE.SphereGeometry(.041,8,6),water,floor);drop.scale.set(.62,1.7,.62);
+    const ring=add(new THREE.RingGeometry(.269,.28,18),water,floor.clone().add(new V3(0,.032,0)));
+    ring.rotation.x=-Math.PI/2;ring.visible=drop.visible=false;
+    tunnelSeeps.push({drop,ring,y:floor.y,offset:i*1.09});
+  }
+}
+function animateTunnelDetails(){
+  for(const {drop,ring,y,offset} of tunnelSeeps){
+    const age=(elapsed+offset)%3.8,near=!!me&&me.pos.y<-.65&&me.pos.distanceToSquared(ring.position)<900;
+    drop.visible=near&&age<.78;
+    if(drop.visible)drop.position.y=y+.035+3.43*(1-(age/.78)**2);
+    ring.visible=near&&age>=.78&&age<1.27;
+    if(ring.visible)ring.scale.setScalar(.14+.86*(age-.78)/.49);
+  }
+}
 function buildPassage(){
-  const box=(w,h,d,color,x,y,z)=>{const o=mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshBasicMaterial({color}),x,y,z);heistProps.push(o);return o;};
+  const concrete=tunnelMap('concrete');
+  concrete.wrapS=concrete.wrapT=THREE.RepeatWrapping;
+  const box=(w,h,d,color,x,y,z,texture=false)=>{
+    const geometry=new THREE.BoxGeometry(w,h,d);
+    if(texture){
+      const faceSizes=[[d,h],[d,h],[w,d],[w,d],[w,h],[w,h]];
+      const uv=geometry.attributes.uv;
+      for(let i=0;i<uv.count;i++){
+        const [width,height]=faceSizes[Math.floor(i/4)];
+        uv.setXY(i,uv.getX(i)*width*.48,uv.getY(i)*height*.48);
+      }
+    }
+    const object=mesh(geometry,new THREE.MeshBasicMaterial({color,map:texture?concrete:null}),x,y,z);
+    object.castShadow=false;heistProps.push(object);return object;
+  };
   hatchMesh=box(3,.12,3,0x9e7139,3.65,.06,3.65);
-  box(10,.14,10,0x66604e,3.65,-4.59,3.65);
+  box(10,.14,10,0x4d4940,3.65,-4.59,3.65,true);
   for(const [x,z,w,d] of [[-3.25,0,3.5,10],[3.25,0,3.5,10],[0,-3.25,3,3.5],[0,3.25,3,3.5]])box(w,.16,d,0x484e48,3.65+x,-.36,3.65+z);
-  const axes=Object.values(heistBases).map(base=>heistGate(base).sub(HATCH_POINT).normalize());
+  const arms=Object.entries(heistBases).map(([key,base])=>{
+    const end=heistGate(base),axis=end.clone().sub(HATCH_POINT),len=axis.length();
+    return {key,axis:axis.normalize(),len};
+  });
+  const axes=arms.map(arm=>arm.axis);
   const rim=i=>new V3(Math.sin(i*Math.PI/24)*4,0,Math.cos(i*Math.PI/24)*4);
   for(let i=0;i<48;i++){
     const a=rim(i),b=rim(i+1),edge=b.clone().sub(a),centre=a.add(b).multiplyScalar(.5);
     if(axes.some(axis=>axis.dot(centre)>0&&Math.abs(axis.x*centre.z-axis.z*centre.x)<1.72))continue;
-    box(.2,4.25,edge.length()+.045,0x666c60,3.65+centre.x,-2.375,3.65+centre.z).rotation.y=Math.atan2(edge.x,edge.z);
+    box(.2,4.25,edge.length()+.045,0x515954,3.65+centre.x,-2.375,3.65+centre.z,true).rotation.y=Math.atan2(edge.x,edge.z);
   }
-  for(const [key,b] of Object.entries(heistBases)){
-    const end=heistGate(b),axis=end.clone().sub(HATCH_POINT),len=axis.length();axis.normalize();
+  for(const {key,axis,len} of arms){
     const yaw=Math.atan2(axis.x,axis.z),mid=d=>HATCH_POINT.clone().addScaledVector(axis,d);
     const floor=mid((len-9)/2),ramp=mid(len-4.5),wall=mid((len+3)/2);
-    box(3,.12,len-9,0x716958,floor.x,-4.56,floor.z).rotation.y=yaw;
-    const roof=mid((len-9+3)/2);box(3,.14,len-12,0x595e54,roof.x,-.32,roof.z).rotation.y=yaw;
-    const r=box(3,.12,Math.hypot(9,4.5),TEAMS[key].color,ramp.x,-2.31,ramp.z);r.rotation.order='YXZ';r.rotation.set(-Math.atan2(4.5,9),yaw,0,'YXZ');
-    for(const side of [-1.5,1.5])box(.15,4.5,len-3,0x717976,wall.x+side*axis.z,-2.25,wall.z-side*axis.x).rotation.y=yaw;
+    box(3,.12,len-9,0x6b6254,floor.x,-4.56,floor.z,true).rotation.y=yaw;
+    const roof=mid((len-9+3)/2);box(3,.14,len-12,0x514b41,roof.x,-.32,roof.z).rotation.y=yaw;
+    const rampTint=new THREE.Color(0x354143).lerp(new THREE.Color(TEAMS[key].color),.42);
+    const r=box(3,.12,Math.hypot(9,4.5),rampTint,ramp.x,-2.31,ramp.z,true);r.rotation.set(-Math.atan2(4.5,9),yaw,0,'YXZ');
+    for(const side of [-1.22,1.22]){
+      const edge=box(.13,.022,Math.hypot(9,4.5)-.22,TEAMS[key].color,ramp.x+axis.z*side,-2.232,ramp.z-axis.x*side);
+      edge.rotation.copy(r.rotation);
+    }
+    for(const side of [-1.5,1.5])box(.15,4.5,len-3,0x626b64,wall.x+side*axis.z,-2.25,wall.z-side*axis.x,true).rotation.y=yaw;
     const m=mid(4);box(1.5,.04,1.2,TEAMS[key].color,m.x,-4.47,m.z).rotation.y=yaw;
   }
+  buildTunnelDetails(arms);
 }
 
 let heistBoard=null;
@@ -2312,7 +2412,14 @@ function heistLayout(n=heistTeams) {
 }
 const insideHeist=(x,z,r=0)=>Math.abs(x)<=HEIST_A-r && Math.abs(z)<=HEIST_B-r;
 function heistKeysArr(){return HEIST_TEAM_KEYS.slice(0,heistTeams);}
-function clearHeistProps(){hatchMesh=null;if(NPC.mesh.parent===scene){backyardRoot.add(NPC.mesh);NPC.mesh.visible=FEAT.bbq;NPC.pos.copy(NPC.home);}mazeWalkable=null;for(const o of heistProps)if(o.parent)o.parent.remove(o);heistProps.length=0;yardFence.forEach(o=>o.visible=true);if(yardLawn)yardLawn.visible=true;if(backyardRoot)backyardRoot.visible=true;
+function clearHeistProps(){hatchMesh=null;
+  if(tunnelDetails){
+    const materials=new Set();
+    tunnelDetails.traverse(object=>{if(object.isMesh){object.geometry.dispose();materials.add(object.material);}});
+    for(const material of materials)material.dispose();
+    scene.remove(tunnelDetails);tunnelDetails=null;tunnelSeeps=[];
+  }
+  if(NPC.mesh.parent===scene){backyardRoot.add(NPC.mesh);NPC.mesh.visible=FEAT.bbq;NPC.pos.copy(NPC.home);}mazeWalkable=null;for(const o of heistProps)if(o.parent)o.parent.remove(o);heistProps.length=0;yardFence.forEach(o=>o.visible=true);if(yardLawn)yardLawn.visible=true;if(backyardRoot)backyardRoot.visible=true;
   for(const c of heistColsSet){const i=colliders.indexOf(c);if(i>=0)colliders.splice(i,1);}heistColsSet.length=0;heistBases={};heistBanked={};heistSpawnN={};heistSpawnSlots={};heistBoard=null;}
 function buildHeistWall(cx,cz,w,d,color,h){h=h||HEIST_WALL_H;heistProps.push(mesh(new THREE.BoxGeometry(w,h,d),mat(color),cx,h/2,cz));
   col(cx,cz,w,d,h);heistColsSet.push(colliders[colliders.length-1]);}
@@ -4431,7 +4538,7 @@ function frame(now){
   skyDome.position.copy(camera.position);
   camera.updateMatrixWorld();
   updateItems(dt);if(isAuth){spawner(dt);for(const f of flights.values()){if(f.active){const it=items.get(f.itemId);if(!it||it.flight!==f||!it.live){f.active=false;f.endT=elapsed;}}else if(elapsed-f.endT>6)flights.delete(f.id);}}
-  updateParts(dt);updatePuddles(dt);syncChest(dt);syncSmoko();updateWobble(dt);if(gameMode==='heist'&&hatchMesh){if(isAuth&&state==='play')updateQuest(dt);syncNpc(dt);NPC.body.rotation.z+=Math.sin(elapsed*2.1)*quest.tipsy*.035;NPC.mesh.visible=true;NPC.bubble.visible=NPC.bubbleT>0&&!!me&&me.pos.distanceTo(NPC.pos)<12&&los(me.pos,NPC.pos);hatchMesh.position.x=3.65+(quest.age<quest.until?3:0);}else if(FEAT.bbq){if(isAuth&&mode!=='menu')npcUpdate(dt);syncNpc(dt);updateBBQ(dt);}
+  updateParts(dt);updatePuddles(dt);syncChest(dt);syncSmoko();updateWobble(dt);if(gameMode==='heist'&&hatchMesh){if(isAuth&&state==='play')updateQuest(dt);syncNpc(dt);NPC.body.rotation.z+=Math.sin(elapsed*2.1)*quest.tipsy*.035;NPC.mesh.visible=true;NPC.bubble.visible=NPC.bubbleT>0&&!!me&&me.pos.distanceTo(NPC.pos)<12&&los(me.pos,NPC.pos);hatchMesh.position.x=3.65+(quest.age<quest.until?3:0);animateTunnelDetails();}else if(FEAT.bbq){if(isAuth&&mode!=='menu')npcUpdate(dt);syncNpc(dt);updateBBQ(dt);}
   for(const ch of chars.values()){syncCharMesh(ch,dt);updateCharFx(ch,dt);}
   syncItemMeshes();updateTrajectory();updateCelebration();
   hoistHead.rotation.y+=dt*.12;

@@ -4012,6 +4012,98 @@ pub fn teddy_flag(team: crate::teams::Team) -> Vec<Part> {
     place(parts, V3::new(0.0, 0.22, 0.0), Quat::IDENTITY, 1.0)
 }
 
+/// Floor positions for the dripping pipe joints. These are visual only.
+pub fn tunnel_seeps(teams: usize) -> impl Iterator<Item = V3> {
+    use crate::passage::{DEPTH, HATCH};
+    crate::passage::exits(teams).enumerate().map(|(i, exit)| {
+        let axis = (exit - HATCH).normalised();
+        HATCH + axis * (9.0 + i as f32 * 2.1) + V3::new(axis.z * 1.18, -DEPTH, -axis.x * 1.18)
+    })
+}
+
+fn tunnel_finishes(parts: &mut Vec<Part>, teams: usize) {
+    use crate::passage::{DEPTH, HATCH, RAMP, WIDTH};
+    let metal = matt(0x354344).unlit().no_shadow();
+    let rust = matt(0x8b5b43).unlit().no_shadow();
+    let bracket = matt(0xa48b6d).unlit().no_shadow();
+    let amber = matt(0xffcc83).unlit().no_shadow();
+    let sign = |tex, w, h| Part::new(Shape::Quad { w, h },
+        matt(0xffffff).textured(tex).unlit().no_shadow());
+    let lamp_pool = matt(0xffffff).textured(Tex::TunnelLampPool).unlit().see_through(0.999).no_shadow();
+
+    // Drop-in junction: ladder rails wrap the entry and a small plaque sits below the lip.
+    for x in [-0.48, 0.48] {
+        parts.push(cuboid(0.085, 2.05, 0.095, rust, HATCH.x + x, -1.37, HATCH.z + 1.44));
+    }
+    for rung in 0..6 {
+        parts.push(cuboid(0.92, 0.055, 0.062, bracket, HATCH.x, -0.47 - rung as f32 * 0.35, HATCH.z + 1.44));
+    }
+    let axes: Vec<_> = crate::passage::exits(teams).map(|end| (end - HATCH).normalised()).collect();
+    let toward = [V3::new(0., 0., 1.), V3::new(1., 0., 0.), V3::new(0., 0., -1.), V3::new(-1., 0., 0.)]
+        .into_iter()
+        .min_by(|a, b| {
+            let nearest = |side: V3| axes.iter().map(|axis| side.dot(*axis)).fold(-1.0, f32::max);
+            nearest(*a).total_cmp(&nearest(*b))
+        }).unwrap();
+    let plaque = HATCH + toward * 3.71;
+    parts.push(sign(Tex::TunnelDazza, 1.91, 0.537)
+        .at(plaque.x, -1.96, plaque.z).turn(0.0, toward.x.atan2(toward.z) + PI, 0.0));
+
+    for (i, end) in crate::passage::exits(teams).enumerate() {
+        let delta = end - HATCH;
+        let length = delta.horiz_len();
+        let flat = length - RAMP;
+        let axis = delta * (1.0 / length);
+        let yaw = axis.x.atan2(axis.z);
+        let across = V3::new(axis.z, 0.0, -axis.x);
+        let point = |x, y, z| HATCH + across * x + V3::new(0.0, y, 0.0) + axis * z;
+        let beam = |w, h, d, surface, at: V3| cuboid(w, h, d, surface, at.x, at.y, at.z).turn(0.0, yaw, 0.0);
+        let paint = matt([0xf47862, 0x78b9ef, 0x84cc9a, 0xffd571][i]).unlit().no_shadow();
+        // Pipe runs and coloured skirting. The latter sits flush against the wall at foot level.
+        parts.push(rod(point(1.18, -0.91, 4.55), point(1.18, -0.91, flat - 0.3), 0.17, rust));
+        parts.push(rod(point(-1.27, -0.74, 4.55), point(-1.27, -0.74, flat - 0.3), 0.055, bracket));
+        for side in [-1.0, 1.0] {
+            parts.push(beam(0.055, 0.13, flat - 4.05, paint, point(side * 1.414, -4.28, (flat + 4.05) * 0.5)));
+        }
+
+        let label = [Tex::TunnelRed, Tex::TunnelBlue, Tex::TunnelGreen, Tex::TunnelYellow][i];
+        for along in [4.48, flat - 0.96] {
+            let face = point(0.0, -1.38, along);
+            parts.push(beam(2.30, 0.66, 0.08, metal, face));
+            let face = face - axis * 0.051;
+            parts.push(sign(label, 2.25, 0.633).at(face.x, face.y, face.z).turn(0.0, yaw + PI, 0.0));
+        }
+
+        let mut along = 5.2;
+        while along < flat - 1.7 {
+            parts.push(beam(WIDTH, 0.18, 0.29, metal, point(0.0, -0.39, along)));
+            for side in [-1.0, 1.0] {
+                parts.push(beam(0.18, 4.12, 0.28, metal, point(side * 1.49, -2.38, along)));
+            }
+            parts.push(beam(0.90, 0.10, 0.39, metal, point(0.0, -0.51, along)));
+            parts.push(beam(0.64, 0.048, 0.23, amber, point(0.0, -0.573, along)));
+            for guard in [-0.24, 0.0, 0.24] {
+                parts.push(beam(0.035, 0.034, 0.27, metal, point(guard, -0.601, along)));
+            }
+            let glow = point(0.0, -DEPTH + 0.018, along);
+            let mut pool = Part::new(Shape::Quad { w: 2.83, h: 4.15 }, lamp_pool).at(glow.x, glow.y, glow.z);
+            pool.rot = Quat::from_euler_xyz(0.0, yaw, 0.0).mul(Quat::from_euler_xyz(-HALF_PI, 0.0, 0.0));
+            parts.push(pool);
+            for side in [-1.0, 1.0] {
+                let tip = point(side * 0.178, -DEPTH + 0.025, along + 1.34);
+                parts.push(beam(0.12, 0.012, 0.63, paint, tip).turn(0.0, yaw - side * 0.63, 0.0));
+            }
+            along += 9.0;
+        }
+    }
+
+    for at in tunnel_seeps(teams) {
+        let puddle = cyl(0.34, 0.34, 0.012, 16, matt(0x3b4d4b).unlit().no_shadow(),
+            at.x, at.y + 0.021, at.z);
+        parts.push(puddle);
+    }
+}
+
 /// The Teddy Heist arena: walls, steps and crates, and for each base the coloured banking pad,
 /// its ring, a light beam, a flag pole with a flag and a ball on top. The big scoreboard cube is
 /// drawn by the game (its writing changes).
@@ -4102,7 +4194,7 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
     }
     let hatch=crate::passage::HATCH;
     // The round junction is wider than an arm. Keep the centre open where routes meet.
-    v.push(cuboid(10.0,0.14,10.0,matt(0x595747).unlit(),hatch.x,-4.59,hatch.z));
+    v.push(cuboid(10.0,0.14,10.0,matt(0x4d4940).material(Tex::Concrete, 0.45).unlit().no_shadow(),hatch.x,-4.59,hatch.z));
     for (x,z,w,d) in [(-3.25,0.0,3.5,10.0),(3.25,0.0,3.5,10.0),(0.0,-3.25,3.0,3.5),(0.0,3.25,3.0,3.5)] {
         v.push(cuboid(w,0.16,d,matt(0x484e48).unlit(),hatch.x+x,-0.36,hatch.z+z));
     }
@@ -4123,7 +4215,7 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
             continue;
         }
         v.push(cuboid(
-            0.2, 4.25, edge.horiz_len() + 0.045, matt(0x666c60).unlit(),
+            0.2, 4.25, edge.horiz_len() + 0.045, matt(0x515954).material(Tex::Concrete, 0.56).unlit().no_shadow(),
             hatch.x + centre.x, -2.375, hatch.z + centre.z,
         ).turn(0.0, edge.x.atan2(edge.z), 0.0));
     }
@@ -4136,18 +4228,30 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
         let ramp=crate::passage::RAMP;
         let mid=hatch+axis*((len-ramp)*0.5);
         let ceiling=hatch+axis*((len-ramp+3.0)*0.5);
-        v.push(cuboid(3.0,0.10,len-ramp-3.0,matt(0x6a6155).unlit(),ceiling.x,-0.27,ceiling.z).turn(0.0,yaw,0.0));
+        v.push(cuboid(3.0,0.10,len-ramp-3.0,matt(0x514b41).unlit().no_shadow(),ceiling.x,-0.27,ceiling.z).turn(0.0,yaw,0.0));
         let paint=matt(team_colour(*team)).unlit();
-        v.push(cuboid(3.0,0.12,len-ramp,matt(0x656051).unlit(),mid.x,-dep-0.06,mid.z).turn(0.0,yaw,0.0));
+        v.push(cuboid(3.0,0.12,len-ramp,matt(0x6b6254).material(Tex::Concrete, 0.5).unlit().no_shadow(),mid.x,-dep-0.06,mid.z).turn(0.0,yaw,0.0));
         for side in [-1.0,1.0] {
-            v.push(cuboid(0.15,dep-0.35,len-3.0,matt(0x6e746c).unlit(),hatch.x+axis.x*(len+3.0)*0.5+side*axis.z*1.5,-(dep+0.35)*0.5,hatch.z+axis.z*(len+3.0)*0.5-side*axis.x*1.5).turn(0.0,yaw,0.0));
+            v.push(cuboid(0.15,dep-0.35,len-3.0,matt(0x626b64).material(Tex::Concrete, 0.48).unlit().no_shadow(),hatch.x+axis.x*(len+3.0)*0.5+side*axis.z*1.5,-(dep+0.35)*0.5,hatch.z+axis.z*(len+3.0)*0.5-side*axis.x*1.5).turn(0.0,yaw,0.0));
         }
         let mid=end-axis*(ramp*0.5);
-        v.push(cuboid(3.0,0.12,ramp.hypot(dep),paint,mid.x,-dep*0.5-0.06,mid.z).turn(-dep.atan2(ramp),yaw,0.0));
+        let turn = Quat::from_euler_xyz(0.0, yaw, 0.0).mul(Quat::from_euler_xyz(-dep.atan2(ramp), 0.0, 0.0));
+        let ramp_tint = mix_color(0x354143, team_colour(*team), 0.42);
+        let mut slope = cuboid(3.0, 0.12, ramp.hypot(dep), matt(ramp_tint).material(Tex::Concrete, 0.6).unlit().no_shadow(),
+            mid.x, -dep * 0.5 - 0.06, mid.z);
+        slope.rot = turn;
+        v.push(slope);
+        for side in [-1.0, 1.0] {
+            let mut edge = cuboid(0.13, 0.022, ramp.hypot(dep) - 0.22, paint.no_shadow(),
+                mid.x + axis.z * side * 1.22, -dep * 0.5 + 0.018, mid.z - axis.x * side * 1.22);
+            edge.rot = turn;
+            v.push(edge);
+        }
         let marker=hatch+axis*4.0;
         v.push(cuboid(1.5,0.03,1.2,paint,marker.x,-dep+0.02,marker.z).turn(0.0,yaw,0.0));
     }
     v.push(cuboid(3.0,0.12,3.0,matt(0x797a72).unlit(),hatch.x,-crate::passage::DEPTH-0.06,hatch.z));
+    tunnel_finishes(&mut v, teams);
     for piece in heist::arena_for(teams, variant) {
         let c = piece.collider;
         let colour = match piece.tint {

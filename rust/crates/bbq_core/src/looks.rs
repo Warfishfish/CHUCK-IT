@@ -118,6 +118,12 @@ pub enum Tex {
     HeistPosterLost,
     HeistPosterReplay,
     HeistPosterSmoko,
+    TunnelDazza,
+    TunnelRed,
+    TunnelBlue,
+    TunnelGreen,
+    TunnelYellow,
+    TunnelLampPool,
 
     /// Paling fence.
     Paling,
@@ -191,6 +197,12 @@ impl Tex {
             Tex::HeistPosterLost => "heist_poster_4.png",
             Tex::HeistPosterReplay => "heist_poster_5.png",
             Tex::HeistPosterSmoko => "heist_poster_6.png",
+            Tex::TunnelDazza => "tunnel_dazza.png",
+            Tex::TunnelRed => "tunnel_red.png",
+            Tex::TunnelBlue => "tunnel_blue.png",
+            Tex::TunnelGreen => "tunnel_green.png",
+            Tex::TunnelYellow => "tunnel_yellow.png",
+            Tex::TunnelLampPool => "tunnel_lamp_pool.png",
 
             Tex::Paling => "paling.png",
             Tex::Weatherboard => "weatherboard_overhaul.png",
@@ -224,7 +236,7 @@ impl Tex {
         }
     }
 
-    pub const ALL: [Tex; 44] = [
+    pub const ALL: [Tex; 50] = [
         Tex::ServoDirt, Tex::ServoRoad, Tex::SignServo,
         Tex::VpLabel,
         Tex::Fish,
@@ -238,6 +250,12 @@ impl Tex {
         Tex::HeistPosterLost,
         Tex::HeistPosterReplay,
         Tex::HeistPosterSmoko,
+        Tex::TunnelDazza,
+        Tex::TunnelRed,
+        Tex::TunnelBlue,
+        Tex::TunnelGreen,
+        Tex::TunnelYellow,
+        Tex::TunnelLampPool,
         Tex::Paling,
         Tex::Weatherboard,
         Tex::Corrugated,
