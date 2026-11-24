@@ -623,7 +623,8 @@ pub fn step_game(
 
 
     // ---- pick things up ----
-    if g.rules.phase != Phase::Countdown
+    if !g.attract
+        && g.rules.phase != Phase::Countdown
         && g.me.body.stun <= 0.0
         && let Some(id) = crate::heist_app::try_pickup(
             g,
@@ -1081,6 +1082,26 @@ mod tests {
         let id = g.world.spawn(ItemKind::Teddy, 8.0, 0.0, false, &mut rng);
         g.world.give(id, PLAYER_ID);
         g.slots.add(id);
+    }
+
+    #[test]
+    fn menu_background_leaves_ground_items_for_the_bots() {
+        let mut app = app();
+        let balloon = {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            g.rules.phase = Phase::Play;
+            g.attract = true;
+            g.world.spawn(ItemKind::WaterBalloon, 8.0, 0.0, false, &mut Rng::new(33))
+        };
+
+        ticks(&mut app, 120);
+        let g = app.world().resource::<Game>();
+        assert_eq!(g.world.items[&balloon].state, ItemState::Ground);
+        assert!(g.slots.ids().is_empty());
+
+        app.world_mut().resource_mut::<Game>().attract = false;
+        ticks(&mut app, 2);
+        assert_eq!(app.world().resource::<Game>().slots.selected(), Some(balloon));
     }
 
     #[test]

@@ -9,6 +9,7 @@ use bbq_core::items::{ItemKind, Melee};
 use bevy::prelude::*;
 
 use crate::game::{Game, aim_dir, hand_pos};
+use crate::menu::Screen;
 use crate::models::{FloppyChain, FloppySeg, ModelCache, ModelKey};
 use crate::player::{EyeCamera, Player};
 
@@ -417,6 +418,7 @@ fn sync_items(
 fn sync_viewmodel(
     mut commands: Commands,
     game: Res<Game>,
+    screen: Res<Screen>,
     player: Res<Player>,
     cam: Single<Entity, With<EyeCamera>>,
     mut cache: ResMut<ModelCache>,
@@ -440,7 +442,12 @@ fn sync_viewmodel(
         commands.entity(*cam).add_child(e);
         return;
     };
-    let Some((kind, key)) = selected.filter(|_| !game.me.drunk.is_drinking() && !crate::smoko_mode::player_locked(&game)) else {
+    let Some((kind, key)) = selected.filter(|_| {
+        matches!(*screen, Screen::Playing | Screen::Paused)
+            && !game.attract
+            && !game.me.drunk.is_drinking()
+            && !crate::smoko_mode::player_locked(&game)
+    }) else {
         *vis = Visibility::Hidden;
         *shown = None;
         return;
