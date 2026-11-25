@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.66 adds Settings to the Rust main menu and separates audio, display and controller preferences from Match options. Solo puts map selection and Play together. With mates puts hosting and the room code above the server address. Lobby hosts open Match options and return to the same room.
+
 - Prototype 0.23.65 keeps the desktop and WebGPU main menu clear of oversized held items. The menu's background demo leaves items on the ground for its bots.
 
 - Prototype 0.23.64 explains what wins each beta map in How to play and covers Hands, direct item selection and controller defaults on desktop and WebGPU. The Heist kickoff names your team and explains banking. The legacy guide covers its Backyard and Heist rules and Hands.

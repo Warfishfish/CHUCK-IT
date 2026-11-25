@@ -463,9 +463,6 @@ pub enum ShowWhen {
     NameEntry,
     /// The blob preview card on Main and Customise; setup leaves room for the map.
     Preview,
-    /// Only the Solo and How to play tabs (the title and field of view make room for the
-    /// Customise and With mates tabs).
-    NotLook,
     /// The lobby card (online, waiting for a round).
     Lobby,
     /// Only the host sees this in the lobby (the Start button).
@@ -557,6 +554,7 @@ impl Plugin for MenuPlugin {
                     Some("look") => Tab::Look,
                     Some("mates") => Tab::Mates,
                     Some("settings") => Tab::Settings,
+                    Some("match") => Tab::MatchOptions,
                     Some("controller") => Tab::Controller,
                     Some("how") => Tab::How,
                     Some("solo") => Tab::Solo,
@@ -629,9 +627,8 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                     padding: UiRect::top(px(4.0)),
                     flex_shrink: 0.0,
                     ..default()
-                }, ShowWhen::NotLook))
+                }, ShowWhen::Panel(Tab::Main)))
                 .with_children(|b| {
-                    b.spawn(tag_pill("Main menu"));
                     outlined_title(b, "Australian\nBBQ", 48.0);
                     b.spawn(Node { max_width: px(360.0), ..default() }).with_child(text(
                         "Chuck stuff at your mates in the backyard. Hit them before they hit you!",
@@ -659,10 +656,13 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                     ));
                 });
                 c.spawn((column(10.0), ShowWhen::Panel(Tab::Main))).with_children(|p| {
-                    tab_button(p, Tab::Solo, "Solo game");
-                    tab_button(p, Tab::Mates, "With mates");
-                    tab_button(p, Tab::Look, "Customise");
-                    tab_button(p, Tab::How, "How to play");
+                    button(p, Action::Tab(Tab::Solo), "Solo game", Some(SUN));
+                    button(p, Action::Tab(Tab::Mates), "With mates", None);
+                    button(p, Action::Tab(Tab::Look), "Customise", None);
+                    p.spawn(row(8.0)).with_children(|r| {
+                        button(r, Action::Tab(Tab::Settings), "Settings", None);
+                        button(r, Action::Tab(Tab::How), "How to play", None);
+                    });
                 });
                 solo_panel(c);
                 look_panel(c);
@@ -719,12 +719,6 @@ fn spawn_menu(mut commands: Commands, settings: Res<Settings>, preview: Res<crat
                     Interaction::default(),
                     crate::preview::PreviewDrag,
                 ));
-                // a Customise button right under the blob (9 Oct 2026), on the Solo tab (the Customise
-                // tab is already open when you are customising)
-                pv.spawn((Node { width: Val::Percent(100.0), display: Display::Flex, ..default() }, ShowWhen::NotLook))
-                    .with_children(|w| {
-                        button(w, Action::Tab(Tab::Look), "Customise", None);
-                    });
                 pv.spawn(text("Hold the left button and drag to spin", 12.0, false, MUTED));
                 pv.spawn(text(
                     "Leg length changes clothesline clearance. Speed, jump strength, hit size and scoring stay the same.",
@@ -785,7 +779,7 @@ fn lobby_card(o: &mut ChildSpawnerCommands) {
         });
         c.spawn((column(8.0), ShowWhen::LobbyHost)).with_children(|w| {
             map_controls(w);
-            button(w, Action::Tab(Tab::Settings), "Map, mode & game settings", Some(SUN));
+            button(w, Action::Tab(Tab::MatchOptions), "Match options", None);
             w.spawn(text("Choices apply when the next round starts.", 12.5, false, MUTED));
         });
         c.spawn((column(6.0), ShowWhen::RaceNote)).with_children(|r| {
@@ -1087,15 +1081,22 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
             ShowWhen::InYard,
             children![text("Pick the game mode here, then press Start now in the lobby card (or wait for everybody to be Ready).", 13.0, true, INK)],
         ));
-        p.spawn((row(0.0), ShowWhen::Offline)).with_children(|r| {
-            let b = button(r, Action::Play, "Play", Some(TOMATO));
-            r.commands().entity(b).insert(PlayLabelMarker);
+        map_controls(p);
+        p.spawn((column(6.0), ShowWhen::HeistTeams)).with_children(|h| {
+            seg(h, SegId::HeistTeams, "Heist teams", &[("2", 2), ("3", 3), ("4", 4)]);
+        });
+        p.spawn(row(10.0)).with_children(|r| {
+            r.spawn((Node { flex_grow: 1.0, flex_basis: px(0.0), ..default() }, ShowWhen::Offline))
+                .with_children(|w| {
+                    let b = button(w, Action::Play, "Play", Some(TOMATO));
+                    w.commands().entity(b).insert(PlayLabelMarker);
+                });
+            button(r, Action::Tab(Tab::MatchOptions), "Match options", None);
         });
         p.spawn((column(8.0), ShowWhen::StandardBots)).with_children(|w| {
             slider(w, SliderId::Bots, "Number of bots", 0.0, crate::characters::MAX_BOTS as f32);
             bot_team_sliders(w);
         });
-        map_controls(p);
         p.spawn((
             Node { display: Display::None, ..default() },
             ShowWhen::HeistNote,
@@ -1115,10 +1116,6 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
             seg(r,SegId::RaceRole,"Your role",&[("Racer",0),("Sideline Thrower",1)]);
             r.spawn(text("3 laps • 190m oval. Racers: F picks up; tap F drops; hold/release F throws (3s carry limit). R tugs shorts briefly. Grass slows you: return to the gold ring. Throwers build hit streaks and unlock upgrades. Separate winners. Online: choose your role before the host starts.",13.0,false,MUTED));
         });
-        p.spawn((column(6.0), ShowWhen::HeistTeams))
-            .with_children(|h| {
-                seg(h, SegId::HeistTeams, "Heist teams", &[("2", 2), ("3", 3), ("4", 4)]);
-            });
         p.spawn(column(6.0)).with_children(|f| {
             f.spawn(legend("Cheeky mode"));
             f.spawn(Node { flex_wrap: FlexWrap::Wrap, column_gap: px(6.0), row_gap: px(6.0), ..default() })
@@ -1127,7 +1124,6 @@ fn solo_panel(c: &mut ChildSpawnerCommands) {
                 });
             f.spawn(text("Off is fine for the kids.", 13.0, false, MUTED));
         });
-        p.spawn(text("Round length, bot skill and what's in the yard are on the Settings tab.", 13.0, false, MUTED));
     });
     });
 }
@@ -1149,8 +1145,7 @@ fn bot_team_sliders(p: &mut ChildSpawnerCommands) {
 #[derive(Component)]
 struct PlayLabelMarker;
 
-/// The Settings tab (Marcus, 11 Oct 2026): the game's settings (the host's, online) and your own.
-/// Changes to the round take effect from the next round.
+/// Local device settings and the match rules controlled by the solo player or host.
 fn settings_panel(c: &mut ChildSpawnerCommands) {
     c.spawn((column(10.0), ShowWhen::Panel(Tab::Controller))).with_children(|p| {
         p.spawn(text("Select an action, then press a controller button. If it is already assigned, the two actions swap.", 13.0, false, MUTED));
@@ -1161,15 +1156,22 @@ fn settings_panel(c: &mut ChildSpawnerCommands) {
         button(p, Action::ResetPad, "Restore default buttons", None);
     });
     c.spawn((column(14.0), ShowWhen::Panel(Tab::Settings))).with_children(|p| {
-        // Keep the local render preset at the top of this long settings panel so it is easy
-        // to find before scrolling through host-controlled map and round options.
-        p.spawn(column(10.0)).with_children(|y| {
-            y.spawn(legend("Your graphics on this device"));
-            seg(y, SegId::GraphicsQuality, "Graphics quality", &[("Low", 0), ("High", 1)]);
-            y.spawn(text("Low reduces shadows and screen effects for smoother play. High enables full effects.", 12.5, false, MUTED));
-            button(y, Action::Tab(Tab::Controller), "Controller buttons", None);
+        p.spawn(legend("Audio"));
+        slider(p, SliderId::Volume, "Master volume", 0.0, 100.0);
+        p.spawn(Node { flex_wrap: FlexWrap::Wrap, column_gap: px(6.0), row_gap: px(6.0), ..default() })
+            .with_children(|w| {
+                check(w, CheckId::Sound, "Sound effects");
+                button(w, Action::TestSound, "Test sound", None);
+            });
+        p.spawn(legend("Display"));
+        seg(p, SegId::GraphicsQuality, "Graphics quality", &[("Low", 0), ("High", 1)]);
+        slider(p, SliderId::Fov, "Field of view", 60.0, 105.0);
+        p.spawn(legend("Controls"));
+        p.spawn(row(8.0)).with_children(|r| {
+            button(r, Action::Tab(Tab::Controller), "Controller buttons", None);
         });
-        // the game: the host's to change when playing online
+    });
+    c.spawn((column(14.0), ShowWhen::Panel(Tab::MatchOptions))).with_children(|p| {
         p.spawn((column(12.0), ShowWhen::NotGuest)).with_children(|g| {
             map_controls(g);
             g.spawn((column(6.0), ShowWhen::HeistTeams)).with_children(|h| {
@@ -1224,17 +1226,6 @@ fn settings_panel(c: &mut ChildSpawnerCommands) {
         p.spawn((column(6.0), ShowWhen::RaceNote)).with_children(|r| {
             seg(r, SegId::RaceRole, "If the host picks Race", &[("Racer", 0), ("Sideline Thrower", 1)]);
         });
-        // yours, on this computer
-        p.spawn(column(10.0)).with_children(|y| {
-            y.spawn(legend("You"));
-            slider(y, SliderId::Fov, "Field of view", 60.0, 105.0);
-            slider(y, SliderId::Volume, "Master volume", 0.0, 100.0);
-            y.spawn(Node { flex_wrap: FlexWrap::Wrap, column_gap: px(6.0), row_gap: px(6.0), ..default() })
-                .with_children(|w| {
-                    check(w, CheckId::Sound, "Sound effects");
-                    button(w, Action::TestSound, "Test sound", None);
-                });
-        });
     });
 }
 
@@ -1259,23 +1250,17 @@ fn mates_panel(c: &mut ChildSpawnerCommands) {
         });
     };
     c.spawn((column(12.0), ShowWhen::Panel(Tab::Mates))).with_children(|p| {
-        tab_button(p, Tab::Settings, "Game settings");
         p.spawn((text("", 14.0, true, INK), NetStatusText));
-        p.spawn(text(
-            "One of you hosts and gets a room code. Your mates type the host's server link and the code, then join. Everybody meets in the lobby, customises, and presses Ready.",
-            13.0,
-            false,
-            MUTED,
-        ));
-        field(p, "Server link (the host's)", NetField::Server, Action::FocusServer);
         p.spawn(row(0.0)).with_children(|r| {
             button(r, Action::HostYard, "Host a yard", Some(SUN));
         });
-        p.spawn(legend("Or join a mate's yard"));
+        p.spawn(text("Share the game link and room code with your mates.", 13.0, false, MUTED));
         field(p, "Room code", NetField::Room, Action::FocusRoom);
         p.spawn(row(0.0)).with_children(|r| {
             button(r, Action::Join, "Join their yard", None);
         });
+        field(p, "Server address", NetField::Server, Action::FocusServer);
+        p.spawn(text("Use your host's server address if you opened the game from a different link or the desktop app.", 13.0, false, MUTED));
         p.spawn((row(0.0), ShowWhen::Lobby)).with_children(|r| {
             button(r, Action::Leave, "Leave the yard", None);
         });
@@ -2013,7 +1998,8 @@ fn paint_navigation(
     let title = |page| match page {
         Tab::Main => "Main menu", Tab::Solo => "Solo game", Tab::Mates => "With mates",
         Tab::Lobby => "Yard lobby", Tab::Look => "Customise",
-        Tab::Settings => "Game settings", Tab::Controller => "Controller buttons", Tab::How => "How to play",
+        Tab::Settings => "Settings", Tab::MatchOptions => "Match options",
+        Tab::Controller => "Controller buttons", Tab::How => "How to play",
     };
     if ui.tab == Tab::Controller && (ui.is_changed() || settings.is_changed()) {
         for (action, children) in &controls {
@@ -2097,10 +2083,9 @@ fn paint_widgets(
     settings: Res<Settings>,
     ui: Res<MenuUi>,
     lobby: Res<crate::online::Lobby>,
-    mut segs: Query<(&SegOption, &mut BackgroundColor, &Children), (Without<CheckBox>, Without<TabButton>)>,
-    mut checks: Query<(&CheckBox, &mut BackgroundColor, &Children), (Without<SegOption>, Without<TabButton>)>,
-    mut marks: Query<&mut BackgroundColor, (With<CheckMark>, Without<SegOption>, Without<CheckBox>, Without<TabButton>)>,
-    mut tabs: Query<(&TabButton, &mut BackgroundColor), (Without<SegOption>, Without<CheckBox>)>,
+    mut segs: Query<(&SegOption, &mut BackgroundColor), Without<CheckBox>>,
+    mut checks: Query<(&CheckBox, &mut BackgroundColor, &Children), Without<SegOption>>,
+    mut marks: Query<&mut BackgroundColor, (With<CheckMark>, Without<SegOption>, Without<CheckBox>)>,
     mut shows: Query<(&ShowWhen, &mut Node)>,
     mut texts: ParamSet<(
         Query<&mut Text, With<NameText>>,
@@ -2146,7 +2131,7 @@ fn paint_widgets(
             SegId::Character => Character::ALL[(v as usize).min(3)] == settings.character,
         }
     };
-    for (s, mut bg, _) in &mut segs {
+    for (s, mut bg) in &mut segs {
         bg.0 = if selected(s.id, s.value) { SUN } else { WHITE };
     }
     let on = |id: CheckId| match id {
@@ -2167,9 +2152,6 @@ fn paint_widgets(
             }
         }
     }
-    for (t, mut bg) in &mut tabs {
-        bg.0 = if t.0 == ui.tab { SUN } else { WHITE };
-    }
     let heist = settings.mode == GameMode::Heist;
     let teams = settings.mode == GameMode::Teams;
     for (w, mut n) in &mut shows {
@@ -2185,7 +2167,6 @@ fn paint_widgets(
             ShowWhen::InYard => lobby.in_yard,
             ShowWhen::Guest => lobby.in_yard && !lobby.host,
             ShowWhen::NotGuest => !(lobby.in_yard && !lobby.host),
-            ShowWhen::NotLook => ui.tab == Tab::Main,
             ShowWhen::HeistTeams | ShowWhen::HeistNote => heist,
             ShowWhen::SmokoNote => settings.mode == GameMode::Smoko,
             ShowWhen::RaceNote => settings.mode == GameMode::Race,
@@ -2268,7 +2249,7 @@ fn paint_widgets(
     }
     let label = match settings.mode {
         GameMode::Heist => "Play Teddy Heist",
-        GameMode::Smoko => "Play Smoko — Bush Servo",
+        GameMode::Smoko => "Play Bush Servo",
         GameMode::Race => "Race & throw",
         GameMode::Teams => "Play Teams",
         GameMode::FreeForAll => "Play",
@@ -2844,16 +2825,16 @@ mod menu_tests {
     fn main_menu_children_have_a_visible_way_back() {
         let mut app = menu(crate::online::Lobby::default());
         assert_eq!(app.world().resource::<MenuUi>().tab, Tab::Main);
-        for page in [Tab::Solo, Tab::Mates, Tab::Look, Tab::How] {
+        for page in [Tab::Solo, Tab::Mates, Tab::Look, Tab::How, Tab::Settings] {
             press(&mut app, Action::Tab(page));
             assert_eq!(app.world().resource::<MenuUi>().tab, page);
             press(&mut app, Action::Back);
             assert_eq!(app.world().resource::<MenuUi>().tab, Tab::Main);
         }
-        press(&mut app, Action::Tab(Tab::Mates));
-        press(&mut app, Action::Tab(Tab::Settings));
+        press(&mut app, Action::Tab(Tab::Solo));
+        press(&mut app, Action::Tab(Tab::MatchOptions));
         press(&mut app, Action::Back);
-        assert_eq!(app.world().resource::<MenuUi>().tab, Tab::Mates);
+        assert_eq!(app.world().resource::<MenuUi>().tab, Tab::Solo);
         press(&mut app, Action::Back);
         assert_eq!(app.world().resource::<MenuUi>().tab, Tab::Main);
     }
@@ -2866,6 +2847,13 @@ mod menu_tests {
             app.update();
             for page in [Tab::Look, Tab::How, Tab::Settings] {
                 press(&mut app, Action::Tab(page));
+                press(&mut app, Action::Back);
+                let ui = app.world().resource::<MenuUi>();
+                assert_eq!(ui.tab, Tab::Lobby);
+                assert_eq!(ui.net_request, None);
+            }
+            if host {
+                press(&mut app, Action::Tab(Tab::MatchOptions));
                 press(&mut app, Action::Back);
                 let ui = app.world().resource::<MenuUi>();
                 assert_eq!(ui.tab, Tab::Lobby);

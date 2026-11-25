@@ -257,8 +257,8 @@ pub enum Tab {
     Solo,
     Look,
     Mates,
-    /// Game settings (round, yard) and your own (field of view, sound). Marcus, 11 Oct 2026.
     Settings,
+    MatchOptions,
     Controller,
     How,
 }
@@ -469,31 +469,6 @@ pub fn button(
 pub struct ButtonLook {
     pub base: Color,
 }
-
-/// Full-width main-menu destinations.
-pub fn tab_button(p: &mut ChildSpawnerCommands, tab: Tab, label: &str) {
-    p.spawn((
-        Button,
-        Node {
-            width: Val::Percent(100.0),
-            min_height: px(46.0),
-            flex_shrink: 0.0,
-            padding: UiRect::axes(px(4.0), px(11.0)),
-            justify_content: JustifyContent::Center,
-            border: UiRect::all(px(3.0)),
-            border_radius: BorderRadius::all(px(14.0)),
-            ..default()
-        },
-        BackgroundColor(WHITE),
-        BorderColor::all(INK),
-        Action::Tab(tab),
-        TabButton(tab),
-        children![text(label, 16.0, true, INK)],
-    ));
-}
-
-#[derive(Component)]
-pub struct TabButton(pub Tab);
 
 /// A labelled slider.
 pub fn slider(p: &mut ChildSpawnerCommands, id: SliderId, title: &str, min: f32, max: f32) {
