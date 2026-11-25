@@ -1,6 +1,6 @@
 {
-  "source_commit": "3bdc5a9d8a31fd1d418ba14f9eb3bb21c0737269",
+  "source_commit": "b124ff4cf41ddb9e86a768bd429e3a2390e65577",
   "protocol": 34,
-  "release_date": "2026-11-24",
-  "description": "Main-menu held-item fix, prototype 0.23.65"
+  "release_date": "2026-11-25",
+  "description": "Simpler menu navigation and match setup, prototype 0.23.66"
 }
