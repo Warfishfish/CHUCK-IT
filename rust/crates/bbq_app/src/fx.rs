@@ -196,7 +196,6 @@ struct HeistAudio {
 #[derive(Resource)]
 struct PreviewAudio {
     balloon: Handle<AudioSource>,
-    pool: Handle<AudioSource>,
     can: Handle<AudioSource>,
     sprinkler: Handle<AudioSource>,
     bbq: Handle<AudioSource>,
@@ -207,7 +206,6 @@ fn load_heist_audio(mut commands: Commands, assets: Res<AssetServer>) {
     if preview {
         commands.insert_resource(PreviewAudio {
             balloon: assets.load("audio/preview/balloon.wav"),
-            pool: assets.load("audio/preview/pool.wav"),
             can: assets.load("audio/preview/can.wav"),
             sprinkler: assets.load("audio/preview/sprinkler.wav"),
             bbq: assets.load("audio/preview/bbq.wav"),
@@ -271,7 +269,7 @@ fn play_recorded_audio(
             FxKind::HeistHatch if heist => (&sounds.hatch, 34.0, 0.0, 0.57),
             FxKind::HeistBank if heist => (&sounds.bank, 36.0, 0.25, 0.44),
             FxKind::BalloonBurst => (sample(|p| &p.balloon, &sounds.balloon), 24.0, 0.0, 0.62),
-            FxKind::Splash => (sample(|p| &p.pool, &sounds.pool), 20.0, 0.0, 0.58),
+            FxKind::Splash => (&sounds.pool, 20.0, 0.0, 0.58),
             FxKind::Smash | FxKind::Fizz => (sample(|p| &p.can, &sounds.can), 16.0, 0.0, 0.48),
             FxKind::Shatter | FxKind::ShatterSpirit => (&sounds.can, 18.0, 0.0, 0.50),
             FxKind::Whack => (&sounds.slap, 18.0, 0.0, 0.58),

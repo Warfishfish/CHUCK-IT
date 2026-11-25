@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.67 uses InspectorJ’s recorded Pool Jump H for pool entry on Mac and both browser builds. The clip starts at water contact and keeps the short wash that follows. The credits include the author, source and licence.
+
 - Prototype 0.23.66 adds Settings to the Rust main menu and separates audio, display and controller preferences from Match options. Solo puts map selection and Play together. With mates puts hosting and the room code above the server address. Lobby hosts open Match options and return to the same room.
 
 - Prototype 0.23.65 keeps the desktop and WebGPU main menu clear of oversized held items. The menu's background demo leaves items on the ground for its bots.

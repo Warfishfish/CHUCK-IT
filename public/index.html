@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.66</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.67</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -450,6 +450,7 @@ body.touch #cds{display:none}
           <span class="chip good">+25 help a mate up</span>
         </div>
         <div class="ammo" id="ammo"></div>
+        <p class="note"><a href="/rust/assets/CREDITS.txt">Sound and asset credits</a></p>
       </details>
     </section>
 
@@ -1621,6 +1622,7 @@ const recordedAudio={
   slap:{gain:.58,range:18,folder:'gameplay'},'palm-slap':{gain:.58,range:18,folder:'gameplay'},
   'bar-drink':{gain:.53,folder:'gameplay'},
   'noodle-slap':{gain:.58,range:18,folder:'gameplay'},impact:{gain:.32,range:29,folder:'gameplay'},
+  pool:{gain:.58,range:20,folder:'gameplay'},
   hatch:{gain:.57,range:34},bank:{gain:.44,range:36,min:.25},
   'grass-1':{gain:.62,range:12},'grass-2':{gain:.62,range:12},'grass-3':{gain:.62,range:12},
   'magpie-takeoff':{gain:.36,range:12,folder:'yard'},'magpie-call':{gain:.31,range:22,folder:'yard'},
@@ -1693,7 +1695,7 @@ const SFX={
   beep:()=>tone({f:880,t:.12,type:'square',v:.08}),
   go:()=>tone({f:1320,t:.35,type:'square',v:.1}),
   whistle:()=>{tone({f:2300,f2:2700,t:.25,v:.16});tone({f:2300,f2:2700,t:.5,v:.16,delay:.3});},
-  splash:at=>noise({t:.35,v:.22,f:900,f2:300,type:'lowpass'},at),
+  splash:at=>playRecordedSound('pool',at),
   pickup:()=>tone({f:520,f2:820,t:.09,type:'triangle',v:.12}),
   dodge:at=>noise({t:.14,v:.1,f:1600},at),
   jump:at=>{noise({t:.1,v:.07,f:900,type:'lowpass'},at);tone({f:260,f2:420,t:.1,type:'triangle',v:.05},at);},
