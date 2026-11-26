@@ -280,6 +280,7 @@ fn deliver(g: &mut Game, p: &mut Player, owner: PlayerId, victim: PlayerId) {
     if points == 0 {
         return;
     }
+    g.fx(crate::fx::FxKind::SmokoDelivery, V3::new(CENTRE.0, 0.5, CENTRE.1));
     g.smoko.immune.insert(victim, g.now + PROTECTION);
     let (x, z) = SPAWNS[(victim as usize + g.board.score(owner) as usize / 100) % SPAWNS.len()];
     set_pose(g, p, victim, V3::new(x, 0.0, z), V3::ZERO, false);
@@ -612,12 +613,14 @@ mod tests {
         step(&mut g, &mut p, &mut Wanted::default());
         assert_eq!(g.board.score(PLAYER_ID), 100);
         assert!(g.smoko.carries.is_empty());
+        assert_eq!(g.fx.iter().filter(|cue| cue.kind == crate::fx::FxKind::SmokoDelivery).count(), 1);
         assert_eq!(g.dummies[0].body.wet_t,0.0);
         assert!(!in_pad(pos(&g, &p, 100).unwrap()));
         for _ in 0..20 {
             step(&mut g, &mut p, &mut Wanted::default());
         }
         assert_eq!(g.board.score(PLAYER_ID), 100);
+        assert_eq!(g.fx.iter().filter(|cue| cue.kind == crate::fx::FxKind::SmokoDelivery).count(), 1);
         g.dummies[0].mover = Mover::new(0.0, 10.0);
         g.dummies[0].body.down_t = 4.0;
         input(&mut g, &mut p, PLAYER_ID, true);

@@ -45,11 +45,12 @@ pub enum FxKind {
     FishSlap,
     SteakSlap,
     BodyLanding,
+    SmokoDelivery,
 }
 
 impl FxKind {
     // (new kinds go on the end: the position is the number sent online)
-    pub const ALL: [FxKind; 19] = [
+    pub const ALL: [FxKind; 20] = [
         FxKind::Hit,
         FxKind::Smash,
         FxKind::Whack,
@@ -69,6 +70,7 @@ impl FxKind {
         FxKind::FishSlap,
         FxKind::SteakSlap,
         FxKind::BodyLanding,
+        FxKind::SmokoDelivery,
     ];
 
     /// What a bottle (or the VP can) does when it breaks.
@@ -88,6 +90,10 @@ impl FxKind {
             ItemKind::Noodle => Self::NoodleSlap,
             _ => Self::Whack,
         }
+    }
+
+    fn is_objective(self) -> bool {
+        matches!(self, Self::HeistBank | Self::SmokoDelivery)
     }
 
     /// Leaves a stain on the ground (where a drink went everywhere).
@@ -144,11 +150,8 @@ impl Plugin for FxPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, load_heist_audio)
             .add_systems(Update, sync_master_volume)
-            .add_systems(PostUpdate, (play_recorded_audio, play_flight_audio)
+            .add_systems(PostUpdate, (play_recorded_audio, play_flight_audio, play_yard_ambience)
                 .before(bevy::transform::TransformSystems::Propagate));
-        if sound_preview_enabled() {
-            app.add_systems(PostUpdate, play_preview_ambience);
-        }
         if grass_preview_count() != 0 {
             app.add_systems(PostUpdate, play_grass_steps);
         }
@@ -205,6 +208,8 @@ struct HeistAudio {
     fish_slap: Handle<AudioSource>,
     steak_slap: Handle<AudioSource>,
     body_land: Handle<AudioSource>,
+    bbq: Handle<AudioSource>,
+    service_bell: Handle<AudioSource>,
     grass: Vec<Handle<AudioSource>>,
 }
 
@@ -212,7 +217,6 @@ struct HeistAudio {
 struct PreviewAudio {
     can: Handle<AudioSource>,
     sprinkler: Handle<AudioSource>,
-    bbq: Handle<AudioSource>,
 }
 
 fn load_heist_audio(mut commands: Commands, assets: Res<AssetServer>) {
@@ -221,7 +225,6 @@ fn load_heist_audio(mut commands: Commands, assets: Res<AssetServer>) {
         commands.insert_resource(PreviewAudio {
             can: assets.load("audio/preview/can.wav"),
             sprinkler: assets.load("audio/preview/sprinkler.wav"),
-            bbq: assets.load("audio/preview/bbq.wav"),
         });
     }
     commands.insert_resource(HeistAudio {
@@ -241,6 +244,8 @@ fn load_heist_audio(mut commands: Commands, assets: Res<AssetServer>) {
         fish_slap: assets.load("audio/gameplay/fish-slap.wav"),
         steak_slap: assets.load("audio/gameplay/steak-slap.wav"),
         body_land: assets.load("audio/gameplay/body-land.wav"),
+        bbq: assets.load("audio/yard/bbq-sizzle.wav"),
+        service_bell: assets.load("audio/gameplay/service-bell.wav"),
         grass: (1..=grass_preview_count())
             .map(|i| assets.load(format!("audio/grass-preview/step-{i:02}.wav")))
             .collect(),
@@ -255,6 +260,7 @@ fn play_recorded_audio(
     sounds: Res<HeistAudio>,
     preview: Option<Res<PreviewAudio>>,
     assets: Res<Assets<AudioSource>>,
+    mut objective_until: Local<f32>,
 ) {
     let released = std::mem::take(&mut game.local_throw_sound);
     let bar_drink = game.local_bar_drink.take();
@@ -278,31 +284,47 @@ fn play_recorded_audio(
     let sample = |select: fn(&PreviewAudio) -> &Handle<AudioSource>, fallback| {
         preview.as_deref().map(select).filter(|clip| assets.contains(clip.id())).unwrap_or(fallback)
     };
+    if game.fx.iter().any(|cue| cue.kind.is_objective()) {
+        *objective_until = game.now + 0.32;
+    }
+    let foreground_mix = if game.now < *objective_until {
+        0.60
+    } else if game.fx.len() >= 4 {
+        0.78
+    } else {
+        1.0
+    };
     let mut opening_played = 0;
     for cue in &game.fx {
         let (sound, range, minimum, gain) = match cue.kind {
             FxKind::HeistThrow if heist => (&sounds.throw, 27.0, 0.0, 0.52),
             FxKind::HeistLanding if heist => (&sounds.body_land, 30.0, 0.0, 0.58),
             FxKind::HeistHatch if heist => (&sounds.hatch, 34.0, 0.0, 0.57),
-            FxKind::HeistBank if heist => (&sounds.bank, 36.0, 0.25, 0.44),
-            FxKind::BalloonBurst => (&sounds.balloon, 24.0, 0.0, 0.62),
+            FxKind::HeistBank if heist => (&sounds.bank, 36.0, 0.72, 0.64),
+            FxKind::SmokoDelivery => (&sounds.service_bell, 27.0, 0.67, 0.64),
+            FxKind::BalloonBurst => (&sounds.balloon, 19.0, 0.0, 0.56),
             FxKind::Splash => (&sounds.pool, 20.0, 0.0, 0.58),
             FxKind::Smash | FxKind::Fizz => (sample(|p| &p.can, &sounds.can), 16.0, 0.0, 0.48),
             FxKind::Shatter | FxKind::ShatterSpirit => (&sounds.glass_break, 18.0, 0.0, 0.50),
             FxKind::Whack => (&sounds.slap, 18.0, 0.0, 0.58),
-            FxKind::FishSlap => (&sounds.fish_slap, 18.0, 0.0, 0.58),
-            FxKind::SteakSlap => (&sounds.steak_slap, 18.0, 0.0, 0.58),
+            FxKind::FishSlap => (&sounds.fish_slap, 16.0, 0.0, 0.56),
+            FxKind::SteakSlap => (&sounds.steak_slap, 17.0, 0.0, 0.60),
             FxKind::PalmSlap => (&sounds.palm_slap, 18.0, 0.0, 0.58),
-            FxKind::NoodleSlap => (&sounds.noodle_slap, 18.0, 0.0, 0.58),
-            FxKind::OpeningDrop if opening_played < 4 => (&sounds.impact, 29.0, 0.0, 0.32),
-            FxKind::Hit => (&sounds.impact, 22.0, 0.0, 0.57),
+            FxKind::NoodleSlap => (&sounds.noodle_slap, 15.0, 0.0, 0.60),
+            FxKind::OpeningDrop if opening_played < 3 => (&sounds.impact, 19.0, 0.0, 0.22),
+            FxKind::Hit => (&sounds.impact, 20.0, 0.0, 0.48),
             FxKind::Dust => (&sounds.landing, 16.0, 0.0, 0.25),
-            FxKind::BodyLanding => (&sounds.body_land, 16.0, 0.0, 0.50),
+            FxKind::BodyLanding => (&sounds.body_land, 14.0, 0.0, 0.43),
             _ => continue,
         };
         let near = (1.0 - (cue.at - listener).len() / range).max(minimum);
         if near > 0.0 {
-            play_one_shot(&mut commands, sound, gain * near);
+            let level = if cue.kind.is_objective() {
+                gain * near
+            } else {
+                gain * near.powf(1.35) * foreground_mix
+            };
+            play_one_shot(&mut commands, sound, level);
             opening_played += usize::from(cue.kind == FxKind::OpeningDrop);
         }
     }
@@ -353,7 +375,7 @@ fn play_flight_audio(
 #[derive(Component)]
 struct BbqSizzle;
 
-fn play_preview_ambience(
+fn play_yard_ambience(
     mut commands: Commands,
     time: Res<Time>,
     game: Res<Game>,
@@ -362,27 +384,28 @@ fn play_preview_ambience(
     settings: Res<crate::menu::Settings>,
     screen: Res<crate::menu::Screen>,
     look: Res<crate::lighting::LookMode>,
-    sounds: Res<PreviewAudio>,
+    sounds: Res<HeistAudio>,
+    preview: Option<Res<PreviewAudio>>,
     master: Res<GlobalVolume>,
     mut grills: Query<(Entity, Option<&mut AudioSink>), With<BbqSizzle>>,
     mut last_sweep: Local<Option<u32>>,
 ) {
-    let backyard = *screen == crate::menu::Screen::Playing && settings.sound
+    let backyard = *screen == crate::menu::Screen::Playing && settings.sound && settings.master_volume > 0
         && matches!(game.rules.mode, bbq_core::GameMode::FreeForAll | bbq_core::GameMode::Teams);
     let here = Vec3::new(player.mover.x, player.mover.y, player.mover.z);
     let now = time.elapsed_secs();
     let sweep = (now / crate::yard_scene::SPRINKLER_PERIOD) as u32;
-    if backyard && *look == crate::lighting::LookMode::Polished
+    if let Some(preview) = preview && backyard && *look == crate::lighting::LookMode::Polished
         && crate::yard_scene::sprinkler_emitting(now) && *last_sweep != Some(sweep)
     {
         *last_sweep = Some(sweep);
         let gain = preview_gain(here.distance(crate::yard_scene::SPRINKLER_ORIGIN), 10.0, 0.51);
         if gain > 0.0 {
-            play_one_shot(&mut commands, &sounds.sprinkler, gain);
+            play_one_shot(&mut commands, &preview.sprinkler, gain);
         }
     }
     let gain = if backyard && yard.0.features.bbq {
-        preview_gain(here.distance(BBQ_GRILL), 12.0, 0.68)
+        preview_gain(here.distance(BBQ_GRILL), 11.0, 0.55)
     } else {
         0.0
     };

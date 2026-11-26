@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.68</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.69</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -743,7 +743,7 @@ function updateGardenMagpies(){
     let from,to,t=0,flying=false;
     if(bird.state==='perched'){
       bird.root.position.copy(bird.perch);bird.root.position.y+=.018*Math.sin(elapsed*3+bird.index);
-      if(listen&&bird.index===0&&near<22&&elapsed>=nextGardenBirdCall){
+      if(listen&&bird.index===0&&near<20&&elapsed>=nextGardenBirdCall){
         playRecordedSound('magpie-call',bird.perch);nextGardenBirdCall=elapsed+21;
       }
     }
@@ -1617,18 +1617,20 @@ document.querySelectorAll('[data-master-volume]').forEach(input=>input.addEventL
 }));
 syncMasterVolume();
 const GRASS_FOOTSTEPS_ENABLED=false;
+let objectiveAudioUntil=0, grillLoop=null;
 const recordedAudio={
   throw:{gain:.52,range:27},
   slap:{gain:.58,range:18,folder:'gameplay'},'palm-slap':{gain:.58,range:18,folder:'gameplay'},
   'bar-drink':{gain:.53,folder:'gameplay'},
-  'noodle-slap':{gain:.58,range:18,folder:'gameplay'},impact:{gain:.32,range:29,folder:'gameplay'},
+  'noodle-slap':{gain:.60,range:15,folder:'gameplay'},impact:{gain:.22,range:19,folder:'gameplay'},
   pool:{gain:.58,range:20,folder:'gameplay'},
-  'fish-slap':{gain:.58,range:18,folder:'gameplay'},
-  'steak-slap':{gain:.58,range:18,folder:'gameplay'},
-  'body-land':{gain:.50,range:16,folder:'gameplay'},
-  hatch:{gain:.57,range:34},bank:{gain:.44,range:36,min:.25},
+  'fish-slap':{gain:.56,range:16,folder:'gameplay'},
+  'steak-slap':{gain:.60,range:17,folder:'gameplay'},
+  'body-land':{gain:.43,range:14,folder:'gameplay'},
+  hatch:{gain:.57,range:34},bank:{gain:.64,range:36,min:.72},
   'grass-1':{gain:.62,range:12},'grass-2':{gain:.62,range:12},'grass-3':{gain:.62,range:12},
-  'magpie-takeoff':{gain:.36,range:12,folder:'yard'},'magpie-call':{gain:.31,range:22,folder:'yard'},
+  'magpie-takeoff':{gain:.36,range:12,folder:'yard'},'magpie-call':{gain:.37,range:20,folder:'yard'},
+  'bbq-sizzle':{gain:.55,range:11,folder:'yard'},
 };
 function loadRecordedAudio(){
   for(const [name,cue] of Object.entries(recordedAudio)){
@@ -1642,6 +1644,7 @@ function loadRecordedAudio(){
 }
 function playRecordedSound(name,at,maxSeconds=Infinity){
   if(!AC||!soundOn)return;
+  if(name==='bank')objectiveAudioUntil=AC.currentTime+.32;
   const cue=recordedAudio[name];
   if(!cue.buffer){
     if(name==='throw') SFX.throwFallback(at);
@@ -1654,9 +1657,27 @@ function playRecordedSound(name,at,maxSeconds=Infinity){
   const level=at?Math.max(cue.min||0,1-camera.position.distanceTo(at)/cue.range):1;
   if(level<=0)return;
   const source=AC.createBufferSource(),gain=AC.createGain();
-  source.buffer=cue.buffer;gain.gain.value=cue.gain*level;
+  const priority=name==='bank', duck=at&&!priority&&AC.currentTime<objectiveAudioUntil?.60:1;
+  source.buffer=cue.buffer;gain.gain.value=cue.gain*(priority?level:level**1.35)*duck;
   source.playbackRate.value=Math.max(1,cue.buffer.duration/maxSeconds);
   source.connect(gain);gain.connect(master);source.start();
+}
+function syncGrillAudio(){
+  if(!AC)return;
+  const cue=recordedAudio['bbq-sizzle'];
+  const distance=me?Math.hypot(me.pos.x+6,me.pos.y-1.3,me.pos.z+18.3):Infinity;
+  const level=mode!=='menu'&&state==='play'&&!resultsOpen&&gameMode!=='heist'&&FEAT.bbq&&soundOn&&masterVolume>0
+    ?cue.gain*Math.max(0,1-distance/cue.range)**2:0;
+  if(!level||!cue.buffer){
+    if(grillLoop){grillLoop.source.stop();grillLoop=null;}
+    return;
+  }
+  if(!grillLoop){
+    const source=AC.createBufferSource(), gain=AC.createGain();
+    source.buffer=cue.buffer;source.loop=true;gain.gain.value=0;
+    source.connect(gain);gain.connect(master);source.start();grillLoop={source,gain};
+  }
+  grillLoop.gain.gain.setTargetAtTime(level,AC.currentTime,.07);
 }
 let grassStepPosition=null,grassStepPhase=0,grassStepClip=1;
 const grassFootPlant=phase=>Math.floor((phase-3*Math.PI/4)/Math.PI);
@@ -4507,6 +4528,7 @@ function renderFrame(){const a=me&&mode!=='menu'?drunkAmt(me.drunk):0;if(a>.01)d
 let last=performance.now();
 function frame(now){
   requestAnimationFrame(frame);
+  syncGrillAudio();
   const dt=Math.min(.05,(now-last)/1000);last=now;
   syncShadowFootprint();
   if(state==='paused'){renderFrame();return;}

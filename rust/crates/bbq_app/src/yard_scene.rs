@@ -1016,7 +1016,7 @@ fn animate_garden_visitors(
     if !in_yard {
         *next_call = now + 6.0;
     }
-    let sound_on = in_yard && settings.sound;
+    let sound_on = in_yard && settings.sound && settings.master_volume > 0;
     let mut airborne = [false; 2];
     for (mut visitor, mut tf) in &mut visitors {
         let (px, pz) = (player.mover.x, player.mover.z);
@@ -1034,8 +1034,8 @@ fn animate_garden_visitors(
         }
         let (from, to, t, at_fence) = match visitor.state {
             GardenVisitorState::Perched => {
-                if sound_on && visitor.index == 0 && now >= *next_call && near < 22.0 {
-                    play_garden_bird(&mut commands, &sounds.call, 0.31 * (1.0 - near / 22.0));
+                if sound_on && visitor.index == 0 && now >= *next_call && near < 20.0 {
+                    play_garden_bird(&mut commands, &sounds.call, 0.37 * (1.0 - near / 20.0));
                     *next_call = now + 21.0;
                 }
                 tf.translation =

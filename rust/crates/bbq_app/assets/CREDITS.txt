@@ -49,6 +49,13 @@ https://freesound.org/people/dbache/sounds/536627/
 Both CC0 1.0 Universal, https://creativecommons.org/publicdomain/zero/1.0/
 Short excerpts converted to mono WAV, faded and levelled.
 
+BBQ ambience — “Sizzling Steaks on a Gas Grill” by Urkki69,
+https://freesound.org/people/Urkki69/sounds/587177/
+Bush Servo delivery — “service bell ring” by AlaskaRobotics,
+https://freesound.org/people/AlaskaRobotics/sounds/221515/
+Both CC0 1.0 Universal, https://creativecommons.org/publicdomain/zero/1.0/
+Mono excerpts levelled and trimmed. The grill excerpt is crossfaded to loop.
+
 GAMEPLAY SOUND EFFECTS
 Impact and can rattle are original synthesized sounds created for Australian BBQ.
 

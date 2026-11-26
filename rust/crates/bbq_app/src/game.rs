@@ -3299,6 +3299,33 @@ mod tests {
     }
 
     #[test]
+    fn crowded_backyard_round_exercises_the_audio_event_queue() {
+        let mut app = app();
+        let mut settings = crate::menu::Settings::default();
+        settings.mode = GameMode::FreeForAll;
+        settings.bots = 19;
+        settings.cheeky = true;
+        settings.round_len = 60.0;
+        run_flow(&mut app, |g, p, y, c| crate::menu::begin(&settings, g, p, y, c));
+        let mut peak = 0;
+        let mut glass = 0;
+        let mut combat = 0;
+        for _ in 0..60 * 30 {
+            ticks(&mut app, 1);
+            let mut game = app.world_mut().resource_mut::<Game>();
+            peak = peak.max(game.fx.len());
+            for cue in game.fx.drain(..) {
+                use crate::fx::FxKind::*;
+                glass += usize::from(matches!(cue.kind, Shatter | ShatterSpirit));
+                combat += usize::from(matches!(cue.kind, Hit | FishSlap | SteakSlap | NoodleSlap));
+            }
+        }
+        assert_eq!(app.world().resource::<Game>().dummies.len(), 19);
+        println!("30-second Backyard solo with 19 bots: peak events per tick {peak}, glass breaks {glass}, combat effects {combat}");
+        assert!(peak >= 3 && glass > 0 && combat > 0);
+    }
+
+    #[test]
     fn the_menu_yard_has_three_bots_and_no_clock_and_they_leave_you_alone() {
         let mut app = app();
         let s = crate::menu::Settings::default();
