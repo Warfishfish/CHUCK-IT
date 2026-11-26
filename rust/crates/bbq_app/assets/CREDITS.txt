@@ -50,8 +50,26 @@ Both CC0 1.0 Universal, https://creativecommons.org/publicdomain/zero/1.0/
 Short excerpts converted to mono WAV, faded and levelled.
 
 GAMEPLAY SOUND EFFECTS
-Impact, balloon pop and can rattle are original synthesized sounds
-created for Australian BBQ.
+Impact and can rattle are original synthesized sounds created for Australian BBQ.
+
+Backyard foley, edited from Freesound public previews:
+Glass break — “bottle beer glass drop fall smash on floor or concrete.wav” by kyles
+https://freesound.org/people/kyles/sounds/450780/
+Water balloon snap — “Water Ballon Pop 3.wav” by Motion_S
+https://freesound.org/people/Motion_S/sounds/188008/
+CC BY 4.0 International, https://creativecommons.org/licenses/by/4.0/
+Water balloon splat — “Water Splash 1” by qubodup
+https://freesound.org/people/qubodup/sounds/210428/
+Fish slap — “wet thwack” by adviseme333
+https://freesound.org/people/adviseme333/sounds/679391/
+Steak slap — “Punch.wav” by EugeneEverett
+https://freesound.org/people/EugeneEverett/sounds/596483/
+Body landing — “BODY FALL - V HVY - DIRT” by leonelmail
+https://freesound.org/people/leonelmail/sounds/504626/
+All five sources other than the balloon snap are CC0 1.0 Universal,
+https://creativecommons.org/publicdomain/zero/1.0/
+Converted to mono WAV, trimmed, filtered, levelled and faded. The water
+balloon cue combines the snap and splat excerpts.
 
 Pool entry — “Splash, Jumping, H.wav” by InspectorJ (www.jshaw.co.uk)
 https://freesound.org/people/InspectorJ/sounds/352102/

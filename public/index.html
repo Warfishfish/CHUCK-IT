@@ -278,7 +278,7 @@ body.touch #cds{display:none}
 <div id="menu" class="overlay">
   <div class="card" role="dialog" aria-labelledby="logo">
     <div class="brand">
-  <span class="tag">Backyard Brawl · prototype 0.23.67</span>
+  <span class="tag">Backyard Brawl · prototype 0.23.68</span>
       <div id="logo" class="logo display">Australian BBQ</div>
       <p class="pitch">Chuck stuff at your mates in the backyard. Hit them before they hit you!</p>
     </div>
@@ -1618,11 +1618,14 @@ document.querySelectorAll('[data-master-volume]').forEach(input=>input.addEventL
 syncMasterVolume();
 const GRASS_FOOTSTEPS_ENABLED=false;
 const recordedAudio={
-  throw:{gain:.52,range:27},landing:{gain:.58,range:30},
+  throw:{gain:.52,range:27},
   slap:{gain:.58,range:18,folder:'gameplay'},'palm-slap':{gain:.58,range:18,folder:'gameplay'},
   'bar-drink':{gain:.53,folder:'gameplay'},
   'noodle-slap':{gain:.58,range:18,folder:'gameplay'},impact:{gain:.32,range:29,folder:'gameplay'},
   pool:{gain:.58,range:20,folder:'gameplay'},
+  'fish-slap':{gain:.58,range:18,folder:'gameplay'},
+  'steak-slap':{gain:.58,range:18,folder:'gameplay'},
+  'body-land':{gain:.50,range:16,folder:'gameplay'},
   hatch:{gain:.57,range:34},bank:{gain:.44,range:36,min:.25},
   'grass-1':{gain:.62,range:12},'grass-2':{gain:.62,range:12},'grass-3':{gain:.62,range:12},
   'magpie-takeoff':{gain:.36,range:12,folder:'yard'},'magpie-call':{gain:.31,range:22,folder:'yard'},
@@ -1642,9 +1645,9 @@ function playRecordedSound(name,at,maxSeconds=Infinity){
   const cue=recordedAudio[name];
   if(!cue.buffer){
     if(name==='throw') SFX.throwFallback(at);
-    if(name==='landing'||name==='hatch'||name==='impact') SFX.thud(at);
+    if(name==='body-land'||name==='hatch'||name==='impact') SFX.thud(at);
     if(name==='bank') SFX.pickup();
-    if(name==='slap'||name==='palm-slap'||name==='noodle-slap') SFX.slapFallback(at);
+    if(name==='slap'||name==='palm-slap'||name==='noodle-slap'||name==='fish-slap'||name==='steak-slap') SFX.slapFallback(at);
     if(name==='bar-drink') SFX.glug(at);
     return;
   }
@@ -1699,7 +1702,7 @@ const SFX={
   pickup:()=>tone({f:520,f2:820,t:.09,type:'triangle',v:.12}),
   dodge:at=>noise({t:.14,v:.1,f:1600},at),
   jump:at=>{noise({t:.1,v:.07,f:900,type:'lowpass'},at);tone({f:260,f2:420,t:.1,type:'triangle',v:.05},at);},
-  land:at=>noise({t:.08,v:.1,f:300,type:'lowpass'},at),
+  land:at=>playRecordedSound('body-land',at),
   slapFallback:at=>{noise({t:.09,v:.5,f:2600,type:'highpass'},at);tone({f:170,f2:70,t:.16,v:.4},at);},
   slap:at=>playRecordedSound('slap',at),
   palm:at=>playRecordedSound('palm-slap',at),
@@ -2790,7 +2793,7 @@ function authSlapNpc(attId,it){const a=chars.get(attId);if(!FEAT.bbq||!a||!it||i
   if(it.def.melee==='stun'){ // raw meat or fish: always works, a short stun to buy an escape. He's angrier each time, so the stun gets shorter and the chase after it gets longer
     const scoring=state==='play'&&gameMode!=='heist';let pts=0;if(scoring&&stats[attId]){pts=NPC_STUN_PTS;stats[attId].score+=pts;scoreDirty=true;}
     const sd=stunDur();NPC.state='stunned';NPC.stateT=sd;NPC.target=attId;NPC.stunAfter=chaseDur();NPC.angerLevel=Math.min(ANGER_MAX,NPC.angerLevel+1);
-    it.uses=(it.uses||it.def.uses||SLAP_USES)-1;fx('nstun',attId,r1(sd),pts,pick(NPC_LINES.stunned));
+    it.uses=(it.uses||it.def.uses||SLAP_USES)-1;fx('nstun',attId,r1(sd),pts,pick(NPC_LINES.stunned),TYPES.indexOf(it.type));
     if(it.uses<=0){fx('poof',r2(a.pos.x),r2(a.pos.y+1.3),r2(a.pos.z));removeItem(it);}return;}
   const o=1+Math.floor(Math.random()*3),scoring=state==='play';let pts=0;if(scoring&&stats[attId]){pts=NPC_SLAP_PTS[o-1];stats[attId].score+=pts;scoreDirty=true;}
   if(o===1){NPC.state='ko';NPC.stateT=8;NPC.target=null;NPC.anger.clear();
@@ -3097,7 +3100,7 @@ function playFx(a){
       feed(`${nm(aid)} slapped ${nm(vid)} <em>${label}</em>${bounty?' ♛':''}`);}
   }else if(k==='mslap'){const aid=a[1],vid=a[2],type=(ITEM_DEFS[TYPES[a[3]]]||{}).melee==='stun'?TYPES[a[3]]:'steak',ST=ITEM_DEFS[type].slapStun||MEAT_STUN,kd=new V3(num(a[4],0),0,num(a[5],1)),scoring=!!a[6],gain=num(a[7],0),tk=!!a[8];
     const at=chars.get(aid),vc=chars.get(vid);if(at)at.swingT=.28;if(vc){vc.lastHitBy=aid;vc.lastHitT=elapsed;}
-    if(vc){const hp=vc.pos.clone().setY(vc.pos.y+1.3-(vc.sink||0));if(type==='noodle'){playRecordedSound('noodle-slap',hp);SFX.boing(hp);}else SFX.slap(hp);
+    if(vc){const hp=vc.pos.clone().setY(vc.pos.y+1.3-(vc.sink||0));if(type==='noodle'){playRecordedSound('noodle-slap',hp);SFX.boing(hp);}else playRecordedSound(type==='fish'?'fish-slap':'steak-slap',hp);
       burst(hp,type==='fish'?[0xc9d6de,0x8aa4b4,0xffffff,0x6fa8c8]:type==='noodle'?[0xff5fa8,0xffd23f,0xffffff,0x9ee3ff]:[0xc4455a,0xf2d2c8,0x8a1f2c],20,4,.06);
       vc.dizzyT=ST;
       {const sm=num(a[10],0)|0;if(type==='fish'&&sm>0){vc.smellT=sm===2?9:5;vc.smellBad=sm===2;vc.smellAcc=0;
@@ -3125,13 +3128,13 @@ function playFx(a){
       feed(`${nm(tid)} sent ${nm(a[2])} ${kind==='pool'?'into the pool':'onto the tramp'} <em>${lbl}</em>`);}
   }else if(k==='emote'){const c=chars.get(a[1]),list=EMOTES[a[2]];if(c&&list&&!(c===me&&me.emote&&me.emote.t<.8))startEmote(c,a[2],num(a[3],0)|0);
   }else if(k==='nslap'){const aid=a[1],o=clamp(a[2]|0,1,3),type=TYPES[a[3]]||'steak',pts=num(a[4],0),at=chars.get(aid);if(at)at.swingT=.28;
-    const hp=NPC.pos.clone().setY(1.6);SFX.slap(hp);burst(hp,type==='fish'?[0xc9d6de,0x8aa4b4,0xffffff]:type==='dildo'?[0xa44de0,0xe2b8ff,0xffffff]:[0xc4455a,0xf2d2c8,0x8a1f2c],24,5,.07);
+    const hp=NPC.pos.clone().setY(1.6);if(type==='fish'||type==='steak')playRecordedSound(type+'-slap',hp);else SFX.slap(hp);burst(hp,type==='fish'?[0xc9d6de,0x8aa4b4,0xffffff]:type==='dildo'?[0xa44de0,0xe2b8ff,0xffffff]:[0xc4455a,0xf2d2c8,0x8a1f2c],24,5,.07);
     const lbl=NPC_SLAPS[o-1];floater(lbl,NPC.pos.clone().setY(3.5),'big');if(typeof a[5]==='string')npcBubble(a[5].slice(0,40));SFX.babble(NPC.pos);
     if(o===1){NPC.koAge=0;SFX.thud(NPC.pos);}if(o===3){for(const f of grillFood)f.flip=.4;burst(new V3(-6,1.3,-18),[0x6e2a1a,0x9b4a2a,0x444444],30,6,.08);SFX.clonk(new V3(-6,1,-18));}
     if(aid===myId&&pts)floater('+'+pts+' chef slap',NPC.pos.clone().setY(4.1),'small');
     feed(`${nm(aid)} slapped <b style="color:#ff9f1c">Dazza</b> <em>${lbl}</em>`);
   }else if(k==='nstun'){const aid=a[1],sd=num(a[2],1),pts=num(a[3],0),at=chars.get(aid);
-    const hp=NPC.pos.clone().setY(1.6);SFX.slap(hp);SFX.babble(hp);burst(hp,[0xc4455a,0xf2d2c8,0xffd0c6],20,5,.07);
+    const hp=NPC.pos.clone().setY(1.6),type=TYPES[a[5]];if(type==='fish'||type==='steak')playRecordedSound(type+'-slap',hp);else SFX.slap(hp);SFX.babble(hp);burst(hp,[0xc4455a,0xf2d2c8,0xffd0c6],20,5,.07);
     floater('STUNNED! RUN!',NPC.pos.clone().setY(3.2),'big');if(typeof a[4]==='string')npcBubble(a[4].slice(0,40));
     if(aid===myId&&pts)floater('+'+pts+' cheeky escape',NPC.pos.clone().setY(3.9),'small');
     feed(`${nm(aid)} stunned <b style="color:#ff9f1c">Dazza</b> and bolted!`);
@@ -3435,7 +3438,7 @@ function updateChar(ch,dt){
     if(ch.kind==='me'){shake=Math.max(shake,.03+.015*n);if(n===TRAMP_MAX&&!ch.maxShown){ch.maxShown=true;floater('MAX HEIGHT!',camera.position.clone().add(fwd(me).multiplyScalar(2.2)).setY(camera.position.y+.3),'big');}}}
   else if(ch.pos.y<=floor){ch.trampChain=false;ch.trampN=0;ch.maxShown=false;if(ch.kind==='me'&&ch.vel.y<-10)shake=Math.max(shake,.05);
     if(!ch.grounded&&fallV<-4){
-      if(gameMode==='heist'&&ch.chuckBy&&elapsed-ch.chuckT<3)playRecordedSound('landing',ch.pos);
+      if(gameMode==='heist'&&ch.chuckBy&&elapsed-ch.chuckT<3)SFX.land(ch.pos);
       else if(ch.kind==='me') SFX.land(ch.pos);
     }
     ch.pos.y=floor;ch.vel.y=0;ch.grounded=true;}
@@ -3460,7 +3463,7 @@ function updateProxy(ch,dt){
   ch.pos.lerp(tmpV,1-Math.exp(-16*dt));ch.vel.copy(ch.netV);
   ch.grounded=Math.abs(ch.netV.y)<.6;
   if(gameMode==='heist'&&ch.chuckBy&&elapsed-ch.chuckT>.35&&ch.grounded&&ch.pos.y<=floorAt(ch)+.25){
-    if(elapsed-ch.chuckT<3)playRecordedSound('landing',ch.pos);
+    if(elapsed-ch.chuckT<3)SFX.land(ch.pos);
     ch.chuckBy=null;
   }
   ch.inPool=inActivePool(ch.pos)&&ch.pos.y<.1;

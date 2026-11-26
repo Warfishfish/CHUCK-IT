@@ -330,7 +330,7 @@ pub(crate) fn step_player(
     if ev.splash {
         g.fx(crate::fx::FxKind::Splash, bbq_core::vec::V3::new(p.mover.x, bbq_core::yard::WATER_Y, p.mover.z));
     } else if ev.hard_landing {
-        g.fx(crate::fx::FxKind::Dust, bbq_core::vec::V3::new(p.mover.x, 0.1, p.mover.z));
+        g.fx(crate::fx::FxKind::BodyLanding, bbq_core::vec::V3::new(p.mover.x, 0.1, p.mover.z));
     }
     if ev.bounce.is_some() {
         g.fx(crate::fx::FxKind::Dust, bbq_core::vec::V3::new(p.mover.x, bbq_core::yard::TRAMP_H, p.mover.z));

@@ -695,7 +695,7 @@ pub fn step_game(
 
     for i in newly_fallen {
         let at = V3::new(g.dummies[i].mover.x, 0.15, g.dummies[i].mover.z);
-        g.fx(crate::fx::FxKind::Dust, at);
+        g.fx(crate::fx::FxKind::BodyLanding, at);
         let name = crate::characters::BLOB_NAMES[i % crate::characters::BLOB_NAMES.len()];
         let lines = [
             "{N} IS ABSOLUTELY WRECKED AND HAS FACE-PLANTED. GO HELP!",
@@ -1553,6 +1553,7 @@ mod tests {
             g.dummies[0].body.stun
         );
         assert_eq!(g.board.score(PLAYER_ID), 50);
+        assert!(g.fx.iter().any(|cue| cue.kind == crate::fx::FxKind::SteakSlap));
         let id = g.slots.selected().unwrap();
         assert_eq!(g.world.items[&id].uses, Some(2));
         assert_eq!(

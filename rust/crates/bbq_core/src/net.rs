@@ -13,7 +13,7 @@
 
 /// Bump this whenever a message changes, so old and new copies of the game refuse each other
 /// politely instead of misreading each other.
-pub const PROTOCOL: u16 = 34; // Select item zero stows a single held item for bare hands.
+pub const PROTOCOL: u16 = 35; // Distinct effects for fish, steak, and body landings.
 /// One signed byte, neutral exactly zero. Cosmetic only; never used to validate a throw.
 pub fn pack_pitch(pitch: f32) -> i8 {
     if !pitch.is_finite() { return 0; }

@@ -42,11 +42,14 @@ pub enum FxKind {
     PalmSlap,
     NoodleSlap,
     OpeningDrop,
+    FishSlap,
+    SteakSlap,
+    BodyLanding,
 }
 
 impl FxKind {
     // (new kinds go on the end: the position is the number sent online)
-    pub const ALL: [FxKind; 16] = [
+    pub const ALL: [FxKind; 19] = [
         FxKind::Hit,
         FxKind::Smash,
         FxKind::Whack,
@@ -63,6 +66,9 @@ impl FxKind {
         FxKind::PalmSlap,
         FxKind::NoodleSlap,
         FxKind::OpeningDrop,
+        FxKind::FishSlap,
+        FxKind::SteakSlap,
+        FxKind::BodyLanding,
     ];
 
     /// What a bottle (or the VP can) does when it breaks.
@@ -76,7 +82,12 @@ impl FxKind {
     }
 
     pub fn held_slap(kind: ItemKind) -> Self {
-        if kind == ItemKind::Noodle { Self::NoodleSlap } else { Self::Whack }
+        match kind {
+            ItemKind::Fish => Self::FishSlap,
+            ItemKind::Steak => Self::SteakSlap,
+            ItemKind::Noodle => Self::NoodleSlap,
+            _ => Self::Whack,
+        }
     }
 
     /// Leaves a stain on the ground (where a drink went everywhere).
@@ -190,12 +201,15 @@ struct HeistAudio {
     balloon: Handle<AudioSource>,
     pool: Handle<AudioSource>,
     can: Handle<AudioSource>,
+    glass_break: Handle<AudioSource>,
+    fish_slap: Handle<AudioSource>,
+    steak_slap: Handle<AudioSource>,
+    body_land: Handle<AudioSource>,
     grass: Vec<Handle<AudioSource>>,
 }
 
 #[derive(Resource)]
 struct PreviewAudio {
-    balloon: Handle<AudioSource>,
     can: Handle<AudioSource>,
     sprinkler: Handle<AudioSource>,
     bbq: Handle<AudioSource>,
@@ -205,7 +219,6 @@ fn load_heist_audio(mut commands: Commands, assets: Res<AssetServer>) {
     let preview = sound_preview_enabled();
     if preview {
         commands.insert_resource(PreviewAudio {
-            balloon: assets.load("audio/preview/balloon.wav"),
             can: assets.load("audio/preview/can.wav"),
             sprinkler: assets.load("audio/preview/sprinkler.wav"),
             bbq: assets.load("audio/preview/bbq.wav"),
@@ -224,6 +237,10 @@ fn load_heist_audio(mut commands: Commands, assets: Res<AssetServer>) {
         balloon: assets.load("audio/gameplay/balloon.wav"),
         pool: assets.load("audio/gameplay/pool.wav"),
         can: assets.load("audio/gameplay/can.wav"),
+        glass_break: assets.load("audio/gameplay/glass-break.wav"),
+        fish_slap: assets.load("audio/gameplay/fish-slap.wav"),
+        steak_slap: assets.load("audio/gameplay/steak-slap.wav"),
+        body_land: assets.load("audio/gameplay/body-land.wav"),
         grass: (1..=grass_preview_count())
             .map(|i| assets.load(format!("audio/grass-preview/step-{i:02}.wav")))
             .collect(),
@@ -265,19 +282,22 @@ fn play_recorded_audio(
     for cue in &game.fx {
         let (sound, range, minimum, gain) = match cue.kind {
             FxKind::HeistThrow if heist => (&sounds.throw, 27.0, 0.0, 0.52),
-            FxKind::HeistLanding if heist => (&sounds.landing, 30.0, 0.0, 0.58),
+            FxKind::HeistLanding if heist => (&sounds.body_land, 30.0, 0.0, 0.58),
             FxKind::HeistHatch if heist => (&sounds.hatch, 34.0, 0.0, 0.57),
             FxKind::HeistBank if heist => (&sounds.bank, 36.0, 0.25, 0.44),
-            FxKind::BalloonBurst => (sample(|p| &p.balloon, &sounds.balloon), 24.0, 0.0, 0.62),
+            FxKind::BalloonBurst => (&sounds.balloon, 24.0, 0.0, 0.62),
             FxKind::Splash => (&sounds.pool, 20.0, 0.0, 0.58),
             FxKind::Smash | FxKind::Fizz => (sample(|p| &p.can, &sounds.can), 16.0, 0.0, 0.48),
-            FxKind::Shatter | FxKind::ShatterSpirit => (&sounds.can, 18.0, 0.0, 0.50),
+            FxKind::Shatter | FxKind::ShatterSpirit => (&sounds.glass_break, 18.0, 0.0, 0.50),
             FxKind::Whack => (&sounds.slap, 18.0, 0.0, 0.58),
+            FxKind::FishSlap => (&sounds.fish_slap, 18.0, 0.0, 0.58),
+            FxKind::SteakSlap => (&sounds.steak_slap, 18.0, 0.0, 0.58),
             FxKind::PalmSlap => (&sounds.palm_slap, 18.0, 0.0, 0.58),
             FxKind::NoodleSlap => (&sounds.noodle_slap, 18.0, 0.0, 0.58),
             FxKind::OpeningDrop if opening_played < 4 => (&sounds.impact, 29.0, 0.0, 0.32),
             FxKind::Hit => (&sounds.impact, 22.0, 0.0, 0.57),
             FxKind::Dust => (&sounds.landing, 16.0, 0.0, 0.25),
+            FxKind::BodyLanding => (&sounds.body_land, 16.0, 0.0, 0.50),
             _ => continue,
         };
         let near = (1.0 - (cue.at - listener).len() / range).max(minimum);
@@ -909,12 +929,12 @@ fn spawn_events(
         if low && e.kind != FxKind::BalloonBurst { continue; }
         let (list, life): (Vec<&Handle<EffectAsset>>, f32) = match e.kind {
             FxKind::Hit => (vec![&fx.stars, &fx.puff], 1.2),
-            FxKind::Whack | FxKind::PalmSlap | FxKind::NoodleSlap => (vec![&fx.stars], 1.0),
+            FxKind::Whack | FxKind::PalmSlap | FxKind::NoodleSlap | FxKind::FishSlap | FxKind::SteakSlap => (vec![&fx.stars], 1.0),
             FxKind::Smash => (vec![&fx.foam, &fx.puff], 1.4),
             FxKind::Splash => (vec![&fx.splash], 1.8),
             FxKind::BalloonBurst if low => (vec![&fx.balloon], 1.0),
             FxKind::BalloonBurst => (vec![&fx.balloon, &fx.mist], 1.2),
-            FxKind::Dust => (vec![&fx.dust], 1.6),
+            FxKind::Dust | FxKind::BodyLanding => (vec![&fx.dust], 1.6),
             FxKind::Shatter => (vec![&fx.shards, &fx.foam, &fx.puff], 1.4),
             FxKind::ShatterSpirit => (vec![&fx.clear_shards, &fx.rum, &fx.puff], 1.4),
             FxKind::Fizz => (vec![&fx.fizz, &fx.puff], 1.4),

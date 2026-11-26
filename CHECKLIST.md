@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.68 ships the approved Backyard foley. Glass has a distinct shatter, balloons snap and splat, fish and steak have their own slaps, and hard landings use a recorded thud. The legacy browser uses the updated fish, steak and landing cues. Rust online protocol 35 identifies the new effects.
+
 - Prototype 0.23.67 uses InspectorJ’s recorded Pool Jump H for pool entry on Mac and both browser builds. The clip starts at water contact and keeps the short wash that follows. The credits include the author, source and licence.
 
 - Prototype 0.23.66 adds Settings to the Rust main menu and separates audio, display and controller preferences from Match options. Solo puts map selection and Play together. With mates puts hosting and the room code above the server address. Lobby hosts open Match options and return to the same room.

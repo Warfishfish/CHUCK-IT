@@ -21,7 +21,7 @@ pub fn fall(g:&mut Game,p:&mut Player,id:u32,item:u32) {
   V3::new(d.mover.x,d.mover.y+1.0,d.mover.z)
  };
  g.world.drop_item(item,pos,Some((id,g.now+hands::OVERHOLD_BLOCK)));
- g.fx(crate::fx::FxKind::Dust,V3::new(pos.x,0.1,pos.z));
+ g.fx(crate::fx::FxKind::BodyLanding,V3::new(pos.x,0.1,pos.z));
  g.say("Held it too long! Back on your feet in a moment.");
 }
 pub fn tick(g:&mut Game,p:&mut Player) {
