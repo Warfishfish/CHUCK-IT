@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Held water balloons sway and squash with the player’s footsteps, then settle when they stop. The local and other-player views use the same animation.
+
 - Rust Backyard props including the compost bin, pool rack, hose reel, birdbath and wheelbarrow block movement. Stand behind the wheelbarrow and press V to push or release it. Press R beside the tray to ride or dismount. The rider draws from a 20-balloon stock. Press R beside the pool attendant to refill it.
 
 - Prototype 0.23.72 gives the polished Backyard warm directional sunlight, cooler shade and a softer distant skyline. The existing lights and shadow maps carry the new look.

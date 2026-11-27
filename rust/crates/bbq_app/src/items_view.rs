@@ -46,9 +46,49 @@ struct ItemMotion {
     spin: f32,
     axis: Vec3,
     rest: Quat,
+    balloon: BalloonJiggle,
 }
 impl Default for ItemMotion {
-    fn default() -> Self { Self { ready:false, state:ItemState::Ground, velocity:Vec3::ZERO, spin:0.0, axis:Vec3::X, rest:Quat::IDENTITY } }
+    fn default() -> Self { Self { ready:false, state:ItemState::Ground, velocity:Vec3::ZERO, spin:0.0, axis:Vec3::X, rest:Quat::IDENTITY, balloon:BalloonJiggle::default() } }
+}
+
+/// The latex follows the grip, with a second, delayed motion from the water inside.
+#[derive(Default)]
+struct BalloonJiggle {
+    phase: f32,
+    speed: f32,
+    offset: Vec2,
+    velocity: Vec2,
+}
+
+impl BalloonJiggle {
+    fn step(&mut self, speed: f32, dt: f32) {
+        let dt = dt.clamp(0.0, 0.05);
+        let speed = (speed / 7.0).clamp(0.0, 1.0);
+        let prior = self.speed;
+        self.speed = crate::locomotion::ease(prior, speed, 12.0, dt);
+        self.phase = (self.phase + (8.0 + 5.0 * self.speed) * dt) % std::f32::consts::TAU;
+        let drive = Vec2::new(self.phase.sin(), (2.0 * self.phase + 0.55).cos()) * self.speed;
+        self.velocity.x += (self.speed - prior) * 2.4;
+        let steps = (dt * 120.0).ceil().max(1.0) as u32;
+        let step = dt / steps as f32;
+        for _ in 0..steps {
+            self.velocity += (drive * Vec2::new(13.0, 19.0)
+                - self.offset * Vec2::new(110.0, 190.0)
+                - self.velocity * 9.0) * step;
+            self.offset += self.velocity * step;
+        }
+    }
+
+    fn pose(&self, transform: &mut Transform, charge: f32) {
+        let sway = self.offset.x.clamp(-0.24, 0.24);
+        let squeeze = self.offset.y.clamp(-0.16, 0.16);
+        let height = 1.04 + squeeze - charge * 0.10;
+        let width = height.sqrt().recip();
+        transform.scale *= Vec3::new(width, height, width);
+        transform.rotation *= Quat::from_euler(EulerRot::XYZ, squeeze * 0.65, 0.0, sway * 1.5);
+        transform.translation += transform.rotation * Vec3::new(sway * 0.18, squeeze * 0.15, 0.0);
+    }
 }
 
 fn launch_spin(kind: ItemKind, speed: f32, scale: f32) -> f32 {
@@ -327,6 +367,12 @@ fn sync_items(
                             tf.rotation = Quat::IDENTITY;
                         }
                         tf.scale = Vec3::splat(0.85);
+                        if it.kind == ItemKind::WaterBalloon {
+                            let speed = it.holder.and_then(|id| game.dummies.iter().find(|d| d.id == id))
+                                .filter(|d| d.mover.grounded).map_or(0.0, |d| d.mover.speed());
+                            motion.balloon.step(speed, dt);
+                            motion.balloon.pose(&mut tf, 0.0);
+                        }
                     }
                     None => *v = Visibility::Hidden,
                 }
@@ -386,6 +432,9 @@ fn sync_items(
                 }
             }
         }
+        if it.kind == ItemKind::WaterBalloon && it.state != ItemState::Held {
+            motion.balloon = BalloonJiggle::default();
+        }
         motion.ready=true;
         motion.state=it.state;
         motion.velocity=velocity;
@@ -429,6 +478,7 @@ fn sync_viewmodel(
     mut shown: Local<Option<(ItemKind, ModelKey)>>,
     time: Res<Time>,
     mut ease: Local<(f32,f32)>,
+    mut balloon: Local<BalloonJiggle>,
 ) {
     let selected = game
         .slots
@@ -450,6 +500,7 @@ fn sync_viewmodel(
     }) else {
         *vis = Visibility::Hidden;
         *shown = None;
+        *balloon = BalloonJiggle::default();
         return;
     };
     if shown.map(|s| s.1) != Some(key) {
@@ -504,14 +555,14 @@ fn sync_viewmodel(
     tf.scale = Vec3::splat(scale);
     // Make space for the catch gesture without changing the actual catch window or throw origin.
     tf.translation += Vec3::new(0.08,-0.10,0.05)*ease.1;
-    if kind==ItemKind::WaterBalloon {
-        // Visual water weight: restrained lag and volume-preserving squash, no physics change.
-        let movement=(player.mover.speed()/8.0).clamp(0.0,1.0);
-        let flex=(player.walk*0.7-0.5).sin()*0.055*movement;
-        let sy=1.06+flex-c*0.10;
-        tf.scale*=Vec3::new(1.0/sy.sqrt(),sy,1.0/sy.sqrt());
-        tf.translation+=Vec3::new(0.015,-0.035,-0.035);
-        tf.rotation*=Quat::from_rotation_z(-0.12+flex*1.8);
+    if kind == ItemKind::WaterBalloon {
+        let speed = if player.mover.grounded { player.mover.speed() } else { 0.0 };
+        balloon.step(speed, time.delta_secs());
+        tf.translation += Vec3::new(0.015, -0.035, -0.035);
+        tf.rotation *= Quat::from_rotation_z(-0.12);
+        balloon.pose(&mut tf, c);
+    } else {
+        *balloon = BalloonJiggle::default();
     }
     // your own slap: the browser's swing across the screen (right to left, tip whipping through)
     if game.life.me_swing > 0.0 && bbq_core::items::ItemKind::def(kind).melee != Melee::None {
@@ -859,6 +910,28 @@ fn rand01(a: i32, seed: f32, k: u32) -> f32 {
 #[cfg(test)]
 mod flop_tests {
     use super::*;
+
+    #[test]
+    fn walking_jiggles_a_balloon_and_stopping_lets_it_settle() {
+        for fps in [30, 60, 120] {
+            let dt = 1.0 / fps as f32;
+            let mut jiggle = BalloonJiggle::default();
+            let mut maximum = 0.0_f32;
+            for _ in 0..fps * 3 {
+                jiggle.step(6.2, dt);
+                maximum = maximum.max(jiggle.offset.length());
+                let mut shape = Transform::IDENTITY;
+                jiggle.pose(&mut shape, 0.0);
+                assert!((shape.scale.element_product() - 1.0).abs() < 0.001);
+            }
+            assert!((0.06..0.30).contains(&maximum), "{fps} fps: {maximum}");
+            jiggle.step(0.0, dt);
+            assert!(jiggle.offset.length() > 0.01);
+            for _ in 0..fps * 2 { jiggle.step(0.0, dt); }
+            assert!(jiggle.offset.length() < 0.003);
+        }
+    }
+
 
     #[test]
     fn large_rubber_items_tumble_slower_and_rest_preserves_heading() {
