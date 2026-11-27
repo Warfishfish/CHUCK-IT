@@ -135,18 +135,17 @@ pub fn shade_of(part: TintPart, base: u32) -> u32 {
     (ch(16) << 16) | (ch(8) << 8) | ch(0)
 }
 
-fn sun_faded(
+fn owner_character(
     owner: FaceOwner,
     settings: &Settings,
     cast: &crate::characters::Cast,
     online: Option<&crate::online::Online>,
-) -> bool {
-    let character = match owner {
+) -> Option<Character> {
+    match owner {
         FaceOwner::Preview => Some(settings.character),
         FaceOwner::Blob(i) => Some(cast.character_of(i)),
         FaceOwner::Lobby(id) => online.and_then(|o| crate::lobby::lobby_look(o, settings, id)).map(|l| l.0),
-    };
-    matches!(character, Some(Character::Egg | Character::Gumdrop))
+    }
 }
 
 /// Paint every tinted mesh in its owner's colours. Bots keep their own body colours (only their
@@ -187,15 +186,16 @@ fn sync_tints(
             TintPart::Thong => look.colour(Palette::Thong),
             TintPart::Shorts => look.colour(Palette::Shorts),
         };
-        // cloth also shows its dirt (the Dirty slider): part of what is shown
-        let worn = sun_faded(t.owner, &settings, &cast, online.as_deref())
+        let character = owner_character(t.owner, &settings, &cast, online.as_deref());
+        let worn = matches!(character, Some(Character::Egg | Character::Gumdrop))
             && matches!(t.part, TintPart::Singlet | TintPart::Thong);
-        let colour = if worn {
-            Srgba::from(crate::models::hex(colour)).mix(&Srgba::hex("c6ad8c").unwrap(), 0.19).to_u8_array()
+        // Work in the same linear colour space as the rest of the material palette.
+        let base = crate::models::hex(colour).to_linear();
+        let tint = if worn {
+            base.mix(&LinearRgba::new(0.66, 0.55, 0.40, 1.0), 0.16)
         } else {
-            [(colour >> 16) as u8, (colour >> 8) as u8, colour as u8, 255]
+            base
         };
-        let colour = u32::from_be_bytes([0, colour[0], colour[1], colour[2]]);
         let dirt = if matches!(t.part, TintPart::Singlet | TintPart::Shorts) { crate::dirt::level_of(look.dirt) } else { 0 };
         let shown_key = colour | (dirt as u32) << 24 | (u32::from(worn) << 31);
         if shown.map(|s| s.0) == Some(shown_key) {
@@ -209,10 +209,10 @@ fn sync_tints(
                     mats.add(crate::style::body_material(crate::models::hex(colour), &assets))
                 } else if matches!(t.part, TintPart::Singlet | TintPart::Shorts) {
                     let picture = dirt_kit.picture(dirt, &mut images);
-                    mats.add(crate::style::cloth_material(crate::models::hex(colour), &assets, picture))
+                    mats.add(crate::style::cloth_material(tint.into(), &assets, picture))
                 } else {
                     mats.add(StandardMaterial {
-                        base_color: crate::models::hex(colour),
+                        base_color: tint.into(),
                         perceptual_roughness: if worn { 0.83 } else { 0.45 },
                         reflectance: if worn { 0.18 } else { 0.35 },
                         base_color_texture: worn.then(|| assets.load("textures/plastic.png")),
@@ -887,24 +887,40 @@ fn shape_heads(
     }
 }
 
-/// One cached vertex gradient per source mesh. No shader pass or per-frame mesh work.
-#[derive(Component)] struct SkinGradient;
+/// The meshes share paint between every instance of the same shape and clothing.
+#[derive(Component)]
+struct FinishPaint;
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum Paint {
+    Skin,
+    Cheeks,
+    EggSinglet,
+    GumdropSinglet,
+}
+
 fn gradient_skin(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    q: Query<(Entity, &LookTint, &Mesh3d), Without<SkinGradient>>,
+    q: Query<(Entity, &LookTint, &Mesh3d), Without<FinishPaint>>,
     settings: Res<Settings>,
     cast: Res<crate::characters::Cast>,
     online: Option<Res<crate::online::Online>>,
-    mut cache: Local<std::collections::HashMap<(AssetId<Mesh>, bool), Handle<Mesh>>>,
+    mut cache: Local<std::collections::HashMap<(AssetId<Mesh>, Paint), Handle<Mesh>>>,
 ) {
     if bbq_core::finish::DETAIL_LEVEL == 0 { return; }
     for (entity, tint, handle) in &q {
-        if !matches!(tint.part, TintPart::Body | TintPart::Head) { continue; }
-        let cheeks = tint.part == TintPart::Head && sun_faded(tint.owner, &settings, &cast, online.as_deref());
-        let key = (handle.0.id(), cheeks);
+        let character = owner_character(tint.owner, &settings, &cast, online.as_deref());
+        let paint = match (tint.part, character) {
+            (TintPart::Singlet, Some(Character::Egg)) => Paint::EggSinglet,
+            (TintPart::Singlet, Some(Character::Gumdrop)) => Paint::GumdropSinglet,
+            (TintPart::Head, Some(Character::Egg | Character::Gumdrop)) => Paint::Cheeks,
+            (TintPart::Body | TintPart::Head, _) => Paint::Skin,
+            _ => continue,
+        };
+        let key = (handle.0.id(), paint);
         if let Some(mesh) = cache.get(&key) {
-            commands.entity(entity).insert((Mesh3d(mesh.clone()), SkinGradient));
+            commands.entity(entity).insert((Mesh3d(mesh.clone()), FinishPaint));
             continue;
         }
         let Some(mut mesh) = meshes.get(&handle.0).cloned() else { continue; };
@@ -914,23 +930,49 @@ fn gradient_skin(
             |(lo, hi), p| (lo.min(p), hi.max(p)),
         );
         let span = (hi - lo).max(Vec3::splat(0.001));
-        let colors: Vec<[f32; 4]> = positions.iter().map(|&p| {
-            let uvw = (Vec3::from_array(p) - lo) / span;
-            let shade = 1.0 - bbq_core::finish::GRADIENT_DEPTH * (1.0 - uvw.y)
-                * bbq_core::finish::DETAIL_LEVEL.min(2) as f32;
-            let blush = if cheeks {
-                let x = ((uvw.x - 0.5).abs() - 0.25) / 0.11;
-                let y = (uvw.y - 0.40) / 0.105;
-                (-x*x-y*y).exp() * ((uvw.z - 0.64) / 0.22).clamp(0.0, 1.0)
-            } else { 0.0 };
-            [(shade + blush * 0.24).min(1.0), shade * (1.0 - blush * 0.19),
-                shade * (1.0 - blush * 0.10), 1.0]
+        let colors: Vec<[f32; 4]> = positions.iter().map(|&point| {
+            paint_colour(paint, (Vec3::from_array(point) - lo) / span)
         }).collect();
         mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
         let mesh = meshes.add(mesh);
         cache.insert(key, mesh.clone());
-        commands.entity(entity).insert((Mesh3d(mesh), SkinGradient));
+        commands.entity(entity).insert((Mesh3d(mesh), FinishPaint));
     }
+}
+
+fn paint_colour(paint: Paint, uvw: Vec3) -> [f32; 4] {
+    // Broad bands keep the singlets identifiable across the yard. The player dye and
+    // dirt texture still multiply over this paint, and the pattern follows the belly morph.
+    let band = |lo: f32, hi: f32, y: f32| {
+        ((y - lo) * 30.0).clamp(0.0, 1.0) * ((hi - y) * 30.0).clamp(0.0, 1.0)
+    };
+    let ivory = Vec3::new(1.0, 0.91, 0.75);
+    let rgb = match paint {
+        Paint::EggSinglet => {
+            let ochre = Vec3::new(0.89, 0.35, 0.07);
+            let blue = Vec3::new(0.045, 0.16, 0.22);
+            ochre.lerp(ivory, band(0.40, 0.69, uvw.y))
+                .lerp(blue, band(0.24, 0.44, uvw.y))
+        }
+        Paint::GumdropSinglet => {
+            let teal = Vec3::new(0.045, 0.44, 0.40);
+            let gold = Vec3::new(0.93, 0.48, 0.10);
+            teal.lerp(ivory, band(0.34, 0.62, uvw.y))
+                .lerp(gold, band(0.15, 0.33, uvw.y))
+        }
+        Paint::Skin | Paint::Cheeks => {
+            let shade = 1.0 - bbq_core::finish::GRADIENT_DEPTH * (1.0 - uvw.y)
+                * bbq_core::finish::DETAIL_LEVEL.min(2) as f32;
+            let blush = if paint == Paint::Cheeks {
+                let x = ((uvw.x - 0.5).abs() - 0.25) / 0.125;
+                let y = (uvw.y - 0.41) / 0.13;
+                (-x*x-y*y).exp() * ((uvw.z - 0.60) / 0.23).clamp(0.0, 1.0)
+            } else { 0.0 };
+            Vec3::new((shade + blush * 0.34).min(1.0), shade * (1.0 - blush * 0.32),
+                shade * (1.0 - blush * 0.18))
+        }
+    };
+    [rgb.x, rgb.y, rgb.z, 1.0]
 }
 
 

@@ -869,17 +869,17 @@ fn rain_tank_and_ladder(polished: bool) -> Vec<Part> {
 }
 
 fn house_styled() -> Vec<Part> {
-    let roof = matt(0xce896a)
-        .textured(Tex::Corrugated)
-        .repeating(20.0, 2.0);
+    let roof = matt(0xfffaf2)
+        .textured(Tex::PostcardRoof)
+        .repeating(5.0, 1.0);
     let mut v = vec![
         cuboid(
             HOUSE_X_HALF * 2.0,
             HOUSE_HEIGHT,
             HOUSE_DEPTH,
-            matt(0xf4e1c5)
-                .textured(Tex::Weatherboard)
-                .repeating(20.0, 3.0),
+            matt(0xffffff)
+                .textured(Tex::PostcardSiding)
+                .repeating(6.0, 2.0),
             0.0,
             HOUSE_HEIGHT * 0.5,
             HOUSE_Z_CENTRE,
@@ -903,7 +903,7 @@ fn house_styled() -> Vec<Part> {
         41.2,
         0.12,
         0.22,
-        matt(0x9b4d3b).material(Tex::Metal, 1.6),
+        matt(0x46766c),
         0.0,
         5.78,
         -29.5,
@@ -965,7 +965,7 @@ fn house_styled() -> Vec<Part> {
     }
     for (i, x) in [-15.0f32, -9.0, -4.0, 8.0, 13.5].into_iter().enumerate() {
         let wob = ((i * 3 % 5) as f32 - 2.0) * 0.012;
-        v.push(cuboid(1.9, 1.5, 0.06, matt(0xefeadc), x, 2.5, -25.47).turn(0.0, 0.0, wob));
+        v.push(cuboid(1.9, 1.5, 0.06, matt(0x477e76), x, 2.5, -25.47).turn(0.0, 0.0, wob));
         v.push(cuboid(1.6, 1.2, 0.08, matt(0x2d4b66), x, 2.5, -25.44).turn(0.0, 0.0, wob));
     }
     v.push(cuboid(1.1, 2.2, 0.08, matt(0x7a4b2e), 3.0, 1.1, -25.44));
@@ -986,7 +986,7 @@ fn house_styled() -> Vec<Part> {
     for (i, x) in posts.iter().enumerate() {
         let lean = ((i * 7 % 5) as f32 - 2.0) * 0.012;
         v.push(
-            cuboid(0.15, 3.0, 0.15, matt(0x7a5e3f), *x, 1.5, vz + vd / 2.0).turn(lean, 0.0, -lean),
+            cuboid(0.15, 3.0, 0.15, matt(0x466c62), *x, 1.5, vz + vd / 2.0).turn(lean, 0.0, -lean),
         );
     }
     for i in 0..4 {
@@ -1001,7 +1001,7 @@ fn house_styled() -> Vec<Part> {
                 len + 0.1,
                 0.1,
                 vd + 0.2,
-                matt(0x8a6a4a),
+                matt(0xf2d9a2),
                 mx,
                 my,
                 vz + vd / 2.0,
@@ -4288,9 +4288,9 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
             }
             Tint::Maze(light) => {
                 if light {
-                    0x648986
+                    0xb68e5b
                 } else {
-                    0x456974
+                    0x31545a
                 }
             }
         };
@@ -4300,7 +4300,10 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
             let x = (c.x0 + c.x1) * 0.5;
             let z = (c.z0 + c.z1) * 0.5;
             let along_x = width > depth;
-            let trim = matt(if light { 0xc59954 } else { 0x7899a1 });
+            let trim = matt(if light { 0x7b6648 } else { 0xbab898 });
+            // Put a pale cap on each interior run for sightlines over the maze.
+            // The flush trim follows the existing wall and has no separate collider.
+            v.push(cuboid(width + 0.018, 0.21, depth + 0.018, matt(0xd5bb83), x, c.h - 0.10, z));
             for fraction in [-0.44, 0.0, 0.44] {
                 let (w, d, px, pz) = if along_x {
                     (0.16, depth + 0.06, x + width * fraction, z)
@@ -4414,7 +4417,10 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
         }
     }
     // the scoreboard's pole (the cube itself is the game's)
-    v.push(cyl(0.3, 0.3, 7.5, 10, matt(0x9aa0a8), 0.0, 3.75, 0.0));
+    v.push(cyl(0.3, 0.3, 7.5, 10, matt(0x284349), 0.0, 3.75, 0.0));
+    for y in [1.1, 2.0, 2.9, 3.8, 4.7, 5.6] {
+        v.push(cyl(0.312, 0.312, 0.34, 10, matt(0xefc177).no_shadow(), 0.0, y, 0.0));
+    }
     v
 }
 

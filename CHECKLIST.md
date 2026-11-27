@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.71 makes the postcard art readable from play distance. Egg wears ochre and ink bands, Gumdrop teal and warm gold. Backyard has a sea-green corrugated roof and cream weatherboards, Bush Servo has cream road edges and striped shelter fascia, and Teddy Heist has contrasting blue and sand wall runs and a striped scoreboard pole.
+
 - Prototype 0.23.70 gives Egg a springier step and firmer landing and Gumdrop a heavier belly follow-through. Both get sun-faded clothing and warmer cheeks. Backyard has a verandah sign, Bush Servo has ochre soil, a worn asphalt loop and enamel signage, and Teddy Heist has a distinctive central depot marker. The visual pass ships in desktop and WebGPU.
 
 - Prototype 0.23.69 lowers distant and overlapping effects, gives banks and Smoko deliveries priority, and adds recorded grill ambience and a Bush Servo service bell. The legacy build mirrors the Backyard ambience and Heist bank mix. Rust online protocol 36 identifies the delivery cue.

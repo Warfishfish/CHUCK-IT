@@ -174,10 +174,10 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
     p.push(road);
     // Thin, worn shoulder paint follows the exact road curve. Two continuous strips avoid
     // dozens of tiny shadow-casting markers and keep the loop readable from player height.
-    for (inner, outer) in [(ROAD_INNER_RADIUS, ROAD_INNER_RADIUS + 0.075),
-                            (ROAD_OUTER_RADIUS - 0.075, ROAD_OUTER_RADIUS)] {
+    for (inner, outer) in [(ROAD_INNER_RADIUS, ROAD_INNER_RADIUS + 0.19),
+                            (ROAD_OUTER_RADIUS - 0.19, ROAD_OUTER_RADIUS)] {
         p.push(Part::new(Shape::Ring { inner, outer, seg: ROAD_SEGMENTS as u32 },
-            Surface::matt(0xbca585).no_shadow())
+            Surface::matt(0xe9c68e).no_shadow())
             .at(0., 0.020, ROAD_CENTRE_Z).turn(-FRAC_PI_2, 0., 0.));
     }
 
@@ -197,11 +197,20 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
         let a=i as f32*TAU/ROAD_SEGMENTS as f32;
         let x=ROAD_DASH_RADIUS*a.sin();let z=ROAD_CENTRE_Z+ROAD_DASH_RADIUS*a.cos();
         let yaw=(ROAD_DASH_RADIUS*a.cos()).atan2(-ROAD_DASH_RADIUS*a.sin());
-        p.push(block(0.10,0.008,0.75,x,0.016,z,0x9f9179).turn(0.,yaw,0.).no_shadow_part());
+        p.push(block(0.16,0.008,1.05,x,0.016,z,0xf0cc71).turn(0.,yaw,0.).no_shadow_part());
     }
     // Level delivery pad: visual ground only, never obstructs throws or carried victims.
     // Existing scoring ring remains legible; earth continues naturally beneath the shelter.
     p.push(Part::new(Shape::Ring{inner:SCORE_RADIUS-0.12,outer:SCORE_RADIUS,seg:96},Surface::matt(0xf5ce69).no_shadow()).at(0.,0.035,10.).turn(-FRAC_PI_2,0.,0.));
+    // Cream and rust fascia follows the existing timber header above the entrances.
+    for (z, direction) in [(14.34, 1.0), (5.66, -1.0)] {
+        let yaw = if direction > 0.0 { 0.0 } else { std::f32::consts::PI };
+        p.push(block(8.35, 0.39, 0.09, 0.0, 3.60, z, 0xa95038).no_shadow_part());
+        for y in [3.47, 3.73] {
+            p.push(block(8.27, 0.045, 0.025, 0.0, y, z + direction * 0.052, 0xf8deb0)
+                .turn(0.0, yaw, 0.0).no_shadow_part());
+        }
+    }
     // Enamel plate hangs below the original SMOKO sign, above the walking lane.
     for x in [-1.82, 1.82] {
         p.push(block(0.09, 0.36, 0.11, x, 3.48, 14.71, TIMBER).no_shadow_part());

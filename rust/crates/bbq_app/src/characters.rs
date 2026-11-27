@@ -1839,8 +1839,8 @@ fn animate_face_and_feet(
         let shape = cast.character_of(i);
         let landing = dr.initialized && d.mover.grounded && !dr.grounded;
         let (step_drop, belly_spring, belly_damping, landing_kick) = match shape {
-            Character::Egg => (2.7, 100.0, 11.0, 12.0),
-            Character::Gumdrop => (5.3, 52.0, 6.5, 8.0),
+            Character::Egg => (2.6, 100.0, 11.0, 14.0),
+            Character::Gumdrop => (6.4, 45.0, 6.5, 8.0),
             _ => (4.2, crate::locomotion::BELLY_STIFFNESS, crate::locomotion::BELLY_DAMPING, 9.0),
         };
         let local = Quat::from_rotation_y(-motion.yaw) * Vec3::new(d.mover.vx, d.mover.vy, d.mover.vz);
@@ -2021,8 +2021,8 @@ fn animate_face_and_feet(
         let (mut offset, pitch) = motion.foot(f.right, crate::legs::lift_of(&game, b.0));
         // Change swing height only: a planted foot stays where the gait put it.
         offset.y *= match cast.character_of(b.0) {
-            Character::Egg => 1.28,
-            Character::Gumdrop => 0.82,
+            Character::Egg => 1.55,
+            Character::Gumdrop => 0.77,
             _ => 1.0,
         };
         tf.translation = f.base + offset;
