@@ -1103,6 +1103,7 @@ mod tests {
         let guest_id = REMOTE_ID_BASE+2;
         {
             let mut g = host.world_mut().resource_mut::<Game>();
+            g.wheelbarrow.paint = Some(4);
             let d = g.dummies.iter_mut().find(|d| d.id==guest_id).unwrap();
             d.mover = bbq_core::movement::Mover::new(x,z-1.85);
         }
@@ -1130,6 +1131,7 @@ mod tests {
         apply_world(&mut g,&mut yard,&snap,2,"Host");
         assert_eq!(g.wheelbarrow.pusher,Some(PLAYER_ID));
         assert_eq!(g.wheelbarrow.yaw, host_yaw);
+        assert_eq!(g.wheelbarrow.paint, Some(4));
         assert!(yard.colliders.iter().any(|c| c.kind==bbq_core::yard::Kind::Wheelbarrow && c.z1>z+0.85));
     }
 

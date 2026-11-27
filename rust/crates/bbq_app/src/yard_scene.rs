@@ -32,6 +32,20 @@ struct NormalYard;
 #[derive(Component)]
 struct WheelbarrowModel;
 #[derive(Component)]
+enum WheelbarrowPaint {
+    Tray,
+    Rim,
+    Liner,
+}
+
+const WHEELBARROW_PALETTE: [[u32; 3]; bbq_core::yard::WHEELBARROW_PAINT_COUNT as usize] = [
+    [0x3786c6, 0x80c5e5, 0x3575a7],
+    [0xc6573b, 0xef9772, 0xaa4d38],
+    [0x739444, 0xb0c779, 0x607d3b],
+    [0xe7ab32, 0xffd27b, 0xb78630],
+    [0x9467b9, 0xc6a2df, 0x78519c],
+];
+#[derive(Component)]
 struct RefillToss(usize);
 #[derive(Component)]
 struct RefillArm;
@@ -207,6 +221,7 @@ impl Plugin for YardScenePlugin {
                     sync_race_return_marker,
                     sync_backyard_cover,
                     sync_wheelbarrow,
+                    paint_wheelbarrow,
                     animate_magpies,
                     animate_garden_visitors,
                 ),
@@ -314,7 +329,21 @@ fn build_yard(
     commands.spawn((
         WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/wheelbarrow.glb"))),
         Transform::default(), Visibility::default(), WheelbarrowModel, ChildOf(yard_root),
-    ));
+    )).observe(|ready: On<bevy::world_serialization::WorldInstanceReady>,
+                children: Query<&Children>,
+                names: Query<&bevy::gltf::GltfMaterialName>,
+                mut commands: Commands| {
+        for entity in children.iter_descendants(ready.entity) {
+            let Ok(name) = names.get(entity) else { continue };
+            let section = match name.0.as_str() {
+                "Wheelbarrow Tray" => WheelbarrowPaint::Tray,
+                "Wheelbarrow Rim" => WheelbarrowPaint::Rim,
+                "Wheelbarrow Liner" => WheelbarrowPaint::Liner,
+                _ => continue,
+            };
+            commands.entity(entity).insert(section);
+        }
+    });
     let (sx,sz) = bbq_core::yard::BALLOON_STATION;
     let station = cache.spawn_parts(&mut commands,&crate::wheelbarrow::station_parts(),
         &mut meshes,&mut mats,Transform::from_xyz(sx,0.,sz));
@@ -698,6 +727,26 @@ fn build_yard(
     commands.spawn((sky, sky_at, crate::servo_finish::YardLight::Fill));
 }
 
+fn paint_wheelbarrow(
+    game: Res<Game>,
+    panels: Query<(&WheelbarrowPaint, &MeshMaterial3d<StandardMaterial>)>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let paint = WHEELBARROW_PALETTE[usize::from(game.wheelbarrow.paint.unwrap_or_default())];
+    for (section, handle) in &panels {
+        let tint = crate::models::hex(match section {
+            WheelbarrowPaint::Tray => paint[0],
+            WheelbarrowPaint::Rim => paint[1],
+            WheelbarrowPaint::Liner => paint[2],
+        });
+        if materials.get(&handle.0).is_some_and(|mat| mat.base_color != tint)
+            && let Some(mut mat) = materials.get_mut(&handle.0)
+        {
+            mat.base_color = tint;
+        }
+    }
+}
+
 fn sync_wheelbarrow(
     game: Res<Game>,
     mut models: Query<&mut Transform, (With<WheelbarrowModel>, Without<RefillToss>, Without<RefillArm>)>,
@@ -705,12 +754,10 @@ fn sync_wheelbarrow(
     mut arms: Query<&mut Transform, (With<RefillArm>, Without<RefillToss>)>,
 ) {
     let (x,z) = game.wheelbarrow.at;
-    let (home_x,home_z) = bbq_core::yard::WHEELBARROW_HOME;
     let rotation = Quat::from_rotation_y(game.wheelbarrow.yaw);
     for mut transform in &mut models {
-        // The exported mesh uses yard coordinates. Turn it around its own base.
         transform.rotation = rotation;
-        transform.translation = Vec3::new(x, 0., z) - rotation * Vec3::new(home_x, 0., home_z);
+        transform.translation = Vec3::new(x, 0., z);
     }
     let progress = game.wheelbarrow.delivery;
     let (sx,sz) = bbq_core::yard::BALLOON_STATION;

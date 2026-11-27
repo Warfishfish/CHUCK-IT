@@ -161,6 +161,7 @@ pub const ROOF_BACK_EDGE_Z: f32 = -34.05;
 pub const WHEELBARROW_HOME: (f32,f32) = (4.2,15.8);
 pub const BALLOON_STATION: (f32,f32) = (-11.0,5.3);
 pub const WHEELBARROW_CAPACITY: u8 = 20;
+pub const WHEELBARROW_PAINT_COUNT: u8 = 5;
 /// Rotate a cart-local offset from a frame whose nose points along positive Z.
 pub fn wheelbarrow_offset((x, z): (f32, f32), yaw: f32) -> (f32, f32) {
     let (sin, cos) = yaw.sin_cos();
@@ -179,8 +180,8 @@ pub fn wheelbarrow_colliders((x, z): (f32, f32), yaw: f32) -> [Collider; 2] {
         )
         .of(Kind::Wheelbarrow)
     };
-    let tray = section(0.20, 1.07, 1.23, 0.78);
-    let mut handles = section(-0.86, 0.80, 0.96, 0.74);
+    let tray = section(0.15, 1.29, 1.65, 0.77);
+    let mut handles = section(-0.88, 1.03, 1.02, 0.74);
     handles.no_top = true;
     [tray, handles]
 }

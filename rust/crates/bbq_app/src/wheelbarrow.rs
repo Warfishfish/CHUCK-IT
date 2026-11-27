@@ -23,11 +23,12 @@ const BACK_UP_ANGLE: f32 = 2.15;
 const REFILL_REACH: f32 = 2.8;
 const REFILL_SECONDS: f32 = 1.7;
 const EMPTY: f32 = 0.0;
-use yard::{BALLOON_STATION, WHEELBARROW_CAPACITY};
+use yard::{BALLOON_STATION, WHEELBARROW_CAPACITY, WHEELBARROW_PAINT_COUNT};
 
 pub struct State {
     pub at: (f32, f32),
     pub yaw: f32,
+    pub paint: Option<u8>,
     pub pusher: Option<PlayerId>,
     pub rider: Option<PlayerId>,
     grip: (f32, f32),
@@ -42,6 +43,7 @@ impl Default for State {
         Self {
             at: WHEELBARROW_HOME,
             yaw: 0.,
+            paint: None,
             pusher: None,
             rider: None,
             grip: (0., 0.),
@@ -54,6 +56,22 @@ impl Default for State {
 }
 
 impl State {
+    pub fn reset_for_round(&mut self, new_match: bool, seed: impl FnOnce() -> u64) {
+        let paint = if new_match {
+            let mut rng = bbq_core::rng::Rng::new(seed());
+            let count = WHEELBARROW_PAINT_COUNT - u8::from(self.paint.is_some());
+            let pick = rng.index(usize::from(count)) as u8;
+            // Skip the previous shade so consecutive matches visibly differ.
+            Some(pick + u8::from(self.paint.is_some_and(|previous| pick >= previous)))
+        } else {
+            self.paint
+        };
+        *self = Self {
+            paint,
+            ..Self::default()
+        };
+    }
+
     pub fn snapshot(&self, net: impl Fn(u32) -> u32) -> WheelbarrowSnap {
         WheelbarrowSnap {
             at: self.at,
@@ -63,6 +81,7 @@ impl State {
             stock: self.stock,
             delivery: self.delivery,
             yaw: self.yaw,
+            paint: self.paint.unwrap_or_default(),
         }
     }
 
@@ -83,6 +102,7 @@ impl State {
             self.stock = cart.stock;
             self.delivery = cart.delivery;
             self.yaw = cart.yaw;
+            self.paint = Some(cart.paint);
         }
     }
 
@@ -520,6 +540,25 @@ mod tests {
     use super::*;
 
     #[test]
+    fn paint_changes_between_matches_and_stays_through_rounds() {
+        let mut cart = State::default();
+        let mut seen = [false; WHEELBARROW_PAINT_COUNT as usize];
+        for seed in (0..120).map(|n| n * 7919) {
+            let previous = cart.paint;
+            cart.reset_for_round(true, || seed);
+            assert_ne!(cart.paint, previous);
+            seen[usize::from(cart.paint.unwrap())] = true;
+
+            let match_paint = cart.paint;
+            cart.at = (0., 0.);
+            cart.reset_for_round(false, || panic!("only a new match rolls paint"));
+            assert_eq!(cart.paint, match_paint);
+            assert_eq!(cart.at, WHEELBARROW_HOME);
+        }
+        assert!(seen.into_iter().all(|paint| paint));
+    }
+
+    #[test]
     fn side_step_steers_around_the_handles_and_stops_turning_at_rest() {
         let yard = Yard::default();
         let mut cart = State {
@@ -559,7 +598,7 @@ mod tests {
         };
         let (x, z) = cart.at;
         yard.colliders
-            .push(yard::Collider::centred(x + 0.71, z + 0.2, 0.10, 0.10, 1.));
+            .push(yard::Collider::centred(x + 0.79, z + 0.2, 0.10, 0.10, 1.));
         let handle = cart.push_towards(&yard, (x + 0.07, z - 1.85));
         assert!((handle.0 - (x + 0.07)).abs() < 0.001);
         assert_eq!(cart.yaw, 0.);

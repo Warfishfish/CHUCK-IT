@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Backyard and Teams use the Blender-modelled Poolside wheelbarrow, with a wide tray for the rider. Each match rolls one of five paint colours and shares it with everyone in the room. Consecutive matches use different colours.
+
 - Backyard wheelbarrow steering follows walking direction with a gradual swing around the handles. It can back up, blocks props with its rotated footprint, and shares its heading in multiplayer.
 
 - Held water balloons sway and squash with the player’s footsteps, then settle when they stop. The local and other-player views use the same animation.

@@ -276,7 +276,8 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
     let setup = g.round.setup.clone();
     // the round's first items already know whether VP cans are glass bottles (Cheeky mode)
     g.world.cheeky = g.options.adult;
-    if g.round.mtch.over || g.round.mtch.no == 0 {
+    let new_match = g.round.mtch.over || g.round.mtch.no == 0;
+    if new_match {
         g.round.totals.clear();
         g.round.mtch = Match::new(if setup.mode == GameMode::Heist {
             1
@@ -315,7 +316,10 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
     g.life.chest.new_round(spot);
     // Clear delivery state on every round/mode transition.
     g.smoko = Default::default();
-    g.wheelbarrow = Default::default();
+    g.wheelbarrow.reset_for_round(
+        new_match && !g.attract && crate::wheelbarrow::available(setup.mode),
+        crate::menu::fresh_seed,
+    );
     g.magpie = Default::default();
     g.charge = Default::default();
     g.flock.clear();g.flock_next=g.now+bbq_core::magpie::FLOCK_INTERVAL;g.flock_until=0.0;
