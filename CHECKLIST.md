@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Rust Backyard props including the compost bin, pool rack, hose reel, birdbath and wheelbarrow block movement. Stand behind the wheelbarrow and press V to push or release it. Press R beside the tray to ride or dismount. The rider draws from a 20-balloon stock. Press R beside the pool attendant to refill it.
+
 - Prototype 0.23.72 gives the polished Backyard warm directional sunlight, cooler shade and a softer distant skyline. The existing lights and shadow maps carry the new look.
 
 - Prototype 0.23.71 makes the postcard art readable from play distance. Egg wears ochre and ink bands, Gumdrop teal and warm gold. Backyard has a sea-green corrugated roof and cream weatherboards, Bush Servo has cream road edges and striped shelter fascia, and Teddy Heist has contrasting blue and sand wall runs and a striped scoreboard pole.

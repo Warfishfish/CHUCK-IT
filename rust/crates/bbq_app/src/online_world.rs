@@ -264,7 +264,9 @@ pub fn build_world(g: &Game, yard: &Yard, seq: u32, feed_after: f32, fx: &[FxEve
     for d in &g.dummies {if d.remote.is_some(){charges.push((net(d.id),if d.bot.winding{d.bot.wind_progress}else{0.0},g.charge.falls.get(&d.id).map_or(0.0,|t|(*t-g.now).max(0.0))));}}
     let flock=g.flock.iter().map(|b|(b.phase,if b.target==0{0}else{net(b.target)},(b.pos.x,b.pos.y,b.pos.z))).collect();
     let heist = g.heist.as_ref().map(|h| crate::heist_quest::snapshot(g, h, yard.hatch_open, net));
-    WorldSnap { heist, flock, charges, magpie, race, wet, seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
+    let wheelbarrow = crate::wheelbarrow::available(g.rules.mode)
+        .then(|| g.wheelbarrow.snapshot(net));
+    WorldSnap { wheelbarrow, heist, flock, charges, magpie, race, wet, seq, now: g.now, round, items, bots, dazza, board, teams, feed, fx }
 }
 
 /// Make this game look like the host's. `my_net` is our own number; `host_name` replaces
@@ -326,6 +328,9 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
         };
     }
     if g.rules.mode==GameMode::Race {yard.race=true;yard.colliders.clear();} else {yard.race=false;}
+    g.wheelbarrow.apply(snap.wheelbarrow,local);
+    yard.set_wheelbarrow(g.wheelbarrow.at);
+    crate::wheelbarrow::pin_peer(g);
     g.race.racers.clear();g.race.throwers.clear();
     if g.rules.mode==GameMode::Race {g.smoko.carries.clear();}
     if g.rules.mode==GameMode::Race {
@@ -1092,6 +1097,37 @@ mod tests {
     }
 
     #[test]
+    fn two_player_wheelbarrow_push_and_refill_are_host_owned() {
+        let mut host = host_with_a_guest_and(0);
+        let (x,z) = bbq_core::yard::WHEELBARROW_HOME;
+        let guest_id = REMOTE_ID_BASE+2;
+        {
+            let mut g = host.world_mut().resource_mut::<Game>();
+            let d = g.dummies.iter_mut().find(|d| d.id==guest_id).unwrap();
+            d.mover = bbq_core::movement::Mover::new(x,z-1.85);
+        }
+        host.world_mut().resource_mut::<Player>().mover = bbq_core::movement::Mover::new(x+1.1,z);
+        act(&mut host,GuestAct::Wheelbarrow { push:true });
+        host.world_mut().resource_mut::<Wanted>().interact_pressed = true;
+        host.world_mut().run_schedule(FixedUpdate);
+        {
+            let mut g = host.world_mut().resource_mut::<Game>();
+            assert_eq!(g.wheelbarrow.rider,Some(PLAYER_ID));
+            assert_eq!(g.wheelbarrow.pusher,Some(guest_id));
+            g.dummies.iter_mut().find(|d| d.id==guest_id).unwrap().mover.z += 0.06;
+        }
+        host.world_mut().run_schedule(FixedUpdate);
+        let snap = build_world(host.world().resource::<Game>(), &host.world().resource::<crate::yard_scene::YardRes>().0, 4,0.,&[]);
+        let mut guest = app();
+        let mut yard = Yard::default();
+        let mut g = guest.world_mut().resource_mut::<Game>();
+        apply_world(&mut g,&mut yard,&snap,2,"Host");
+        assert_eq!(g.wheelbarrow.pusher,Some(PLAYER_ID));
+        assert!(g.wheelbarrow.at.1>z+0.04);
+        assert!(yard.colliders.iter().any(|c| c.kind==bbq_core::yard::Kind::Wheelbarrow && c.z1>z+0.85));
+    }
+
+    #[test]
     fn race_preferences_authority_and_progress_round_trip() {
         let mut host=host_with_a_guest();let guest_id=REMOTE_ID_BASE+2;
         host.world_mut().resource_mut::<Game>().round.timed=false;
@@ -1572,6 +1608,9 @@ pub fn guest_hands(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
         }
     }
     let now = g.now;
+    crate::wheelbarrow::read(g,p,wanted);
+    if let Some(prompt) = crate::wheelbarrow::prompt(g,p) { g.prompt = prompt.into(); }
+    else if crate::wheelbarrow::available(g.rules.mode) && g.prompt.starts_with("Wheelbarrow") { g.prompt.clear(); }
     g.catcher.tick(dt);
     let before = g.slots.selected();
     if wanted.swap != 0 {
@@ -1594,6 +1633,7 @@ pub fn guest_hands(g: &mut Game, p: &mut Player, wanted: &mut Wanted, dt: f32) {
         && g.rules.phase != Phase::Countdown
         && g.me.body.stun <= 0.0
         && let Some(id) = g.slots.selected()
+        && !crate::wheelbarrow::issued(g,id)
     {
         gone(g, id);
         g.wind.cancel();
@@ -1772,6 +1812,11 @@ pub fn apply_guest_act(g: &mut Game, p: &mut Player, net_id: u32, act: &GuestAct
         println!("NET-HOST guest {net_id} asked: {act:?}");
     }
     let id = g.dummies[i].id;
+    if let GuestAct::Wheelbarrow { push } = act {
+        crate::wheelbarrow::input(g,p,id,*push);
+        return;
+    }
+    if let GuestAct::Drop { item } = act && crate::wheelbarrow::issued(g,*item) { return; }
     if let GuestAct::RaceRole{thrower}=act {
         if !g.round.timed || g.rules.phase==Phase::Results {g.race.choices.insert(id,if *thrower{crate::race::Role::Thrower}else{crate::race::Role::Racer});}
         return;
@@ -1808,7 +1853,7 @@ pub fn apply_guest_act(g: &mut Game, p: &mut Player, net_id: u32, act: &GuestAct
                 crate::heist_quest::hand_over(g, id, pos, *item);
             }
         }
-        GuestAct::Charge{..} | GuestAct::RaceRole {..} | GuestAct::RaceTug => {},
+        GuestAct::Charge{..} | GuestAct::RaceRole {..} | GuestAct::RaceTug | GuestAct::Wheelbarrow{..} => {},
         GuestAct::BareSlap => {if can_act {crate::life::guest_bare_slap(g,p,i);}},
         GuestAct::Carry { pressed } => crate::smoko_mode::input(g,p,id,*pressed),
         GuestAct::Select { item } => {

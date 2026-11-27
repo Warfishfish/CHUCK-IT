@@ -167,8 +167,19 @@ pub struct HeistSnap {
     pub escort: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WheelbarrowSnap {
+    pub at: (f32, f32),
+    pub pusher: u32,
+    pub rider: u32,
+    pub balloon: u32,
+    pub stock: u8,
+    pub delivery: f32,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct WorldSnap {
+    pub wheelbarrow: Option<WheelbarrowSnap>,
     pub heist: Option<HeistSnap>,
     /// Host state: id, charge fraction, overhold recovery seconds.
     pub charges: Vec<(u32,f32,f32)>,
@@ -196,6 +207,15 @@ pub struct WorldSnap {
 
 impl WorldSnap {
     pub(crate) fn write(&self, w: &mut Writer) {
+        w.u8(self.wheelbarrow.is_some() as u8);
+        if let Some(cart) = self.wheelbarrow {
+            w.pair(cart.at);
+            w.u32(cart.pusher);
+            w.u32(cart.rider);
+            w.u32(cart.balloon);
+            w.u8(cart.stock);
+            w.f32(cart.delivery);
+        }
         w.u8(self.flock.len().min(crate::magpie::MAX_FLOCK) as u8);
         for &(phase,id,pos) in self.flock.iter().take(crate::magpie::MAX_FLOCK){w.u8(phase);w.u32(id);w.triple(pos);}
         w.u8(self.charges.len().min(MAX_BOARD) as u8);
@@ -306,6 +326,15 @@ impl WorldSnap {
         let count = |r: &mut Reader, max: usize| -> Result<usize, DecodeError> {
             let n = r.u8()? as usize;
             if n > max { Err(DecodeError::TooMany) } else { Ok(n) }
+        };
+        let wheelbarrow = match r.u8()? {
+            0 => None,
+            1 => Some(WheelbarrowSnap {
+                at: r.pair()?, pusher: r.u32()?, rider: r.u32()?, balloon: r.u32()?,
+                stock: r.u8()?.min(crate::yard::WHEELBARROW_CAPACITY),
+                delivery: r.f32()?.clamp(0.0,1.0),
+            }),
+            kind => return Err(DecodeError::UnknownKind(kind)),
         };
         let n=count(r,crate::magpie::MAX_FLOCK)?;let mut flock=Vec::with_capacity(n);
         for _ in 0..n {flock.push((r.u8()?.min(4),r.u32()?,r.triple()?));}
@@ -421,7 +450,7 @@ impl WorldSnap {
         for _ in 0..n {
             fx.push(FxSnap { kind: r.u8()?, at: r.triple()?,scale:r.f32()?.clamp(0.5,2.0) });
         }
-        Ok(WorldSnap { heist, flock, charges, magpie, race, wet, seq, now, round, items, bots, dazza, board, teams, feed, fx })
+        Ok(WorldSnap { wheelbarrow, heist, flock, charges, magpie, race, wet, seq, now, round, items, bots, dazza, board, teams, feed, fx })
     }
 }
 
@@ -432,6 +461,7 @@ mod tests {
 
     fn sample() -> WorldSnap {
         WorldSnap {
+            wheelbarrow: Some(WheelbarrowSnap { at: (4.2,15.8), pusher: 2, rider: 3, balloon: 13, stock: 12, delivery: 0.4 }),
             heist: Some(HeistSnap { banks: [1, 0, 2, 0], hatch_open: true, tipsy: 1.0, requesting: 42, escort: false }),
             charges:vec![(2,0.7,1.5)],flock:vec![(4,2,(1.0,2.0,3.0))],
             magpie:(0,0,(14.0,2.2,23.05)),
@@ -523,11 +553,10 @@ mod tests {
     #[test]
     fn too_many_things_are_refused() {
         let good = Msg::World(Box::new(sample())).encode();
-        // the item count byte follows: 1 kind + 4 seq + 4 now + 3 + 4 + 4 + 2 + 8 + 1 + banner
         let mut s = sample();
-        s.round.banner = None;
+        s.wheelbarrow = None;
         let mut bytes = Msg::World(Box::new(s)).encode();
-        bytes[1] = 200; // bounded flock count immediately after message kind
+        bytes[2] = 200; // bounded flock count follows the absent wheelbarrow tag
         assert!(Msg::decode(&bytes).is_err());
         // every cut-off version is refused, never a panic
         for n in 0..good.len() {

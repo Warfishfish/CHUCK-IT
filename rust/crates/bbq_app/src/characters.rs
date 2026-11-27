@@ -1259,6 +1259,7 @@ fn compute_poses(
     let bots_on = game.options.bots_on || scripted;
     let heist = game.rules.mode == bbq_core::GameMode::Heist;
     let mirror=game.mirror;
+    let wheelbarrow_rider = game.wheelbarrow.rider;
     previous.retain(|id,_| game.dummies.iter().any(|d|d.id==*id));
     let weights: Vec<_> = game.dummies.iter().map(|d| d.bot.slots.selected().and_then(|id| game.world.items.get(&id)).map(|it| bbq_core::feel::weight(it.kind))).collect();
     for (index, d) in game.dummies.iter_mut().enumerate() {
@@ -1273,7 +1274,7 @@ fn compute_poses(
             d.anim.feel.hit(V3::new(d.face.sin(),0.0,d.face.cos()),if d.body.wet_t>0.0 {3.0}else{8.0});
         }
         let ordinary = !d.body.is_down() && d.body.stun <= 0.0 && !d.fallen
-            && d.seat.is_none() && d.naughty_t <= 0.0 && d.dragged.is_none()
+            && d.seat.is_none() && d.naughty_t <= 0.0 && d.dragged.is_none() && wheelbarrow_rider != Some(d.id)
             && d.mover.dive <= 0.0 && d.anim.slap.is_none() && d.anim.emote.is_none();
         let busy = !ordinary || d.bot.winding || d.anim.swing.is_some();
         let motion = gait.entry(d.id).or_default();
@@ -1300,7 +1301,7 @@ fn compute_poses(
             stun: d.body.stun,
             fallen: d.fallen,
             seated: d.seat.is_some(),
-            naughty: d.naughty_t > 0.0,
+            naughty: d.naughty_t > 0.0 || wheelbarrow_rider == Some(d.id),
             dragged_by: d.dragged,
             dive: d.mover.dive,
             ..Default::default()

@@ -56,6 +56,7 @@ mod silicone;
 mod steak;
 mod smoko_mode;
 mod servo_finish;
+mod wheelbarrow;
 mod arena_depth;
 mod race;
 mod shirt;

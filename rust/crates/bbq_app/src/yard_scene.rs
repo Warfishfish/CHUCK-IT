@@ -30,6 +30,12 @@ pub struct CheekyOnly(pub bool);
 #[derive(Component)]
 struct NormalYard;
 #[derive(Component)]
+struct WheelbarrowModel;
+#[derive(Component)]
+struct RefillToss(usize);
+#[derive(Component)]
+struct RefillArm;
+#[derive(Component)]
 struct SharedSupplies;
 #[derive(Component)]
 struct BackyardCover;
@@ -200,6 +206,7 @@ impl Plugin for YardScenePlugin {
                     sync_race_map,
                     sync_race_return_marker,
                     sync_backyard_cover,
+                    sync_wheelbarrow,
                     animate_magpies,
                     animate_garden_visitors,
                 ),
@@ -284,9 +291,7 @@ fn build_yard(
             "models/side_gate.glb",
             Transform::from_xyz(GARDEN_WALL_X, 0.0, GARDEN_WALL_Z),
         ),
-        // Blender-authored backyard story props: gnomes, wheelbarrow, compost, toys, hose reel,
-        // possum box, party remains and the roof collector. Their GLB uses world-local yard axes
-        // and remains scenery only, so none of these details silently changes collision.
+        // Fixed story props use the yard axes. Their body footprints are in bbq_core::yard.
         ("models/backyard_finish_props.glb", Transform::default()),
         // A Blender-authored open carport restoration and the garages beyond the yard.
         // The +16 m offset keeps the carport in the rear lane and clears the established gum
@@ -306,6 +311,26 @@ fn build_yard(
             .id();
         commands.entity(yard_root).add_child(prop);
     }
+    commands.spawn((
+        WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/wheelbarrow.glb"))),
+        Transform::default(), Visibility::default(), WheelbarrowModel, ChildOf(yard_root),
+    ));
+    let (sx,sz) = bbq_core::yard::BALLOON_STATION;
+    let station = cache.spawn_parts(&mut commands,&crate::wheelbarrow::station_parts(),
+        &mut meshes,&mut mats,Transform::from_xyz(sx,0.,sz));
+    commands.entity(yard_root).add_child(station);
+    let hand = Part::new(bbq_core::looks::Shape::Sphere { r: 0.12, ws: 12, hs: 8 },
+        bbq_core::looks::Surface::matt(0xd49964)).stretch(1.4,0.84,1.);
+    let arm = cache.spawn_parts(&mut commands,&[hand],&mut meshes,&mut mats,
+        Transform::from_xyz(0.0,0.88,0.14));
+    commands.entity(arm).insert((RefillArm,ChildOf(station)));
+    for i in 0..5 {
+        let model = cache.spawn(&mut commands,crate::models::ModelKey::item(
+            bbq_core::items::ItemKind::WaterBalloon,None,i as u32),
+            &mut meshes,&mut mats,Transform::from_scale(Vec3::splat(0.56)));
+        commands.entity(model).insert((RefillToss(i),Visibility::Hidden,ChildOf(yard_root)));
+    }
+
     if *mode == crate::lighting::LookMode::Polished {
         let wind = looks_yard::backyard_wind_parts();
         for (parts, transform, marker) in [
@@ -671,6 +696,38 @@ fn build_yard(
     }
     let (_, sky, sky_at) = crate::lighting::hemisphere(*mode);
     commands.spawn((sky, sky_at, crate::servo_finish::YardLight::Fill));
+}
+
+fn sync_wheelbarrow(
+    game: Res<Game>,
+    mut models: Query<&mut Transform, (With<WheelbarrowModel>, Without<RefillToss>, Without<RefillArm>)>,
+    mut tosses: Query<(&RefillToss, &mut Transform, &mut Visibility), Without<RefillArm>>,
+    mut arms: Query<&mut Transform, (With<RefillArm>, Without<RefillToss>)>,
+) {
+    let (x,z) = game.wheelbarrow.at;
+    let (home_x,home_z) = bbq_core::yard::WHEELBARROW_HOME;
+    for mut transform in &mut models {
+        transform.translation = Vec3::new(x-home_x,0.,z-home_z);
+    }
+    let progress = game.wheelbarrow.delivery;
+    let (sx,sz) = bbq_core::yard::BALLOON_STATION;
+    for (balloon,mut transform,mut visibility) in &mut tosses {
+        let t = (progress - balloon.0 as f32*0.145)/0.39;
+        if progress > 0.0 && (0.0..1.0).contains(&t) {
+            *visibility = Visibility::Inherited;
+            let from = Vec3::new(sx+0.1,1.2,sz+0.14);
+            let to = Vec3::new(x+(balloon.0 as f32-2.)*0.095,0.80,z);
+            transform.translation = from.lerp(to,t) + Vec3::Y * (3.8*t*(1.-t));
+            transform.rotation = Quat::from_rotation_z(t*3.);
+        } else {
+            *visibility = Visibility::Hidden;
+        }
+    }
+    for mut arm in &mut arms {
+        let toss = if progress > 0.0 { (progress/0.145*std::f32::consts::TAU).sin().max(0.0) } else { 0.0 };
+        arm.translation.y = 0.88 + toss*0.28;
+        arm.rotation = Quat::from_rotation_z(toss*0.55);
+    }
 }
 
 /// Pool water, clouds and small garden details move independently; the solid clothesline frame

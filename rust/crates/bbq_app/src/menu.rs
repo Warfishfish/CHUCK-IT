@@ -1300,6 +1300,7 @@ fn how_panel(c: &mut ChildSpawnerCommands) {
                 ("Right click", "Catch just before an item hits you."),
                 ("R", "Interact with nearby objects or hold to help a mate up."),
                 ("F", "Grab someone who's down. Tap again to let go or hold and release to chuck them."),
+                ("V / R", "Backyard wheelbarrow: V to push, R to ride or hop out. Take the barrow to the pool attendant to refill its 20 balloons."),
                 ("Q", "Swap items. With one item, switch between it and Hands for a bare-handed slap."),
                 ("1 / 2", "Select a held item directly."),
                 ("T H B", "Taunt, dance, laugh"),

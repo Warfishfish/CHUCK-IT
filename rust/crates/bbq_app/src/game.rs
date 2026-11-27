@@ -203,6 +203,7 @@ pub struct Game {
     pub remotes: Vec<RemoteInfo>,
     pub smoko: crate::smoko_mode::State,
     pub race: crate::race::State,
+    pub wheelbarrow: crate::wheelbarrow::State,
     pub magpie: bbq_core::magpie::Bird,
     pub charge: crate::charge::State,
     pub flock: Vec<bbq_core::magpie::Bird>,
@@ -326,6 +327,7 @@ impl Plugin for GamePlugin {
             opening_drops: Default::default(),
             remotes: Vec::new(),
             smoko: Default::default(),
+            wheelbarrow: Default::default(),
             magpie:Default::default(),
             charge:Default::default(),
             flock:vec![],flock_next:bbq_core::magpie::FLOCK_INTERVAL,flock_until:0.0,
@@ -396,6 +398,8 @@ pub fn step_game(
 
     // ---- the round clock, and Heist banking ----
     crate::round::step(g);
+    crate::wheelbarrow::read(g,p,&mut wanted);
+    crate::wheelbarrow::step(g,p,&mut yard.0);
     crate::charge::tick(g,p);
     if g.rules.mode == GameMode::Race { crate::race::step(g,p,&mut wanted,&yard); return; }
     crate::heist_app::step(g, p);
@@ -520,6 +524,7 @@ pub fn step_game(
     } else {
         crate::life::prompt(g, p, &yard.0.features, yard.0.chest_spot)
     };
+    if let Some(prompt) = crate::wheelbarrow::prompt(g,p) { g.prompt = prompt.into(); }
     for pop in &mut g.popups {
         pop.t += dt;
     }
@@ -541,6 +546,7 @@ pub fn step_game(
         && g.life.seated.is_none()
         && g.life.carry.is_none()
         && let Some(id) = g.slots.selected()
+        && !crate::wheelbarrow::issued(g,id)
     {
         g.slots.remove(id);
         g.wind.cancel();
@@ -727,16 +733,18 @@ pub fn step_game(
             flattenable: d.body.power_throw_flattens(),
         })
         .collect();
-    targets.push(Target {
-        id: PLAYER_ID,
-        pos: V3::new(p.mover.x, p.mover.y, p.mover.z),
-        sink: p.mover.sink,
-        at_smoko: seated,
-        catching: g.catcher.open(),
-        stunned: g.me.body.stun > 0.0,
-        facing: player_target_facing(p),
-        flattenable: g.me.body.power_throw_flattens(),
-    });
+    if !g.attract {
+        targets.push(Target {
+            id: PLAYER_ID,
+            pos: V3::new(p.mover.x, p.mover.y, p.mover.z),
+            sink: p.mover.sink,
+            at_smoko: seated,
+            catching: g.catcher.open(),
+            stunned: g.me.body.stun > 0.0,
+            facing: player_target_facing(p),
+            flattenable: g.me.body.power_throw_flattens(),
+        });
+    }
     let teams = g.teams.clone();
     let ctx = Context {
         friendly_fire: g.rules.friendly_fire,
@@ -918,6 +926,8 @@ pub fn step_game(
     crate::smoko_mode::step(g, p, &mut wanted);
 
     resolve_character_contacts(g, p, &yard.0);
+    crate::wheelbarrow::pin_local(g,p);
+    crate::wheelbarrow::pin_peer(g);
 
     // keep the feed tidy
     g.feed.retain(|(_, t)| now - *t < 6.0);
@@ -925,7 +935,7 @@ pub fn step_game(
 
 fn resolve_character_contacts(g: &mut Game, p: &mut Player, yard: &bbq_core::yard::Yard) {
     if g.mirror { return; }
-    let carried: Vec<_> = g.smoko.carries.values().map(|c| c.victim).collect();
+    let carried: Vec<_> = g.smoko.carries.values().map(|c| c.victim).chain(g.wheelbarrow.rider).collect();
     let dragged = g.life.carry.as_ref().map(|c| c.victim);
     let mut movers = vec![p.mover];
     movers.extend(g.dummies.iter().map(|d| d.mover));
@@ -1050,6 +1060,50 @@ mod tests {
         for _ in 0..n {
             app.world_mut().run_schedule(FixedUpdate);
         }
+    }
+
+    #[test]
+    fn wheelbarrow_stock_runs_out_and_refills_only_at_pool() {
+        let mut app = app();
+        let (x,z) = bbq_core::yard::WHEELBARROW_HOME;
+        app.world_mut().resource_mut::<Player>().mover = Mover::new(x+1.1,z);
+        app.world_mut().resource_mut::<Wanted>().interact_pressed = true;
+        ticks(&mut app,1);
+        let first = {
+            let g = app.world().resource::<Game>();
+            assert_eq!(g.wheelbarrow.rider,Some(PLAYER_ID));
+            let id = g.slots.selected().unwrap();
+            assert_eq!(g.world.items[&id].kind,ItemKind::WaterBalloon);
+            id
+        };
+        for _ in 0..20 {
+            let mut g = app.world_mut().resource_mut::<Game>();
+            let id = g.slots.selected().unwrap();
+            g.world.remove(id);
+            g.slots.remove(id);
+            drop(g);
+            ticks(&mut app,1);
+        }
+        let g = app.world().resource::<Game>();
+        assert_eq!(g.wheelbarrow.remaining(),0);
+        assert!(!g.world.items.contains_key(&first));
+        assert!(g.slots.selected().is_none());
+        let (sx,sz) = bbq_core::yard::BALLOON_STATION;
+        app.world_mut().resource_mut::<Game>().wheelbarrow.at = (sx+2.2,sz);
+        app.world_mut().resource_mut::<Wanted>().interact_pressed = true;
+        ticks(&mut app,1);
+        assert!(app.world().resource::<Game>().wheelbarrow.delivery > 0.);
+        ticks(&mut app,110);
+        let g = app.world().resource::<Game>();
+        let refill = g.slots.selected().unwrap();
+        assert_eq!(g.wheelbarrow.remaining(),20);
+        app.world_mut().resource_mut::<Wanted>().interact_pressed = true;
+        ticks(&mut app,1);
+        let g = app.world().resource::<Game>();
+        assert_eq!(g.wheelbarrow.rider,None);
+        assert_eq!(g.wheelbarrow.remaining(),20);
+        assert!(!g.world.items.contains_key(&refill));
+        assert_eq!(app.world().resource::<Player>().mover.y,0.);
     }
 
     #[test]

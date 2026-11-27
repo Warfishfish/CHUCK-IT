@@ -117,6 +117,7 @@ pub struct Modifiers {
     pub snag_buff: bool,
     pub snag_stumble: bool,
     pub carrying: bool,
+    pub pushing_wheelbarrow: bool,
     pub carried: bool,
     pub at_smoko: bool,
     pub sliding: bool,
@@ -137,6 +138,7 @@ impl Default for Modifiers {
             snag_buff: false,
             snag_stumble: false,
             carrying: false,
+            pushing_wheelbarrow: false,
             carried: false,
             at_smoko: false,
             sliding: false,
@@ -231,12 +233,18 @@ impl Mover {
 
     /// Shared collision resolution for local movement and host-validated remote movement.
     pub fn resolve_obstacles(&mut self, yard: &Yard) {
+        self.resolve_obstacles_for_push(yard, false);
+    }
+
+    pub fn resolve_obstacles_for_push(&mut self, yard: &Yard, pushing_wheelbarrow: bool) {
         // push out of boxes (unless we're above them: then we land on top)
         let r = CHAR_RADIUS;
         if yard.race {
             return;
         }
         for c in &yard.colliders {
+            // The attached player and cart move as one unit. Everyone else hits the handles.
+            if pushing_wheelbarrow && c.kind == Kind::Wheelbarrow { continue; }
             if c.kind == Kind::VerandaRoof {
                 // The awning is walkable from above and still catches the player's head when
                 // jumping from below. Its thin top is not treated as a box wall.
@@ -558,7 +566,7 @@ impl Mover {
                 }
             }
         }
-        if !self.underground { self.resolve_obstacles(yard); }
+        if !self.underground { self.resolve_obstacles_for_push(yard, m.pushing_wheelbarrow); }
 
         // yard edge
         let smoko_ute_gate = yard.features.smoko && (-3.5..=5.0).contains(&self.x);
@@ -1018,6 +1026,18 @@ mod tests {
             "rear roof has no supporting top surface at z={}: {rear_surface}",
             m.z
         );
+    }
+
+    #[test]
+    fn wheelbarrow_blocks_walkers_and_allows_a_gripped_push() {
+        let yard = Yard::default();
+        let (x,z) = crate::yard::WHEELBARROW_HOME;
+        let mut walker = Mover::new(x,z-2.1);
+        let mut pusher = walker;
+        walk(&mut walker,&yard,(0.,1.),0.2,&Modifiers::default());
+        walk(&mut pusher,&yard,(0.,1.),0.2,&Modifiers { pushing_wheelbarrow:true, ..Default::default() });
+        assert!(walker.z <= z-1.74);
+        assert!(pusher.z > walker.z+0.3);
     }
 
     #[test]

@@ -44,6 +44,7 @@ pub struct Wanted {
     pub interact_held: bool,
     /// F went down / came up (grab, drag, throw someone who's down).
     pub grab_pressed: bool,
+    pub wheelbarrow_push: bool,
     pub grab_released: bool,
     /// Space went down (wriggle, or stand up from smoko).
     pub jump_pressed: bool,
@@ -207,14 +208,16 @@ pub fn read_input(
         || std::env::args().any(|a| a == "--swim-dive"); // (testing: dive without holding a key)
 
     let stunned = game.me.body.stun > 0.0;
-    let sitting = game.life.seated.is_some();
+    let sitting = game.life.seated.is_some() || game.wheelbarrow.rider == Some(PLAYER_ID);
+    let pushing = game.wheelbarrow.pusher == Some(PLAYER_ID);
     if keys.just_pressed(KeyCode::Space) {
         wanted.jump_pressed = true;
-        if !sitting {
+        if !sitting && !pushing {
             player.mover.try_jump(stunned);
         }
     }
     wanted.drop_held |= keys.just_pressed(KeyCode::KeyG);
+    wanted.wheelbarrow_push |= keys.just_pressed(KeyCode::KeyV);
     wanted.grab_pressed |= keys.just_pressed(KeyCode::KeyF);
     wanted.grab_released |= keys.just_released(KeyCode::KeyF);
     for (k, e) in [
@@ -228,6 +231,7 @@ pub fn read_input(
     }
     if (keys.just_pressed(KeyCode::ShiftLeft) || keys.just_pressed(KeyCode::ShiftRight))
         && !sitting
+        && !pushing
         && game.life.carry.is_none()
     {
         player.mover.try_boost(&Modifiers {
@@ -273,6 +277,7 @@ pub(crate) fn step_player(
     if let Some(s)=settings {p.mover.eye_lift=s.look.legs.lift();p.mover.height=crate::style::head_height(s.character,s.look)+p.mover.eye_lift;}
     let g = &mut *game;
     p.prev = Vec3::new(p.mover.x, p.mover.y, p.mover.z);
+    if crate::wheelbarrow::pin_local(g,p) { return; }
     if crate::smoko_mode::player_locked(g) {
         if !g.mirror && g.rules.mode == bbq_core::GameMode::Heist
             && crate::smoko_mode::flight_owner(g, PLAYER_ID).is_some()
@@ -299,6 +304,7 @@ pub(crate) fn step_player(
     let mods = Modifiers {
         charging: g.wind.charging,
         wet: g.me.body.wet_t > 0.0,
+        pushing_wheelbarrow: g.wheelbarrow.pusher == Some(PLAYER_ID),
         stunned: g.me.body.stun > 0.0,
         drinking: g.me.drunk.is_drinking(),
         at_smoko: g.life.seated.is_some(),
@@ -314,6 +320,7 @@ pub(crate) fn step_player(
     if g.mirror {
         for d in &g.dummies {
             if crate::smoko_mode::carried(g, d.id) || d.dragged.is_some()
+                || g.wheelbarrow.rider == Some(d.id)
                 || p.mover.y >= d.mover.y + d.mover.height || d.mover.y >= p.mover.y + p.mover.height {continue;}
             let (dx,dz)=(p.mover.x-d.mover.x,p.mover.z-d.mover.z);
             let distance=dx.hypot(dz);

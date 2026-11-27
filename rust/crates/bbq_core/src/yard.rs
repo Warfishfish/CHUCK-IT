@@ -49,6 +49,7 @@ pub enum Kind {
     Shower,
     /// Discarded timber bench beside the wheelie bins.
     Bench,
+    Wheelbarrow,
 }
 
 /// The four map features the host can switch off.
@@ -157,6 +158,30 @@ pub const ROOF_BACK_CENTRE_Y: f32 = 5.62;
 pub const ROOF_BACK_CENTRE_Z: f32 = -31.6;
 pub const ROOF_BACK_START_Z: f32 = -29.4;
 pub const ROOF_BACK_EDGE_Z: f32 = -34.05;
+pub const WHEELBARROW_HOME: (f32,f32) = (4.2,15.8);
+pub const BALLOON_STATION: (f32,f32) = (-11.0,5.3);
+pub const WHEELBARROW_CAPACITY: u8 = 20;
+pub fn wheelbarrow_colliders((x,z): (f32,f32)) -> [Collider; 2] {
+    let tray = Collider::centred(x,z+0.20,1.07,1.23,0.78).of(Kind::Wheelbarrow);
+    let mut handles = Collider::centred(x,z-0.86,0.80,0.96,0.74).of(Kind::Wheelbarrow);
+    handles.no_top = true;
+    [tray, handles]
+}
+
+// Footprints of the authored Blender props that sit inside the playable fence.
+// The flat chalk lines, shadows, hoses and foliage read as ground dressing.
+const BACKYARD_STORY_PROPS: [(f32,f32,f32,f32,f32); 17] = [
+    (-36.,-20.,0.48,0.52,1.16), (36.,-18.,0.48,0.52,1.16),
+    (-35.5,19.,0.48,0.52,1.16), (1.,24.2,1.35,1.30,0.97),
+    (-11.68,9.4,0.37,0.30,1.72), (-10.72,9.4,0.37,0.30,1.72),
+    (-11.2,9.52,0.77,0.24,1.63), (27.1,-8.35,0.92,0.80,1.32),
+    (-10.8,-16.,1.01,0.79,0.90), (-14.,21.5,0.98,0.98,0.78),
+    (-11.,20.,0.14,0.14,1.98), (25.5,-7.7,0.25,0.25,0.55),
+    (-25.5,17.2,0.68,0.66,0.97), (-14.5,17.2,0.68,0.66,0.97),
+    (-20.,18.2,0.11,0.11,2.55), (18.7,-17.61,0.82,1.22,1.17),
+    (BALLOON_STATION.0,BALLOON_STATION.1,1.45,0.80,1.65),
+];
+
 pub const MOWER_X: f32 = 27.6;
 pub const MOWER_Z: f32 = -19.0;
 pub const VERANDA_Z_CENTRE: f32 = -24.05;
@@ -371,6 +396,8 @@ impl Yard {
         // Ignore legacy saved/network feature flags; shared Smoko primitives remain reusable.
         features.smoko = false;
         let mut c = Vec::new();
+        c.extend(BACKYARD_STORY_PROPS.iter().map(|&(x,z,w,d,h)| Collider::centred(x,z,w,d,h)));
+        c.extend(wheelbarrow_colliders(WHEELBARROW_HOME));
         let mut pole = Collider::centred(0.0, 3.0, 0.3, 0.3, 2.3).of(Kind::Pole);
         pole.no_top = true;
         c.push(pole); // clothesline pole
@@ -553,6 +580,11 @@ impl Yard {
         y
     }
 
+    pub fn set_wheelbarrow(&mut self, at: (f32,f32)) {
+        let barrow = self.colliders.iter_mut().filter(|c| c.kind == Kind::Wheelbarrow);
+        for (collider, moved) in barrow.zip(wheelbarrow_colliders(at)) { *collider = moved; }
+    }
+
     /// Whether the old backyard swimming pool is present in this map.
     pub fn pool_enabled(&self) -> bool {
         !self.race && !self.features.smoko && self.heist.is_none()
@@ -729,7 +761,7 @@ mod tests {
         // pole, shed, mower deck/bonnet/seat, workbench, house, tank, ladder, roof and veranda,
         // 4 eskies, table, grill, meat table, bins, crates, hedge, 2 tyres, woodpile, wall halves,
         // planter, bar, chest, shower riser, bench seat and bench back
-        assert_eq!(Yard::default().colliders.len(), 80);
+        assert_eq!(Yard::default().colliders.len(), 99);
     }
 
     #[test]
@@ -769,7 +801,7 @@ mod tests {
             chest: false,
             smoko: false,
         };
-        assert_eq!(Yard::new(off, 0).colliders.len(), 80 - 4);
+        assert_eq!(Yard::new(off, 0).colliders.len(), 99 - 4);
     }
 
     #[test]

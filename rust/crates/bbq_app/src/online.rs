@@ -1144,12 +1144,13 @@ fn online_puppets(mut online: ResMut<Online>, mut game: ResMut<Game>, yard: Res<
     let mirror = game.mirror;
     let race=game.rules.mode==bbq_core::GameMode::Race;
     let playing=game.rules.in_play();
-    let controlled: Vec<_> = game.dummies.iter().filter(|d| crate::smoko_mode::controlled(&game,d.id)).map(|d|d.id).collect();
+    let controlled: Vec<_> = game.dummies.iter().filter(|d| crate::smoko_mode::controlled(&game,d.id) || game.wheelbarrow.rider == Some(d.id)).map(|d|d.id).collect();
     let speeds: std::collections::BTreeMap<_, _> = game.dummies.iter().map(|d| {
         let pace = crate::heist_app::tunnel_pace(d.mover.underground, &d.bot.slots, &game.world);
         (d.id, pace * crate::race::speed(&game, d.id, (d.mover.x, d.mover.z)))
     }).collect();
     let carriers: Vec<_> = game.smoko.carries.keys().copied().collect();
+    let wheelbarrow_pusher = game.wheelbarrow.pusher;
     for d in game.dummies.iter_mut() {
         // Acknowledge only in the fixed simulation, after the host has advanced this body.
         if !mirror {if let Some(r)=&d.remote {if let Some(h)=session.heard.get_mut(&r.net_id) {h.applied_seq=h.state.seq;}}}
@@ -1195,7 +1196,7 @@ fn online_puppets(mut online: ResMut<Online>, mut game: ResMut<Game>, yard: Res<
                     d.mover.resolve_obstacles(&yard.0);
                 }
             } else {
-                d.mover.resolve_obstacles(&yard.0);
+                d.mover.resolve_obstacles_for_push(&yard.0,wheelbarrow_pusher == Some(d.id));
             }
         }
         // the game's `yaw` looks along (-sin, -cos); a puppet's `face` looks along (sin, cos)
@@ -1437,6 +1438,7 @@ mod tests {
         use bbq_core::net_world::*;
         let mut p = Pair::new();
         let snap = |seq| WorldSnap {
+            wheelbarrow: None,
             heist: None,
             charges:vec![],flock:vec![],
             magpie:(0,0,(14.0,1.8,24.05)),

@@ -315,6 +315,7 @@ pub fn start_round(g: &mut Game, p: &mut Player, yard: &mut YardRes) {
     g.life.chest.new_round(spot);
     // Clear delivery state on every round/mode transition.
     g.smoko = Default::default();
+    g.wheelbarrow = Default::default();
     g.magpie = Default::default();
     g.charge = Default::default();
     g.flock.clear();g.flock_next=g.now+bbq_core::magpie::FLOCK_INTERVAL;g.flock_until=0.0;
