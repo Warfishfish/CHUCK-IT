@@ -202,6 +202,15 @@ pub fn parts_with_shelter(procedural_shelter: bool)->Vec<Part> {
     // Level delivery pad: visual ground only, never obstructs throws or carried victims.
     // Existing scoring ring remains legible; earth continues naturally beneath the shelter.
     p.push(Part::new(Shape::Ring{inner:SCORE_RADIUS-0.12,outer:SCORE_RADIUS,seg:96},Surface::matt(0xf5ce69).no_shadow()).at(0.,0.035,10.).turn(-FRAC_PI_2,0.,0.));
+    // Enamel plate hangs below the original SMOKO sign, above the walking lane.
+    for x in [-1.82, 1.82] {
+        p.push(block(0.09, 0.36, 0.11, x, 3.48, 14.71, TIMBER).no_shadow_part());
+    }
+    p.push(block(4.55, 0.55, 0.12, 0.0, 3.16, 14.74, TIMBER).no_shadow_part());
+    p.push(Part::new(
+        Shape::Quad { w: 4.42, h: 0.49 },
+        Surface::matt(0xffffff).textured(Tex::PostcardServo).unlit().no_shadow(),
+    ).at(0.0, 3.16, 14.81));
     if procedural_shelter {
     for &(x,z,w,d,h) in &ARENA_TREE_TRUNKS {
         p.push(block(w,h,d,x,h/2.,z,0xc0b69d));

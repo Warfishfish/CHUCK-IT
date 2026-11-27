@@ -6,6 +6,7 @@
 //! (it is only a handful of little parts). The mouth sits on the front of the head just below
 //! the eyes, sized to the head, and moves with the head (and its wonky tilt).
 
+use bbq_core::character::Character;
 use bbq_core::appearance::{Appearance, Brows, Hair, Hat, Mouth, Palette};
 use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
@@ -134,6 +135,20 @@ pub fn shade_of(part: TintPart, base: u32) -> u32 {
     (ch(16) << 16) | (ch(8) << 8) | ch(0)
 }
 
+fn sun_faded(
+    owner: FaceOwner,
+    settings: &Settings,
+    cast: &crate::characters::Cast,
+    online: Option<&crate::online::Online>,
+) -> bool {
+    let character = match owner {
+        FaceOwner::Preview => Some(settings.character),
+        FaceOwner::Blob(i) => Some(cast.character_of(i)),
+        FaceOwner::Lobby(id) => online.and_then(|o| crate::lobby::lobby_look(o, settings, id)).map(|l| l.0),
+    };
+    matches!(character, Some(Character::Egg | Character::Gumdrop))
+}
+
 /// Paint every tinted mesh in its owner's colours. Bots keep their own body colours (only their
 /// singlet and thongs follow their look); you in the preview, and people online, wear your look.
 fn sync_tints(
@@ -143,7 +158,8 @@ fn sync_tints(
     online: Option<Res<crate::online::Online>>,
     assets: Res<AssetServer>,
     mut mats: ResMut<Assets<StandardMaterial>>,
-    mut cache: Local<std::collections::HashMap<(u32, u8, u8), Handle<StandardMaterial>>>,
+    cast: Res<crate::characters::Cast>,
+    mut cache: Local<std::collections::HashMap<(u32, u8, u8, bool), Handle<StandardMaterial>>>,
     mut images: ResMut<Assets<Image>>,
     mut dirt_kit: Local<crate::dirt::DirtKit>,
     q: Query<(Entity, &LookTint, Option<&TintShown>)>,
@@ -172,14 +188,22 @@ fn sync_tints(
             TintPart::Shorts => look.colour(Palette::Shorts),
         };
         // cloth also shows its dirt (the Dirty slider): part of what is shown
+        let worn = sun_faded(t.owner, &settings, &cast, online.as_deref())
+            && matches!(t.part, TintPart::Singlet | TintPart::Thong);
+        let colour = if worn {
+            Srgba::from(crate::models::hex(colour)).mix(&Srgba::hex("c6ad8c").unwrap(), 0.19).to_u8_array()
+        } else {
+            [(colour >> 16) as u8, (colour >> 8) as u8, colour as u8, 255]
+        };
+        let colour = u32::from_be_bytes([0, colour[0], colour[1], colour[2]]);
         let dirt = if matches!(t.part, TintPart::Singlet | TintPart::Shorts) { crate::dirt::level_of(look.dirt) } else { 0 };
-        let shown_key = colour | (dirt as u32) << 24;
+        let shown_key = colour | (dirt as u32) << 24 | (u32::from(worn) << 31);
         if shown.map(|s| s.0) == Some(shown_key) {
             continue;
         }
         let skin = matches!(t.part, TintPart::Body | TintPart::Head | TintPart::Foot);
         let m = cache
-            .entry((colour, if skin { 0 } else if t.part == TintPart::Thong { 1 } else { 2 }, dirt))
+            .entry((colour, if skin { 0 } else if t.part == TintPart::Thong { 1 } else { 2 }, dirt, worn))
             .or_insert_with(|| {
                 if skin {
                     mats.add(crate::style::body_material(crate::models::hex(colour), &assets))
@@ -187,7 +211,13 @@ fn sync_tints(
                     let picture = dirt_kit.picture(dirt, &mut images);
                     mats.add(crate::style::cloth_material(crate::models::hex(colour), &assets, picture))
                 } else {
-                    mats.add(StandardMaterial { base_color: crate::models::hex(colour), perceptual_roughness: 0.45, reflectance: 0.35, ..default() })
+                    mats.add(StandardMaterial {
+                        base_color: crate::models::hex(colour),
+                        perceptual_roughness: if worn { 0.83 } else { 0.45 },
+                        reflectance: if worn { 0.18 } else { 0.35 },
+                        base_color_texture: worn.then(|| assets.load("textures/plastic.png")),
+                        ..default()
+                    })
                 }
             })
             .clone();
@@ -859,16 +889,47 @@ fn shape_heads(
 
 /// One cached vertex gradient per source mesh. No shader pass or per-frame mesh work.
 #[derive(Component)] struct SkinGradient;
-fn gradient_skin(mut commands:Commands,mut meshes:ResMut<Assets<Mesh>>,q:Query<(Entity,&LookTint,&Mesh3d),Without<SkinGradient>>,mut cache:Local<std::collections::HashMap<AssetId<Mesh>,Handle<Mesh>>>) {
-    if bbq_core::finish::DETAIL_LEVEL==0{return;}
-    for (e,t,h) in &q {
-        if !matches!(t.part,TintPart::Body|TintPart::Head){continue;}
-        if let Some(mesh)=cache.get(&h.0.id()){commands.entity(e).insert((Mesh3d(mesh.clone()),SkinGradient));continue;}
-        let Some(source)=meshes.get(&h.0) else {continue};let mut mesh=source.clone();
-        let Some(bevy::mesh::VertexAttributeValues::Float32x3(positions))=mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {continue};
-        let lo=positions.iter().map(|p|p[1]).fold(f32::INFINITY,f32::min);let hi=positions.iter().map(|p|p[1]).fold(f32::NEG_INFINITY,f32::max);
-        let colors:Vec<[f32;4]>=positions.iter().map(|p|{let u=((p[1]-lo)/(hi-lo).max(0.001)).clamp(0.0,1.0);let v=1.0-bbq_core::finish::GRADIENT_DEPTH*(1.0-u)*bbq_core::finish::DETAIL_LEVEL.min(2) as f32;[v,v,v,1.0]}).collect();
-        mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR,colors);let new=meshes.add(mesh);cache.insert(h.0.id(),new.clone());commands.entity(e).insert((Mesh3d(new),SkinGradient));
+fn gradient_skin(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    q: Query<(Entity, &LookTint, &Mesh3d), Without<SkinGradient>>,
+    settings: Res<Settings>,
+    cast: Res<crate::characters::Cast>,
+    online: Option<Res<crate::online::Online>>,
+    mut cache: Local<std::collections::HashMap<(AssetId<Mesh>, bool), Handle<Mesh>>>,
+) {
+    if bbq_core::finish::DETAIL_LEVEL == 0 { return; }
+    for (entity, tint, handle) in &q {
+        if !matches!(tint.part, TintPart::Body | TintPart::Head) { continue; }
+        let cheeks = tint.part == TintPart::Head && sun_faded(tint.owner, &settings, &cast, online.as_deref());
+        let key = (handle.0.id(), cheeks);
+        if let Some(mesh) = cache.get(&key) {
+            commands.entity(entity).insert((Mesh3d(mesh.clone()), SkinGradient));
+            continue;
+        }
+        let Some(mut mesh) = meshes.get(&handle.0).cloned() else { continue; };
+        let Some(bevy::mesh::VertexAttributeValues::Float32x3(positions)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else { continue; };
+        let (lo, hi) = positions.iter().copied().map(Vec3::from_array).fold(
+            (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
+            |(lo, hi), p| (lo.min(p), hi.max(p)),
+        );
+        let span = (hi - lo).max(Vec3::splat(0.001));
+        let colors: Vec<[f32; 4]> = positions.iter().map(|&p| {
+            let uvw = (Vec3::from_array(p) - lo) / span;
+            let shade = 1.0 - bbq_core::finish::GRADIENT_DEPTH * (1.0 - uvw.y)
+                * bbq_core::finish::DETAIL_LEVEL.min(2) as f32;
+            let blush = if cheeks {
+                let x = ((uvw.x - 0.5).abs() - 0.25) / 0.11;
+                let y = (uvw.y - 0.40) / 0.105;
+                (-x*x-y*y).exp() * ((uvw.z - 0.64) / 0.22).clamp(0.0, 1.0)
+            } else { 0.0 };
+            [(shade + blush * 0.24).min(1.0), shade * (1.0 - blush * 0.19),
+                shade * (1.0 - blush * 0.10), 1.0]
+        }).collect();
+        mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
+        let mesh = meshes.add(mesh);
+        cache.insert(key, mesh.clone());
+        commands.entity(entity).insert((Mesh3d(mesh), SkinGradient));
     }
 }
 

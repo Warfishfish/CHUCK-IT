@@ -101,6 +101,9 @@ pub enum Tex {
     ServoDirt,
     ServoRoad,
     SignServo,
+    PostcardBbq,
+    PostcardServo,
+    PostcardHeist,
     /// The VP can's green label.
     VpLabel,
     /// Fish scales.
@@ -185,6 +188,9 @@ impl Tex {
             Tex::ServoDirt => "servo_dirt.png",
             Tex::ServoRoad => "servo_road.png",
             Tex::SignServo => "sign_servo.png",
+            Tex::PostcardBbq => "postcard_bbq.png",
+            Tex::PostcardServo => "postcard_servo.png",
+            Tex::PostcardHeist => "postcard_heist.png",
             Tex::VpLabel => "vp_label.png",
             Tex::Fish => "fish.png",
             Tex::Lawn => "lawn_overhaul.png",
@@ -236,8 +242,9 @@ impl Tex {
         }
     }
 
-    pub const ALL: [Tex; 50] = [
+    pub const ALL: [Tex; 53] = [
         Tex::ServoDirt, Tex::ServoRoad, Tex::SignServo,
+        Tex::PostcardBbq, Tex::PostcardServo, Tex::PostcardHeist,
         Tex::VpLabel,
         Tex::Fish,
         Tex::Lawn,

@@ -1780,6 +1780,7 @@ struct EyeDrive {
     step: i32,
     vel: Vec3,
     grounded: bool,
+    initialized: bool,
     /// The belly's bounce: how far it sags (down and forward) and how far it swells or squashes,
     /// each on a soft spring.
     sag: f32,
@@ -1835,21 +1836,28 @@ fn animate_face_and_feet(
             kick_side[i] = if step % 2 == 0 { 1.0 } else { -1.0 };
             dr.step = step;
         }
+        let shape = cast.character_of(i);
+        let landing = dr.initialized && d.mover.grounded && !dr.grounded;
+        let (step_drop, belly_spring, belly_damping, landing_kick) = match shape {
+            Character::Egg => (2.7, 100.0, 11.0, 12.0),
+            Character::Gumdrop => (5.3, 52.0, 6.5, 8.0),
+            _ => (4.2, crate::locomotion::BELLY_STIFFNESS, crate::locomotion::BELLY_DAMPING, 9.0),
+        };
         let local = Quat::from_rotation_y(-motion.yaw) * Vec3::new(d.mover.vx, d.mover.vy, d.mover.vz);
         let previous_local = Quat::from_rotation_y(dr.face - motion.yaw) * dr.vel;
         accel[i] = (local - previous_local) / dt;
-        if d.mover.grounded && !dr.grounded {
+        if landing {
             kick[i] = kick[i].max((-dr.vel.y / 6.0).clamp(0.4, 1.6)); // a landing
         }
         // the belly: every footstep drops it, it springs back up and jiggles; speeding up
         // squashes it back, stopping throws it forward, a landing squashes it hard
         if kick[i] > 0.0 {
-            dr.sag_v += kick[i] * 4.2;
+            dr.sag_v += kick[i] * step_drop;
             dr.swell_v -= kick[i] * 1.2;
         }
         let fwd = accel[i].z.clamp(-40.0, 40.0);
         dr.swell_v -= fwd * 1.2 * dt;
-        dr.sag_v += (dr.sag * -crate::locomotion::BELLY_STIFFNESS - dr.sag_v * crate::locomotion::BELLY_DAMPING) * dt;
+        dr.sag_v += (dr.sag * -belly_spring - dr.sag_v * belly_damping) * dt;
         dr.swell_v += (dr.swell * -110.0 - dr.swell_v * 5.0) * dt;
         dr.sag = (dr.sag + dr.sag_v * dt).clamp(-0.6, 1.0);
         dr.swell = (dr.swell + dr.swell_v * dt).clamp(-0.35, 0.35);
@@ -1871,8 +1879,8 @@ fn animate_face_and_feet(
         dr.roll_v += ((roll_target - dr.roll) * 90.0 - dr.roll_v * 11.0) * dt;
         dr.roll += dr.roll_v * dt;
         // squash on hard landings and when something big hits (C10.8)
-        if d.mover.grounded && !dr.grounded {
-            dr.sq_v += (-dr.vel.y / 8.0).clamp(0.0, 1.6) * 9.0;
+        if landing {
+            dr.sq_v += (-dr.vel.y / 8.0).clamp(0.0, 1.6) * landing_kick;
         }
         let stunned = d.body.stun > 0.0 || d.body.is_down();
         if stunned && !dr.stunned {
@@ -1884,6 +1892,7 @@ fn animate_face_and_feet(
         dr.face = motion.yaw;
         dr.vel = local;
         dr.grounded = d.mover.grounded;
+        dr.initialized = true;
     }
     for (b, mut tf) in &mut bodies {
         let Some(dr) = drive.get(b.0) else { continue };
@@ -2009,7 +2018,13 @@ fn animate_face_and_feet(
             continue;
         }
         let Some(motion) = poses.1.get(b.0) else { continue };
-        let (offset, pitch) = motion.foot(f.right, crate::legs::lift_of(&game, b.0));
+        let (mut offset, pitch) = motion.foot(f.right, crate::legs::lift_of(&game, b.0));
+        // Change swing height only: a planted foot stays where the gait put it.
+        offset.y *= match cast.character_of(b.0) {
+            Character::Egg => 1.28,
+            Character::Gumdrop => 0.82,
+            _ => 1.0,
+        };
         tf.translation = f.base + offset;
         if f.thong { tf.rotation = Quat::from_rotation_x(pitch); }
     }

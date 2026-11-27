@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Prototype 0.23.70 gives Egg a springier step and firmer landing and Gumdrop a heavier belly follow-through. Both get sun-faded clothing and warmer cheeks. Backyard has a verandah sign, Bush Servo has ochre soil, a worn asphalt loop and enamel signage, and Teddy Heist has a distinctive central depot marker. The visual pass ships in desktop and WebGPU.
+
 - Prototype 0.23.69 lowers distant and overlapping effects, gives banks and Smoko deliveries priority, and adds recorded grill ambience and a Bush Servo service bell. The legacy build mirrors the Backyard ambience and Heist bank mix. Rust online protocol 36 identifies the delivery cue.
 
 - Prototype 0.23.68 ships the approved Backyard foley. Glass has a distinct shatter, balloons snap and splat, fish and steak have their own slaps, and hard landings use a recorded thud. The legacy browser uses the updated fish, steak and landing cues. Rust online protocol 35 identifies the new effects.

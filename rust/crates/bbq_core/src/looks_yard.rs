@@ -869,7 +869,7 @@ fn rain_tank_and_ladder(polished: bool) -> Vec<Part> {
 }
 
 fn house_styled() -> Vec<Part> {
-    let roof = matt(0xb36149)
+    let roof = matt(0xce896a)
         .textured(Tex::Corrugated)
         .repeating(20.0, 2.0);
     let mut v = vec![
@@ -877,7 +877,7 @@ fn house_styled() -> Vec<Part> {
             HOUSE_X_HALF * 2.0,
             HOUSE_HEIGHT,
             HOUSE_DEPTH,
-            matt(0xf3ead4)
+            matt(0xf4e1c5)
                 .textured(Tex::Weatherboard)
                 .repeating(20.0, 3.0),
             0.0,
@@ -889,6 +889,13 @@ fn house_styled() -> Vec<Part> {
         cuboid(41.0, 0.16, 4.9, shade_surface(roof, 0.94), 0.0, 5.62, -31.6)
             .turn(-0.445, 0.0, -0.004),
     ];
+    // Enamel sign fixed to the weatherboards above the centre of the verandah.
+    let sign_z = HOUSE_Z_CENTRE + HOUSE_DEPTH * 0.5;
+    v.push(cuboid(8.6, 1.16, 0.10, matt(0x67442d), 0.0, 3.57, sign_z + 0.06));
+    v.push(Part::new(
+        Shape::Quad { w: 8.4, h: 1.05 },
+        matt(0xffffff).textured(Tex::PostcardBbq).unlit().no_shadow(),
+    ).at(0.0, 3.57, sign_z + 0.12));
     // A modest ridge cap and rolled Colorbond gutters make the roof read as a built roof,
     // while staying entirely above/behind the existing playable yard and collision shapes.
     let galv = matt(0x858e8c).material(Tex::Metal, 1.3);
@@ -4116,8 +4123,8 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
     let mut v = Vec::new();
     // The turf and soil share one opening and uninterrupted world-space turf UVs.
     for (margin, height, material) in [
-        (7.0, 0.005, matt(0x765b43).no_shadow().ground()),
-        (0.0, 0.015, matt(0xffffff).textured(Tex::HeistTurf).no_shadow().ground()),
+        (7.0, 0.005, matt(0x98785b).no_shadow().ground()),
+        (0.0, 0.015, matt(0xffdfb6).textured(Tex::HeistTurf).no_shadow().ground()),
     ] {
         let x = heist::ARENA_A + margin;
         let z = heist::ARENA_B + margin;
@@ -4126,6 +4133,15 @@ pub fn heist_look_variant(teams: usize, variant: usize) -> Vec<Part> {
             hole: (2.15, 5.15, 2.15, 5.15),
             per_m: 1.0 / 16.0,
         }, material).at(0.0, height, 0.0));
+    }
+    // A rust-red apron gives the central scoreboard a landmark visible over maze walls.
+    v.push(cuboid(7.0, 1.35, 7.0, matt(0x704437).unlit().no_shadow(), 0.0, 6.825, 0.0));
+    for side in 0..4 {
+        let yaw = side as f32 * HALF_PI;
+        v.push(Part::new(
+            Shape::Quad { w: 6.76, h: 1.24 },
+            matt(0xffffff).textured(Tex::PostcardHeist).unlit().no_shadow(),
+        ).at(yaw.sin() * 3.515, 6.825, yaw.cos() * 3.515).turn(0.0, yaw, 0.0));
     }
     // Reclaimed loading lanes around the square. Supply paint stays flush
     // with the ground and the panels sit on the perimeter walls.

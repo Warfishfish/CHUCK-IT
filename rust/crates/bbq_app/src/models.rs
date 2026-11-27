@@ -289,7 +289,8 @@ fn load_textures(mut cache: ResMut<ModelCache>, assets: Res<AssetServer>) {
             .with_settings(move |s| {
                 settings(
                     s,
-                    matches!(t, Tex::Lawn | Tex::RaceLawn | Tex::HeistTurf | Tex::Weatherboard | Tex::Corrugated | Tex::Bark | Tex::Mulch),
+                    matches!(t, Tex::Lawn | Tex::RaceLawn | Tex::HeistTurf | Tex::Weatherboard | Tex::Corrugated | Tex::Bark | Tex::Mulch
+                        | Tex::PostcardBbq | Tex::PostcardServo | Tex::PostcardHeist),
                 )
             })
             .load(format!("textures/{}", if afternoon_lawn { "lawn_overhaul.png" } else { t.file() }));
