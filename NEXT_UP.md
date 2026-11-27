@@ -187,8 +187,15 @@ These are queued alongside the Smoko graphics roadmap. Work one item at a time a
 
 ## Platforms (new)
 - Steam first: online through Steam (Steam lobbies, friends invites, Steam relay so no ports or links are needed)
-- Mobile app (iOS and Android) later: touch controls, a Low graphics setting, and online through our own small server so phone and Steam players can play together
-- Cheeky mode on mobile: check App Store and Google Play age ratings before shipping it there
+
+### Mobile and App Store (parked)
+
+Marcus wants the desktop and browser game close to finished before starting mobile development.
+
+1. Prototype one full Backyard round on an iPad using touch only. Reuse the browser build, add landscape touch controls and scale the HUD for phones and tablets.
+2. Tune the graphics on real iPads and iPhones. Start from Low, adjust render resolution, foliage and shadows, and test a crowded Teddy Heist round after the device warms up.
+3. If the prototype plays well, build a native iPhone/iPad beta for TestFlight and consider an App Store release. Review the existing family-mode variants, Cheeky-mode props and alcohol references before setting the age rating.
+4. Consider Android and cross-play with desktop as later follow-ups.
 
 ## Sound and shipping (later)
 - Phase 10 audio, Phase 11 settings, packaging and Steam, Phase 12 sign-off
