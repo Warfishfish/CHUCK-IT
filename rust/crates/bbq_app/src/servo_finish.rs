@@ -1,5 +1,4 @@
-//! Bush Servo Stage 5: scoped lighting and filtering for imported environment maps.
-//! Changes only presentation; restore the exact previous camera/lights on leaving Smoko.
+//! Map-specific lighting presets and filtering for Bush Servo textures.
 use bevy::prelude::*;
 use bevy::image::{ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
 use bevy::render::render_resource::TextureFormat;
@@ -21,11 +20,24 @@ pub const HAZE_START: f32 = 55.0;
 pub const HAZE_END: f32 = 150.0;
 pub const TEXTURE_ANISOTROPY: u16 = 8;
 
+// Cool skylight inside the verandah, warm sun across the lawn, and softer distant scenery.
+const BACKYARD_RIG: Rig = Rig {
+    sky: 0xc0d7f5,
+    ground: 0x99998b,
+    hemi: 0.78,
+    sun: 0xffdfb4,
+    sun_intensity: 1.04,
+    grade: Grade { saturation: 1.09, warmth: 0.008, contrast: 1.03, vignette: 0.012 },
+};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum YardLook { Backyard, Smoko }
+
 #[derive(Component, Clone, Copy)]
 pub enum YardLight { Sun, Fill }
 #[derive(Resource, Default)]
 struct SavedLook {
-    active: bool,
+    active: Option<YardLook>,
     lights: Vec<(Entity, DirectionalLight, Transform)>,
     cameras: Vec<(Entity, AmbientLight, DistanceFog, DisplayRaw)>,
 }
@@ -42,21 +54,50 @@ fn sync_lighting(
     mut lights: Query<(Entity, &YardLight, &mut DirectionalLight, &mut Transform)>,
     mut cameras: Query<(Entity, &mut AmbientLight, &mut DistanceFog, &mut DisplayRaw), With<crate::player::EyeCamera>>,
 ) {
-    let active=crate::menu::displayed_mode(*screen, &settings, &game)==bbq_core::GameMode::Smoko && *look==LookMode::Polished
-        && crate::style::current()==crate::style::Style::Pop;
-    if active==saved.active {return;}
-    if active {
-        // Comparison captures must use the same executable and assets.
-        let args: Vec<String> = std::env::args().collect();
-        let baseline = ["--shot", "--review", "--servo-baseline"].iter()
-            .all(|flag| args.iter().any(|a| a == flag));
-        let rig = if baseline {
-            Rig {
-                sky: 0xc2d7ec, ground: 0xb7b9a2, hemi: 0.90,
-                sun: 0xffd7a5, sun_intensity: 0.98,
-                grade: Grade { saturation: 1.04, warmth: 0.014, contrast: 1.04, vignette: 0.025 },
+    let active = if *look == LookMode::Polished && crate::style::current() == crate::style::Style::Pop {
+        match crate::menu::displayed_mode(*screen, &settings, &game) {
+            bbq_core::GameMode::Smoko => Some(YardLook::Smoko),
+            bbq_core::GameMode::FreeForAll | bbq_core::GameMode::Teams
+                if !crate::backyard_finish::enabled() => Some(YardLook::Backyard),
+            _ => None,
+        }
+    } else {
+        None
+    };
+    if active == saved.active { return; }
+    for (id, old_light, old_transform) in saved.lights.drain(..) {
+        if let Ok((_, _, mut light, mut transform)) = lights.get_mut(id) {
+            *light = old_light;
+            *transform = old_transform;
+        }
+    }
+    for (id, old_ambient, old_fog, old_grade) in saved.cameras.drain(..) {
+        if let Ok((_, mut amb, mut fog, mut grade)) = cameras.get_mut(id) {
+            *amb = old_ambient;
+            *fog = old_fog;
+            *grade = old_grade;
+        }
+    }
+
+    if let Some(profile) = active {
+        let (rig, sun, haze, haze_start, haze_end) = match profile {
+            YardLook::Backyard => (BACKYARD_RIG, Vec3::new(29.0, 24.0, 16.0), 0xc0d2d9, 37.0, 125.0),
+            YardLook::Smoko => {
+                let args: Vec<String> = std::env::args().collect();
+                let baseline = ["--shot", "--review", "--servo-baseline"].iter()
+                    .all(|flag| args.iter().any(|a| a == flag));
+                let rig = if baseline {
+                    Rig {
+                        sky: 0xc2d7ec, ground: 0xb7b9a2, hemi: 0.90,
+                        sun: 0xffd7a5, sun_intensity: 0.98,
+                        grade: Grade { saturation: 1.04, warmth: 0.014, contrast: 1.04, vignette: 0.025 },
+                    }
+                } else {
+                    SERVO_RIG
+                };
+                (rig, SUN_POSITION, DISTANT_HAZE, HAZE_START, HAZE_END)
             }
-        } else { SERVO_RIG };
+        };
         let (ambient, fill, _)=lighting::hemisphere_from_rig(rig);
         for (id,kind,mut light,mut transform) in &mut lights {
             saved.lights.push((id,light.clone(),*transform));
@@ -64,7 +105,7 @@ fn sync_lighting(
                 YardLight::Sun=>{
                     light.color=crate::models::hex(rig.sun);
                     light.illuminance=lighting::lux(rig.sun_intensity)*lighting::SUN_FIX;
-                    *transform=Transform::from_translation(SUN_POSITION).looking_at(Vec3::ZERO,Vec3::Y);
+                    *transform=Transform::from_translation(sun).looking_at(Vec3::ZERO,Vec3::Y);
                 }
                 YardLight::Fill=>{*light=fill.clone();}
             }
@@ -72,16 +113,9 @@ fn sync_lighting(
         for (id,mut amb,mut fog,mut grade) in &mut cameras {
             saved.cameras.push((id,amb.clone(),fog.clone(),*grade));
             *amb=ambient.clone();
-            fog.color=crate::models::hex(DISTANT_HAZE);
-            fog.falloff=bevy::pbr::FogFalloff::Linear {start:HAZE_START,end:HAZE_END};
+            fog.color=crate::models::hex(haze);
+            fog.falloff = bevy::pbr::FogFalloff::Linear { start: haze_start, end: haze_end };
             *grade=DisplayRaw::with_grade(rig.grade);
-        }
-    } else {
-        for (id,old_light,old_transform) in saved.lights.drain(..) {
-            if let Ok((_,_,mut light,mut transform))=lights.get_mut(id) {*light=old_light;*transform=old_transform;}
-        }
-        for (id,old_ambient,old_fog,old_grade) in saved.cameras.drain(..) {
-            if let Ok((_,mut amb,mut fog,mut grade))=cameras.get_mut(id) {*amb=old_ambient;*fog=old_fog;*grade=old_grade;}
         }
     }
     saved.active=active;
