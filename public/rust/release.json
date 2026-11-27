@@ -1,6 +1,6 @@
 {
-  "source_commit": "86f9282221c28b88464f4e1f8041346e82631dc4",
-  "protocol": 37,
+  "source_commit": "9f6ea7b84abdf7833efea17b0a74884777ef45f6",
+  "protocol": 38,
   "release_date": "2026-11-27",
-  "description": "Held water-balloon walking jiggle and 20-balloon wheelbarrow, prototype 0.23.74"
+  "description": "Natural wheelbarrow steering in Backyard and Teams, prototype 0.23.75"
 }
