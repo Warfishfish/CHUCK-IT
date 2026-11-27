@@ -175,6 +175,7 @@ pub struct WheelbarrowSnap {
     pub balloon: u32,
     pub stock: u8,
     pub delivery: f32,
+    pub yaw: f32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -215,6 +216,7 @@ impl WorldSnap {
             w.u32(cart.balloon);
             w.u8(cart.stock);
             w.f32(cart.delivery);
+            w.f32(cart.yaw);
         }
         w.u8(self.flock.len().min(crate::magpie::MAX_FLOCK) as u8);
         for &(phase,id,pos) in self.flock.iter().take(crate::magpie::MAX_FLOCK){w.u8(phase);w.u32(id);w.triple(pos);}
@@ -333,6 +335,7 @@ impl WorldSnap {
                 at: r.pair()?, pusher: r.u32()?, rider: r.u32()?, balloon: r.u32()?,
                 stock: r.u8()?.min(crate::yard::WHEELBARROW_CAPACITY),
                 delivery: r.f32()?.clamp(0.0,1.0),
+                yaw: r.f32()?.clamp(-std::f32::consts::PI, std::f32::consts::PI),
             }),
             kind => return Err(DecodeError::UnknownKind(kind)),
         };
@@ -461,7 +464,7 @@ mod tests {
 
     fn sample() -> WorldSnap {
         WorldSnap {
-            wheelbarrow: Some(WheelbarrowSnap { at: (4.2,15.8), pusher: 2, rider: 3, balloon: 13, stock: 12, delivery: 0.4 }),
+            wheelbarrow: Some(WheelbarrowSnap { at: (4.2,15.8), pusher: 2, rider: 3, balloon: 13, stock: 12, delivery: 0.4, yaw: 1.1 }),
             heist: Some(HeistSnap { banks: [1, 0, 2, 0], hatch_open: true, tipsy: 1.0, requesting: 42, escort: false }),
             charges:vec![(2,0.7,1.5)],flock:vec![(4,2,(1.0,2.0,3.0))],
             magpie:(0,0,(14.0,2.2,23.05)),
@@ -547,7 +550,8 @@ mod tests {
     #[test]
     fn a_typical_snapshot_is_small() {
         let bytes = Msg::World(Box::new(sample())).encode();
-        assert!(bytes.len() < 800, "{}", bytes.len());
+        // The cart heading adds one four-byte float when the cart is present.
+        assert!(bytes.len() < 804, "{}", bytes.len());
     }
 
     #[test]

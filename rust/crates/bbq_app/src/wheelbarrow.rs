@@ -18,6 +18,8 @@ const REACH: f32 = 1.55;
 const HANDLE_REACH: f32 = 2.05;
 const SEAT_HEIGHT: f32 = 0.68;
 const PUSH_STEP: f32 = 0.075;
+const TURN_RATE: f32 = 2.2;
+const BACK_UP_ANGLE: f32 = 2.15;
 const REFILL_REACH: f32 = 2.8;
 const REFILL_SECONDS: f32 = 1.7;
 const EMPTY: f32 = 0.0;
@@ -25,6 +27,7 @@ use yard::{BALLOON_STATION, WHEELBARROW_CAPACITY};
 
 pub struct State {
     pub at: (f32, f32),
+    pub yaw: f32,
     pub pusher: Option<PlayerId>,
     pub rider: Option<PlayerId>,
     grip: (f32, f32),
@@ -38,6 +41,7 @@ impl Default for State {
     fn default() -> Self {
         Self {
             at: WHEELBARROW_HOME,
+            yaw: 0.,
             pusher: None,
             rider: None,
             grip: (0., 0.),
@@ -58,6 +62,7 @@ impl State {
             balloon: self.refill.unwrap_or(0),
             stock: self.stock,
             delivery: self.delivery,
+            yaw: self.yaw,
         }
     }
 
@@ -77,6 +82,7 @@ impl State {
             self.refill = (cart.balloon != 0).then_some(cart.balloon);
             self.stock = cart.stock;
             self.delivery = cart.delivery;
+            self.yaw = cart.yaw;
         }
     }
 
@@ -115,10 +121,8 @@ fn near(g: &Game, p: &Player, id: PlayerId) -> bool {
 fn at_handles(g: &Game, p: &Player, id: PlayerId) -> bool {
     let (x, z) = g.wheelbarrow.at;
     crate::smoko_mode::pos(g, p, id).is_some_and(|pos| {
-        pos.y.abs() < 0.45
-            && (pos.x - x).abs() < 0.78
-            && (z - pos.z >= 1.20)
-            && (z - pos.z < HANDLE_REACH)
+        let (side, back) = yard::wheelbarrow_offset((pos.x - x, pos.z - z), -g.wheelbarrow.yaw);
+        pos.y.abs() < 0.45 && side.abs() < 0.78 && (1.20..HANDLE_REACH).contains(&-back)
     })
 }
 
@@ -156,7 +160,7 @@ pub fn input(g: &mut Game, p: &Player, id: PlayerId, push: bool) {
                 (d.mover.x, d.mover.z)
             };
             state.pusher = Some(id);
-            state.grip = (x - state.at.0, z - state.at.1);
+            state.grip = yard::wheelbarrow_offset((x - state.at.0, z - state.at.1), -state.yaw);
         } else if !push && state.rider.is_none() && state.pusher != Some(id) && state.exit.is_none()
         {
             state.rider = Some(id);
@@ -205,7 +209,9 @@ pub fn prompt(g: &Game, p: &Player) -> Option<String> {
     } else if cart.rider == Some(PLAYER_ID) {
         Some(format!("Wheelbarrow • {left}/20 balloons • R: hop out"))
     } else if cart.pusher == Some(PLAYER_ID) {
-        Some(format!("Wheelbarrow • {left}/20 balloons • V: let go"))
+        Some(format!(
+            "Wheelbarrow • {left}/20 balloons • Walk to steer • V: let go"
+        ))
     } else if near(g, p, PLAYER_ID) || at_handles(g, p, PLAYER_ID) {
         Some(format!(
             "Wheelbarrow • {left}/20 balloons • R: ride • V at the handles: push"
@@ -221,33 +227,69 @@ fn overlap(a: yard::Collider, b: &yard::Collider) -> bool {
     a.x0 < b.x1 && a.x1 > b.x0 && a.z0 < b.z1 && a.z1 > b.z0
 }
 
-fn solid_at(yard: &Yard, at: (f32, f32), at_body: Option<(f32, f32)>) -> bool {
+fn solid_at(yard: &Yard, at: (f32, f32), yaw: f32, body_at: (f32, f32)) -> bool {
     let body =
-        at_body.map(|(x, z)| yard::Collider::centred(x, z, CHAR_RADIUS * 2., CHAR_RADIUS * 2., 1.));
-    let [tray, handles] = yard::wheelbarrow_colliders(at);
-    [Some(tray), Some(handles), body]
-        .into_iter()
-        .flatten()
-        .any(|probe| {
-            probe.x0 < -bbq_core::YARD_HALF_X + 0.45
-                || probe.x1 > bbq_core::YARD_HALF_X - 0.45
-                || probe.z0 < -bbq_core::YARD_HALF_Z + 0.45
-                || probe.z1 > bbq_core::YARD_HALF_Z - 0.45
-                || (probe.x0 < yard::POOL_X1
-                    && probe.x1 > yard::POOL_X0
-                    && probe.z0 < yard::POOL_Z1
-                    && probe.z1 > yard::POOL_Z0)
-                || overlap(
-                    probe,
-                    &yard::Collider::centred(yard::TRAMP_X, yard::TRAMP_Z, 5., 5., 1.),
-                )
-                || yard.colliders.iter().any(|c| {
-                    !matches!(
-                        c.kind,
-                        Kind::Wheelbarrow | Kind::VerandaRoof | Kind::HouseRoof
-                    ) && overlap(probe, c)
-                })
-        })
+        yard::Collider::centred(body_at.0, body_at.1, CHAR_RADIUS * 2., CHAR_RADIUS * 2., 1.);
+    let [tray, handles] = yard::wheelbarrow_colliders(at, yaw);
+    [tray, handles, body].into_iter().any(|probe| {
+        probe.x0 < -bbq_core::YARD_HALF_X + 0.45
+            || probe.x1 > bbq_core::YARD_HALF_X - 0.45
+            || probe.z0 < -bbq_core::YARD_HALF_Z + 0.45
+            || probe.z1 > bbq_core::YARD_HALF_Z - 0.45
+            || (probe.x0 < yard::POOL_X1
+                && probe.x1 > yard::POOL_X0
+                && probe.z0 < yard::POOL_Z1
+                && probe.z1 > yard::POOL_Z0)
+            || overlap(
+                probe,
+                &yard::Collider::centred(yard::TRAMP_X, yard::TRAMP_Z, 5., 5., 1.),
+            )
+            || yard.colliders.iter().any(|c| {
+                !matches!(
+                    c.kind,
+                    Kind::Wheelbarrow | Kind::VerandaRoof | Kind::HouseRoof
+                ) && overlap(probe, c)
+            })
+    })
+}
+
+fn angle_delta(angle: f32) -> f32 {
+    use std::f32::consts::{PI, TAU};
+    (angle + PI).rem_euclid(TAU) - PI
+}
+
+impl State {
+    fn push_towards(&mut self, yard: &Yard, target: (f32, f32)) -> (f32, f32) {
+        let (x, z) = self.at;
+        let (gx, gz) = yard::wheelbarrow_offset(self.grip, self.yaw);
+        let handle = (x + gx, z + gz);
+        let (dx, dz) = (target.0 - handle.0, target.1 - handle.1);
+        let distance = dx.hypot(dz);
+        if distance <= 0.0001 {
+            return handle;
+        }
+
+        let k = (PUSH_STEP / distance).min(1.);
+        let next_handle = (handle.0 + dx * k, handle.1 + dz * k);
+        let mut turn = angle_delta(dx.atan2(dz) - self.yaw);
+        if turn.abs() > BACK_UP_ANGLE {
+            // A backward step backs the cart up. A sideways step steers the nose.
+            turn = angle_delta(turn + std::f32::consts::PI);
+        }
+        let max_turn = TURN_RATE * bbq_core::sim::TICK_DT * (distance / PUSH_STEP).min(1.);
+        let next_yaw = angle_delta(self.yaw + turn.clamp(-max_turn, max_turn));
+        // Sweep the tray around the player's grip, keeping their hands at the handles.
+        for yaw in [next_yaw, self.yaw] {
+            let (gx, gz) = yard::wheelbarrow_offset(self.grip, yaw);
+            let at = (next_handle.0 - gx, next_handle.1 - gz);
+            if !solid_at(yard, at, yaw, next_handle) {
+                self.at = at;
+                self.yaw = yaw;
+                return next_handle;
+            }
+        }
+        handle
+    }
 }
 
 fn place(m: &mut Mover, (x, y, z): (f32, f32, f32)) {
@@ -334,36 +376,25 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &mut Yard) {
     if !available(g.rules.mode) || !g.rules.in_play() || g.attract {
         return;
     }
-    let (x, z) = g.wheelbarrow.at;
     if let Some(id) = g.wheelbarrow.pusher {
         if let Some(pos) = crate::smoko_mode::pos(g, p, id).filter(|_| eligible(g, id)) {
-            let (gx, gz) = g.wheelbarrow.grip;
-            let (dx, dz) = (pos.x - x - gx, pos.z - z - gz);
-            let distance = dx.hypot(dz);
-            if distance > 0.0001 {
-                let k = (PUSH_STEP / distance).min(1.);
-                let next = (x + dx * k, z + dz * k);
-                if !solid_at(yard, next, Some((next.0 + gx, next.1 + gz))) {
-                    g.wheelbarrow.at = next;
-                }
-            }
-            let (x, z) = g.wheelbarrow.at;
+            let (x, z) = g.wheelbarrow.push_towards(yard, (pos.x, pos.z));
             if id == PLAYER_ID {
-                p.mover.x = x + gx;
+                p.mover.x = x;
                 p.mover.y = 0.;
-                p.mover.z = z + gz;
+                p.mover.z = z;
                 p.mover.vy = 0.;
             } else if let Some(d) = g.dummies.iter_mut().find(|d| d.id == id) {
-                d.mover.x = x + gx;
+                d.mover.x = x;
                 d.mover.y = 0.;
-                d.mover.z = z + gz;
+                d.mover.z = z;
                 d.mover.vy = 0.;
             }
         } else {
             g.wheelbarrow.pusher = None;
         }
     }
-    yard.set_wheelbarrow(g.wheelbarrow.at);
+    yard.set_wheelbarrow(g.wheelbarrow.at, g.wheelbarrow.yaw);
     let cart = &mut g.wheelbarrow;
     if cart.delivery > EMPTY {
         if !cart.docked() {
@@ -400,7 +431,10 @@ pub fn step(g: &mut Game, p: &mut Player, yard: &mut Yard) {
             ];
             let landing = candidates
                 .into_iter()
-                .map(|(dx, dz)| (x + dx, z + dz))
+                .map(|offset| {
+                    let (dx, dz) = yard::wheelbarrow_offset(offset, g.wheelbarrow.yaw);
+                    (x + dx, z + dz)
+                })
                 .find(|&(x, z)| {
                     let probe =
                         yard::Collider::centred(x, z, CHAR_RADIUS * 2., CHAR_RADIUS * 2., 1.);
@@ -479,4 +513,57 @@ pub fn station_parts() -> Vec<bbq_core::looks::Part> {
         parts.push(sphere(0.027, 0x252834).at(-0.123, 1.27, z * 0.52));
     }
     parts
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn side_step_steers_around_the_handles_and_stops_turning_at_rest() {
+        let yard = Yard::default();
+        let mut cart = State {
+            grip: (0., -1.85),
+            ..State::default()
+        };
+        let (x, z) = cart.at;
+        let target = (x + 0.07, z - 1.85);
+        let handle = cart.push_towards(&yard, target);
+        assert_eq!(handle, target);
+        assert!(cart.yaw > 0.02 && cart.yaw < 0.04);
+        assert!(cart.at.0 > target.0);
+        let pose = (cart.at, cart.yaw);
+        assert_eq!(cart.push_towards(&yard, handle), handle);
+        assert_eq!((cart.at, cart.yaw), pose);
+    }
+
+    #[test]
+    fn backing_up_does_not_spin_the_cart() {
+        let yard = Yard::default();
+        let mut cart = State {
+            grip: (0., -1.85),
+            ..State::default()
+        };
+        let (x, z) = cart.at;
+        cart.push_towards(&yard, (x, z - 1.92));
+        assert!((cart.at.1 - (z - 0.07)).abs() < 0.001);
+        assert!(cart.yaw.abs() < 0.001);
+    }
+
+    #[test]
+    fn a_turn_stops_when_the_swing_would_clip_a_prop() {
+        let mut yard = Yard::default();
+        let mut cart = State {
+            grip: (0., -1.85),
+            ..State::default()
+        };
+        let (x, z) = cart.at;
+        yard.colliders
+            .push(yard::Collider::centred(x + 0.71, z + 0.2, 0.10, 0.10, 1.));
+        let handle = cart.push_towards(&yard, (x + 0.07, z - 1.85));
+        assert!((handle.0 - (x + 0.07)).abs() < 0.001);
+        assert_eq!(cart.yaw, 0.);
+        cart.push_towards(&yard, (handle.0 + 0.075, handle.1));
+        assert!((cart.at.0 - (x + 0.07)).abs() < 0.001);
+    }
 }

@@ -706,8 +706,11 @@ fn sync_wheelbarrow(
 ) {
     let (x,z) = game.wheelbarrow.at;
     let (home_x,home_z) = bbq_core::yard::WHEELBARROW_HOME;
+    let rotation = Quat::from_rotation_y(game.wheelbarrow.yaw);
     for mut transform in &mut models {
-        transform.translation = Vec3::new(x-home_x,0.,z-home_z);
+        // The exported mesh uses yard coordinates. Turn it around its own base.
+        transform.rotation = rotation;
+        transform.translation = Vec3::new(x, 0., z) - rotation * Vec3::new(home_x, 0., home_z);
     }
     let progress = game.wheelbarrow.delivery;
     let (sx,sz) = bbq_core::yard::BALLOON_STATION;

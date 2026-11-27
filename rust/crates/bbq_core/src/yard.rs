@@ -161,9 +161,26 @@ pub const ROOF_BACK_EDGE_Z: f32 = -34.05;
 pub const WHEELBARROW_HOME: (f32,f32) = (4.2,15.8);
 pub const BALLOON_STATION: (f32,f32) = (-11.0,5.3);
 pub const WHEELBARROW_CAPACITY: u8 = 20;
-pub fn wheelbarrow_colliders((x,z): (f32,f32)) -> [Collider; 2] {
-    let tray = Collider::centred(x,z+0.20,1.07,1.23,0.78).of(Kind::Wheelbarrow);
-    let mut handles = Collider::centred(x,z-0.86,0.80,0.96,0.74).of(Kind::Wheelbarrow);
+/// Rotate a cart-local offset from a frame whose nose points along positive Z.
+pub fn wheelbarrow_offset((x, z): (f32, f32), yaw: f32) -> (f32, f32) {
+    let (sin, cos) = yaw.sin_cos();
+    (x * cos + z * sin, z * cos - x * sin)
+}
+
+pub fn wheelbarrow_colliders((x, z): (f32, f32), yaw: f32) -> [Collider; 2] {
+    let (sin, cos) = yaw.sin_cos();
+    let section = |offset, width, depth, height| {
+        let (dx, dz) = wheelbarrow_offset((0., offset), yaw);
+        Collider::centred(
+            x + dx, z + dz,
+            cos.abs() * width + sin.abs() * depth,
+            sin.abs() * width + cos.abs() * depth,
+            height,
+        )
+        .of(Kind::Wheelbarrow)
+    };
+    let tray = section(0.20, 1.07, 1.23, 0.78);
+    let mut handles = section(-0.86, 0.80, 0.96, 0.74);
     handles.no_top = true;
     [tray, handles]
 }
@@ -397,7 +414,7 @@ impl Yard {
         features.smoko = false;
         let mut c = Vec::new();
         c.extend(BACKYARD_STORY_PROPS.iter().map(|&(x,z,w,d,h)| Collider::centred(x,z,w,d,h)));
-        c.extend(wheelbarrow_colliders(WHEELBARROW_HOME));
+        c.extend(wheelbarrow_colliders(WHEELBARROW_HOME, 0.));
         let mut pole = Collider::centred(0.0, 3.0, 0.3, 0.3, 2.3).of(Kind::Pole);
         pole.no_top = true;
         c.push(pole); // clothesline pole
@@ -580,9 +597,9 @@ impl Yard {
         y
     }
 
-    pub fn set_wheelbarrow(&mut self, at: (f32,f32)) {
+    pub fn set_wheelbarrow(&mut self, at: (f32, f32), yaw: f32) {
         let barrow = self.colliders.iter_mut().filter(|c| c.kind == Kind::Wheelbarrow);
-        for (collider, moved) in barrow.zip(wheelbarrow_colliders(at)) { *collider = moved; }
+        for (collider, moved) in barrow.zip(wheelbarrow_colliders(at, yaw)) { *collider = moved; }
     }
 
     /// Whether the old backyard swimming pool is present in this map.

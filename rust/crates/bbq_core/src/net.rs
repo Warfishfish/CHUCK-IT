@@ -13,7 +13,7 @@
 
 /// Bump this whenever a message changes, so old and new copies of the game refuse each other
 /// politely instead of misreading each other.
-pub const PROTOCOL: u16 = 37; // Host-owned wheelbarrow.
+pub const PROTOCOL: u16 = 38; // Replicate wheelbarrow steering.
 /// One signed byte, neutral exactly zero. Cosmetic only; never used to validate a throw.
 pub fn pack_pitch(pitch: f32) -> i8 {
     if !pitch.is_finite() { return 0; }

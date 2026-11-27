@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Backyard wheelbarrow steering follows walking direction with a gradual swing around the handles. It can back up, blocks props with its rotated footprint, and shares its heading in multiplayer.
+
 - Held water balloons sway and squash with the player’s footsteps, then settle when they stop. The local and other-player views use the same animation.
 
 - Rust Backyard props including the compost bin, pool rack, hose reel, birdbath and wheelbarrow block movement. Stand behind the wheelbarrow and press V to push or release it. Press R beside the tray to ride or dismount. The rider draws from a 20-balloon stock. Press R beside the pool attendant to refill it.

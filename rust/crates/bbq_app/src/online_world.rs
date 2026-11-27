@@ -329,7 +329,7 @@ pub fn apply_world(g: &mut Game, yard: &mut Yard, snap: &WorldSnap, my_net: u32,
     }
     if g.rules.mode==GameMode::Race {yard.race=true;yard.colliders.clear();} else {yard.race=false;}
     g.wheelbarrow.apply(snap.wheelbarrow,local);
-    yard.set_wheelbarrow(g.wheelbarrow.at);
+    yard.set_wheelbarrow(g.wheelbarrow.at, g.wheelbarrow.yaw);
     crate::wheelbarrow::pin_peer(g);
     g.race.racers.clear();g.race.throwers.clear();
     if g.rules.mode==GameMode::Race {g.smoko.carries.clear();}
@@ -1097,7 +1097,7 @@ mod tests {
     }
 
     #[test]
-    fn two_player_wheelbarrow_push_and_refill_are_host_owned() {
+    fn two_player_wheelbarrow_turns_on_the_host_and_replicates() {
         let mut host = host_with_a_guest_and(0);
         let (x,z) = bbq_core::yard::WHEELBARROW_HOME;
         let guest_id = REMOTE_ID_BASE+2;
@@ -1117,13 +1117,19 @@ mod tests {
             g.dummies.iter_mut().find(|d| d.id==guest_id).unwrap().mover.z += 0.06;
         }
         host.world_mut().run_schedule(FixedUpdate);
+        assert!(host.world().resource::<Game>().wheelbarrow.at.1 > z + 0.04);
+        host.world_mut().resource_mut::<Game>().dummies.iter_mut()
+            .find(|d| d.id == guest_id).unwrap().mover.x += 0.06;
+        host.world_mut().run_schedule(FixedUpdate);
+        let host_yaw = host.world().resource::<Game>().wheelbarrow.yaw;
+        assert!(host_yaw > 0.01);
         let snap = build_world(host.world().resource::<Game>(), &host.world().resource::<crate::yard_scene::YardRes>().0, 4,0.,&[]);
         let mut guest = app();
         let mut yard = Yard::default();
         let mut g = guest.world_mut().resource_mut::<Game>();
         apply_world(&mut g,&mut yard,&snap,2,"Host");
         assert_eq!(g.wheelbarrow.pusher,Some(PLAYER_ID));
-        assert!(g.wheelbarrow.at.1>z+0.04);
+        assert_eq!(g.wheelbarrow.yaw, host_yaw);
         assert!(yard.colliders.iter().any(|c| c.kind==bbq_core::yard::Kind::Wheelbarrow && c.z1>z+0.85));
     }
 
