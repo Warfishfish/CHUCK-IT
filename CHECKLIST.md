@@ -16,6 +16,8 @@
 
 ## Already in the game ✅
 
+- Backyard poolside art pass adds softer Gumdrop skin, satin enamel on the wheelbarrow, rounded coping, shorter grass near the pool and soft contact shade under the cart and refill stand. Seated characters rock gently as the cart turns.
+
 - Backyard and Teams use the Blender-modelled Poolside wheelbarrow, with a wide tray for the rider. Each match rolls one of five paint colours and shares it with everyone in the room. Consecutive matches use different colours.
 
 - Backyard wheelbarrow steering follows walking direction with a gradual swing around the handles. It can back up, blocks props with its rotated footprint, and shares its heading in multiplayer.

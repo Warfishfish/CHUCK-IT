@@ -42,6 +42,8 @@ pub(crate) struct BlobRoot;
 #[derive(Component)]
 struct BlobBody;
 #[derive(Component)]
+struct GumdropOutline;
+#[derive(Component)]
 pub(crate) struct HandR;
 #[derive(Component)]
 pub(crate) struct HandL;
@@ -156,7 +158,7 @@ pub struct CharactersPlugin;
 
 impl Plugin for CharactersPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, test_pose.before(compute_poses))
+        app.add_systems(Update, (test_pose.before(compute_poses), sync_gumdrop_outline))
             .add_systems(Startup, (spawn_blobs, spawn_dazza))
             .init_resource::<Poses>()
             .init_resource::<Cast>()
@@ -168,7 +170,7 @@ impl Plugin for CharactersPlugin {
                     sync_cast_overrides,
                     rebuild_blobs,
                     swap_models,
-                    compute_poses,
+                    compute_poses.after(crate::visual_review::poolside_fixture),
                     apply_roots,
                     apply_bodies,
                     apply_hands,
@@ -341,6 +343,9 @@ fn spawn_model(
                                 bevy::light::NotShadowCaster,
                                 ChildOf(e),
                             ));
+                            if character == Character::Gumdrop {
+                                oe.insert(GumdropOutline);
+                            }
                             if let Some(mw) = morph {
                                 oe.insert(mw.clone());
                             }
@@ -1236,6 +1241,21 @@ fn to_bevy(q: CQuat) -> Quat {
 #[derive(Resource, Default)]
 struct Poses(Vec<bbq_core::pose::Pose>, Vec<crate::locomotion::Gait>);
 
+fn sync_gumdrop_outline(
+    game: Res<Game>,
+    look: Res<crate::lighting::LookMode>,
+    mut outlines: Query<&mut Visibility, With<GumdropOutline>>,
+) {
+    let visibility = if crate::poolside_style::active(*look, game.rules.mode) {
+        Visibility::Hidden
+    } else {
+        Visibility::Inherited
+    };
+    for mut outline in &mut outlines {
+        outline.set_if_neq(visibility);
+    }
+}
+
 fn compute_poses(
     time: Res<Time>,
     mut game: ResMut<Game>,
@@ -1244,6 +1264,7 @@ fn compute_poses(
     mut previous: Local<std::collections::HashMap<u32,(f32,f32)>>,
     mut gait: Local<std::collections::HashMap<u32, crate::locomotion::Gait>>,
     mut fixture: Local<Option<bool>>,
+    mut seat: Local<crate::poolside_style::SeatSway>,
 ) {
     let dt = time.delta_secs();
     let t = game.now;
@@ -1259,7 +1280,10 @@ fn compute_poses(
     let bots_on = game.options.bots_on || scripted;
     let heist = game.rules.mode == bbq_core::GameMode::Heist;
     let mirror=game.mirror;
-    let wheelbarrow_rider = game.wheelbarrow.rider;
+    let actual_rider = game.wheelbarrow.rider;
+    let wheelbarrow_rider = actual_rider.filter(|_| crate::poolside_style::enabled());
+    let cart_heading = game.wheelbarrow.yaw;
+    let seat_roll = seat.update(wheelbarrow_rider, cart_heading, dt);
     previous.retain(|id,_| game.dummies.iter().any(|d|d.id==*id));
     let weights: Vec<_> = game.dummies.iter().map(|d| d.bot.slots.selected().and_then(|id| game.world.items.get(&id)).map(|it| bbq_core::feel::weight(it.kind))).collect();
     for (index, d) in game.dummies.iter_mut().enumerate() {
@@ -1274,7 +1298,7 @@ fn compute_poses(
             d.anim.feel.hit(V3::new(d.face.sin(),0.0,d.face.cos()),if d.body.wet_t>0.0 {3.0}else{8.0});
         }
         let ordinary = !d.body.is_down() && d.body.stun <= 0.0 && !d.fallen
-            && d.seat.is_none() && d.naughty_t <= 0.0 && d.dragged.is_none() && wheelbarrow_rider != Some(d.id)
+            && d.seat.is_none() && d.naughty_t <= 0.0 && d.dragged.is_none() && actual_rider != Some(d.id)
             && d.mover.dive <= 0.0 && d.anim.slap.is_none() && d.anim.emote.is_none();
         let busy = !ordinary || d.bot.winding || d.anim.swing.is_some();
         let motion = gait.entry(d.id).or_default();
@@ -1301,12 +1325,20 @@ fn compute_poses(
             stun: d.body.stun,
             fallen: d.fallen,
             seated: d.seat.is_some(),
-            naughty: d.naughty_t > 0.0 || wheelbarrow_rider == Some(d.id),
+            naughty: d.naughty_t > 0.0 || actual_rider == Some(d.id),
             dragged_by: d.dragged,
             dive: d.mover.dive,
             ..Default::default()
         };
         let mut pose = d.anim.tick(dt, &inputs);
+        if wheelbarrow_rider == Some(d.id) && d.body.stun <= 0. && !d.anim.feel.frozen() {
+            // Give the knees and belly room inside the sloped tray.
+            pose.body_y += 0.095 + 0.014 * (t * 2.2).sin();
+            pose.body_scale.0 *= 0.91;
+            pose.depth_scale *= 0.94;
+            let (sin, cos) = (cart_heading - pose.yaw).sin_cos();
+            pose.body_rot = pose.body_rot.mul(CQuat::from_euler_xyz(seat_roll * sin, 0., seat_roll * cos));
+        }
         // Replace only the ordinary walking bob, leaving throw/hit/down/emote offsets intact.
         if ordinary && d.mover.grounded && !busy && d.drunk <= 0.0 {
             pose.body_y -= d.anim.walk.sin().abs() * 0.07;

@@ -26,7 +26,7 @@ impl Plugin for ArenaDepthPlugin {
         app.add_systems(Update, (sync, actors).chain());
     }
 }
-fn contact_mesh() -> Mesh {
+pub(crate) fn contact_mesh() -> Mesh {
     let mut p = vec![[0., 0., 0.]];
     let mut c = vec![[1., 1., 1., 1.]];
     let mut ix = Vec::new();

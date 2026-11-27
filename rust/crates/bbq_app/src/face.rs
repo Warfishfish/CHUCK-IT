@@ -158,7 +158,8 @@ fn sync_tints(
     assets: Res<AssetServer>,
     mut mats: ResMut<Assets<StandardMaterial>>,
     cast: Res<crate::characters::Cast>,
-    mut cache: Local<std::collections::HashMap<(u32, u8, u8, bool), Handle<StandardMaterial>>>,
+    mut cache: Local<std::collections::HashMap<(u32, u8, u8, bool, bool), Handle<StandardMaterial>>>,
+    lighting: Res<crate::lighting::LookMode>,
     mut images: ResMut<Assets<Image>>,
     mut dirt_kit: Local<crate::dirt::DirtKit>,
     q: Query<(Entity, &LookTint, Option<&TintShown>)>,
@@ -175,38 +176,55 @@ fn sync_tints(
                 None => continue,
             },
         };
+        let character = owner_character(t.owner, &settings, &cast, online.as_deref());
+        let skin = matches!(t.part, TintPart::Body | TintPart::Head | TintPart::Foot);
+        let gumdrop = character == Some(Character::Gumdrop) && matches!(t.owner, FaceOwner::Blob(_));
+        let satin = skin && gumdrop && crate::poolside_style::active(*lighting, game.rules.mode);
+        let mut bot_skin = None;
         let colour = match t.part {
             TintPart::Body | TintPart::Head | TintPart::Foot => {
-                if !own_body {
+                if own_body {
+                    shade_of(t.part, look.colour(Palette::Body))
+                } else if gumdrop && let FaceOwner::Blob(i) = t.owner {
+                    // Keep the original bot palette at full precision when swapping finishes.
+                    let i = i % crate::characters::BLOB_COLOURS.len();
+                    let base = crate::characters::BLOB_COLOURS[i];
+                    let (part, colour) = match t.part {
+                        TintPart::Head => (1, crate::characters::lighter(base)),
+                        TintPart::Foot => (2, crate::characters::darker(base)),
+                        _ => (0, base),
+                    };
+                    bot_skin = Some(colour);
+                    (1 << 28) | (i as u32 * 3 + part)
+                } else {
                     continue;
                 }
-                shade_of(t.part, look.colour(Palette::Body))
             }
             TintPart::Singlet => look.colour(Palette::Singlet),
             TintPart::Thong => look.colour(Palette::Thong),
             TintPart::Shorts => look.colour(Palette::Shorts),
         };
-        let character = owner_character(t.owner, &settings, &cast, online.as_deref());
         let worn = matches!(character, Some(Character::Egg | Character::Gumdrop))
             && matches!(t.part, TintPart::Singlet | TintPart::Thong);
         // Work in the same linear colour space as the rest of the material palette.
-        let base = crate::models::hex(colour).to_linear();
+        let base = bot_skin.unwrap_or_else(|| crate::models::hex(colour)).to_linear();
         let tint = if worn {
             base.mix(&LinearRgba::new(0.66, 0.55, 0.40, 1.0), 0.16)
         } else {
             base
         };
         let dirt = if matches!(t.part, TintPart::Singlet | TintPart::Shorts) { crate::dirt::level_of(look.dirt) } else { 0 };
-        let shown_key = colour | (dirt as u32) << 24 | (u32::from(worn) << 31);
+        let shown_key = colour | (dirt as u32) << 24 | (u32::from(worn) << 31) | (u32::from(satin) << 30);
         if shown.map(|s| s.0) == Some(shown_key) {
             continue;
         }
-        let skin = matches!(t.part, TintPart::Body | TintPart::Head | TintPart::Foot);
         let m = cache
-            .entry((colour, if skin { 0 } else if t.part == TintPart::Thong { 1 } else { 2 }, dirt, worn))
+            .entry((colour, if skin { 0 } else if t.part == TintPart::Thong { 1 } else { 2 }, dirt, worn, satin))
             .or_insert_with(|| {
-                if skin {
-                    mats.add(crate::style::body_material(crate::models::hex(colour), &assets))
+                if satin {
+                    mats.add(crate::poolside_style::satin(base.into()))
+                } else if skin {
+                    mats.add(crate::style::body_material(base.into(), &assets))
                 } else if matches!(t.part, TintPart::Singlet | TintPart::Shorts) {
                     let picture = dirt_kit.picture(dirt, &mut images);
                     mats.add(crate::style::cloth_material(tint.into(), &assets, picture))

@@ -220,7 +220,7 @@ impl Plugin for YardScenePlugin {
                     sync_race_map,
                     sync_race_return_marker,
                     sync_backyard_cover,
-                    sync_wheelbarrow,
+                    sync_wheelbarrow.after(crate::visual_review::poolside_fixture),
                     paint_wheelbarrow,
                     animate_magpies,
                     animate_garden_visitors,
@@ -247,7 +247,17 @@ fn build_yard(
     let supply_root = commands
         .spawn((Transform::default(), Visibility::default(), SharedSupplies))
         .id();
-    let look = looks_yard::yard_styled(LOOK_SEED, *mode == crate::lighting::LookMode::Polished);
+    let mut look = looks_yard::yard_styled(LOOK_SEED, *mode == crate::lighting::LookMode::Polished);
+    let poolside = crate::poolside_style::active(*mode, bbq_core::GameMode::FreeForAll);
+    if poolside {
+        for part in &mut look.world {
+            // The four cream coping blocks have a shallow round-over inside their old bounds.
+            if part.surface.color == 0xe4e9e5 && (part.pos.y - 0.07).abs() < 0.001 {
+                part.surface.color = 0xece1c8;
+                part.bevel = 0.035;
+            }
+        }
+    }
     if *mode == crate::lighting::LookMode::Polished
         && crate::style::current() == crate::style::Style::Pop
     {
@@ -326,7 +336,7 @@ fn build_yard(
             .id();
         commands.entity(yard_root).add_child(prop);
     }
-    commands.spawn((
+    let cart = commands.spawn((
         WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset("models/wheelbarrow.glb"))),
         Transform::default(), Visibility::default(), WheelbarrowModel, ChildOf(yard_root),
     )).observe(|ready: On<bevy::world_serialization::WorldInstanceReady>,
@@ -343,8 +353,41 @@ fn build_yard(
             };
             commands.entity(entity).insert(section);
         }
-    });
+    }).id();
     let (sx,sz) = bbq_core::yard::BALLOON_STATION;
+    if poolside {
+        let mesh = meshes.add(crate::arena_depth::contact_mesh());
+        let shadow = mats.add(StandardMaterial {
+            base_color: Color::linear_rgba(0.055, 0.075, 0.045, 0.29),
+            alpha_mode: AlphaMode::Blend,
+            unlit: true,
+            cull_mode: None,
+            ..default()
+        });
+        for (parent, at, scale) in [
+            (cart, Vec3::new(0., 0.017, -0.05), Vec3::new(0.94, 1., 1.42)),
+            (yard_root, Vec3::new(sx - 0.18, 0.017, sz), Vec3::new(1.12, 1., 0.66)),
+        ] {
+            commands.spawn((
+                Mesh3d(mesh.clone()), MeshMaterial3d(shadow.clone()),
+                Transform::from_translation(at).with_scale(scale),
+                bevy::light::NotShadowCaster, bevy::light::NotShadowReceiver, ChildOf(parent),
+            ));
+        }
+        // Broad poolside bounce, with no additional shadow map.
+        commands.spawn((
+            PointLight {
+                color: Color::srgb(0.79, 0.90, 1.0),
+                intensity: 19_000.,
+                range: 11.0,
+                radius: 2.4,
+                shadow_maps_enabled: false,
+                ..default()
+            },
+            Transform::from_xyz(-10.8, 3.9, 11.3),
+            ChildOf(yard_root),
+        ));
+    }
     let station = cache.spawn_parts(&mut commands,&crate::wheelbarrow::station_parts(),
         &mut meshes,&mut mats,Transform::from_xyz(sx,0.,sz));
     commands.entity(yard_root).add_child(station);
@@ -729,20 +772,35 @@ fn build_yard(
 
 fn paint_wheelbarrow(
     game: Res<Game>,
+    look: Res<crate::lighting::LookMode>,
     panels: Query<(&WheelbarrowPaint, &MeshMaterial3d<StandardMaterial>)>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let paint = WHEELBARROW_PALETTE[usize::from(game.wheelbarrow.paint.unwrap_or_default())];
+    let enamel = crate::poolside_style::active(*look, game.rules.mode);
     for (section, handle) in &panels {
+        let roughness = match section {
+            WheelbarrowPaint::Tray => 0.46,
+            WheelbarrowPaint::Rim => 0.44,
+            WheelbarrowPaint::Liner => 0.64,
+        };
         let tint = crate::models::hex(match section {
             WheelbarrowPaint::Tray => paint[0],
             WheelbarrowPaint::Rim => paint[1],
             WheelbarrowPaint::Liner => paint[2],
         });
-        if materials.get(&handle.0).is_some_and(|mat| mat.base_color != tint)
-            && let Some(mut mat) = materials.get_mut(&handle.0)
+        if materials.get(&handle.0).is_some_and(|mat| {
+            mat.base_color != tint || (enamel && mat.perceptual_roughness != roughness)
+        }) && let Some(mut mat) = materials.get_mut(&handle.0)
         {
             mat.base_color = tint;
+            if enamel {
+                mat.perceptual_roughness = roughness;
+                mat.metallic = 0.04;
+                mat.reflectance = 0.34;
+                mat.clearcoat = 0.28;
+                mat.clearcoat_perceptual_roughness = 0.48;
+            }
         }
     }
 }

@@ -66,7 +66,7 @@ fn on_lawn(x: f32, z: f32, mode: GameMode, yard: &Yard) -> bool {
     true
 }
 
-fn tile_mesh(cx: f32, cz: f32, mode: GameMode, yard: &Yard, tufts: usize) -> Option<Mesh> {
+fn tile_mesh(cx: f32, cz: f32, mode: GameMode, yard: &Yard, tufts: usize, poolside: bool) -> Option<Mesh> {
     let seed = (cx as i64 as u64).wrapping_mul(73856093) ^ (cz as i64 as u64).wrapping_mul(19349663) ^ 0x6A455;
     let mut rng = Rng::new(seed);
     let mut positions = Vec::new();
@@ -84,7 +84,8 @@ fn tile_mesh(cx: f32, cz: f32, mode: GameMode, yard: &Yard, tufts: usize) -> Opt
         let preview=crate::backyard_finish::enabled();
         let edge=if preview {0.78+0.22*(wx*0.19+wz*0.12).sin()}else{1.0};
         let worn=if preview {1.0-0.32*(-(wx/1.8).powi(2)).exp()}else{1.0};
-        let h = rng.range(0.075, 0.15) * (0.8 + lush * 0.5)*edge*worn;
+        let apron = if poolside { crate::poolside_style::apron_weight(wx, wz) } else { 0. };
+        let h = rng.range(0.075, 0.15) * (0.8 + lush * 0.5)*edge*worn * (1. - 0.28 * apron);
         let tint = if preview {rng.range(0.94,1.06)*(0.92+lush*0.12)}else{rng.range(0.86, 1.12)};
         for _ in 0..3 {
             let angle = rng.range(0.0, std::f32::consts::TAU);
@@ -101,6 +102,7 @@ fn tile_mesh(cx: f32, cz: f32, mode: GameMode, yard: &Yard, tufts: usize) -> Opt
                 // Upward shading normals blend with the lawn; no black back-facing stripes.
                 normals.push([0.0, 1.0, 0.0]);
                 let colour = if preview {crate::backyard_finish::ROOT.lerp(crate::backyard_finish::TIP,t)*tint}else{ROOT_COLOUR.lerp(TIP_COLOUR, t) * tint};
+                let colour = colour.lerp(Vec3::new(0.27, 0.36, 0.16), apron * 0.52);
                 colours.push([colour.x, colour.y, colour.z, 1.0]);
                 uv.push([0.0, t]);
             }
@@ -145,7 +147,7 @@ pub(super) fn sync(
     let (nx, nz) = if mode == GameMode::Race { (10, 7) } else { (7, 5) };
     for ix in -nx..=nx { for iz in -nz..=nz {
         let (x, z) = (ix as f32 * TILE, iz as f32 * TILE);
-        if let Some(mesh) = tile_mesh(x, z, mode, &yard.0, TUFTS_PER_TILE) {
+        if let Some(mesh) = tile_mesh(x, z, mode, &yard.0, TUFTS_PER_TILE, crate::poolside_style::active(*look, mode)) {
             let mut tile = commands.spawn((GrassTile, Mesh3d(meshes.add(mesh)),
                 Transform::from_xyz(x, 0.0, z), bevy::light::NotShadowCaster));
             if let Some(material) = &race_material {

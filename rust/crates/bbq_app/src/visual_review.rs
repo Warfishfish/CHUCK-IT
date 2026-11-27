@@ -30,6 +30,7 @@ impl Plugin for VisualReviewPlugin {
         .init_resource::<ReviewTiming>()
         .add_systems(Startup, configure_window)
         .add_systems(PreUpdate, motion_fixture)
+        .add_systems(Update, poolside_fixture)
         .add_systems(Update, held_fixture.before(crate::items_view::HeldViewSet).before(crate::player::update_camera))
         .add_systems(Last, capture);
     }
@@ -159,7 +160,7 @@ fn motion_mode() -> Option<&'static str> {
     MODE.get_or_init(|| {
         let a: Vec<String> = std::env::args().collect();
         if !a.iter().any(|v|v=="--shot") || !a.iter().any(|v|v=="--review") { return None; }
-        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["walk", "drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie", "magpie-perch", "race-carry", "race-tug", "race-grass", "carry-camera", "charge-fall", "charge-release", "charge-camera", "magpie-flock", "bot-stack"].contains(&v.as_str())).cloned()
+        a.iter().position(|v| v == "--motion-review").and_then(|i| a.get(i+1)).filter(|v| ["walk", "drop", "throw", "held-noodle", "held-rubber", "smoko", "race", "water-balloon", "height", "held-balloon", "magpie", "magpie-perch", "race-carry", "race-tug", "race-grass", "carry-camera", "charge-fall", "charge-release", "charge-camera", "magpie-flock", "bot-stack", "poolside"].contains(&v.as_str())).cloned()
     }).as_deref()
 }
 
@@ -187,9 +188,44 @@ pub fn walking_input(game: &crate::game::Game, player: &mut crate::player::Playe
     }
 }
 
+/// Put Gumdrop and the cart by the pool for matched camera and motion reviews.
+pub(crate) fn poolside_fixture(
+    mut game: ResMut<crate::game::Game>,
+    mut player: ResMut<crate::player::Player>,
+    mut frame: Local<u32>,
+    mut enabled: Local<Option<bool>>,
+) {
+    if !*enabled.get_or_insert_with(|| std::env::args().any(|a| a == "--poolside-review")) {
+        return;
+    }
+    *frame += 1;
+    if *frame == 1 {
+        game.rules.phase = bbq_core::scoring::Phase::Play;
+        game.options.bots_on = false;
+        game.round.banner = None;
+        game.world.clear();
+    }
+    let time = if motion_mode() == Some("poolside") {
+        frame.saturating_sub(185) as f32 / 60.
+    } else {
+        0.
+    };
+    game.wheelbarrow.at = (-9.8 + 0.72 * (time * 1.6).sin(), 11.4 + 0.5 * (1. - (time * 1.6).cos()));
+    game.wheelbarrow.yaw = 0.18 + 0.62 * (time * 1.6).sin();
+    game.wheelbarrow.paint = Some(0);
+    if let Some(d) = game.dummies.first_mut() {
+        d.look = bbq_core::appearance::Appearance::default();
+        d.body = Default::default();
+        game.wheelbarrow.rider = Some(d.id);
+        crate::wheelbarrow::pin_peer(&mut game);
+    }
+    player.mover.x = -6.1;
+    player.mover.z = 15.5;
+}
+
 fn motion_fixture(mut game: ResMut<crate::game::Game>, mut player: ResMut<crate::player::Player>, mut wanted: ResMut<crate::player::Wanted>, mut frame: Local<u32>) {
     let Some(mode) = motion_mode() else { return };
-    if mode=="race" || mode=="walk" {return;}
+    if matches!(mode, "race" | "walk" | "poolside") { return; }
     if mode=="carry-camera" {
         *frame += 1;
         if *frame == 140 {
